@@ -81,7 +81,7 @@ export const operatorLine = () =>
 
 /** Where Neon and the Cloudflare R2 bucket keep data. Null until confirmed: the pages then give no location. */
 export const NEON_LOCATION: string | null = null;
-export const R2_LOCATION: string | null = null;
+export const R2_LOCATION: string | null = "Oceania";
 
 export type Subprocessor = {
   name: string;
