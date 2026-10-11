@@ -80,7 +80,7 @@ export const operatorLine = () =>
   `${LEGAL.product} is operated by ${LEGAL.operator}, a sole trader based in ${LEGAL.state}, ${LEGAL.country}${LEGAL.abn ? ` (ABN ${LEGAL.abn})` : ""}`;
 
 /** Where Neon and the Cloudflare R2 bucket keep data. Null until confirmed: the pages then give no location. */
-export const NEON_LOCATION: string | null = null;
+export const NEON_LOCATION: string | null = "United States";
 export const R2_LOCATION: string | null = "Oceania";
 
 export type Subprocessor = {
