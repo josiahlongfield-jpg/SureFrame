@@ -11,7 +11,9 @@ const saved = existsSync(FILE) ? JSON.parse(readFileSync(FILE, "utf8")) : {};
 let n = saved.n ?? 0;
 const RUN = Math.random().toString(36).slice(2, 8);
 const id = (p) => `${p}_${RUN}${(++n).toString().padStart(6, "0")}`;
-export const state = { products: [], prices: [], customers: [], sessions: [], subs: [], portalConfigs: [], portalSessions: [], deletedCustomers: [], ...saved.state };
+export const state = { products: [], prices: [], customers: [], sessions: [], subs: [], portalConfigs: [], portalSessions: [], deletedCustomers: [], coupons: [], promos: [], ...saved.state };
+state.coupons ??= [];
+state.promos ??= [];
 // Set to true to make the next payment on a subscription change fail.
 export const control = { declineNext: false };
 const persist = () => writeFileSync(FILE, JSON.stringify({ n, state }));
@@ -44,11 +46,38 @@ function subItem(price, quantity, end) {
   return { id: id("si"), object: "subscription_item", price, quantity, current_period_end: end };
 }
 
-export function createSubscription(customer, workspaceId, lookupKey, status = "active") {
+/** A discount on a subscription from a promotion code, as Stripe returns it expanded. */
+function discountFrom(promo, subId) {
+  const start = Math.floor(Date.now() / 1000);
+  const c = promo.promotion.coupon;
+  promo.times_redeemed += 1;
+  return {
+    id: id("di"),
+    object: "discount",
+    source: { type: "coupon", coupon: c },
+    promotion_code: promo,
+    start,
+    end: c.duration === "repeating" ? start + c.duration_in_months * 30 * 86400 : null,
+    subscription: subId,
+  };
+}
+
+/** Why Stripe would refuse a promotion code, or null. */
+function promoRefusal(promoId, customer) {
+  const promo = state.promos.find((x) => x.id === promoId);
+  if (!promo || !promo.active) return "This promotion code is not active.";
+  if (promo.max_redemptions !== null && promo.times_redeemed >= promo.max_redemptions) return "This promotion code has been fully redeemed.";
+  if (promo.restrictions.first_time_transaction && state.subs.some((x) => x.customer === customer)) return "This promotion code cannot be redeemed because the associated customer has prior transactions.";
+  return null;
+}
+
+export function createSubscription(customer, workspaceId, lookupKey, status = "active", { metadata = {}, promotionCode } = {}) {
   const price = state.prices.find((p) => p.lookup_key === lookupKey);
   const end = Math.floor(Date.now() / 1000) + 30 * 86400;
   const card = { id: id("pm"), object: "payment_method", type: "card", card: { brand: "visa", last4: "4242" } };
-  const sub = { id: id("sub"), object: "subscription", customer, status, metadata: { workspaceId }, default_payment_method: card, items: list([subItem(price, 1, end)]) };
+  const sub = { id: id("sub"), object: "subscription", customer, status, metadata: { workspaceId, ...metadata }, default_payment_method: card, items: list([subItem(price, 1, end)]), discounts: [] };
+  const promo = promotionCode && state.promos.find((x) => x.id === promotionCode);
+  if (promo) sub.discounts = [discountFrom(promo, sub.id)];
   state.subs.push(sub);
   return sub;
 }
@@ -127,7 +156,76 @@ export function start(port = Number(process.env.FAKE_STRIPE_PORT ?? 12111)) {
       if (s) s.status = "expired";
       return send(200, s ?? {});
     }
+    if (p === "/v1/coupons" && req.method === "POST") {
+      const c = {
+        id: id("co"),
+        object: "coupon",
+        name: form.name ?? null,
+        percent_off: form.percent_off ? Number(form.percent_off) : null,
+        amount_off: null,
+        currency: null,
+        duration: form.duration ?? "once",
+        duration_in_months: form.duration_in_months ? Number(form.duration_in_months) : null,
+        ...(form.applies_to ? { applies_to: { products: [].concat(form.applies_to.products ?? []) } } : {}),
+        metadata: form.metadata ?? {},
+        valid: true,
+        times_redeemed: 0,
+        max_redemptions: null,
+        redeem_by: null,
+        created: Math.floor(Date.now() / 1000),
+      };
+      state.coupons.push(c);
+      return send(200, c);
+    }
+    if ((m = p.match(/^\/v1\/coupons\/([^/]+)$/)) && req.method === "DELETE") {
+      state.coupons = state.coupons.filter((c) => c.id !== m[1]);
+      return send(200, { id: m[1], object: "coupon", deleted: true });
+    }
+    if (p === "/v1/promotion_codes" && req.method === "GET") {
+      let out = state.promos;
+      if (form.code) out = out.filter((x) => x.code.toUpperCase() === form.code.toUpperCase());
+      if (form.active) out = out.filter((x) => String(x.active) === form.active);
+      return send(200, list([...out].reverse().slice(0, Number(form.limit ?? 10))));
+    }
+    if (p === "/v1/promotion_codes" && req.method === "POST") {
+      const coupon = state.coupons.find((c) => c.id === form.promotion?.coupon);
+      if (!coupon) return send(400, { error: { type: "invalid_request_error", message: "No such coupon" } });
+      if (state.promos.some((x) => x.active && x.code.toUpperCase() === form.code.toUpperCase())) {
+        return send(400, { error: { type: "invalid_request_error", message: "An active promotion code with that code already exists." } });
+      }
+      const promo = {
+        id: id("promo"),
+        object: "promotion_code",
+        active: form.active !== "false",
+        code: form.code,
+        created: Math.floor(Date.now() / 1000) + state.promos.length,
+        customer: null,
+        expires_at: form.expires_at ? Number(form.expires_at) : null,
+        max_redemptions: form.max_redemptions ? Number(form.max_redemptions) : null,
+        metadata: form.metadata ?? {},
+        promotion: { type: "coupon", coupon },
+        restrictions: { first_time_transaction: form.restrictions?.first_time_transaction === "true", minimum_amount: null, minimum_amount_currency: null },
+        times_redeemed: 0,
+      };
+      state.promos.push(promo);
+      return send(200, promo);
+    }
+    if ((m = p.match(/^\/v1\/promotion_codes\/([^/]+)$/))) {
+      const promo = state.promos.find((x) => x.id === m[1]);
+      if (!promo) return send(404, { error: { type: "invalid_request_error", code: "resource_missing", message: "No such promotion code" } });
+      if (req.method === "POST") {
+        if ("active" in form) promo.active = form.active === "true";
+        if (form.metadata) promo.metadata = { ...promo.metadata, ...form.metadata };
+      }
+      return send(200, promo);
+    }
     if (p === "/v1/checkout/sessions" && req.method === "POST") {
+      const promoId = form.discounts?.[0]?.promotion_code;
+      if (promoId) {
+        const refusal = promoRefusal(promoId, form.customer);
+        if (refusal) return send(400, { error: { type: "invalid_request_error", message: refusal } });
+      }
+      if (promoId && form.allow_promotion_codes) return send(400, { error: { type: "invalid_request_error", message: "You may only specify one of these parameters: allow_promotion_codes, discounts." } });
       const s = { id: id("cs"), object: "checkout.session", status: "open", url: `https://checkout.stripe.test/${n}`, params: form };
       state.sessions.push(s);
       return send(200, s);
@@ -142,6 +240,15 @@ export function start(port = Number(process.env.FAKE_STRIPE_PORT ?? 12111)) {
       if (req.method === "POST") {
         sub.lastUpdate = form;
         if ("cancel_at_period_end" in form) sub.cancel_at_period_end = form.cancel_at_period_end === "true";
+        if ("discounts" in form) {
+          const promoId = [].concat(form.discounts || [])[0]?.promotion_code;
+          if (promoId) {
+            // A subscriber has always paid before, so a code for first-time customers is refused.
+            const refusal = promoRefusal(promoId, sub.customer);
+            if (refusal) return send(400, { error: { type: "invalid_request_error", message: refusal } });
+            sub.discounts = [discountFrom(state.promos.find((x) => x.id === promoId), sub.id)];
+          } else sub.discounts = [];
+        }
         if (control.declineNext && form.payment_behavior === "pending_if_incomplete") {
           control.declineNext = false;
           return send(200, { ...sub, pending_update: { expires_at: 0 }, latest_invoice: { id: id("in"), hosted_invoice_url: "https://invoice.stripe.test/pay" } });

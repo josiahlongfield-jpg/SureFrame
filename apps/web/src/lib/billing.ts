@@ -30,21 +30,56 @@ const ITEMS = {
 
 export type CatalogItem = keyof typeof ITEMS;
 const SUFFIX: Record<Interval, string> = { month: "monthly", year: "yearly" };
+const INTERVALS = ["month", "year"] as const;
 
-/** Stripe price lookup key, e.g. sureframe_solo_yearly. */
-export type CatalogKey = `sureframe_${CatalogItem}_${"monthly" | "yearly"}`;
+/**
+ * What founding subscriptions (lib/founding.ts) pay for their plan and extra
+ * seats, whatever the prices in plans.ts become. They're what founding
+ * customers were promised, so never change them. Their Stripe prices have
+ * their own lookup keys (sureframe_founding_…), so raising a normal price
+ * never touches them. Raising a price in plans.ts? Founding workspaces
+ * (Workspace.foundingPrices) still pay these, so show them these in the app.
+ */
+export const FOUNDING_PRICES = {
+  solo: { month: 15, year: 150 },
+  studio: { month: 49, year: 490 },
+  agency: { month: 99, year: 990 },
+  client_seat: { month: 1.5, year: 15 },
+  staff_seat: { month: 8, year: 80 },
+} as const satisfies Partial<Record<CatalogItem, Record<Interval, number>>>;
+type FoundingItem = keyof typeof FOUNDING_PRICES;
+const isFoundingItem = (item: CatalogItem): item is FoundingItem => item in FOUNDING_PRICES;
+
+/** Stripe price lookup key, e.g. sureframe_solo_yearly, or sureframe_founding_solo_yearly for a founding price. */
+export type CatalogKey = `sureframe_${CatalogItem}_${"monthly" | "yearly"}` | `sureframe_founding_${FoundingItem}_${"monthly" | "yearly"}`;
 export const catalogKey = (item: CatalogItem, interval: Interval) => `sureframe_${item}_${SUFFIX[interval]}` as CatalogKey;
+const foundingKey = (item: FoundingItem, interval: Interval) => `sureframe_founding_${item}_${SUFFIX[interval]}` as CatalogKey;
+
+type CatalogEntry = { item: CatalogItem; interval: Interval; product: string; amount: number; founding: boolean };
 
 /**
  * Everything SureFrame sells, keyed by Stripe price lookup key. Products and
  * prices are created in Stripe on first use, so test and live mode need no
- * manual catalog setup and no price ids in env.
+ * manual catalog setup and no price ids in env. A founding price is another
+ * price of the same product.
  */
-export const CATALOG = Object.fromEntries(
-  (Object.keys(ITEMS) as CatalogItem[]).flatMap((item) =>
-    (["month", "year"] as const).map((interval) => [catalogKey(item, interval), { item, interval, product: ITEMS[item].product, amount: ITEMS[item][interval] }]),
+export const CATALOG = Object.fromEntries([
+  ...(Object.keys(ITEMS) as CatalogItem[]).flatMap((item) =>
+    INTERVALS.map((interval) => [catalogKey(item, interval), { item, interval, product: ITEMS[item].product, amount: ITEMS[item][interval], founding: false }]),
   ),
-) as Record<CatalogKey, { item: CatalogItem; interval: Interval; product: string; amount: number }>;
+  ...(Object.keys(FOUNDING_PRICES) as FoundingItem[]).flatMap((item) =>
+    INTERVALS.map((interval) => [foundingKey(item, interval), { item, interval, product: ITEMS[item].product, amount: FOUNDING_PRICES[item][interval], founding: true }]),
+  ),
+]) as Record<CatalogKey, CatalogEntry>;
+
+/** Subscriptions started while founding prices were offered carry this in their metadata for as long as they last. */
+export const FOUNDING_METADATA = { foundingPrices: "yes" } as const;
+export const hasFoundingPrices = (sub: Pick<Stripe.Subscription, "metadata">) => sub.metadata?.foundingPrices === FOUNDING_METADATA.foundingPrices;
+
+/** The price an item is billed at: founding subscriptions keep their founding prices for the plan and extra seats. */
+export function keyFor(item: CatalogItem, interval: Interval, founding: boolean): CatalogKey {
+  return founding && isFoundingItem(item) ? foundingKey(item, interval) : catalogKey(item, interval);
+}
 
 /** Software as a service, business use: eligible for Stripe Managed Payments. */
 const TAX_CODE = "txcd_10103001";
@@ -118,6 +153,20 @@ export async function priceId(key: CatalogKey): Promise<string> {
   cache.set(key, price.id);
   return price.id;
 }
+
+/** Stripe product ids for catalog items (creating any not made yet), for discounts limited to them. */
+export async function productIds(items: CatalogItem[]): Promise<string[]> {
+  await loadCatalog();
+  const out: string[] = [];
+  for (const item of items) {
+    if (!products.has(item)) await priceId(catalogKey(item, "month"));
+    out.push(products.get(item)!);
+  }
+  return out;
+}
+
+/** Which catalog item one of our Stripe products is. */
+export const itemOfProduct = (product: string) => productItems.get(product);
 
 type PriceRef = Pick<Stripe.Price, "lookup_key"> & Partial<Pick<Stripe.Price, "product" | "recurring">>;
 

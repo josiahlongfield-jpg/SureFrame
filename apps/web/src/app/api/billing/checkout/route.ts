@@ -1,6 +1,10 @@
+import { cookies } from "next/headers";
+import type Stripe from "stripe";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { ACTIVE_STATUSES, catalogKey, chargeChange, MANAGED_PAYMENTS, PLAN_ITEM, priceId, unpaid } from "@/lib/billing";
+import { ACTIVE_STATUSES, chargeChange, FOUNDING_METADATA, keyFor, MANAGED_PAYMENTS, PLAN_ITEM, priceId, unpaid } from "@/lib/billing";
+import { foundingOpen } from "@/lib/founding";
+import { checkoutOffer, OFFER_COOKIE } from "@/lib/offers";
 import { PAID_PLANS } from "@/lib/plans";
 import { assertFits, planChange } from "@/lib/planChange";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
@@ -18,7 +22,6 @@ export const POST = handle(async (req: Request) => {
   await limitByIp("billing", 20, 600);
   if (!body.success) throw new HttpError(400, "Invalid plan");
   const { plan, interval } = body.data;
-  const price = await priceId(catalogKey(PLAN_ITEM[plan], interval));
 
   // Already subscribed: switch plans on the existing subscription instead of starting a second one.
   // It's paid for now, and the switch only applies once that payment succeeds.
@@ -40,6 +43,11 @@ export const POST = handle(async (req: Request) => {
   const fresh = await db.workspace.findUniqueOrThrow({ where: { id: workspace.id } });
   // A new subscription must fit the clients and staff already here (a free plan we gave may have had more).
   await assertFits(fresh, plan);
+  // Started while the founding offer runs: founding prices for as long as this subscription lasts (lib/founding.ts).
+  const founding = foundingOpen();
+  const price = await priceId(keyFor(PLAN_ITEM[plan], interval, founding));
+  // A share link's code, else the automatic offer (lib/offers.ts); without either, Checkout asks for a code.
+  const offer = await checkoutOffer((await cookies()).get(OFFER_COOKIE)?.value);
 
   // One checkout at a time per workspace, so two tabs can't start two subscriptions.
   return db.$transaction(
@@ -65,17 +73,29 @@ export const POST = handle(async (req: Request) => {
         await tx.workspace.update({ where: { id: workspace.id }, data: { stripeCustomerId: customer } });
       }
 
-      const session = await stripe().checkout.sessions.create({
+      const params: Stripe.Checkout.SessionCreateParams = {
         mode: "subscription",
         customer,
         line_items: [{ price, quantity: 1 }],
-        allow_promotion_codes: true,
         ...(MANAGED_PAYMENTS ? { managed_payments: { enabled: true } } : { automatic_tax: { enabled: true }, customer_update: { address: "auto", name: "auto" } }),
         client_reference_id: workspace.id,
-        subscription_data: { metadata: { workspaceId: workspace.id } },
+        subscription_data: { metadata: { workspaceId: workspace.id, ...(founding ? FOUNDING_METADATA : {}) } },
         success_url: appUrl("/settings/billing?upgraded=1"),
         cancel_url: appUrl("/pricing"),
-      });
+      };
+      let session: Stripe.Checkout.Session | null = null;
+      if (offer) {
+        // Stripe has the last word (say a code for new customers, and this one has paid before): then it's an ordinary checkout.
+        session = await stripe()
+          .checkout.sessions.create({ ...params, discounts: [{ promotion_code: offer.id }] })
+          .catch((err) => {
+            if ((err as { type?: string })?.type !== "StripeInvalidRequestError") throw err;
+            console.log("[billing] offer not applied at checkout", JSON.stringify({ code: offer.code, error: String((err as Error).message).slice(0, 300) }));
+            return null;
+          });
+      }
+      // A checkout can take a code typed in or one applied for them, not both.
+      session ??= await stripe().checkout.sessions.create({ ...params, allow_promotion_codes: true });
       return Response.json({ url: session.url });
     },
     { timeout: 30_000, maxWait: 30_000 },

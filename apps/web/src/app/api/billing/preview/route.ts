@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { catalogKey, PLAN_ITEM, priceId } from "@/lib/billing";
+import { hasFoundingPrices, keyFor, PLAN_ITEM, priceId } from "@/lib/billing";
 import { PAID_PLANS } from "@/lib/plans";
 import { paymentMethodLabel, planChange } from "@/lib/planChange";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
@@ -30,7 +30,7 @@ export const POST = handle(async (req: Request) => {
     subscription: change.sub.id,
     subscription_details: { items: change.items, billing_cycle_anchor: { type: "now" }, proration_behavior: "always_invoice" },
   });
-  const planPrice = await priceId(catalogKey(PLAN_ITEM[plan], interval));
+  const planPrice = await priceId(keyFor(PLAN_ITEM[plan], interval, hasFoundingPrices(change.sub)));
   const priceOf = (l: (typeof preview.lines.data)[number]) => {
     const p = l.pricing?.price_details?.price;
     return typeof p === "string" ? p : p?.id;

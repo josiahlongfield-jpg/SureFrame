@@ -1,16 +1,51 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import PricingTable from "@/components/PricingTable";
 import { RETENTION_DAYS } from "@/lib/retention";
 import { AI_ASSIST_PRICES, AI_SUMMARIES_PER_MONTH, CLOUD_BACKUP_PRICE, CLOUD_BACKUP_PRICE_YEARLY, PLANS } from "@/lib/plans";
+import { foundingLastDay, foundingOpen } from "@/lib/founding";
+import { automaticOffer, offerForCode, OFFER_COOKIE, quietly, type Offer } from "@/lib/offers";
 
 export const metadata: Metadata = {
   title: "Pricing",
   description: "Simple plans priced by how many clients you work with, in US dollars. Clients always join free. Optional cloud backup and AI add-ons.",
 };
 
-export default function Pricing() {
+const qldDay = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "Australia/Brisbane" });
+
+/** The founding offer, a share link's code (or that it has ended) and the automatic offer, above the plans. */
+function Offers({ founding, code, linked, auto }: { founding: string | null; code?: string; linked: Offer | null; auto: Offer | null }) {
+  const box = "mx-auto mt-6 max-w-3xl rounded-2xl border p-4 text-center text-sm";
+  const offer = linked ?? auto;
+  return (
+    <>
+      {founding && (
+        <p className={`${box} border-brand-200 bg-brand-50 text-brand-900`} data-testid="founding-banner">
+          <span className="font-semibold">Founding prices:</span> start a subscription by {founding} and keep these prices for your plan, extra clients and extra
+          staff for as long as it stays active, even if our prices go up.
+        </p>
+      )}
+      {code && !linked && (
+        <p className={`${box} border-slate-200 bg-slate-50 text-slate-700`} data-testid="offer-ended">
+          The code {code} has ended or isn&rsquo;t valid. You can still subscribe at the prices below.
+        </p>
+      )}
+      {offer && (
+        <p className={`${box} border-emerald-200 bg-emerald-50 text-emerald-900`} data-testid="offer-banner">
+          <span className="font-semibold">{offer === linked ? `Code ${offer.code}:` : "Offer:"}</span> {offer.summary}
+          {offer.newCustomersOnly ? ", for new subscriptions" : ""}.{offer.expiresAt ? ` Use it by ${qldDay(offer.expiresAt)}.` : ""} It comes off at checkout
+          {offer === linked ? "" : ", no code needed"}.
+        </p>
+      )}
+    </>
+  );
+}
+
+export default async function Pricing() {
+  const code = (await cookies()).get(OFFER_COOKIE)?.value;
+  const [linked, auto] = await Promise.all([code ? quietly(offerForCode(code)) : null, quietly(automaticOffer())]);
   return (
     <>
       <SiteHeader />
@@ -19,6 +54,7 @@ export default function Pricing() {
           <h1 className="text-4xl font-semibold tracking-tight text-slate-900">Simple pricing. Clients always free.</h1>
           <p className="mt-4 text-slate-600">Pick a plan by how many clients you work with.</p>
         </div>
+        <Offers founding={foundingOpen() ? foundingLastDay() : null} code={code} linked={linked} auto={auto} />
         <PricingTable />
         <p className="mt-10 text-center text-sm text-slate-500">More than 100 clients? Add extra clients for US$1.50 a month each.</p>
         <p className="mt-2 text-center text-sm text-slate-500" data-testid="free-videos-note">

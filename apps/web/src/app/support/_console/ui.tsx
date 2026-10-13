@@ -58,6 +58,9 @@ export function ConsoleNav() {
       <Link href="/support/accounts" className={link}>
         Free plans
       </Link>
+      <Link href="/support/offers" className={link}>
+        Offers
+      </Link>
     </nav>
   );
 }
@@ -111,6 +114,9 @@ const LABELS: Record<string, string> = {
   "plan.complimentary": "Complimentary plan changed",
   "plan.complimentary_ai": "Complimentary AI summaries changed",
   "account.export": "Account data downloaded",
+  "offer.create": "Offer created",
+  "offer.end": "Offer ended",
+  "offer.automatic": "Automatic offer changed",
 };
 export const actionLabel = (action: string) => LABELS[action] ?? action;
 
@@ -157,6 +163,14 @@ export function actionFacts(row: Pick<AdminAction, "action" | "details">): strin
       break;
     case "account.delete_now":
       if (d.deleted === false) out.push("Already deleted");
+      break;
+    case "offer.create":
+    case "offer.end":
+    case "offer.automatic":
+      if (typeof d.summary === "string") out.push(d.summary);
+      if (row.action === "offer.create" && d.automatic) out.push("Applied automatically");
+      if (row.action === "offer.automatic") out.push(d.automatic ? "Now applied automatically" : "No longer applied automatically");
+      if (row.action === "offer.end" && typeof d.uses === "number") out.push(`Used ${d.uses} time${d.uses === 1 ? "" : "s"}`);
       break;
     case "account.cancel_deletion":
       if (d.planEnded) out.push("Their paid plan had ended meanwhile");

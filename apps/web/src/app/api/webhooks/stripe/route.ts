@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { alertFounder } from "@/lib/founderAlert";
 import { rateLimit } from "@/lib/rateLimit";
+import { DISCOUNT_EXPAND } from "@/lib/offers";
 import { forgetSubscription, syncSubscription } from "@/lib/subscription";
 
 const money = (cents: number, currency: string) => `${currency.toUpperCase()} ${(cents / 100).toFixed(2)}`;
@@ -77,7 +78,7 @@ export async function POST(req: Request) {
     case "customer.subscription.updated":
     case "customer.subscription.deleted":
       // Re-read so out-of-order deliveries always apply the latest state.
-      await syncSubscription(await stripe().subscriptions.retrieve(event.data.object.id));
+      await syncSubscription(await stripe().subscriptions.retrieve(event.data.object.id, { expand: DISCOUNT_EXPAND }));
       break;
     case "customer.deleted":
       await customerDeleted(event.data.object.id);

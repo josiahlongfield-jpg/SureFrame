@@ -1,6 +1,6 @@
 import type Stripe from "stripe";
 import { db, type Workspace } from "@/lib/db";
-import { ACTIVE_STATUSES, AI_ITEM, catalogKey, catalogOf, isAiItem, PLAN_ITEM, planOf, priceId } from "@/lib/billing";
+import { ACTIVE_STATUSES, AI_ITEM, catalogOf, hasFoundingPrices, isAiItem, keyFor, PLAN_ITEM, planOf, priceId } from "@/lib/billing";
 import { PLANS, staffSeatLimit, TEAM_PLANS, type Interval, type PaidPlan } from "@/lib/plans";
 import { HttpError } from "@/lib/session";
 import { stripe } from "@/lib/stripe";
@@ -35,7 +35,9 @@ export async function assertFits(workspace: Workspace, plan: PaidPlan) {
 export async function planChange(workspace: Workspace, plan: PaidPlan, interval: Interval): Promise<PlanChange | null> {
   const sub = await currentSubscription(workspace, { expand: ["default_payment_method"] });
   if (!sub || !ACTIVE_STATUSES.has(sub.status)) return null;
-  const price = await priceId(catalogKey(PLAN_ITEM[plan], interval));
+  // Founding subscriptions keep founding prices on whichever plan they move to (lib/founding.ts).
+  const founding = hasFoundingPrices(sub);
+  const price = await priceId(keyFor(PLAN_ITEM[plan], interval, founding));
   const item = sub.items.data.find((i) => planOf(i.price));
   if (item?.price.id === price) return { sub, items: [], same: true, removesItems: false };
 
@@ -50,7 +52,7 @@ export async function planChange(workspace: Workspace, plan: PaidPlan, interval:
         if (entry?.item === "staff_seat" && !TEAM_PLANS.includes(plan)) return { id: i.id, deleted: true };
         // AI summaries are priced by plan, so the add-on follows the new plan.
         const target = entry && isAiItem(entry.item) ? AI_ITEM[plan] : entry?.item;
-        return entry && target && (entry.interval !== interval || target !== entry.item) ? { id: i.id, price: await priceId(catalogKey(target, interval)) } : null;
+        return entry && target && (entry.interval !== interval || target !== entry.item) ? { id: i.id, price: await priceId(keyFor(target, interval, founding)) } : null;
       }),
   );
   const items = [item ? { id: item.id, price } : { price, quantity: 1 }, ...extras.filter((x) => x !== null)];

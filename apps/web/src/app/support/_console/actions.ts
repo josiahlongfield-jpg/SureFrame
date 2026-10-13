@@ -34,6 +34,7 @@ import {
   setFreeVideosUsed,
   unblockEmailAndTell,
 } from "@/lib/support/console";
+import { createOffer, endOffer, setAutomaticOffer } from "@/lib/support/offers";
 
 /** What a support console form shows after it's sent: only errors (success goes to the page's "Done" banner). */
 export type PowerResult = { ok: false; message: string } | null;
@@ -83,6 +84,22 @@ const Power = z.discriminatedUnion("power", [
   z.object({ power: z.literal("seatCheck"), workspaceId: id, reason, notify: box }),
   z.object({ power: z.literal("blockEmail"), email, reason, category: category.optional(), notify: box }),
   z.object({ power: z.literal("unblockEmail"), email, reason, notify: box }),
+  z.object({
+    power: z.literal("createOffer"),
+    code: z.string().trim().min(1, "Enter the code.").max(40),
+    percentOff: z.coerce.number({ error: "Enter a percentage from 1 to 100." }).int("Enter a whole percentage.").min(1, "Enter a percentage from 1 to 100.").max(100, "Enter a percentage from 1 to 100."),
+    duration: z.enum(["once", "repeating", "forever"], { error: "Choose how long the discount lasts." }),
+    months: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int().min(1, "Enter how many months, 1 to 36.").max(36, "Enter how many months, 1 to 36.").optional()),
+    scope: z.enum(["plan", "seats", "all"], { error: "Choose what it comes off." }),
+    maxUses: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int("Enter a whole number.").min(1, "Enter 1 or more uses, or leave it empty.").max(100_000).optional()),
+    lastDay: z.preprocess((v) => (v === "" ? undefined : v), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose the last day it can be used.").optional()),
+    newCustomersOnly: box,
+    automatic: box,
+    reason,
+  }),
+  z.object({ power: z.literal("endOffer"), promotionCodeId: id, reason }),
+  z.object({ power: z.literal("autoOfferOn"), promotionCodeId: id, reason }),
+  z.object({ power: z.literal("autoOfferOff"), promotionCodeId: id, reason }),
 ]);
 type Power = z.infer<typeof Power>;
 
@@ -157,6 +174,13 @@ async function dispatch(a: SupportAdmin, p: Power): Promise<{ actionId: string; 
       return { actionId: (await blockEmail(a, p)).actionId, back: await emailPage(p.email) };
     case "unblockEmail":
       return { actionId: (await unblockEmailAndTell(a, p)).actionId, back: await emailPage(p.email) };
+    case "createOffer":
+      return { actionId: (await createOffer(a, p)).actionId, back: "/support/offers" };
+    case "endOffer":
+      return { actionId: (await endOffer(a, p)).actionId, back: "/support/offers" };
+    case "autoOfferOn":
+    case "autoOfferOff":
+      return { actionId: (await setAutomaticOffer(a, { promotionCodeId: p.promotionCodeId, reason: p.reason, on: p.power === "autoOfferOn" })).actionId, back: "/support/offers" };
   }
 }
 

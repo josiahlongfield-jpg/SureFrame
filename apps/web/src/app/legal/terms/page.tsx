@@ -9,7 +9,7 @@ export default function Page() {
   const mail = <a href={`mailto:${LEGAL.email}`}>{LEGAL.email}</a>;
   const freeVideos = PLANS.FREE.maxVideos;
   return (
-    <LegalPage title="Terms of Service" version={LEGAL.termsVersion}>
+    <LegalPage title="Terms of Service" version={LEGAL.termsVersion} updated={LEGAL.termsUpdated}>
       <p>
         {operatorLine()} (&ldquo;we&rdquo;, &ldquo;us&rdquo;). These terms apply when you use {LEGAL.product} at {LEGAL.website} (and in any apps we release).
       </p>
@@ -120,6 +120,18 @@ export default function Page() {
           gives one under its own terms. If you think you&rsquo;ve been charged in error, email {mail}.
         </li>
         <li>We may change our prices. We&rsquo;ll give you at least 30 days&rsquo; notice by email, and the new price applies from your next renewal.</li>
+        <li id="founding-prices">
+          Founding prices are the exception. If your subscription started while we offered founding prices, our price changes don&rsquo;t apply to your plan,
+          extra clients or extra staff logins for as long as that subscription stays active, including when you switch plans or between monthly and yearly
+          billing. They don&rsquo;t cover add-ons or tax. They end if the subscription ends (for example, you cancel and the period you paid for runs out), and a
+          new subscription pays our prices at the time.
+        </li>
+        <li id="discounts">
+          Discount codes and offers work as described when you use them: how much comes off, what it comes off and for how long. On yearly billing, a discount
+          that lasts a number of months comes off your first yearly bill. When a discount ends, the normal price applies from your next bill. Only one discount
+          applies to a subscription at a time, discounts can&rsquo;t be exchanged for cash, and some are for new subscriptions only. An offer closes when its
+          last day or number of uses is reached, but a discount you already have keeps running for the time it was offered.
+        </li>
         <li>If a payment fails, we may limit paid features until it&rsquo;s resolved.</li>
       </ul>
 

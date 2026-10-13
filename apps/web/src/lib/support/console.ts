@@ -434,6 +434,8 @@ const billingFields = (w: Workspace) => ({
   cancelsAt: w.cancelsAt?.toISOString() ?? null,
   extraClientSeats: w.extraClientSeats,
   extraStaffSeats: w.extraStaffSeats,
+  foundingPrices: w.foundingPrices,
+  discountLabel: w.discountLabel,
   cloudBackup: w.cloudBackup,
   aiAssist: w.aiAssist,
 });

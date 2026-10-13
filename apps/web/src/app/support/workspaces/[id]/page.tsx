@@ -81,6 +81,7 @@ export default async function SupportWorkspace({ params, searchParams }: { param
               ["Owner's email blocked", ownerBlocked ? "Yes: it can't sign in or sign up" : "No"],
               ["Plan", `${planName(w.plan)}${w.billingInterval ? `, billed every ${w.billingInterval}` : ""}`],
               ["Complimentary plan", w.complimentaryPlan ? `${planName(w.complimentaryPlan)}${w.stripeSubscriptionId ? " (replaced while they pay)" : " (free of charge)"}` : "No"],
+              ["Pricing", `${w.foundingPrices ? "Founding prices" : "Standard prices"}${w.discountLabel ? `; discount ${w.discountLabel}${w.discountEndsAt ? ` until ${day(w.discountEndsAt)}` : ""}` : ""}`],
               ["Subscription", w.subscriptionStatus ?? "None"],
               [
                 "Stripe",

@@ -114,6 +114,12 @@ model Workspace {
   extraClientSeats      Int                @default(0)
   /// Staff seats bought on top of the plan's included staff (Studio and Agency).
   extraStaffSeats       Int                @default(0)
+  /// The subscription started during the founding offer, so it keeps founding prices (lib/founding.ts). From Stripe.
+  foundingPrices        Boolean            @default(false)
+  /// The subscription's discount in plain words ("SPRING20: 20% off your plan"), from Stripe (lib/offers.ts).
+  discountLabel         String?
+  /// When that discount stops applying. Null for one that lasts while subscribed or is for the next bill only.
+  discountEndsAt        DateTime?
   /// Paid add-on: keep encrypted copies on the server instead of expiring them.
   cloudBackup           Boolean            @default(false)
   /// Paid add-on: AI transcripts and summaries. Transcripts are made on the

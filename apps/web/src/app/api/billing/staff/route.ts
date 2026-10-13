@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { enforceSeatLimits } from "@/lib/seatLimits";
-import { ACTIVE_STATUSES, addOnChanges, catalogKey, changeAddOns, intervalOf, priceId, unpaid } from "@/lib/billing";
+import { ACTIVE_STATUSES, addOnChanges, changeAddOns, hasFoundingPrices, intervalOf, keyFor, priceId, unpaid } from "@/lib/billing";
 import { PLANS, TEAM_PLANS } from "@/lib/plans";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
 import { currentSubscription } from "@/lib/subscription";
@@ -32,7 +32,7 @@ export const POST = handle(async (req: Request) => {
   const sub = await currentSubscription(workspace);
   if (!sub) throw new HttpError(400, "Start a paid subscription first");
   if (!ACTIVE_STATUSES.has(sub.status)) throw new HttpError(400, "Your subscription is not active");
-  const price = await priceId(catalogKey("staff_seat", intervalOf(sub)));
+  const price = await priceId(keyFor("staff_seat", intervalOf(sub), hasFoundingPrices(sub)));
   const items = addOnChanges(sub, "staff_seat", price, body.data.extraStaff);
   const charge = await changeAddOns(sub, items, { adds: body.data.extraStaff > workspace.extraStaffSeats });
   if (!charge.paid) return unpaid(charge);

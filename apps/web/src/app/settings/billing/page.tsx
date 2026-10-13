@@ -4,6 +4,7 @@ import AppHeader from "@/components/AppHeader";
 import ManageBillingButton from "@/components/ManageBillingButton";
 import CloudBackupToggle from "@/components/CloudBackupToggle";
 import AiAssistToggle from "@/components/AiAssistToggle";
+import RedeemCode from "@/components/RedeemCode";
 import { summaryUsage } from "@/lib/ai/summary";
 import { readManifest } from "@/lib/ai/speechModel";
 import { RETENTION_DAYS } from "@/lib/retention";
@@ -104,6 +105,18 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
               </p>
             )
           )}
+          {workspace.stripeSubscriptionId && workspace.foundingPrices && (
+            <p className="mt-2 text-sm text-emerald-700" data-testid="founding-prices">
+              <span className="font-semibold">Founding prices.</span> You keep today&apos;s prices for your plan, extra clients and extra staff while this
+              subscription stays active, even if our prices go up.
+            </p>
+          )}
+          {workspace.stripeSubscriptionId && workspace.discountLabel && (
+            <p className="mt-2 text-sm text-slate-700" data-testid="discount">
+              Discount: {workspace.discountLabel}
+              {workspace.discountEndsAt ? `, until ${day(workspace.discountEndsAt, workspace.timezone)}` : ""}.
+            </p>
+          )}
           {plan.showsPromo && (
             <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
               Your clients see a short SureFrame intro before each video. Any paid plan removes it and lets you add your own logo and colours (a small Made with {BRAND.name} credit stays).
@@ -129,6 +142,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
               <Link href="/pricing" className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">{comp ? "Choose a paid plan" : "Upgrade"}</Link>
             )}
           </div>
+          <RedeemCode subscribed={!!workspace.stripeSubscriptionId} hasDiscount={!!(workspace.stripeSubscriptionId && workspace.discountLabel)} />
         </div>
         <CloudBackupToggle
           enabled={workspace.cloudBackup}

@@ -1,8 +1,9 @@
 import type Stripe from "stripe";
-import { ACTIVE_STATUSES, catalogOf, intervalOf, isAiItem, loadCatalog, planOf } from "@/lib/billing";
+import { ACTIVE_STATUSES, catalogOf, hasFoundingPrices, intervalOf, isAiItem, loadCatalog, planOf } from "@/lib/billing";
 import { db, type Workspace } from "@/lib/db";
 import { backupEnded } from "@/lib/backupEnded";
 import { alertFounder } from "@/lib/founderAlert";
+import { discountOf } from "@/lib/offers";
 import { rateLimit } from "@/lib/rateLimit";
 import { applyBackupSetting } from "@/lib/retention";
 import { enforceSeatLimits } from "@/lib/seatLimits";
@@ -28,6 +29,9 @@ export async function forgetSubscription(workspace: Workspace, { customer = fals
       billingInterval: null,
       extraClientSeats: 0,
       extraStaffSeats: 0,
+      foundingPrices: false,
+      discountLabel: null,
+      discountEndsAt: null,
       cloudBackup: false,
       aiAssist: workspace.aiAssistComplimentary && workspace.aiAssist,
       currentPeriodEnd: null,
@@ -160,6 +164,10 @@ export async function syncSubscription(sub: Stripe.Subscription, { notify = true
   // AI summaries: paid for on the subscription, or given free by the founder (and still switched on).
   // Free AI ends when they start paying by card; from then on it's the paid add-on.
   const aiAssist = (active && sub.items.data.some((i) => isAiItem(catalogOf(i.price)?.item))) || (!paying && workspace.aiAssistComplimentary && workspace.aiAssist);
+  // Shown on Settings > Billing only, so a Stripe hiccup reading it leaves the last one in place rather than failing the sync.
+  const discount = active
+    ? await discountOf(sub).catch((err) => (console.error("[billing] reading a subscription's discount failed", String(err)), undefined))
+    : null;
   await db.workspace.update({
     where: { id: workspaceId },
     data: {
@@ -173,6 +181,8 @@ export async function syncSubscription(sub: Stripe.Subscription, { notify = true
       billingInterval: paying ? (catalogOf(planItem.price)?.interval ?? null) : null,
       extraClientSeats: active ? (seatItem?.quantity ?? 0) : 0,
       extraStaffSeats: active ? (staffItem?.quantity ?? 0) : 0,
+      foundingPrices: active && hasFoundingPrices(sub),
+      ...(discount !== undefined ? { discountLabel: discount?.label ?? null, discountEndsAt: discount?.endsAt ?? null } : {}),
       cloudBackup,
       aiAssist,
       currentPeriodEnd: active && planItem?.current_period_end ? new Date(planItem.current_period_end * 1000) : null,

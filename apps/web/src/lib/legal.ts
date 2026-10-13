@@ -55,6 +55,11 @@ export const LEGAL = {
   privacyVersion: "2026-10-11",
   dpaVersion: "1.0",
   updated: "11 October 2026",
+  /**
+   * The Terms page's own "last updated" date. A change that only adds to what customers get (founding prices and
+   * discount offers, 13 October 2026) isn't one to agree to again, so it keeps termsVersion and moves only this.
+   */
+  termsUpdated: "13 October 2026",
 };
 
 /**
