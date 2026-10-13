@@ -131,7 +131,7 @@ export default function Page() {
           number of months comes off every bill that starts within those months, so on yearly billing it comes off your first yearly bill in full. A code you
           add to a subscription that&rsquo;s already running counts from that day, so we only accept one that lasts until your next bill, and a first-bill-only
           code can only be used when you start a subscription. When a discount ends, the normal price applies from your next bill. Only one discount applies to
-          a subscription at a time, discounts can&rsquo;t be exchanged for cash, and some are only for businesses that haven&rsquo;t paid us before. An offer
+          a subscription at a time, discounts can&rsquo;t be exchanged for cash, and some are only for businesses we&rsquo;ve never billed before. An offer
           closes when its last day or number of uses is reached, but a discount you already have keeps running for the time it was offered.
         </li>
         <li>If a payment fails, we may limit paid features until it&rsquo;s resolved.</li>

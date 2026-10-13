@@ -18,9 +18,9 @@ function status(o: Offer) {
   return <Badge tone="green">Active</Badge>;
 }
 
-/** Who can use an offer (lib/offers.ts: subscribers can't add a first-bill code, and Stripe's new-customer rule is "never paid"). */
+/** Who can use an offer (lib/offers.ts: subscribers can't add a first-bill code, and Stripe's new-customer rule is "never billed"). */
 function whoCanUse(o: Offer) {
-  if (o.newCustomersOnly) return "Businesses that haven't paid us before, when they start a subscription";
+  if (o.newCustomersOnly) return "Businesses we've never billed before, when they start a subscription";
   if (o.coupon.duration === "once") return "New subscriptions (a first-bill code can't be added to a subscription that's running)";
   return "New subscriptions, and current subscribers on Settings > Billing when it lasts until their next bill";
 }
@@ -149,7 +149,7 @@ export default async function Offers({ searchParams }: { searchParams: Promise<{
           <Check
             name="newCustomersOnly"
             label="New customers only"
-            hint="Only for businesses that have never paid us before (Stripe's rule), so not for anyone who subscribed before and left. Current subscribers can't use it on Settings > Billing."
+            hint="Only for businesses we've never billed before, paid or not (Stripe's rule), so not for anyone who subscribed or tried to before. Current subscribers can't use it on Settings > Billing."
           />
           <Check name="automatic" label="Apply it to every new subscription without a code" hint="The pricing page says so. Only one offer can be applied automatically." />
           <p className="text-xs text-slate-500">

@@ -167,9 +167,17 @@ session = lastSession();
 ok("and at checkout", res.ok() && session.allow_promotion_codes === "true" && !session.discounts);
 await visitor.goto(`${BASE}/offer/NOPE-${stamp}`);
 ok("an unknown code says it has ended", (await visitor.locator('[data-testid="offer-ended"]').count()) === 1);
+ok("and isn't remembered", (await visitor.context().cookies()).find((c) => c.name === "sf_offer")?.value.startsWith(`${CODE}.`));
 res = await api(visitor, "/api/billing/checkout", { plan: "STUDIO" });
 session = lastSession();
-ok("an unknown code leaves an ordinary checkout", res.ok() && session.allow_promotion_codes === "true" && !session.discounts);
+ok("so checkout still applies the earlier code", res.ok() && session.discounts?.[0]?.promotion_code === promo.id);
+const strangerPage = await (await browser.newContext()).newPage();
+await strangerPage.goto(`${BASE}/offer/NOPE-${stamp}`);
+ok("an unknown link alone leaves no code", (await strangerPage.context().cookies()).every((c) => c.name !== "sf_offer"));
+await strangerPage.goto(`${BASE}/offer/${CODE}`);
+await strangerPage.goto(`${BASE}/offer/${CODE}`);
+ok("opening the same link twice still works", (await strangerPage.context().cookies()).some((c) => c.name === "sf_offer" && c.value.startsWith(`${CODE}.`)));
+await strangerPage.context().close();
 
 // 4) The automatic offer: every new checkout gets it, no code needed. One at a time.
 err = await power(`auto-on-${CODE}`);
@@ -177,7 +185,11 @@ ok("offer made automatic", !err && promo.metadata.sureframe_auto === "yes", err)
 const freshEmail = `fresh${stamp}@example.com`;
 const fresh = await signIn(freshEmail);
 t = (await text(fresh, "/pricing"));
-ok("pricing page shows the automatic offer", /Offer: 20% off your plan for 3 months, for new subscriptions\. It comes off at checkout when you start a subscription, no code needed\./.test(t), t.slice(0, 400));
+ok(
+  "pricing page shows the automatic offer",
+  /Offer: 20% off your plan for 3 months, for new subscriptions\. It comes off at checkout when you start a subscription, no code needed\. Have a different code\? Enter it on Settings > Billing before you choose a plan\./.test(t),
+  t.slice(0, 500),
+);
 res = await api(fresh, "/api/billing/checkout", { plan: "SOLO" });
 session = lastSession();
 ok("checkout applies the automatic offer", res.ok() && session.discounts?.[0]?.promotion_code === promo.id);
@@ -219,7 +231,7 @@ await api(third, "/api/billing/checkout", { plan: "SOLO" });
 const sub3 = createSubscription(lastSession().customer, sub3Ws.id, "sureframe_solo_monthly");
 await webhook(third, "customer.subscription.created", sub3);
 res = await api(third, "/api/billing/code", { code: NEWCODE });
-ok("a new-customers code is refused for a subscriber", res.status() === 400 && /haven't paid us before/.test((await res.json()).error));
+ok("a new-customers code is refused for a subscriber", res.status() === 400 && /we've never billed before/.test((await res.json()).error));
 const once = await fake.coupons.create({ name: "ONCE", percent_off: 30, duration: "once", metadata: { sureframe_scope: "all" } });
 const ONCECODE = `ONCE-${String(stamp).slice(-6)}`;
 await fake.promotionCodes.create({ promotion: { type: "coupon", coupon: once.id }, code: ONCECODE });
@@ -249,10 +261,10 @@ ok("the saved code beats the automatic offer at checkout", res.ok() && session.d
 sub3.status = "canceled";
 await webhook(third, "customer.subscription.deleted", sub3);
 res = await api(third, "/api/billing/code", { code: NEWCODE });
-ok("a returning business can't save a new-customers code", res.status() === 400 && /haven't paid us before/.test((await res.json()).error));
+ok("a returning business can't save a new-customers code", res.status() === 400 && /we've never billed before/.test((await res.json()).error));
 await third.goto(`${BASE}/offer/${NEWCODE}`);
 t = ((await third.textContent('[data-testid="offer-banner"]').catch(() => "")) ?? "").replace(/\s+/g, " ");
-ok("the link's banner says who it's for", t.includes("for businesses that haven't paid us before") && !t.includes("Already subscribed"), t);
+ok("the link's banner says who it's for", t.includes("for businesses we've never billed before") && !t.includes("Already subscribed"), t);
 res = await api(third, "/api/billing/checkout", { plan: "SOLO" });
 session = lastSession();
 ok("when Stripe refuses the link's code, the automatic offer applies", res.ok() && session.discounts?.[0]?.promotion_code === promo.id, JSON.stringify(session.discounts));

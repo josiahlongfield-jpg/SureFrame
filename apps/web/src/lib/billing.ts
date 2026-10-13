@@ -208,10 +208,13 @@ export const ACTIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
  * paid after): given them now, as the Terms promise. Founding prices for the
  * plan and extra seats replace the standard ones with no proration, so
  * nothing is charged or credited (they're the same amounts until our prices
- * change). Returns whether it changed anything.
+ * change). Only for a subscription made in the last two days, as the offer's
+ * start isn't recorded; one that wasn't active yet gets them when it becomes
+ * active. Returns whether it changed anything.
  */
 export async function adoptFoundingPrices(sub: Stripe.Subscription): Promise<boolean> {
-  if (hasFoundingPrices(sub) || !ACTIVE_STATUSES.has(sub.status) || !foundingOpen(new Date(sub.created * 1000))) return false;
+  const created = sub.created * 1000;
+  if (hasFoundingPrices(sub) || !ACTIVE_STATUSES.has(sub.status) || Date.now() - created > 2 * 86_400_000 || !foundingOpen(new Date(created))) return false;
   await loadCatalog();
   const items: Stripe.SubscriptionUpdateParams.Item[] = [];
   for (const i of sub.items.data) {

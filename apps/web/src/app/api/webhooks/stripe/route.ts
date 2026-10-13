@@ -12,6 +12,32 @@ const money = (cents: number, currency: string) => `${currency.toUpperCase()} ${
 /** One email per subject a day, however many times Stripe sends the event. */
 const once = (key: string) => rateLimit(`alert:${key}`, 1, 86400).then(() => true, () => false);
 
+/**
+ * Re-reads a subscription (so out-of-order deliveries always apply the latest
+ * state), gives it founding prices if it started during the offer without
+ * them (lib/billing.ts), and records it. If founding prices couldn't be
+ * given, the subscription is still recorded, the founder is told, and the
+ * event fails so Stripe sends it again.
+ */
+async function syncWithFounding(id: string) {
+  let sub = await stripe().subscriptions.retrieve(id, { expand: DISCOUNT_EXPAND });
+  let failed: unknown = null;
+  try {
+    if (await adoptFoundingPrices(sub)) sub = await stripe().subscriptions.retrieve(id, { expand: DISCOUNT_EXPAND });
+  } catch (err) {
+    failed = err;
+    console.error("[billing] couldn't give founding prices", JSON.stringify({ subscription: id, error: String(err).slice(0, 300) }));
+    if (await once(`founding:${id}`)) {
+      await alertFounder("Founding prices not given to a new subscription", [
+        `Subscription ${id} (workspace ${sub.metadata?.workspaceId ?? "unknown"}) started while founding prices were offered, but they couldn't be added. Stripe will retry.`,
+        "If it keeps failing: in the Stripe Dashboard, add the metadata foundingPrices = yes and switch its plan and extra-seat items to the sureframe_founding_* prices, with no proration.",
+      ]);
+    }
+  }
+  await syncSubscription(sub);
+  if (failed) throw failed;
+}
+
 /** A customer deleted in the Stripe Dashboard: forget it, so a new one is made if they subscribe again. */
 async function customerDeleted(customerId: string) {
   const workspace = await db.workspace.findUnique({ where: { stripeCustomerId: customerId } });
@@ -75,18 +101,10 @@ export async function POST(req: Request) {
   }
 
   switch (event.type) {
-    case "customer.subscription.created": {
-      // Re-read so out-of-order deliveries always apply the latest state.
-      const sub = await stripe().subscriptions.retrieve(event.data.object.id, { expand: DISCOUNT_EXPAND });
-      // Started during the founding offer without founding prices (lib/billing.ts): fix that first. Never fails the event.
-      const adopted = await adoptFoundingPrices(sub).catch((err) => {
-        console.error("[billing] couldn't give founding prices", JSON.stringify({ subscription: sub.id, error: String(err).slice(0, 300) }));
-        return false;
-      });
-      await syncSubscription(adopted ? await stripe().subscriptions.retrieve(sub.id, { expand: DISCOUNT_EXPAND }) : sub);
-      break;
-    }
+    case "customer.subscription.created":
     case "customer.subscription.updated":
+      await syncWithFounding(event.data.object.id);
+      break;
     case "customer.subscription.deleted":
       // Re-read so out-of-order deliveries always apply the latest state.
       await syncSubscription(await stripe().subscriptions.retrieve(event.data.object.id, { expand: DISCOUNT_EXPAND }));

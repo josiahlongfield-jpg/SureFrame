@@ -156,7 +156,8 @@ export async function offerForCode(code: string | null | undefined): Promise<Off
 
 // On globalThis, so pages, routes and the console's actions share them (Next.js can load this module more than once).
 type Cached = { at: number; offer: Offer | null };
-const cache = globalThis as typeof globalThis & { sureframeAutomaticOffer?: Cached | null; sureframeOfferCodes?: Map<string, Cached> };
+type CachedLookup = { at: number; offer: Promise<Offer | null> };
+const cache = globalThis as typeof globalThis & { sureframeAutomaticOffer?: Cached | null; sureframeOfferCodes?: Map<string, CachedLookup> };
 const FRESH_MS = 60_000;
 
 /**
@@ -184,9 +185,14 @@ export async function cachedOfferForCode(code: string): Promise<Offer | null> {
   const codes = (cache.sureframeOfferCodes ??= new Map());
   const hit = codes.get(key);
   if (hit && Date.now() - hit.at < FRESH_MS) return hit.offer;
-  const offer = await offerForCode(key);
-  if (codes.size >= 500) codes.clear();
+  // Kept as a promise, so requests arriving together share one Stripe call; a failure isn't kept.
+  const offer = offerForCode(key);
+  codes.delete(key);
+  if (codes.size >= 500) codes.delete(codes.keys().next().value!);
   codes.set(key, { at: Date.now(), offer });
+  offer.catch(() => {
+    if (codes.get(key)?.offer === offer) codes.delete(key);
+  });
   return offer;
 }
 
@@ -224,17 +230,20 @@ export async function checkoutOffers(code: string | null): Promise<Offer[]> {
   return [linked, auto].filter((o, i, all): o is Offer => !!o && all.findIndex((x) => x?.id === o.id) === i);
 }
 
-/** Why a code for new customers is refused: Stripe's rule is a customer that has never paid us. */
-export const NEW_CUSTOMERS_ONLY = "That code is only for businesses that haven't paid us before.";
+/**
+ * Why a code for new customers is refused. Stripe's rule (first_time_transaction) is a customer without any
+ * payments or invoices, so anyone we've billed, paid or not, is refused.
+ */
+export const NEW_CUSTOMERS_ONLY = "That code is only for businesses we've never billed before.";
 
-/** Whether a Stripe customer has paid us before, so codes for new customers won't work for them. Null if Stripe can't say. */
-export async function hasPaidBefore(customer: string | null | undefined): Promise<boolean | null> {
+/** Whether we've billed a Stripe customer before, so codes for new customers won't work for them. Null if Stripe can't say. */
+export async function billedBefore(customer: string | null | undefined): Promise<boolean | null> {
   if (!customer) return false;
   try {
-    const paid = await stripe().invoices.list({ customer, status: "paid", limit: 1 });
-    return paid.data.length > 0;
+    const invoices = await stripe().invoices.list({ customer, limit: 1 });
+    return invoices.data.length > 0;
   } catch (err) {
-    console.error("[billing] paid-before check failed", String(err));
+    console.error("[billing] billed-before check failed", String(err));
     return null;
   }
 }
@@ -261,6 +270,16 @@ export async function discountOf(sub: Stripe.Subscription): Promise<DiscountNow 
   return { label: code ? `${code}: ${what}` : what, endsAt: coupon.duration === "repeating" && d.end ? new Date(d.end * 1000) : null };
 }
 
+/** `n` calendar months after `from`, in UTC, stopping at a shorter month's last day (31 January + 1 month is 28 or 29 February), as Stripe counts them. */
+export function addMonths(from: Date, n: number) {
+  const out = new Date(from);
+  out.setUTCDate(1);
+  out.setUTCMonth(out.getUTCMonth() + n);
+  const lastDay = new Date(Date.UTC(out.getUTCFullYear(), out.getUTCMonth() + 1, 0)).getUTCDate();
+  out.setUTCDate(Math.min(from.getUTCDate(), lastDay));
+  return out;
+}
+
 const qldDay = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "Australia/Brisbane" });
 
 /**
@@ -275,7 +294,8 @@ const qldDay = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", mont
 export async function applyCodeToSubscription(sub: Stripe.Subscription, code: string): Promise<Offer> {
   const offer = await offerForCode(code);
   if (!offer) throw new HttpError(400, "That code isn't valid or has ended.");
-  if ((sub.discounts ?? []).some((d) => typeof d === "string" || !d.deleted)) {
+  // A discount past its end that Stripe still lists doesn't count (the update below replaces it); one sent unexpanded does.
+  if ((sub.discounts ?? []).some((d) => typeof d === "string" || (!d.deleted && !(d.end && d.end * 1000 <= Date.now())))) {
     throw new HttpError(400, "Your subscription already has a discount, and codes can't be combined.");
   }
   if (offer.newCustomersOnly) throw new HttpError(400, NEW_CUSTOMERS_ONLY);
@@ -286,9 +306,9 @@ export async function applyCodeToSubscription(sub: Stripe.Subscription, code: st
     throw new HttpError(400, "Your subscription is set to end, so a code wouldn't save you anything.");
   }
   if (c.duration === "repeating" && c.duration_in_months && renews) {
-    const until = new Date();
-    until.setMonth(until.getMonth() + c.duration_in_months);
-    if (renews > until.getTime()) {
+    // An hour's margin: Stripe starts the discount a moment after now, and must still have it at the renewal.
+    const until = addMonths(new Date(), c.duration_in_months).getTime() - 3_600_000;
+    if (renews >= until) {
       throw new HttpError(400, `That code lasts ${months(c.duration_in_months)} from today, which ends before your next bill on ${qldDay(new Date(renews))}, so it wouldn't save you anything.`);
     }
   }
