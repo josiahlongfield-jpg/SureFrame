@@ -73,9 +73,10 @@ function promoRefusal(promoId, customer) {
 
 export function createSubscription(customer, workspaceId, lookupKey, status = "active", { metadata = {}, promotionCode } = {}) {
   const price = state.prices.find((p) => p.lookup_key === lookupKey);
-  const end = Math.floor(Date.now() / 1000) + 30 * 86400;
+  const now = Math.floor(Date.now() / 1000);
+  const end = now + (price?.recurring?.interval === "year" ? 365 : 30) * 86400;
   const card = { id: id("pm"), object: "payment_method", type: "card", card: { brand: "visa", last4: "4242" } };
-  const sub = { id: id("sub"), object: "subscription", customer, status, metadata: { workspaceId, ...metadata }, default_payment_method: card, items: list([subItem(price, 1, end)]), discounts: [] };
+  const sub = { id: id("sub"), object: "subscription", created: now, customer, status, metadata: { workspaceId, ...metadata }, default_payment_method: card, items: list([subItem(price, 1, end)]), discounts: [] };
   const promo = promotionCode && state.promos.find((x) => x.id === promotionCode);
   if (promo) sub.discounts = [discountFrom(promo, sub.id)];
   state.subs.push(sub);
@@ -144,6 +145,11 @@ export function start(port = Number(process.env.FAKE_STRIPE_PORT ?? 12111)) {
       state.deletedCustomers.push(m[1]);
       for (const s of state.subs) if (s.customer === m[1]) s.status = "canceled";
       return send(200, { id: m[1], object: "customer", deleted: true });
+    }
+    if (p === "/v1/invoices" && req.method === "GET") {
+      // Every subscription a customer has had was paid for once.
+      const paid = state.subs.filter((s) => s.customer === form.customer).map((s) => ({ id: `in_${s.id}`, object: "invoice", customer: s.customer, status: "paid", subscription: s.id }));
+      return send(200, list(form.status && form.status !== "paid" ? [] : paid.slice(0, Number(form.limit ?? 10))));
     }
     if (p === "/v1/subscriptions" && req.method === "GET") {
       return send(200, list(state.subs.filter((s) => s.customer === form.customer)));
@@ -240,6 +246,7 @@ export function start(port = Number(process.env.FAKE_STRIPE_PORT ?? 12111)) {
       if (req.method === "POST") {
         sub.lastUpdate = form;
         if ("cancel_at_period_end" in form) sub.cancel_at_period_end = form.cancel_at_period_end === "true";
+        if (form.metadata) sub.metadata = { ...sub.metadata, ...form.metadata };
         if ("discounts" in form) {
           const promoId = [].concat(form.discounts || [])[0]?.promotion_code;
           if (promoId) {

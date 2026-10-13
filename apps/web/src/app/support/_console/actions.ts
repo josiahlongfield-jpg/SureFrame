@@ -34,7 +34,7 @@ import {
   setFreeVideosUsed,
   unblockEmailAndTell,
 } from "@/lib/support/console";
-import { createOffer, endOffer, setAutomaticOffer } from "@/lib/support/offers";
+import { createOffer, endOffer, setAutomaticOffer, MAX_OFFER_MONTHS } from "@/lib/support/offers";
 
 /** What a support console form shows after it's sent: only errors (success goes to the page's "Done" banner). */
 export type PowerResult = { ok: false; message: string } | null;
@@ -89,7 +89,7 @@ const Power = z.discriminatedUnion("power", [
     code: z.string().trim().min(1, "Enter the code.").max(40),
     percentOff: z.coerce.number({ error: "Enter a percentage from 1 to 100." }).int("Enter a whole percentage.").min(1, "Enter a percentage from 1 to 100.").max(100, "Enter a percentage from 1 to 100."),
     duration: z.enum(["once", "repeating", "forever"], { error: "Choose how long the discount lasts." }),
-    months: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int().min(1, "Enter how many months, 1 to 36.").max(36, "Enter how many months, 1 to 36.").optional()),
+    months: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int().min(1, `Enter how many months, 1 to ${MAX_OFFER_MONTHS}.`).max(MAX_OFFER_MONTHS, `Enter how many months, 1 to ${MAX_OFFER_MONTHS}.`).optional()),
     scope: z.enum(["plan", "seats", "all"], { error: "Choose what it comes off." }),
     maxUses: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int("Enter a whole number.").min(1, "Enter 1 or more uses, or leave it empty.").max(100_000).optional()),
     lastDay: z.preprocess((v) => (v === "" ? undefined : v), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose the last day it can be used.").optional()),

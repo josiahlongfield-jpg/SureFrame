@@ -6,7 +6,7 @@ import PricingTable from "@/components/PricingTable";
 import { RETENTION_DAYS } from "@/lib/retention";
 import { AI_ASSIST_PRICES, AI_SUMMARIES_PER_MONTH, CLOUD_BACKUP_PRICE, CLOUD_BACKUP_PRICE_YEARLY, PLANS } from "@/lib/plans";
 import { foundingLastDay, foundingOpen } from "@/lib/founding";
-import { automaticOffer, offerForCode, OFFER_COOKIE, quietly, type Offer } from "@/lib/offers";
+import { automaticOffer, cachedOfferForCode, codeFromCookie, OFFER_COOKIE, quietly, type Offer } from "@/lib/offers";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -15,10 +15,17 @@ export const metadata: Metadata = {
 
 const qldDay = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "Australia/Brisbane" });
 
-/** The founding offer, a share link's code (or that it has ended) and the automatic offer, above the plans. */
-function Offers({ founding, code, linked, auto }: { founding: string | null; code?: string; linked: Offer | null; auto: Offer | null }) {
+/**
+ * The founding offer, a share link's code (or that it has ended) and the
+ * automatic offer, above the plans. Offers only come off when a subscription
+ * starts (a plan switch never adds one), so that's what the banner says, and a
+ * code a subscriber can add on Settings > Billing says so too.
+ */
+function Offers({ founding, code, ended, linked, auto }: { founding: string | null; code: string | null; ended: boolean; linked: Offer | null; auto: Offer | null }) {
   const box = "mx-auto mt-6 max-w-3xl rounded-2xl border p-4 text-center text-sm";
   const offer = linked ?? auto;
+  const who = offer?.newCustomersOnly ? ", for businesses that haven't paid us before" : offer && offer !== linked ? ", for new subscriptions" : "";
+  const subscribersToo = !!offer && offer === linked && !offer.newCustomersOnly && offer.coupon.duration !== "once";
   return (
     <>
       {founding && (
@@ -27,7 +34,7 @@ function Offers({ founding, code, linked, auto }: { founding: string | null; cod
           staff for as long as it stays active, even if our prices go up.
         </p>
       )}
-      {code && !linked && (
+      {code && ended && (
         <p className={`${box} border-slate-200 bg-slate-50 text-slate-700`} data-testid="offer-ended">
           The code {code} has ended or isn&rsquo;t valid. You can still subscribe at the prices below.
         </p>
@@ -35,8 +42,8 @@ function Offers({ founding, code, linked, auto }: { founding: string | null; cod
       {offer && (
         <p className={`${box} border-emerald-200 bg-emerald-50 text-emerald-900`} data-testid="offer-banner">
           <span className="font-semibold">{offer === linked ? `Code ${offer.code}:` : "Offer:"}</span> {offer.summary}
-          {offer.newCustomersOnly ? ", for new subscriptions" : ""}.{offer.expiresAt ? ` Use it by ${qldDay(offer.expiresAt)}.` : ""} It comes off at checkout
-          {offer === linked ? "" : ", no code needed"}.
+          {who}.{offer.expiresAt ? ` Use it by ${qldDay(offer.expiresAt)}.` : ""} It comes off at checkout when you start a subscription
+          {offer === linked ? "" : ", no code needed"}.{subscribersToo ? " Already subscribed? Enter it on Settings > Billing." : ""}
         </p>
       )}
     </>
@@ -44,8 +51,10 @@ function Offers({ founding, code, linked, auto }: { founding: string | null; cod
 }
 
 export default async function Pricing() {
-  const code = (await cookies()).get(OFFER_COOKIE)?.value;
-  const [linked, auto] = await Promise.all([code ? quietly(offerForCode(code)) : null, quietly(automaticOffer())]);
+  const code = codeFromCookie((await cookies()).get(OFFER_COOKIE)?.value);
+  // Wrapped, so a code Stripe says has ended (null offer) differs from Stripe not answering in time (null lookup).
+  const [lookup, auto] = await Promise.all([code ? quietly(cachedOfferForCode(code).then((offer) => ({ offer }))) : null, quietly(automaticOffer())]);
+  const linked = lookup?.offer ?? null;
   return (
     <>
       <SiteHeader />
@@ -54,7 +63,7 @@ export default async function Pricing() {
           <h1 className="text-4xl font-semibold tracking-tight text-slate-900">Simple pricing. Clients always free.</h1>
           <p className="mt-4 text-slate-600">Pick a plan by how many clients you work with.</p>
         </div>
-        <Offers founding={foundingOpen() ? foundingLastDay() : null} code={code} linked={linked} auto={auto} />
+        <Offers founding={foundingOpen() ? foundingLastDay() : null} code={code} ended={!!lookup && !lookup.offer} linked={linked} auto={auto} />
         <PricingTable />
         <p className="mt-10 text-center text-sm text-slate-500">More than 100 clients? Add extra clients for US$1.50 a month each.</p>
         <p className="mt-2 text-center text-sm text-slate-500" data-testid="free-videos-note">

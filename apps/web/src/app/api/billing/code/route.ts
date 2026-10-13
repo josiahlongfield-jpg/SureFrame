@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { ACTIVE_STATUSES } from "@/lib/billing";
-import { applyCodeToSubscription, DISCOUNT_EXPAND, isCodeShaped, offerForCode, OFFER_COOKIE, OFFER_COOKIE_DAYS } from "@/lib/offers";
+import { applyCodeToSubscription, DISCOUNT_EXPAND, hasPaidBefore, isCodeShaped, NEW_CUSTOMERS_ONLY, offerCookieValue, offerForCode, OFFER_COOKIE, OFFER_COOKIE_OPTIONS } from "@/lib/offers";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
 import { stripe } from "@/lib/stripe";
 import { currentSubscription, syncSubscription } from "@/lib/subscription";
@@ -31,12 +31,8 @@ export const POST = handle(async (req: Request) => {
   }
   const offer = await offerForCode(code);
   if (!offer) throw new HttpError(400, "That code isn't valid or has ended.");
-  (await cookies()).set(OFFER_COOKIE, offer.code.toUpperCase(), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: OFFER_COOKIE_DAYS * 86400,
-  });
+  // Stripe would drop it at checkout: say so now rather than promise it. (If Stripe can't say, checkout decides.)
+  if (offer.newCustomersOnly && (await hasPaidBefore(me.workspace.stripeCustomerId))) throw new HttpError(400, NEW_CUSTOMERS_ONLY);
+  (await cookies()).set(OFFER_COOKIE, offerCookieValue(offer.code), OFFER_COOKIE_OPTIONS);
   return Response.json({ applied: false, code: offer.code, summary: offer.summary });
 });

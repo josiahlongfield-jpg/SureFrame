@@ -1,14 +1,14 @@
 import type Stripe from "stripe";
 import { productIds } from "@/lib/billing";
 import { db } from "@/lib/db";
-import { forgetAutomaticOffer, isCodeShaped, SCOPES, toOffer, type Offer, type OfferScope } from "@/lib/offers";
+import { forgetOffers, isCodeShaped, PROMO_EXPAND, PROMO_LIST_EXPAND, SCOPES, toOffer, type Offer, type OfferScope } from "@/lib/offers";
 import { HttpError } from "@/lib/session";
 import { stripe } from "@/lib/stripe";
 import { logAdmin, reasonOf, type SupportAdmin } from "@/lib/support/admin";
 
 /** Every offer, newest first, ended ones included (the console's Offers page). */
 export async function listOffers(): Promise<Offer[]> {
-  const list = await stripe().promotionCodes.list({ limit: 100, expand: ["data.promotion.coupon"] });
+  const list = await stripe().promotionCodes.list({ limit: 100, expand: PROMO_LIST_EXPAND });
   const offers = await Promise.all(list.data.map(toOffer));
   return offers.filter((o): o is Offer => !!o).sort((a, b) => b.created.getTime() - a.created.getTime());
 }
@@ -17,6 +17,13 @@ async function currentAutomatic(exceptId?: string) {
   const list = await stripe().promotionCodes.list({ active: true, limit: 100 });
   return list.data.find((p) => p.metadata?.sureframe_auto === "yes" && p.id !== exceptId) ?? null;
 }
+
+/**
+ * The longest an offer of "a number of months" can run. Stripe takes it off every bill that starts within those
+ * months (Terms section 5), so on yearly billing that's the first yearly bill, and at exactly 12 possibly the second
+ * too, as the console says.
+ */
+export const MAX_OFFER_MONTHS = 12;
 
 export type NewOffer = {
   code: string;
@@ -38,7 +45,7 @@ export async function createOffer(actor: SupportAdmin, o: NewOffer): Promise<{ a
   const code = o.code.trim().toUpperCase();
   if (!isCodeShaped(code)) throw new HttpError(400, "Codes are 3 to 40 letters, digits or dashes.");
   if (!(o.percentOff > 0 && o.percentOff <= 100)) throw new HttpError(400, "Enter a percentage from 1 to 100.");
-  if (o.duration === "repeating" && !(o.months && o.months >= 1 && o.months <= 36)) throw new HttpError(400, "Enter how many months, 1 to 36.");
+  if (o.duration === "repeating" && !(o.months && o.months >= 1 && o.months <= MAX_OFFER_MONTHS)) throw new HttpError(400, `Enter how many months, 1 to ${MAX_OFFER_MONTHS}.`);
   let expiresAt: number | undefined;
   if (o.lastDay) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(o.lastDay)) throw new HttpError(400, "Choose the last day it can be used.");
@@ -70,7 +77,7 @@ export async function createOffer(actor: SupportAdmin, o: NewOffer): Promise<{ a
       ...(expiresAt ? { expires_at: expiresAt } : {}),
       restrictions: { first_time_transaction: o.newCustomersOnly },
       metadata: { sureframe_auto: o.automatic ? "yes" : "no" },
-      expand: ["promotion.coupon"],
+      expand: PROMO_EXPAND,
     });
   } catch (err) {
     // A coupon without a code can't be used: don't leave it behind.
@@ -78,7 +85,7 @@ export async function createOffer(actor: SupportAdmin, o: NewOffer): Promise<{ a
     if ((err as { type?: string })?.type === "StripeInvalidRequestError") throw new HttpError(400, `Stripe refused the code: ${(err as Error).message}`);
     throw err;
   }
-  forgetAutomaticOffer();
+  forgetOffers();
   const offer = await toOffer(pc);
   const row = await logAdmin(db, actor, {
     action: "offer.create",
@@ -99,7 +106,7 @@ export async function createOffer(actor: SupportAdmin, o: NewOffer): Promise<{ a
 }
 
 async function loadOffer(promotionCodeId: string) {
-  const pc = await stripe().promotionCodes.retrieve(promotionCodeId, { expand: ["promotion.coupon"] }).catch(() => null);
+  const pc = await stripe().promotionCodes.retrieve(promotionCodeId, { expand: PROMO_EXPAND }).catch(() => null);
   const offer = pc && (await toOffer(pc));
   if (!offer) throw new HttpError(404, "That offer wasn't found in Stripe.");
   return offer;
@@ -111,7 +118,7 @@ export async function endOffer(actor: SupportAdmin, o: { promotionCodeId: string
   const offer = await loadOffer(o.promotionCodeId);
   if (!offer.active) throw new HttpError(400, `${offer.code} has already ended.`);
   await stripe().promotionCodes.update(offer.id, { active: false, metadata: { sureframe_auto: "no" } });
-  forgetAutomaticOffer();
+  forgetOffers();
   const row = await logAdmin(db, actor, {
     action: "offer.end",
     target: offer.code,
@@ -131,7 +138,7 @@ export async function setAutomaticOffer(actor: SupportAdmin, o: { promotionCodeI
     if (other) throw new HttpError(400, `${other.code} is already applied automatically. Switch that one off first.`);
   }
   await stripe().promotionCodes.update(offer.id, { metadata: { sureframe_auto: o.on ? "yes" : "no" } });
-  forgetAutomaticOffer();
+  forgetOffers();
   const row = await logAdmin(db, actor, {
     action: "offer.automatic",
     target: offer.code,

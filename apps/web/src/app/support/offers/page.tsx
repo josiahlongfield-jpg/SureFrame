@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { foundingLastDay, foundingOpen } from "@/lib/founding";
 import type { Offer } from "@/lib/offers";
 import { appUrl } from "@/lib/stripe";
-import { listOffers } from "@/lib/support/offers";
+import { listOffers, MAX_OFFER_MONTHS } from "@/lib/support/offers";
 import PowerForm, { Check } from "../_console/PowerForm";
 import { Badge, ConsoleNav, consoleAdmin, Done, Facts, Section } from "../_console/ui";
 
@@ -16,6 +16,13 @@ function status(o: Offer) {
   if (o.maxUses !== null && o.uses >= o.maxUses) return <Badge tone="amber">Used up</Badge>;
   if (o.expiresAt && o.expiresAt.getTime() <= Date.now()) return <Badge tone="amber">Expired</Badge>;
   return <Badge tone="green">Active</Badge>;
+}
+
+/** Who can use an offer (lib/offers.ts: subscribers can't add a first-bill code, and Stripe's new-customer rule is "never paid"). */
+function whoCanUse(o: Offer) {
+  if (o.newCustomersOnly) return "Businesses that haven't paid us before, when they start a subscription";
+  if (o.coupon.duration === "once") return "New subscriptions (a first-bill code can't be added to a subscription that's running)";
+  return "New subscriptions, and current subscribers on Settings > Billing when it lasts until their next bill";
 }
 
 function OfferCard({ o }: { o: Offer }) {
@@ -33,7 +40,7 @@ function OfferCard({ o }: { o: Offer }) {
           rows={[
             ["Used", `${o.uses}${o.maxUses !== null ? ` of ${o.maxUses}` : ""} time${o.uses === 1 && o.maxUses === null ? "" : "s"}`],
             ["Last day to use it", o.expiresAt ? qldDay(o.expiresAt) : "No end date"],
-            ["Who can use it", o.newCustomersOnly ? "New subscriptions only" : "New subscriptions, and current subscribers on Settings > Billing"],
+            ["Who can use it", whoCanUse(o)],
             ["Share link", <span key="l" className="break-all font-mono text-xs">{link}</span>],
             ["Created", qldDay(o.created)],
           ]}
@@ -117,16 +124,18 @@ export default async function Offers({ searchParams }: { searchParams: Promise<{
           <label className="grid gap-1 text-sm text-slate-700">
             How long it lasts
             <select name="duration" required defaultValue="repeating" className={field}>
-              <option value="once">The first bill only</option>
+              <option value="once">The first bill only (new subscriptions only)</option>
               <option value="repeating">A number of months (enter below)</option>
               <option value="forever">For as long as they stay subscribed</option>
             </select>
           </label>
           <label className="grid gap-1 text-sm text-slate-700">
             Months (for &ldquo;a number of months&rdquo;)
-            <input name="months" type="number" min={1} max={36} step={1} inputMode="numeric" className={field} />
+            <input name="months" type="number" min={1} max={MAX_OFFER_MONTHS} step={1} inputMode="numeric" className={field} />
             <span className="text-xs text-slate-500">
-              On yearly billing a discount for a number of months comes off the first yearly bill in full, so 3 months at 20% saves 20% of a whole year.
+              Up to {MAX_OFFER_MONTHS}. It comes off every bill that starts within those months. On yearly billing that&rsquo;s the whole first yearly bill, so 3
+              months at 20% saves 20% of a year, and at 12 months it may come off the second yearly bill too. A current subscriber can only add it if it lasts
+              until their next bill.
             </span>
           </label>
           <label className="grid gap-1 text-sm text-slate-700">
@@ -137,7 +146,11 @@ export default async function Offers({ searchParams }: { searchParams: Promise<{
             Last day it can be used, Queensland time (empty for no end date)
             <input name="lastDay" type="date" className={field} />
           </label>
-          <Check name="newCustomersOnly" label="New customers only" hint="Only for businesses that have never paid before. Current subscribers can't use it on Settings > Billing." />
+          <Check
+            name="newCustomersOnly"
+            label="New customers only"
+            hint="Only for businesses that have never paid us before (Stripe's rule), so not for anyone who subscribed before and left. Current subscribers can't use it on Settings > Billing."
+          />
           <Check name="automatic" label="Apply it to every new subscription without a code" hint="The pricing page says so. Only one offer can be applied automatically." />
           <p className="text-xs text-slate-500">
             Say exactly what the offer is wherever you share it, including any end date or limit on uses, and don&rsquo;t end an offer early that you promised

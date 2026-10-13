@@ -52,6 +52,11 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
   const plan = PLANS[workspace.plan];
   const comp = !!workspace.complimentaryPlan && !workspace.stripeSubscriptionId;
   const freeLimit = PLANS.FREE.maxVideos;
+  // A discount past its end that no webhook has cleared yet isn't shown, and a new code can be entered.
+  const discount =
+    workspace.stripeSubscriptionId && workspace.discountLabel && !(workspace.discountEndsAt && workspace.discountEndsAt.getTime() <= Date.now())
+      ? workspace.discountLabel
+      : null;
   if (role !== "OWNER") {
     return (
       <>
@@ -111,9 +116,9 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
               subscription stays active, even if our prices go up.
             </p>
           )}
-          {workspace.stripeSubscriptionId && workspace.discountLabel && (
+          {discount && (
             <p className="mt-2 text-sm text-slate-700" data-testid="discount">
-              Discount: {workspace.discountLabel}
+              Discount: {discount}
               {workspace.discountEndsAt ? `, until ${day(workspace.discountEndsAt, workspace.timezone)}` : ""}.
             </p>
           )}
@@ -142,7 +147,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
               <Link href="/pricing" className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">{comp ? "Choose a paid plan" : "Upgrade"}</Link>
             )}
           </div>
-          <RedeemCode subscribed={!!workspace.stripeSubscriptionId} hasDiscount={!!(workspace.stripeSubscriptionId && workspace.discountLabel)} />
+          <RedeemCode subscribed={!!workspace.stripeSubscriptionId} hasDiscount={!!discount} />
         </div>
         <CloudBackupToggle
           enabled={workspace.cloudBackup}

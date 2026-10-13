@@ -1,4 +1,5 @@
 import type Stripe from "stripe";
+import { adoptFoundingPrices } from "@/lib/billing";
 import { db } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { alertFounder } from "@/lib/founderAlert";
@@ -74,7 +75,17 @@ export async function POST(req: Request) {
   }
 
   switch (event.type) {
-    case "customer.subscription.created":
+    case "customer.subscription.created": {
+      // Re-read so out-of-order deliveries always apply the latest state.
+      const sub = await stripe().subscriptions.retrieve(event.data.object.id, { expand: DISCOUNT_EXPAND });
+      // Started during the founding offer without founding prices (lib/billing.ts): fix that first. Never fails the event.
+      const adopted = await adoptFoundingPrices(sub).catch((err) => {
+        console.error("[billing] couldn't give founding prices", JSON.stringify({ subscription: sub.id, error: String(err).slice(0, 300) }));
+        return false;
+      });
+      await syncSubscription(adopted ? await stripe().subscriptions.retrieve(sub.id, { expand: DISCOUNT_EXPAND }) : sub);
+      break;
+    }
     case "customer.subscription.updated":
     case "customer.subscription.deleted":
       // Re-read so out-of-order deliveries always apply the latest state.

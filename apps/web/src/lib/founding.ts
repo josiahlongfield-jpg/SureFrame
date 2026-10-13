@@ -10,6 +10,11 @@
  * offer is running. To extend it, move the date later and say so on the
  * pricing page rather than quietly. FOUNDING_ENDS in the environment
  * overrides it ("off" turns it off), for tests.
+ *
+ * Checkout decides founding when it opens; a checkout opened just before the
+ * offer starts and paid after it is given founding prices by the webhook
+ * (adoptFoundingPrices in lib/billing.ts), and one opened on the last day
+ * expires soon after the offer closes.
  */
 const ENDS: string | null = null;
 

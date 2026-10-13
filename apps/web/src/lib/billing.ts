@@ -12,6 +12,7 @@ import {
   type Interval,
   type PaidPlan,
 } from "@/lib/plans";
+import { foundingOpen } from "@/lib/founding";
 import { stripe } from "@/lib/stripe";
 
 /** What SureFrame sells. Each item has a monthly and a yearly price. */
@@ -200,6 +201,29 @@ export function intervalOf(sub: Stripe.Subscription): Interval {
 export const MANAGED_PAYMENTS = process.env.STRIPE_MANAGED_PAYMENTS !== "off";
 
 export const ACTIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
+
+/**
+ * A subscription that started while founding prices were offered, but
+ * without them (its checkout was opened just before the offer began, and
+ * paid after): given them now, as the Terms promise. Founding prices for the
+ * plan and extra seats replace the standard ones with no proration, so
+ * nothing is charged or credited (they're the same amounts until our prices
+ * change). Returns whether it changed anything.
+ */
+export async function adoptFoundingPrices(sub: Stripe.Subscription): Promise<boolean> {
+  if (hasFoundingPrices(sub) || !ACTIVE_STATUSES.has(sub.status) || !foundingOpen(new Date(sub.created * 1000))) return false;
+  await loadCatalog();
+  const items: Stripe.SubscriptionUpdateParams.Item[] = [];
+  for (const i of sub.items.data) {
+    const entry = catalogOf(i.price);
+    if (!entry || entry.founding) continue;
+    const key = keyFor(entry.item, entry.interval, true);
+    if (key !== catalogKey(entry.item, entry.interval)) items.push({ id: i.id, price: await priceId(key) });
+  }
+  await stripe().subscriptions.update(sub.id, { metadata: FOUNDING_METADATA, ...(items.length ? { items } : {}), proration_behavior: "none" });
+  console.log("[billing] founding prices given to a subscription started during the offer", JSON.stringify({ subscription: sub.id, items: items.length }));
+  return true;
+}
 
 let portalConfig: string | undefined;
 

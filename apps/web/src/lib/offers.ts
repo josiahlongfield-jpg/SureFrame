@@ -1,5 +1,7 @@
+import crypto from "node:crypto";
 import type Stripe from "stripe";
 import { itemOfProduct, loadCatalog, type CatalogItem } from "@/lib/billing";
+import { appSecret, safeEqual } from "@/lib/secrets";
 import { HttpError } from "@/lib/session";
 import { stripe } from "@/lib/stripe";
 
@@ -15,9 +17,32 @@ import { stripe } from "@/lib/stripe";
 /** The cookie a share link leaves, so checkout applies its code. */
 export const OFFER_COOKIE = "sf_offer";
 export const OFFER_COOKIE_DAYS = 30;
+export const OFFER_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: OFFER_COOKIE_DAYS * 86400,
+};
 
 /** Codes are letters, digits and dashes (Stripe's rule), and Stripe matches them ignoring case. */
 export const isCodeShaped = (code: string) => /^[A-Za-z0-9-]{3,40}$/.test(code);
+
+const signCode = (code: string) => crypto.createHmac("sha256", appSecret()).update(`offer:${code}`).digest("base64url").slice(0, 22);
+
+/**
+ * The cookie's value: the code and a signature. Only our share link and the
+ * code box (both rate limited) make one, so the pricing page and checkout
+ * can't be used to try codes by setting the cookie by hand.
+ */
+export const offerCookieValue = (code: string) => `${code.toUpperCase()}.${signCode(code.toUpperCase())}`;
+
+/** The code in an offer cookie we made, or null for a missing, altered or hand-made one. */
+export function codeFromCookie(value: string | undefined): string | null {
+  const [code, sig, extra] = (value ?? "").split(".");
+  if (!code || !sig || extra !== undefined || !isCodeShaped(code)) return null;
+  return safeEqual(sig, signCode(code)) ? code : null;
+}
 
 /** What an offer comes off. Stored on the coupon (metadata.sureframe_scope) when the console makes it. */
 export const SCOPES = {
@@ -28,8 +53,14 @@ export const SCOPES = {
 export type OfferScope = keyof typeof SCOPES;
 export const isScope = (v: unknown): v is OfferScope => typeof v === "string" && v in SCOPES;
 
-/** Expanding these on a subscription gives its discounts in full (lib/subscription.ts). */
-export const DISCOUNT_EXPAND = ["discounts.source.coupon", "discounts.promotion_code"];
+/**
+ * Expanding these on a subscription gives its discounts in full (lib/subscription.ts). A coupon's applies_to (what it
+ * comes off) is only sent when asked for.
+ */
+export const DISCOUNT_EXPAND = ["discounts.source.coupon", "discounts.source.coupon.applies_to", "discounts.promotion_code"];
+/** The same for a list of promotion codes, and for one. */
+export const PROMO_LIST_EXPAND = ["data.promotion.coupon", "data.promotion.coupon.applies_to"];
+export const PROMO_EXPAND = ["promotion.coupon", "promotion.coupon.applies_to"];
 
 export type Offer = {
   /** The Stripe promotion code id. */
@@ -53,6 +84,8 @@ export type Offer = {
 function scopeLabel(c: Stripe.Coupon) {
   const s = c.metadata?.sureframe_scope;
   if (isScope(s)) return SCOPES[s].label;
+  // Not sent by Stripe, so unknown: never claim more than we know.
+  if (c.applies_to === undefined) return "selected items";
   const products = c.applies_to?.products;
   if (!products?.length) return SCOPES.all.label;
   const items = new Set(products.map((p) => itemOfProduct(p)));
@@ -116,13 +149,15 @@ export async function toOffer(pc: Stripe.PromotionCode): Promise<Offer | null> {
 export async function offerForCode(code: string | null | undefined): Promise<Offer | null> {
   const c = code?.trim();
   if (!c || !isCodeShaped(c)) return null;
-  const found = await stripe().promotionCodes.list({ code: c, active: true, limit: 10, expand: ["data.promotion.coupon"] });
+  const found = await stripe().promotionCodes.list({ code: c, active: true, limit: 10, expand: PROMO_LIST_EXPAND });
   const pc = found.data.find((p) => p.code.toUpperCase() === c.toUpperCase() && usable(p));
   return pc ? toOffer(pc) : null;
 }
 
-// On globalThis, so pages, routes and the console's actions share it (Next.js can load this module more than once).
-const cache = globalThis as typeof globalThis & { sureframeAutomaticOffer?: { at: number; offer: Offer | null } | null };
+// On globalThis, so pages, routes and the console's actions share them (Next.js can load this module more than once).
+type Cached = { at: number; offer: Offer | null };
+const cache = globalThis as typeof globalThis & { sureframeAutomaticOffer?: Cached | null; sureframeOfferCodes?: Map<string, Cached> };
+const FRESH_MS = 60_000;
 
 /**
  * The offer every new subscription gets without a code (at most one at a
@@ -131,21 +166,38 @@ const cache = globalThis as typeof globalThis & { sureframeAutomaticOffer?: { at
  */
 export async function automaticOffer(): Promise<Offer | null> {
   const hit = cache.sureframeAutomaticOffer;
-  if (hit && Date.now() - hit.at < 60_000) return hit.offer;
-  const list = await stripe().promotionCodes.list({ active: true, limit: 100, expand: ["data.promotion.coupon"] });
+  if (hit && Date.now() - hit.at < FRESH_MS) return hit.offer;
+  const list = await stripe().promotionCodes.list({ active: true, limit: 100, expand: PROMO_LIST_EXPAND });
   const pc = list.data.filter((p) => p.metadata?.sureframe_auto === "yes" && usable(p)).sort((a, b) => b.created - a.created)[0];
   const offer = pc ? await toOffer(pc) : null;
   cache.sureframeAutomaticOffer = { at: Date.now(), offer };
   return offer;
 }
 
-/** After the console changes an offer, so this server reads it again. */
-export const forgetAutomaticOffer = () => {
+/**
+ * offerForCode for the pricing page and checkout, checked with Stripe at most
+ * once a minute per code per server. Redeeming a code (applyCodeToSubscription)
+ * always asks Stripe.
+ */
+export async function cachedOfferForCode(code: string): Promise<Offer | null> {
+  const key = code.toUpperCase();
+  const codes = (cache.sureframeOfferCodes ??= new Map());
+  const hit = codes.get(key);
+  if (hit && Date.now() - hit.at < FRESH_MS) return hit.offer;
+  const offer = await offerForCode(key);
+  if (codes.size >= 500) codes.clear();
+  codes.set(key, { at: Date.now(), offer });
+  return offer;
+}
+
+/** After the console changes an offer, so this server reads offers again. */
+export const forgetOffers = () => {
   cache.sureframeAutomaticOffer = null;
+  cache.sureframeOfferCodes?.clear();
 };
 
 /** Offers never stop or stall a page or a checkout: with Stripe unreachable or slow, there just isn't one. */
-export const quietly = <T,>(p: Promise<T>, ms = 3000) => {
+export const quietly = <T,>(p: Promise<T>, ms = 3000): Promise<T | null> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<null>((resolve) => {
     timer = setTimeout(() => {
@@ -160,9 +212,31 @@ export const quietly = <T,>(p: Promise<T>, ms = 3000) => {
   return Promise.race([settled, late]).finally(() => clearTimeout(timer));
 };
 
-/** The offer a new subscription gets: the share link's code the visitor brought, else the automatic offer. */
-export async function checkoutOffer(cookieCode: string | undefined): Promise<Offer | null> {
-  return (cookieCode && (await quietly(offerForCode(cookieCode)))) || (await quietly(automaticOffer()));
+/**
+ * The offers to try on a new subscription, in order: the code the visitor
+ * brought (share link or code box), then the automatic offer, so the
+ * automatic one still applies when Stripe refuses the other (say it's for
+ * new customers and this one has paid before). Given longer than the pricing
+ * page, as the visitor is waiting on checkout anyway.
+ */
+export async function checkoutOffers(code: string | null): Promise<Offer[]> {
+  const [linked, auto] = await Promise.all([code ? quietly(cachedOfferForCode(code), 8000) : null, quietly(automaticOffer(), 8000)]);
+  return [linked, auto].filter((o, i, all): o is Offer => !!o && all.findIndex((x) => x?.id === o.id) === i);
+}
+
+/** Why a code for new customers is refused: Stripe's rule is a customer that has never paid us. */
+export const NEW_CUSTOMERS_ONLY = "That code is only for businesses that haven't paid us before.";
+
+/** Whether a Stripe customer has paid us before, so codes for new customers won't work for them. Null if Stripe can't say. */
+export async function hasPaidBefore(customer: string | null | undefined): Promise<boolean | null> {
+  if (!customer) return false;
+  try {
+    const paid = await stripe().invoices.list({ customer, status: "paid", limit: 1 });
+    return paid.data.length > 0;
+  } catch (err) {
+    console.error("[billing] paid-before check failed", String(err));
+    return null;
+  }
 }
 
 export type DiscountNow = { label: string; endsAt: Date | null };
@@ -187,9 +261,16 @@ export async function discountOf(sub: Stripe.Subscription): Promise<DiscountNow 
   return { label: code ? `${code}: ${what}` : what, endsAt: coupon.duration === "repeating" && d.end ? new Date(d.end * 1000) : null };
 }
 
+const qldDay = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "Australia/Brisbane" });
+
 /**
  * A current subscriber's code (Settings > Billing). It replaces nothing: a
  * subscription that already has a discount keeps it and the code is refused.
+ * A discount added now counts from today and comes off the next bill Stripe
+ * makes, so a code that couldn't reach the next renewal is refused rather
+ * than used up for nothing (a few months' code on yearly billing, or any
+ * code on a subscription that's ending), and so is a first-bill-only code,
+ * which a small charge for something added mid-term would use up.
  */
 export async function applyCodeToSubscription(sub: Stripe.Subscription, code: string): Promise<Offer> {
   const offer = await offerForCode(code);
@@ -197,7 +278,20 @@ export async function applyCodeToSubscription(sub: Stripe.Subscription, code: st
   if ((sub.discounts ?? []).some((d) => typeof d === "string" || !d.deleted)) {
     throw new HttpError(400, "Your subscription already has a discount, and codes can't be combined.");
   }
-  if (offer.newCustomersOnly) throw new HttpError(400, "That code is for new subscriptions only.");
+  if (offer.newCustomersOnly) throw new HttpError(400, NEW_CUSTOMERS_ONLY);
+  const c = offer.coupon;
+  if (c.duration === "once") throw new HttpError(400, "That code is for a first bill, so it can only be used when you start a subscription.");
+  const renews = Math.max(0, ...sub.items.data.map((i) => i.current_period_end ?? 0)) * 1000;
+  if (sub.cancel_at_period_end || (sub.cancel_at && sub.cancel_at * 1000 <= renews)) {
+    throw new HttpError(400, "Your subscription is set to end, so a code wouldn't save you anything.");
+  }
+  if (c.duration === "repeating" && c.duration_in_months && renews) {
+    const until = new Date();
+    until.setMonth(until.getMonth() + c.duration_in_months);
+    if (renews > until.getTime()) {
+      throw new HttpError(400, `That code lasts ${months(c.duration_in_months)} from today, which ends before your next bill on ${qldDay(new Date(renews))}, so it wouldn't save you anything.`);
+    }
+  }
   try {
     await stripe().subscriptions.update(sub.id, { discounts: [{ promotion_code: offer.id }], proration_behavior: "none" });
   } catch (err) {

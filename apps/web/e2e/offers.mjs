@@ -62,6 +62,8 @@ ok("checkout uses the founding Solo price", res.ok() && price?.lookup_key === "s
 ok("founding price belongs to the Solo product", state.products.find((p) => p.id === price.product)?.name === "SureFrame Solo");
 ok("the subscription is marked founding", session.subscription_data.metadata.foundingPrices === "yes");
 ok("with no offer running, checkout takes a typed code", session.allow_promotion_codes === "true" && !session.discounts);
+const left = Number(session.expires_at) - Date.now() / 1000;
+ok("a founding checkout expires within a day", left > 22.9 * 3600 && left <= 23 * 3600, String(left));
 const foundWs = await workspaceOf(foundEmail);
 const sub = createSubscription(session.customer, foundWs.id, "sureframe_founding_solo_monthly", "active", { metadata: { foundingPrices: "yes" } });
 await webhook(founder, "customer.subscription.created", sub);
@@ -90,6 +92,17 @@ sub.status = "canceled";
 await webhook(founder, "customer.subscription.deleted", sub);
 const ended = await prisma.workspace.findUnique({ where: { id: foundWs.id } });
 ok("founding prices end with the subscription", ended.foundingPrices === false && ended.plan === "FREE");
+
+// A checkout opened just before the offer began and paid during it: the webhook gives it founding prices.
+const lateStartEmail = `latestart${stamp}@example.com`;
+const lateStarter = await signIn(lateStartEmail);
+await api(lateStarter, "/api/billing/checkout", { plan: "STUDIO" });
+const lateStartWs = await workspaceOf(lateStartEmail);
+const subL = createSubscription(lastSession().customer, lateStartWs.id, "sureframe_studio_monthly");
+await webhook(lateStarter, "customer.subscription.created", subL);
+ok("a subscription started during the offer without founding prices gets them", subL.metadata.foundingPrices === "yes" && keys(subL) === "sureframe_founding_studio_monthly", keys(subL));
+ok("with nothing charged for the swap", subL.lastUpdate?.proration_behavior === "none");
+ok("and the workspace records them", (await prisma.workspace.findUnique({ where: { id: lateStartWs.id } })).foundingPrices === true);
 
 // 2) The console's Offers page: make a code limited to the plans.
 const ADMIN = "owner@test.dev";
@@ -126,6 +139,7 @@ const created = await prisma.adminAction.findFirst({ where: { action: "offer.cre
 ok("support log records the offer", created?.reason === "e2e offers test" && created.details?.summary === "20% off your plan for 3 months");
 t = (await admin.textContent("main")).replace(/\s+/g, " ");
 ok("console shows it with its share link", t.includes(`Done: Offer created (${CODE})`) && t.includes(`/offer/${CODE}`) && t.includes("Used0 of 50 times"), t.slice(0, 400));
+ok("offers for a number of months are capped at 12", (await admin.locator('[data-testid="create-offer"] input[name="months"]').getAttribute("max")) === "12");
 err = await power("create-offer", { code: CODE, percentOff: 10, scope: "all", duration: "once" });
 ok("a code already running can't be made twice", /already in use/.test(err), err);
 
@@ -136,9 +150,21 @@ await visitor.goto(`${BASE}/offer/${CODE.toLowerCase()}`);
 ok("share link opens the pricing page", new URL(visitor.url()).pathname === "/pricing");
 t = (await visitor.textContent('[data-testid="offer-banner"]').catch(() => "")).replace(/\s+/g, " ");
 ok("pricing page shows the code's offer", t.includes(`Code ${CODE}: 20% off your plan for 3 months`), t);
+ok("and that subscribers can add it on Settings > Billing", t.includes("It comes off at checkout when you start a subscription. Already subscribed? Enter it on Settings > Billing."), t);
+const cookie = (await visitor.context().cookies()).find((c) => c.name === "sf_offer");
+ok("the share link's cookie is signed", !!cookie && cookie.value.startsWith(`${CODE}.`) && cookie.httpOnly, cookie?.value);
 res = await api(visitor, "/api/billing/checkout", { plan: "STUDIO" });
 session = lastSession();
 ok("checkout applies the linked code", res.ok() && session.discounts?.[0]?.promotion_code === promo.id && !session.allow_promotion_codes);
+// A cookie set by hand (not by our link or code box) is ignored: the pricing page and checkout can't be used to try codes.
+const forger = await signIn(`forge${stamp}@example.com`);
+await forger.context().addCookies([{ name: "sf_offer", value: CODE, url: BASE }]);
+t = await text(forger, "/pricing");
+ok("a hand-made code cookie is ignored on the pricing page", (await forger.locator('[data-testid="offer-banner"], [data-testid="offer-ended"]').count()) === 0, t.slice(0, 300));
+await forger.context().addCookies([{ name: "sf_offer", value: `${CODE}.forged-signature-xx`, url: BASE }]);
+res = await api(forger, "/api/billing/checkout", { plan: "STUDIO" });
+session = lastSession();
+ok("and at checkout", res.ok() && session.allow_promotion_codes === "true" && !session.discounts);
 await visitor.goto(`${BASE}/offer/NOPE-${stamp}`);
 ok("an unknown code says it has ended", (await visitor.locator('[data-testid="offer-ended"]').count()) === 1);
 res = await api(visitor, "/api/billing/checkout", { plan: "STUDIO" });
@@ -151,7 +177,7 @@ ok("offer made automatic", !err && promo.metadata.sureframe_auto === "yes", err)
 const freshEmail = `fresh${stamp}@example.com`;
 const fresh = await signIn(freshEmail);
 t = (await text(fresh, "/pricing"));
-ok("pricing page shows the automatic offer", /Offer: 20% off your plan for 3 months\. It comes off at checkout, no code needed\./.test(t), t.slice(0, 400));
+ok("pricing page shows the automatic offer", /Offer: 20% off your plan for 3 months, for new subscriptions\. It comes off at checkout when you start a subscription, no code needed\./.test(t), t.slice(0, 400));
 res = await api(fresh, "/api/billing/checkout", { plan: "SOLO" });
 session = lastSession();
 ok("checkout applies the automatic offer", res.ok() && session.discounts?.[0]?.promotion_code === promo.id);
@@ -160,6 +186,7 @@ ok("only one offer can be automatic", /already applied automatically/.test(err),
 ok("the refused offer leaves nothing in Stripe", !state.promos.some((p) => p.code === `OTHER-${String(stamp).slice(-6)}`));
 
 // 5) A current subscriber types a code on Settings > Billing.
+let body;
 const linkWs = await workspaceOf(linkEmail);
 const linkCustomer = (await prisma.workspace.findUnique({ where: { id: linkWs.id } })).stripeCustomerId;
 const sub2 = createSubscription(linkCustomer, linkWs.id, "sureframe_founding_solo_monthly", "active", { metadata: { foundingPrices: "yes" } });
@@ -192,13 +219,43 @@ await api(third, "/api/billing/checkout", { plan: "SOLO" });
 const sub3 = createSubscription(lastSession().customer, sub3Ws.id, "sureframe_solo_monthly");
 await webhook(third, "customer.subscription.created", sub3);
 res = await api(third, "/api/billing/code", { code: NEWCODE });
-ok("a new-customers code is refused for a subscriber", res.status() === 400 && /new subscriptions only/.test((await res.json()).error));
+ok("a new-customers code is refused for a subscriber", res.status() === 400 && /haven't paid us before/.test((await res.json()).error));
+const once = await fake.coupons.create({ name: "ONCE", percent_off: 30, duration: "once", metadata: { sureframe_scope: "all" } });
+const ONCECODE = `ONCE-${String(stamp).slice(-6)}`;
+await fake.promotionCodes.create({ promotion: { type: "coupon", coupon: once.id }, code: ONCECODE });
+res = await api(third, "/api/billing/code", { code: ONCECODE });
+ok("a first-bill code is refused for a subscriber", res.status() === 400 && /only be used when you start a subscription/.test((await res.json()).error) && !sub3.discounts.length);
+sub3.cancel_at_period_end = true;
+res = await api(third, "/api/billing/code", { code: CODE });
+ok("a code is refused for a subscription that's ending", res.status() === 400 && /set to end/.test((await res.json()).error) && !sub3.discounts.length);
+sub3.cancel_at_period_end = false;
+const yearlyEmail = `yearly${stamp}@example.com`;
+const yearly = await signIn(yearlyEmail);
+await api(yearly, "/api/billing/checkout", { plan: "SOLO", interval: "year" });
+const subY = createSubscription(lastSession().customer, (await workspaceOf(yearlyEmail)).id, "sureframe_founding_solo_yearly", "active", { metadata: { foundingPrices: "yes" } });
+await webhook(yearly, "customer.subscription.created", subY);
+res = await api(yearly, "/api/billing/code", { code: CODE });
+body = await res.json();
+ok("a 3-month code is refused mid-year on yearly billing", res.status() === 400 && /3 months from today, which ends before your next bill on/.test(body.error) && !subY.discounts.length, body.error);
 res = await api(fresh, "/api/billing/code", { code: NEWCODE.toLowerCase() });
-let body = await res.json();
+body = await res.json();
 ok("a Free owner's code is saved for checkout", res.ok() && body.applied === false && body.summary === "50% off your whole bill on your first bill", JSON.stringify(body));
 res = await api(fresh, "/api/billing/checkout", { plan: "SOLO" });
 session = lastSession();
 ok("the saved code beats the automatic offer at checkout", res.ok() && session.discounts?.[0]?.promotion_code === state.promos.find((p) => p.code === NEWCODE).id);
+
+// A business that paid before and left: told a new-customers code isn't for them, and if a link brings one anyway, Stripe
+// refuses it at checkout and the automatic offer applies instead.
+sub3.status = "canceled";
+await webhook(third, "customer.subscription.deleted", sub3);
+res = await api(third, "/api/billing/code", { code: NEWCODE });
+ok("a returning business can't save a new-customers code", res.status() === 400 && /haven't paid us before/.test((await res.json()).error));
+await third.goto(`${BASE}/offer/${NEWCODE}`);
+t = ((await third.textContent('[data-testid="offer-banner"]').catch(() => "")) ?? "").replace(/\s+/g, " ");
+ok("the link's banner says who it's for", t.includes("for businesses that haven't paid us before") && !t.includes("Already subscribed"), t);
+res = await api(third, "/api/billing/checkout", { plan: "SOLO" });
+session = lastSession();
+ok("when Stripe refuses the link's code, the automatic offer applies", res.ok() && session.discounts?.[0]?.promotion_code === promo.id, JSON.stringify(session.discounts));
 
 // 6) Ending the offer: nobody new gets it, the subscriber keeps theirs.
 err = await power(`end-${CODE}`);
@@ -213,11 +270,14 @@ res = await api(late, "/api/billing/checkout", { plan: "SOLO" });
 session = lastSession();
 ok("new checkouts no longer get it", res.ok() && session.allow_promotion_codes === "true" && !session.discounts);
 ok("the subscriber keeps the discount", sub2.discounts?.length === 1);
+await prisma.workspace.update({ where: { id: linkWs.id }, data: { discountEndsAt: new Date(Date.now() - 60_000) } });
+await visitor.goto(BASE + "/settings/billing");
+ok("a discount past its end isn't shown", (await visitor.locator('[data-testid="discount"]').count()) === 0 && (await visitor.locator('[data-testid="have-code"]').count()) === 1);
 
 // 7) The Terms cover both.
 t = await text(late, "/legal/terms");
 ok("terms explain founding prices", /Founding prices are the exception/.test(t) && /Last updated 13 October 2026|13 October 2026/.test(t));
-ok("terms explain discounts", /Discount codes and offers work as described when you use them/.test(t));
+ok("terms explain discounts", /Discount codes and offers work as described when you use them/.test(t) && /we only accept one that lasts until your next bill/.test(t));
 
 await browser.close();
 server.close();

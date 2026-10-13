@@ -3,8 +3,8 @@ import type Stripe from "stripe";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { ACTIVE_STATUSES, chargeChange, FOUNDING_METADATA, keyFor, MANAGED_PAYMENTS, PLAN_ITEM, priceId, unpaid } from "@/lib/billing";
-import { foundingOpen } from "@/lib/founding";
-import { checkoutOffer, OFFER_COOKIE } from "@/lib/offers";
+import { foundingEnds, foundingOpen } from "@/lib/founding";
+import { checkoutOffers, codeFromCookie, OFFER_COOKIE } from "@/lib/offers";
 import { PAID_PLANS } from "@/lib/plans";
 import { assertFits, planChange } from "@/lib/planChange";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
@@ -46,8 +46,11 @@ export const POST = handle(async (req: Request) => {
   // Started while the founding offer runs: founding prices for as long as this subscription lasts (lib/founding.ts).
   const founding = foundingOpen();
   const price = await priceId(keyFor(PLAN_ITEM[plan], interval, founding));
-  // A share link's code, else the automatic offer (lib/offers.ts); without either, Checkout asks for a code.
-  const offer = await checkoutOffer((await cookies()).get(OFFER_COOKIE)?.value);
+  // A share link's or the code box's code, then the automatic offer (lib/offers.ts); without either, Checkout asks for a code.
+  const offers = await checkoutOffers(codeFromCookie((await cookies()).get(OFFER_COOKIE)?.value));
+  // A founding checkout can't be paid long after the offer ends: open no later than its close (Stripe's minimum is 30 minutes).
+  const ends = founding ? foundingEnds() : null;
+  const expiresAt = ends ? Math.floor(Math.max(Date.now() + 31 * 60_000, Math.min(ends.getTime(), Date.now() + 23 * 3600_000)) / 1000) : undefined;
 
   // One checkout at a time per workspace, so two tabs can't start two subscriptions.
   return db.$transaction(
@@ -80,12 +83,13 @@ export const POST = handle(async (req: Request) => {
         ...(MANAGED_PAYMENTS ? { managed_payments: { enabled: true } } : { automatic_tax: { enabled: true }, customer_update: { address: "auto", name: "auto" } }),
         client_reference_id: workspace.id,
         subscription_data: { metadata: { workspaceId: workspace.id, ...(founding ? FOUNDING_METADATA : {}) } },
+        ...(expiresAt ? { expires_at: expiresAt } : {}),
         success_url: appUrl("/settings/billing?upgraded=1"),
         cancel_url: appUrl("/pricing"),
       };
       let session: Stripe.Checkout.Session | null = null;
-      if (offer) {
-        // Stripe has the last word (say a code for new customers, and this one has paid before): then it's an ordinary checkout.
+      for (const offer of offers) {
+        // Stripe has the last word (say a code for new customers, and this one has paid before): then the next offer, else an ordinary checkout.
         session = await stripe()
           .checkout.sessions.create({ ...params, discounts: [{ promotion_code: offer.id }] })
           .catch((err) => {
@@ -93,6 +97,7 @@ export const POST = handle(async (req: Request) => {
             console.log("[billing] offer not applied at checkout", JSON.stringify({ code: offer.code, error: String((err as Error).message).slice(0, 300) }));
             return null;
           });
+        if (session) break;
       }
       // A checkout can take a code typed in or one applied for them, not both.
       session ??= await stripe().checkout.sessions.create({ ...params, allow_promotion_codes: true });
