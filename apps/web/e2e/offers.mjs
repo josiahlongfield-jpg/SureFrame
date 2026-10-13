@@ -291,6 +291,16 @@ t = await text(late, "/legal/terms");
 ok("terms explain founding prices", /Founding prices are the exception/.test(t) && /Last updated 13 October 2026|13 October 2026/.test(t));
 ok("terms explain discounts", /Discount codes and offers work as described when you use them/.test(t) && /we only accept one that lasts until your next bill/.test(t));
 
+// 8) Share links can't be used to try codes: 30 different codes per IP in 10 minutes, and retrying a refused one is refused again.
+const linkTo = async (c) => (await late.request.get(`${BASE}/offer/${c}`, { maxRedirects: 0 })).headers().location ?? "";
+const opened = `GUESS-${stamp}-first`;
+await linkTo(opened);
+let busyAt = null;
+for (let i = 0; i < 40 && busyAt === null; i++) if ((await linkTo(`GUESS-${stamp}-${i}`)).includes("code=busy")) busyAt = i;
+ok("share links stop after 30 different codes", busyAt !== null && busyAt <= 30, String(busyAt));
+ok("and asking for the refused code again is refused too", (await linkTo(`GUESS-${stamp}-${busyAt}`)).includes("code=busy"));
+ok("a code already opened still works", (await linkTo(opened)).includes("ended="));
+
 await browser.close();
 server.close();
 await prisma.$disconnect();

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cachedOfferForCode, isCodeShaped, OFFER_COOKIE, OFFER_COOKIE_OPTIONS, offerCookieValue, quietly } from "@/lib/offers";
-import { limitByIp } from "@/lib/rateLimit";
+import { clientIp, isLimited, limitByIp, rateLimit } from "@/lib/rateLimit";
 
 /**
  * A share link for a discount code (sureframe.app/offer/SPRING20): checks the
@@ -19,18 +19,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   }
   const to = (query = "") => NextResponse.redirect(new URL(`/pricing${query}`, req.url), 303);
   if (!isCodeShaped(code)) return to();
-  let repeat = false;
+  // A code this IP opened in the last 10 minutes is free; a new one counts towards the 30, and is only marked as
+  // opened once it has passed them (so retrying a refused one counts again). A limiter error refuses too.
   try {
-    await limitByIp(`offer-link-code:${code}`, 1, 600);
-  } catch {
-    repeat = true;
-  }
-  if (!repeat) {
-    try {
+    const seen = `offer-link-code:${code}:ip:${await clientIp()}`;
+    if (!(await isLimited(seen, 1, 600))) {
       await limitByIp("offer-link", 30, 600);
-    } catch {
-      return to("?code=busy");
+      await rateLimit(seen, 1_000_000, 600);
     }
+  } catch {
+    return to("?code=busy");
   }
   // Wrapped, so a code Stripe says has ended (null offer) differs from Stripe not answering in time (null lookup).
   const lookup = await quietly(cachedOfferForCode(code).then((offer) => ({ offer })));
