@@ -21,6 +21,7 @@ import {
   type Mode,
   type Quality,
 } from "@/lib/recorder/media";
+import { canComposeCamera, composeCamera } from "@/lib/recorder/compose";
 
 type Phase = "setup" | "countdown" | "recording" | "paused" | "finishing";
 
@@ -79,6 +80,11 @@ export default function Recorder({
   const [bubbleOpen, setBubbleOpen] = useState(false);
   // Phones and tablets can't share their screen from a browser, so they only get camera mode.
   const [canShareScreen, setCanShareScreen] = useState(true);
+  // Firefox can neither draw the camera into the video nor float it over other windows.
+  const [cameraWithScreen, setCameraWithScreen] = useState(true);
+  useEffect(() => {
+    setCameraWithScreen(canComposeCamera() || "documentPictureInPicture" in window || document.pictureInPictureEnabled === true);
+  }, []);
   useEffect(() => {
     if (!navigator.mediaDevices?.getDisplayMedia) {
       setCanShareScreen(false);
@@ -118,6 +124,10 @@ export default function Recorder({
     accumulated: number;
     /** Chunks are encrypted in order before they are saved or uploaded. */
     sealing: Promise<void>;
+    /** The recorder has been started (after the countdown). */
+    started?: boolean;
+    /** stop() has begun, so it runs once. */
+    finishing?: boolean;
   } | null>(null);
 
   // Finish anything a previous crash left behind.
@@ -246,11 +256,16 @@ export default function Recorder({
 
   async function start() {
     setError(undefined);
+    // Setup notices (no camera, camera found) don't carry into the recording.
+    if (!noCamera) setNotice(undefined);
     setUpgrade(false);
     failure.current = undefined;
     cancelled.current = false;
     const streams: MediaStream[] = [];
     let bubble: (() => void) | null = null;
+    let composed: { close: () => void } | null = null;
+    // The shared screen itself: sharing stopped before recording begins means there's nothing to record.
+    let shared: MediaStreamTrack | undefined;
     // Set once the server has a video for this take, so a failed start can remove it again.
     let made: { videoId: string; releaseLock: () => void } | undefined;
     try {
@@ -273,8 +288,18 @@ export default function Recorder({
         const screen = await getScreen(quality);
         streams.push(screen);
         video = screen.getVideoTracks()[0];
+        shared = video;
         // The browser's own "Stop sharing" button ends the recording cleanly.
         video.addEventListener("ended", () => void stop());
+        // The camera goes into the video as a circle, bottom left, whatever was shared.
+        const camTrack = camStream.current?.getVideoTracks()[0];
+        if (mode === "screen+camera" && camTrack && canComposeCamera()) {
+          const c = composeCamera(video, camTrack, () =>
+            setNotice("Your camera stopped, so the recording carries on with your screen only."),
+          );
+          composed = c;
+          video = c.track;
+        }
       }
       const audio = mixAudio(streams);
       const tracks = [video, ...(audio.track ? [audio.track] : [])];
@@ -334,21 +359,29 @@ export default function Recorder({
             void stop();
           });
       };
-      recorder.onerror = () => setError("The browser stopped the recorder. Your recording so far has been saved.");
+      recorder.onerror = () => {
+        failure.current = "The browser stopped the recorder. What was recorded before that has been kept.";
+        void stop();
+      };
 
-      live.current = { recorder, uploader, streams, closeAudio: audio.close, closeBubble, releaseLock, videoId, startedAt: 0, accumulated: 0, sealing: Promise.resolve() };
+      live.current = { recorder, uploader, streams, closeAudio: () => {
+        audio.close();
+        composed?.close();
+      }, closeBubble, releaseLock, videoId, startedAt: 0, accumulated: 0, sealing: Promise.resolve() };
 
       setPhase("countdown");
       for (let n = 3; n > 0; n--) {
         setCount(n);
         await new Promise((r) => setTimeout(r, 1000));
-        if (cancelled.current) throw new DOMException("Cancelled during the countdown", "AbortError");
+        if (cancelled.current || shared?.readyState === "ended") throw new DOMException("Cancelled during the countdown", "AbortError");
       }
       recorder.start(2000);
+      live.current.started = true;
       live.current.startedAt = performance.now();
       setPhase("recording");
     } catch (err) {
       stopAll(...streams);
+      composed?.close();
       bubble?.();
       setBubbleOpen(false);
       cleanup();
@@ -384,12 +417,17 @@ export default function Recorder({
 
   async function stop() {
     const l = live.current;
-    if (!l || l.recorder.state === "inactive") return;
+    // Not started yet: during the countdown there's nothing to finish (start() handles a share that ends then).
+    if (!l || !l.started || l.finishing) return;
+    l.finishing = true;
     const durationMs = durationNow();
     setPhase("finishing");
-    const stopped = new Promise<void>((r) => l.recorder.addEventListener("stop", () => r(), { once: true }));
-    l.recorder.stop();
-    await stopped;
+    // A recorder the browser has already stopped (after an error) is finished off the same way.
+    if (l.recorder.state !== "inactive") {
+      const stopped = new Promise<void>((r) => l.recorder.addEventListener("stop", () => r(), { once: true }));
+      l.recorder.stop();
+      await stopped;
+    }
     await l.sealing;
     cleanup();
     try {
@@ -507,7 +545,7 @@ export default function Recorder({
             )}
           </div>
         )}
-        {notice && !error && phase === "setup" && (
+        {notice && !error && (phase === "setup" || recordingish) && (
           <div key={flash} className={`rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 ${flash ? "notice-flash" : ""}`}>{notice}</div>
         )}
 
@@ -522,6 +560,9 @@ export default function Recorder({
                   <span className="block text-xs text-slate-500">{m.hint}</span>
                 </label>
               ))}
+              {mode === "screen+camera" && !cameraWithScreen && (
+                <p className="text-xs text-amber-700">This browser can&rsquo;t put your camera in a screen recording. Use Chrome, Edge or Brave, or choose Camera only.</p>
+              )}
             </fieldset>
 
             <div className="grid gap-3 text-sm">
