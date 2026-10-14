@@ -19,6 +19,8 @@ import { RETENTION_DAYS } from "@/lib/retention";
 export const LEGAL = {
   product: BRAND.name,
   operator: "Josiah Longfield",
+  /** SureFrame is registered with ASIC as the operator's business name (approved 14 October 2026). */
+  businessNameRegistered: true,
   abn: "38 364 192 034" as string | null,
   postalAddress: "PO Box 717, Rochedale South QLD 4123, Australia" as string | null,
   email: "support@sureframe.app",
@@ -81,7 +83,7 @@ export const LEGAL_VERSIONS = [
 ];
 
 export const operatorLine = () =>
-  `${LEGAL.product} is operated by ${LEGAL.operator}, a sole trader based in ${LEGAL.state}, ${LEGAL.country}${LEGAL.abn ? ` (ABN ${LEGAL.abn})` : ""}`;
+  `${LEGAL.product} is ${LEGAL.businessNameRegistered ? "a registered business name of" : "operated by"} ${LEGAL.operator}, a sole trader based in ${LEGAL.state}, ${LEGAL.country}${LEGAL.abn ? ` (ABN ${LEGAL.abn})` : ""}`;
 
 /** Where Neon and the Cloudflare R2 bucket keep data. Null until confirmed: the pages then give no location. */
 export const NEON_LOCATION: string | null = "United States";
