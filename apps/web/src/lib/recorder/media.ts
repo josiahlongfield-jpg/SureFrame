@@ -76,8 +76,13 @@ export function mixAudio(streams: MediaStream[]): { track?: MediaStreamTrack; cl
  * Float the camera above every app using Document Picture-in-Picture
  * (Chrome/Edge), falling back to classic video PiP. When the user shares
  * their entire screen the bubble is captured in the recording.
+ *
+ * Browsers only open one straight after a click, so call this before anything
+ * else that waits (the screen picker, the server). Resolves to a function that
+ * closes it, or null when the browser wouldn't open one. `onClosed` runs if the
+ * person closes it themselves.
  */
-export async function openCameraBubble(camera: MediaStream): Promise<() => void> {
+export async function openCameraBubble(camera: MediaStream, onClosed?: () => void): Promise<(() => void) | null> {
   const dpip = (window as unknown as { documentPictureInPicture?: { requestWindow(o: object): Promise<Window> } })
     .documentPictureInPicture;
   if (dpip) {
@@ -91,7 +96,12 @@ export async function openCameraBubble(camera: MediaStream): Promise<() => void>
       v.srcObject = camera;
       v.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:50%;transform:scaleX(-1)";
       pip.document.body.append(v);
-      return () => pip.close();
+      let closing = false;
+      pip.addEventListener("pagehide", () => !closing && onClosed?.());
+      return () => {
+        closing = true;
+        pip.close();
+      };
     } catch {
       /* fall through */
     }
@@ -100,13 +110,18 @@ export async function openCameraBubble(camera: MediaStream): Promise<() => void>
   v.muted = true;
   v.playsInline = true;
   v.srcObject = camera;
-  await v.play();
   try {
+    await v.play();
     await v.requestPictureInPicture();
-    return () => void document.exitPictureInPicture().catch(() => {});
   } catch {
-    return () => {};
+    return null;
   }
+  let closing = false;
+  v.addEventListener("leavepictureinpicture", () => !closing && onClosed?.());
+  return () => {
+    closing = true;
+    void document.exitPictureInPicture().catch(() => {});
+  };
 }
 
 export function stopAll(...streams: (MediaStream | null | undefined)[]) {

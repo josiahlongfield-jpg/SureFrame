@@ -25,7 +25,7 @@ import {
 type Phase = "setup" | "countdown" | "recording" | "paused" | "finishing";
 
 const MODES: { id: Mode; label: string; hint: string }[] = [
-  { id: "screen+camera", label: "Screen + Camera", hint: "Share your screen with a floating camera bubble" },
+  { id: "screen+camera", label: "Screen + Camera", hint: "Share your entire screen with a floating camera bubble" },
   { id: "screen", label: "Screen only", hint: "Just your screen and voice" },
   { id: "camera", label: "Camera only", hint: "A face-to-camera message" },
 ];
@@ -34,6 +34,11 @@ const fmt = (ms: number) => {
   const s = Math.floor(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
+
+const NO_CAMERA = "No camera found on this device. If you've just plugged one in, it will appear here once your computer finds it.";
+const CAMERA_BUSY = "Your camera is being used by another app, such as the Camera app, Zoom or Teams. Close that app and come back to this page.";
+const CAMERA_PERMISSION = "Camera permission is needed for this mode. Allow it in your browser's address bar, or choose Screen only.";
+const CAMERA_ERRORS = [NO_CAMERA, CAMERA_BUSY, CAMERA_PERMISSION];
 
 export default function Recorder({
   maxResolution,
@@ -67,6 +72,8 @@ export default function Recorder({
   const [notice, setNotice] = useState<string>();
   // Set once we know there's no camera: camera options then flash the notice instead of retrying.
   const [noCamera, setNoCamera] = useState(false);
+  // Bumped to ask for the camera again (one was plugged in, or another app let go of it).
+  const [camRetry, setCamRetry] = useState(0);
   const [flash, setFlash] = useState(0);
   const [recovered, setRecovered] = useState<string[]>([]);
   const [bubbleOpen, setBubbleOpen] = useState(false);
@@ -88,6 +95,8 @@ export default function Recorder({
   const previewRef = useCallback(
     (v: HTMLVideoElement | null) => {
       preview.current = v;
+      // The preview moves between the big frame and the small circle while recording.
+      if (v && camStream.current && !v.srcObject) v.srcObject = camStream.current;
       frameRef(v);
     },
     [frameRef],
@@ -139,6 +148,7 @@ export default function Recorder({
         stopAll(camStream.current);
         camStream.current = s;
         if (preview.current) preview.current.srcObject = s;
+        setError((e) => (e && CAMERA_ERRORS.includes(e) ? undefined : e));
         await loadDevices();
       })
       .catch((err: Error) => {
@@ -152,14 +162,49 @@ export default function Recorder({
         }
         setError(
           err.name === "NotFoundError"
-            ? "No camera found on this device."
-            : "Camera permission is needed for this mode. Allow it in your browser's address bar, or choose Screen only.",
+            ? NO_CAMERA
+            : err.name === "NotReadableError" || err.name === "AbortError"
+              ? CAMERA_BUSY
+              : CAMERA_PERMISSION,
         );
       });
     return () => {
       cancelled = true;
     };
-  }, [mode, camId, quality, phase, loadDevices, canShareScreen]);
+  }, [mode, camId, quality, phase, loadDevices, canShareScreen, camRetry]);
+
+  // A camera plugged in (or freed by another app) after the page opened: pick it up without a reload.
+  useEffect(() => {
+    if (phase !== "setup") return;
+    const cameraDown = () => {
+      const track = camStream.current?.getVideoTracks()[0];
+      return !track || track.readyState === "ended";
+    };
+    const onDeviceChange = async () => {
+      const all = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+      const found = all.filter((d) => d.kind === "videoinput");
+      setCams(found);
+      setMics(all.filter((d) => d.kind === "audioinput"));
+      setCamId((id) => (id && !found.some((d) => d.deviceId === id) ? undefined : id));
+      if (found.length > 0 && noCamera) {
+        setNoCamera(false);
+        setMode("screen+camera");
+        setNotice("Camera found, so Screen and camera is selected again.");
+      } else if (mode !== "screen" && cameraDown()) {
+        setCamRetry((n) => n + 1);
+      }
+    };
+    // Coming back to the tab after closing another app that had the camera.
+    const onFocus = () => {
+      if (mode !== "screen" && cameraDown()) setCamRetry((n) => n + 1);
+    };
+    navigator.mediaDevices?.addEventListener?.("devicechange", onDeviceChange);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      navigator.mediaDevices?.removeEventListener?.("devicechange", onDeviceChange);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [phase, mode, noCamera]);
 
   useEffect(() => {
     getMic(undefined)
@@ -205,6 +250,7 @@ export default function Recorder({
     failure.current = undefined;
     cancelled.current = false;
     const streams: MediaStream[] = [];
+    let bubble: (() => void) | null = null;
     // Set once the server has a video for this take, so a failed start can remove it again.
     let made: { videoId: string; releaseLock: () => void } | undefined;
     try {
@@ -218,6 +264,11 @@ export default function Recorder({
         streams.push(new MediaStream(both.getAudioTracks()));
         video = both.getVideoTracks()[0];
       } else {
+        // The bubble first, while the click still counts: browsers won't open one after the screen picker.
+        if (mode === "screen+camera" && camStream.current) {
+          bubble = await openCameraBubble(camStream.current, () => setBubbleOpen(false));
+          setBubbleOpen(!!bubble);
+        }
         streams.push(await getMic(micId));
         const screen = await getScreen(quality);
         streams.push(screen);
@@ -264,11 +315,7 @@ export default function Recorder({
       });
       made.releaseLock = releaseLock;
 
-      let closeBubble = () => {};
-      if (mode === "screen+camera" && camStream.current) {
-        closeBubble = await openCameraBubble(camStream.current);
-        setBubbleOpen(true);
-      }
+      const closeBubble = bubble ?? (() => {});
 
       const uploader = new ChunkedUploader(videoId, {}, setUpload);
       const recorder = new MediaRecorder(new MediaStream(tracks), { mimeType, videoBitsPerSecond: bitrateFor(quality) });
@@ -302,6 +349,8 @@ export default function Recorder({
       setPhase("recording");
     } catch (err) {
       stopAll(...streams);
+      bubble?.();
+      setBubbleOpen(false);
       cleanup();
       live.current = null;
       // Nothing was recorded: don't leave an empty "Incomplete upload" behind.
@@ -389,25 +438,41 @@ export default function Recorder({
 
   async function popOutBubble() {
     if (!camStream.current || !live.current) return;
-    live.current.closeBubble = await openCameraBubble(camStream.current);
+    const close = await openCameraBubble(camStream.current, () => setBubbleOpen(false));
+    if (!close) return;
+    live.current.closeBubble = close;
     setBubbleOpen(true);
   }
 
   const recordingish = phase === "recording" || phase === "paused";
+  // Screen + camera only shows the camera full size while setting up; after that the screen is what's recorded.
+  const bigCamera = mode === "camera" || (mode === "screen+camera" && phase === "setup");
   const allowedQualities = ([720, 1080, 2160] as Quality[]).filter((q) => q <= maxResolution);
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
       <div
-        style={mode !== "screen" ? frame.style : undefined}
-        className={`relative mx-auto overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-sm ${mode !== "screen" ? "" : "aspect-video w-full"}`}
+        style={bigCamera ? frame.style : undefined}
+        className={`relative mx-auto overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-sm ${bigCamera ? "" : "aspect-video w-full"}`}
       >
-        {mode !== "screen" ? (
+        {bigCamera ? (
           <video ref={previewRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full -scale-x-100 object-cover" />
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-slate-300">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="20" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
-            <p className="text-sm">You&apos;ll pick a screen, window or tab when you start.</p>
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-slate-300" data-testid="screen-panel">
+            {mode === "screen+camera" && !bubbleOpen ? (
+              <video ref={previewRef} autoPlay muted playsInline className="h-28 w-28 -scale-x-100 rounded-full object-cover ring-2 ring-white/20" data-testid="camera-circle" />
+            ) : (
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="20" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+            )}
+            <p className="text-sm">
+              {phase === "setup"
+                ? "You\u2019ll pick a screen, window or tab when you start."
+                : mode === "screen"
+                  ? "Recording your screen."
+                  : bubbleOpen
+                    ? "Recording your screen. Your camera is in the floating bubble."
+                    : "Recording your screen. Pop out the camera bubble to show your camera over your other windows."}
+            </p>
           </div>
         )}
         {phase === "countdown" && (
