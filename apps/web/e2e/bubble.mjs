@@ -30,7 +30,23 @@ await page.click("text=Continue");
 await page.waitForURL("**/record");
 await page.click("text=I've saved it");
 
-ok("setup: the camera shows full size", (await page.locator("main video").count()) === 1 && (await page.locator("[data-testid=camera-circle]").count()) === 0);
+// Screen + camera never shows the camera full size: it's a circle in the bottom-left corner, as in the video.
+const circleLive = () => page.waitForFunction(() => {
+  const t = document.querySelector("[data-testid=camera-circle]")?.srcObject?.getVideoTracks?.()[0];
+  return !!t && t.readyState === "live";
+}, null, { timeout: 8000 }).then(() => true, () => false);
+const circle = () => page.evaluate(() => {
+  const v = document.querySelector("[data-testid=camera-circle]");
+  const panel = v.parentElement.getBoundingClientRect();
+  const r = v.getBoundingClientRect();
+  return { w: r.width, h: r.height, left: r.left - panel.left, bottom: panel.bottom - r.bottom, panelH: panel.height, videos: document.querySelectorAll("main video").length };
+});
+ok("setup: the camera is a live circle", await circleLive());
+let c = await circle();
+console.log("setup circle", JSON.stringify(c));
+ok("setup: round, a quarter of the height, in the bottom-left corner", Math.abs(c.w - c.h) < 1 && Math.abs(c.h / c.panelH - 0.24) < 0.02 && c.left < c.panelH * 0.06 && c.bottom < c.panelH * 0.06, JSON.stringify(c));
+ok("setup: and no full-size camera", c.videos === 1);
+await page.screenshot({ path: `${shots}/bubble-setup.png` });
 await page.click("text=Start recording");
 await page.waitForSelector("text=/Recording · \\d/", { timeout: 20000 }).catch(async (e) => {
   await page.screenshot({ path: `${shots}/bubble-fail.png` });
@@ -47,7 +63,7 @@ const shape = await page.evaluate(() => {
 console.log("bubble", JSON.stringify(shape));
 ok("the bubble is a true circle, not an oval", shape.w > 0 && Math.abs(shape.w - shape.h) < 1 && shape.radius === "50%", JSON.stringify(shape));
 ok("and as big as the window allows", Math.abs(Math.min(...shape.win) - shape.w) < 1, JSON.stringify(shape));
-ok("and the page shows the screen panel, not the camera full size", (await page.locator("[data-testid=screen-panel]").count()) === 1 && (await page.locator("[data-testid=camera-circle]").count()) === 0);
+ok("and the page shows the screen panel with the corner circle", (await page.locator("[data-testid=screen-panel]").count()) === 1 && (await circleLive()));
 ok("and says the camera is in the bubble", (await page.locator("text=Your camera is in the floating bubble").count()) === 1);
 await page.screenshot({ path: `${shots}/bubble-recording.png` });
 

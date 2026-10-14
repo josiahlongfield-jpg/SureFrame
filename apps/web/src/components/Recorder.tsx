@@ -26,7 +26,7 @@ import { canComposeCamera, composeCamera } from "@/lib/recorder/compose";
 type Phase = "setup" | "countdown" | "recording" | "paused" | "finishing";
 
 const MODES: { id: Mode; label: string; hint: string }[] = [
-  { id: "screen+camera", label: "Screen + Camera", hint: "Share your entire screen with a floating camera bubble" },
+  { id: "screen+camera", label: "Screen + Camera", hint: "Your screen, with your camera in a circle in the corner" },
   { id: "screen", label: "Screen only", hint: "Just your screen and voice" },
   { id: "camera", label: "Camera only", hint: "A face-to-camera message" },
 ];
@@ -494,8 +494,8 @@ export default function Recorder({
   }
 
   const recordingish = phase === "recording" || phase === "paused";
-  // Screen + camera only shows the camera full size while setting up; after that the screen is what's recorded.
-  const bigCamera = mode === "camera" || (mode === "screen+camera" && phase === "setup");
+  // Only Camera only shows the camera full size. Screen + camera shows it where the video will: a circle, bottom left.
+  const bigCamera = mode === "camera";
   const allowedQualities = ([720, 1080, 2160] as Quality[]).filter((q) => q <= maxResolution);
 
   return (
@@ -508,14 +508,12 @@ export default function Recorder({
           <video ref={previewRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full -scale-x-100 object-cover" />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-slate-300" data-testid="screen-panel">
-            {mode === "screen+camera" && !bubbleOpen ? (
-              <video ref={previewRef} autoPlay muted playsInline className="h-28 w-28 -scale-x-100 rounded-full object-cover ring-2 ring-white/20" data-testid="camera-circle" />
-            ) : (
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="20" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
-            )}
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="20" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
             <p className="text-sm">
               {phase === "setup"
-                ? "You\u2019ll pick a screen, window or tab when you start."
+                ? mode === "screen+camera"
+                  ? "You\u2019ll pick a screen, window or tab when you start. Your camera goes in the circle at the bottom left."
+                  : "You\u2019ll pick a screen, window or tab when you start."
                 : mode === "screen"
                   ? "Recording your screen."
                   : wholeScreen
@@ -525,6 +523,18 @@ export default function Recorder({
                       : "Recording your screen. Pop out the camera bubble to show your camera over your other windows."}
             </p>
           </div>
+        )}
+        {mode === "screen+camera" && (
+          // Same place and size as the circle drawn into the video (lib/recorder/compose.ts): 24% of the height, inset 3.5%.
+          <video
+            ref={previewRef}
+            autoPlay
+            muted
+            playsInline
+            style={{ height: "24%", bottom: "3.5%", left: "1.97%" }}
+            className="absolute aspect-square -scale-x-100 rounded-full object-cover ring-2 ring-white/90"
+            data-testid="camera-circle"
+          />
         )}
         {phase === "countdown" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-black/60 text-white">
