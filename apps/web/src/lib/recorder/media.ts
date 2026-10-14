@@ -88,13 +88,17 @@ export async function openCameraBubble(camera: MediaStream, onClosed?: () => voi
   if (dpip) {
     try {
       const pip = await dpip.requestWindow({ width: 240, height: 240 });
-      pip.document.body.style.cssText = "margin:0;background:#000;overflow:hidden";
+      pip.document.body.style.cssText =
+        "margin:0;height:100vh;background:#000;overflow:hidden;display:flex;align-items:center;justify-content:center";
       const v = pip.document.createElement("video");
       v.autoplay = true;
       v.muted = true;
       v.playsInline = true;
       v.srcObject = camera;
-      v.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:50%;transform:scaleX(-1)";
+      // Always a true circle, however the window is sized, showing the middle square of the camera:
+      // exactly what the circle in the recording shows (lib/recorder/compose.ts).
+      v.style.cssText =
+        "width:min(100vw,100vh);height:min(100vw,100vh);flex:none;object-fit:cover;object-position:center;border-radius:50%;transform:scaleX(-1)";
       pip.document.body.append(v);
       let closing = false;
       pip.addEventListener("pagehide", () => !closing && onClosed?.());

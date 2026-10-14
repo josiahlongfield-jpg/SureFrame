@@ -12,9 +12,15 @@ const ok = (name, cond, extra = "") => {
 
 const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM ?? undefined,
-  args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--auto-select-desktop-capture-source=Entire screen"],
+  // A tab is shared here; the whole-screen case is at the end.
+  args: ["--use-fake-device-for-media-stream", "--auto-accept-this-tab-capture"],
 });
 const ctx = await browser.newContext({ permissions: ["camera", "microphone"], viewport: { width: 1360, height: 900 } });
+// The test browser can only share a tab when it's this one.
+await ctx.addInitScript(() => {
+  const gdm = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
+  navigator.mediaDevices.getDisplayMedia = (o) => gdm({ ...o, preferCurrentTab: true });
+});
 const page = await ctx.newPage();
 await page.goto(BASE + "/record");
 const email = `bubble${Date.now()}@acme.com`;
@@ -26,30 +32,55 @@ await page.click("text=I've saved it");
 
 ok("setup: the camera shows full size", (await page.locator("main video").count()) === 1 && (await page.locator("[data-testid=camera-circle]").count()) === 0);
 await page.click("text=Start recording");
-await page.waitForSelector("text=/Recording · \\d/", { timeout: 20000 });
+await page.waitForSelector("text=/Recording · \\d/", { timeout: 20000 }).catch(async (e) => {
+  await page.screenshot({ path: `${shots}/bubble-fail.png` });
+  console.log("page text:", (await page.textContent("main"))?.slice(0, 600));
+  throw e;
+});
 ok("the bubble opens with the recording", await page.evaluate(() => !!window.documentPictureInPicture?.window));
+const shape = await page.evaluate(() => {
+  const w = window.documentPictureInPicture.window;
+  const v = w.document.querySelector("video");
+  const r = v.getBoundingClientRect();
+  return { w: r.width, h: r.height, win: [w.innerWidth, w.innerHeight], radius: w.getComputedStyle(v).borderRadius };
+});
+console.log("bubble", JSON.stringify(shape));
+ok("the bubble is a true circle, not an oval", shape.w > 0 && Math.abs(shape.w - shape.h) < 1 && shape.radius === "50%", JSON.stringify(shape));
+ok("and as big as the window allows", Math.abs(Math.min(...shape.win) - shape.w) < 1, JSON.stringify(shape));
 ok("and the page shows the screen panel, not the camera full size", (await page.locator("[data-testid=screen-panel]").count()) === 1 && (await page.locator("[data-testid=camera-circle]").count()) === 0);
 ok("and says the camera is in the bubble", (await page.locator("text=Your camera is in the floating bubble").count()) === 1);
 await page.screenshot({ path: `${shots}/bubble-recording.png` });
 
-// Closing the bubble by hand: a small camera circle and the button to bring it back.
-await page.evaluate(() => window.documentPictureInPicture.window.close());
-await page.waitForSelector("text=Pop out camera bubble", { timeout: 5000 }).catch(() => {});
-ok("closed by hand: the pop-out button comes back", (await page.locator("text=Pop out camera bubble").count()) === 1);
-const circleLive = await page.waitForFunction(() => {
-  const t = document.querySelector("[data-testid=camera-circle]")?.srcObject?.getVideoTracks?.()[0];
-  return !!t && t.readyState === "live";
-}, null, { timeout: 5000 }).then(() => true, () => false);
-ok("and a small camera circle shows on the page", circleLive);
-await page.click("text=Pop out camera bubble");
-ok("the button opens it again", await page.waitForFunction(() => !!window.documentPictureInPicture?.window, null, { timeout: 5000 }).then(() => true, () => false));
-
-await page.waitForTimeout(3000);
-await page.click("button:has-text('Stop')");
-await page.waitForURL("**/v/**", { timeout: 30000 });
-ok("stopping saves the video", page.url().includes("/v/"));
-ok("and closes the bubble", await page.evaluate(() => !window.documentPictureInPicture?.window));
-
+// Not stopped here: in this test browser, closing the bubble while this same tab is shared also closes the tab.
+// Stopping (which closes the bubble) is covered by the whole-screen run below and by compose.mjs.
 await browser.close();
+
+// The whole screen shared: the floating window would be recorded too, so it closes, and the camera is the circle drawn into the video.
+{
+  const whole = await chromium.launch({
+    executablePath: process.env.CHROMIUM ?? undefined,
+    args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--auto-select-desktop-capture-source=Entire screen"],
+  });
+  const c = await whole.newContext({ permissions: ["camera", "microphone"], viewport: { width: 1360, height: 900 } });
+  const p = await c.newPage();
+  await p.goto(BASE + "/record");
+  const e = `bubblewhole${Date.now()}@acme.com`;
+  await agreed(e);
+  await p.fill('input[name="email"]', e);
+  await p.click("text=Continue");
+  await p.waitForURL("**/record");
+  await p.click("text=I've saved it");
+  await p.click("text=Start recording");
+  await p.waitForSelector("text=/Recording · \\d/", { timeout: 20000 });
+  ok("whole screen: the floating window closes", await p.evaluate(() => !window.documentPictureInPicture?.window));
+  ok("and the page says the camera is the circle in the video", (await p.locator("text=Your camera is in the circle at the bottom left").count()) === 1);
+  ok("and offers no pop-out button", (await p.locator("text=Pop out camera bubble").count()) === 0);
+  ok("and shows a small camera circle on the page", (await p.locator("[data-testid=camera-circle]").count()) === 1);
+  await p.waitForTimeout(2000);
+  await p.click("button:has-text('Stop')");
+  await p.waitForURL("**/v/**", { timeout: 30000 });
+  ok("and the video saves", p.url().includes("/v/"));
+  await whole.close();
+}
 console.log(failed ? `${failed} FAILED` : "ALL PASSED");
 process.exit(failed ? 1 : 0);

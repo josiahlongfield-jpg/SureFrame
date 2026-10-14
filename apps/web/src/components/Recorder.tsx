@@ -78,6 +78,8 @@ export default function Recorder({
   const [flash, setFlash] = useState(0);
   const [recovered, setRecovered] = useState<string[]>([]);
   const [bubbleOpen, setBubbleOpen] = useState(false);
+  // Recording the whole screen with the camera drawn in: no floating window, it would be recorded too.
+  const [wholeScreen, setWholeScreen] = useState(false);
   // Phones and tablets can't share their screen from a browser, so they only get camera mode.
   const [canShareScreen, setCanShareScreen] = useState(true);
   // Firefox can neither draw the camera into the video nor float it over other windows.
@@ -256,6 +258,7 @@ export default function Recorder({
 
   async function start() {
     setError(undefined);
+    setWholeScreen(false);
     // Setup notices (no camera, camera found) don't carry into the recording.
     if (!noCamera) setNotice(undefined);
     setUpgrade(false);
@@ -299,6 +302,14 @@ export default function Recorder({
           );
           composed = c;
           video = c.track;
+          // A whole-screen share would also record the floating window, title bar and all, so the camera
+          // showed twice. The circle drawn into the video is the camera then, and you see yourself on this tab.
+          if ((shared.getSettings() as { displaySurface?: string }).displaySurface === "monitor") {
+            bubble?.();
+            bubble = null;
+            setBubbleOpen(false);
+            setWholeScreen(true);
+          }
         }
       }
       const audio = mixAudio(streams);
@@ -507,9 +518,11 @@ export default function Recorder({
                 ? "You\u2019ll pick a screen, window or tab when you start."
                 : mode === "screen"
                   ? "Recording your screen."
-                  : bubbleOpen
-                    ? "Recording your screen. Your camera is in the floating bubble."
-                    : "Recording your screen. Pop out the camera bubble to show your camera over your other windows."}
+                  : wholeScreen
+                    ? "Recording your whole screen. Your camera is in the circle at the bottom left of the video."
+                    : bubbleOpen
+                      ? "Recording your screen. Your camera is in the floating bubble."
+                      : "Recording your screen. Pop out the camera bubble to show your camera over your other windows."}
             </p>
           </div>
         )}
@@ -617,7 +630,7 @@ export default function Recorder({
               )}
               <button onClick={stop} className="flex-1 rounded-xl bg-red-600 px-4 py-3 font-semibold text-white hover:bg-red-700">Stop</button>
             </div>
-            {mode === "screen+camera" && !bubbleOpen && (
+            {mode === "screen+camera" && !bubbleOpen && !wholeScreen && (
               <button onClick={popOutBubble} className="rounded-xl border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">Pop out camera bubble</button>
             )}
             <button onClick={discard} className="text-sm text-slate-500 underline-offset-2 hover:underline">Discard and start over</button>
