@@ -34,7 +34,7 @@ export default function Home() {
             </h1>
             <p className="max-w-[30em] text-[0.9375rem] leading-relaxed text-muted sm:text-[1.0625rem]">Record it once, send it privately, and keep every client on track.</p>
             <div className="flex flex-wrap items-center gap-2.5">
-              <Link href="/record" className="rounded-[0.625rem] bg-primary px-4 py-3 text-sm font-medium text-on-primary shadow-[0_0.5rem_1.5rem_-0.625rem_rgb(79_110_247/0.9)] hover:bg-primary-hover sm:px-[1.125rem] sm:text-[0.9375rem]">
+              <Link href="/record" className="rounded-[0.625rem] bg-primary px-4 py-3 text-sm font-medium text-on-primary hover:bg-primary-hover sm:px-[1.125rem] sm:text-[0.9375rem]">
                 Record your first video, free
               </Link>
               <Link href="/pricing" className="rounded-[0.625rem] border border-line bg-solid px-4 py-3 text-sm font-medium text-on-solid hover:bg-solid-hover sm:px-[1.125rem] sm:text-[0.9375rem]">
