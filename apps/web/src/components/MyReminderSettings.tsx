@@ -146,7 +146,7 @@ export default function MyReminderSettings({ business, ...initial }: Props) {
 
       <aside className="lg:sticky lg:top-6 lg:self-start">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-dim">What your clients see</p>
-        <div data-theme="light" className="overflow-hidden rounded-2xl border border-line bg-surface text-ink shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-line bg-surface text-ink">
           <div className="border-b border-line px-4 py-3 text-xs text-dim">
             <p><span className="text-dim">From:</span> {business.name}</p>
             <p className="mt-0.5 font-medium text-ink" data-testid="preview-subject">{preview.subject}</p>

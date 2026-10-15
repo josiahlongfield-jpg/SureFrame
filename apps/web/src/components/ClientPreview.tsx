@@ -164,8 +164,8 @@ function EmailPreview({ brand, sender, origin }: { brand: Brand; sender: string;
   const logoUrl = brand.logoUrl && brand.logoUrl.startsWith("/") ? origin + brand.logoUrl : brand.logoUrl;
   const mail = newVideoEmail({ business: brand.name, sender, clientName: CLIENT, link: `${origin}/inbox`, logoUrl, color: brand.color });
   return (
-    <div data-theme="light" className="min-h-screen bg-surface-2 p-3 text-ink sm:p-8" data-testid="preview-email">
-      <div className="mx-auto max-w-2xl overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
+    <div className="min-h-screen bg-canvas-2 p-3 text-ink sm:p-8" data-testid="preview-email">
+      <div className="mx-auto max-w-2xl overflow-hidden rounded-2xl border border-line bg-surface">
         <div className="border-b border-line px-5 py-4">
           <p className="text-lg font-semibold text-ink" data-testid="email-subject">{mail.subject}</p>
           <div className="mt-2 flex items-center gap-3 text-sm">
@@ -177,7 +177,7 @@ function EmailPreview({ brand, sender, origin }: { brand: Brand; sender: string;
           </div>
         </div>
         {/* The real email HTML, isolated from the app's styles like a mail app would. */}
-        <iframe title="Email body" srcDoc={`<!doctype html><meta charset="utf-8"><body style="margin:0">${mail.html}</body>`} sandbox="allow-same-origin" className="h-[22rem] w-full" />
+        <iframe title="Email body" srcDoc={`<!doctype html><meta charset="utf-8"><body style="margin:0;background:#0c1428">${mail.html}</body>`} sandbox="allow-same-origin" className="h-[22rem] w-full" />
       </div>
     </div>
   );

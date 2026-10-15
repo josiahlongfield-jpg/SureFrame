@@ -1,3 +1,5 @@
+import { EMAIL, emailButton, emailColors, emailLogo, emailShell, esc } from "@/lib/emailLook";
+
 /**
  * Tells a client a video is waiting. The video's title isn't included (it
  * can be personal) and the link carries no key: the client's device already
@@ -11,15 +13,11 @@ export function newVideoEmail(o: { business: string; sender?: string | null; cli
   const after = "It's private to you. If it doesn't open on this device, use the personal link they gave you first." + (o.noReply ? ` Please don't reply to this email; contact ${o.business} directly.` : "");
   const stop = o.unsubscribe ? `Don't want emails from ${o.business}? Turn them off: ${o.unsubscribe}` : "";
   const text = [lead, "", `Watch it: ${o.link}`, "", after, ...(stop ? ["", stop] : [])].join("\n");
-  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-  const accent = o.color && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : "#3b55e6";
-  const html = `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0f172a">
-${o.logoUrl ? `<p style="margin:0 0 20px"><img src="${esc(o.logoUrl)}" alt="${esc(o.business)}" style="max-height:40px;max-width:200px"></p>` : ""}
-<p style="font-size:16px;margin:0 0 16px">${esc(lead)}</p>
-<p style="margin:24px 0"><a href="${esc(o.link)}" style="background:${accent};color:#fff;text-decoration:none;padding:10px 18px;border-radius:10px;font-weight:600;display:inline-block">Watch the video</a></p>
-<p style="font-size:12px;color:#64748b;margin:0">${esc(after)}</p>
-${o.unsubscribe ? `<p style="font-size:11px;color:#94a3b8;margin:16px 0 0">Don&#39;t want emails from ${esc(o.business)}? <a href="${esc(o.unsubscribe)}" style="color:#64748b">Turn them off</a></p>` : ""}
-<p style="font-size:11px;color:#94a3b8;margin:24px 0 0">Sent with SureFrame</p>
-</div>`;
+  const { fill, link } = emailColors(o.color);
+  const html = emailShell(`${emailLogo(o.logoUrl, o.business)}
+<p style="font-size:16px;line-height:1.5;margin:0 0 16px">${esc(lead)}</p>
+${emailButton(o.link, "Watch the video", fill)}
+<p style="font-size:12px;line-height:1.5;color:${EMAIL.muted};margin:0">${esc(after)}</p>
+${o.unsubscribe ? `<p style="font-size:11px;color:${EMAIL.dim};margin:16px 0 0">Don&#39;t want emails from ${esc(o.business)}? <a href="${esc(o.unsubscribe)}" style="color:${link}">Turn them off</a></p>` : ""}`);
   return { subject, text, html };
 }

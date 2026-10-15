@@ -3,6 +3,7 @@ import { rateLimit } from "@/lib/rateLimit";
 import type { SupportMessage, SupportTicket } from "@prisma/client";
 import { db } from "@/lib/db";
 import { sendMail } from "@/lib/mail";
+import { emailButton, emailColors, emailShell } from "@/lib/emailLook";
 import { appUrl } from "@/lib/stripe";
 
 /** Where handed-over conversations are announced. Set SUPPORT_EMAIL in production. */
@@ -72,9 +73,8 @@ export async function staffReply(ticket: SupportTicket & { user: { email: string
     to,
     subject: "Reply from SureFrame support",
     text: [body, "", `See the whole conversation or reply: ${link}`].join("\n"),
-    html: `<div style="font-family:system-ui,sans-serif;max-width:560px;color:#0f172a">${paragraphs(body)}
-<p style="margin:16px 0"><a href="${esc(link)}">See the conversation or reply</a></p>
-<p style="font-size:11px;color:#94a3b8;margin:24px 0 0">SureFrame support</p></div>`,
+    html: emailShell(`<div style="font-size:15px;line-height:1.5">${paragraphs(body)}</div>
+${emailButton(link, "See the conversation or reply", emailColors().fill)}`, "SureFrame support"),
     replyTo: supportInbox(),
   });
   return true;

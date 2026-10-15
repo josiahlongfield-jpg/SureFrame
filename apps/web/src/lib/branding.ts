@@ -52,10 +52,8 @@ export function colorProblem(c: string): string | null {
 /** Override the app's brand colour tokens for everything inside an element. */
 export function brandStyle(color: string | null): CSSProperties | undefined {
   if (!color) return undefined;
-  // Buttons and bubbles: visible against the navy page (2:1), but still dark enough for their white text.
-  const fill = contrast(color, NAVY) >= 2 ? color : lightenFor(color, NAVY, 2, 0.35);
-  // Links and highlights sit on cards, so they need reading contrast (4.5:1).
-  const text = lightenFor(color, NAVY_SURFACE, 4.5);
+  const fill = brandFill(color);
+  const text = brandText(color);
   return {
     "--color-brand-50": mix(color, 255, 0.92),
     "--color-brand-100": mix(color, 255, 0.84),
@@ -71,6 +69,11 @@ export function brandStyle(color: string | null): CSSProperties | undefined {
     "--brand-line": rgba(text, 0.4),
   } as CSSProperties;
 }
+
+/** Buttons and bubbles: visible against the navy page (2:1), but still dark enough for their white text. */
+export const brandFill = (color: string) => (contrast(color, NAVY) >= 2 ? color : lightenFor(color, NAVY, 2, 0.35));
+/** Links and highlights sit on cards, so they need reading contrast (4.5:1). */
+export const brandText = (color: string) => lightenFor(color, NAVY_SURFACE, 4.5);
 
 const NAVY = "#0c1428";
 const NAVY_SURFACE = "#111a31";

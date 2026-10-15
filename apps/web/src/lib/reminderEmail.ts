@@ -1,4 +1,5 @@
 import { localParts } from "@/lib/schedule";
+import { EMAIL, emailButton, emailColors, emailLogo, emailShell, esc } from "@/lib/emailLook";
 
 /**
  * The reminder email. Pure, so the settings page can show a live preview.
@@ -43,18 +44,14 @@ export function reminderEmail(o: {
     o.unsubscribe ? `\nStop emails from ${o.business}: ${o.unsubscribe}` : "",
     "\nSent with SureFrame",
   ].join("\n");
-  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-  const accent = o.color && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : "#3b55e6";
-  const html = `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0f172a">
-${o.logoUrl ? `<p style="margin:0 0 20px"><img src="${esc(o.logoUrl)}" alt="${esc(o.business)}" style="max-height:40px;max-width:200px"></p>` : ""}
-<p style="font-size:16px;margin:0 0 16px">${esc(lead)}</p>
-${message ? `<p style="font-size:15px;white-space:pre-wrap;margin:0 0 16px;color:#334155">${esc(message)}</p>` : ""}
-<p style="margin:24px 0"><a href="${esc(o.link)}" style="background:${accent};color:#fff;text-decoration:none;padding:10px 18px;border-radius:10px;font-weight:600;display:inline-block">Open your list</a></p>
-<p style="font-size:12px;color:#64748b;margin:0">For privacy, the details are only shown in the app.</p>
-${o.noReply ? `<p style="font-size:12px;color:#64748b;margin:8px 0 0">Please don&#39;t reply to this email; contact ${esc(o.business)} directly.</p>` : ""}
-${o.unsubscribe ? `<p style="font-size:12px;color:#64748b;margin:8px 0 0"><a href="${esc(o.unsubscribe)}" style="color:#64748b">Stop emails from ${esc(o.business)}</a></p>` : ""}
-<p style="font-size:11px;color:#94a3b8;margin:24px 0 0">Sent with SureFrame</p>
-</div>`;
+  const { fill, link } = emailColors(o.color);
+  const html = emailShell(`${emailLogo(o.logoUrl, o.business)}
+<p style="font-size:16px;line-height:1.5;margin:0 0 16px">${esc(lead)}</p>
+${message ? `<p style="font-size:15px;line-height:1.5;white-space:pre-wrap;margin:0 0 16px;color:${EMAIL.body}">${esc(message)}</p>` : ""}
+${emailButton(o.link, "Open your list", fill)}
+<p style="font-size:12px;color:${EMAIL.muted};margin:0">For privacy, the details are only shown in the app.</p>
+${o.noReply ? `<p style="font-size:12px;color:${EMAIL.muted};margin:8px 0 0">Please don&#39;t reply to this email; contact ${esc(o.business)} directly.</p>` : ""}
+${o.unsubscribe ? `<p style="font-size:12px;color:${EMAIL.muted};margin:8px 0 0"><a href="${esc(o.unsubscribe)}" style="color:${link}">Stop emails from ${esc(o.business)}</a></p>` : ""}`);
   return { subject, text, html, when };
 }
 
