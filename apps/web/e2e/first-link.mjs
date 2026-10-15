@@ -41,6 +41,7 @@ await owner.fill('input[name="email"]', `fl-owner${stamp}@example.com`);
 await owner.click("text=Continue");
 await owner.waitForURL((u) => u.pathname === "/library");
 ok("new business: start here step", !!(await owner.waitForSelector("[data-testid=start-here] >> text=Add your clients first", { timeout: 10000 }).catch(() => null)));
+await owner.screenshot({ path: `${process.argv[2] ?? "/tmp"}/first-link-start.png` });
 const menu = await owner.locator("header nav a[href='/clients'], header nav a[href='/library']").evaluateAll((els) => els.map((e) => e.getAttribute("href")));
 ok("Clients comes before Library in the menu", menu.indexOf("/clients") > -1 && menu.indexOf("/clients") < menu.indexOf("/library"), menu.join("|"));
 
@@ -54,6 +55,7 @@ await owner.click("[data-testid=bulk-open]");
 await owner.fill("#bulk-list", `Zoe Park, ${zoeEmail}\n${annEmail}\nZoe again <${zoeEmail}>\nnot an email@\nMo Diaz`);
 const summary = await owner.textContent("[data-testid=bulk-summary]");
 ok("pasted list: 3 ready, 1 repeat, 1 to check", /3 clients ready to add/.test(summary) && /1 already on your list/.test(summary) && /Check this line/.test(summary), summary);
+await owner.locator("[data-testid=bulk-add]").screenshot({ path: `${process.argv[2] ?? "/tmp"}/first-link-bulk.png` });
 await owner.click("[data-testid=bulk-add] >> button:has-text('Add 3 clients')");
 await owner.waitForSelector("text=Added 3 clients");
 const ws = (await prisma.membership.findFirst({ where: { user: { email: `fl-owner${stamp}@example.com` } } })).workspaceId;
