@@ -111,9 +111,9 @@ export function FullPreview({ brand, view, device, onView, onDevice, onClose }: 
     };
   }, [onClose]);
   return (
-    <div role="dialog" aria-modal="true" aria-label="Full preview of what your clients see" data-testid="full-preview" className="fixed inset-0 z-50 flex flex-col bg-solid-hover">
-      <div className="flex flex-wrap items-center gap-3 border-b border-line-strong bg-solid px-4 py-3">
-        <p className="mr-auto text-sm font-semibold text-white">What your clients see</p>
+    <div role="dialog" aria-modal="true" aria-label="Full preview of what your clients see" data-testid="full-preview" className="fixed inset-0 z-50 flex flex-col bg-canvas">
+      <div className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-4 py-3">
+        <p className="mr-auto text-sm font-semibold text-ink">What your clients see</p>
         <Segmented label="Page" value={view} options={VIEWS} onChange={onView} />
         <Segmented label="Screen size" value={device} options={[{ id: "desktop", label: "Desktop" }, { id: "phone", label: "Phone" }]} onChange={onDevice} />
         <button type="button" onClick={onClose} autoFocus className="rounded-lg bg-surface px-3 py-1.5 text-sm font-semibold text-ink hover:bg-hover">

@@ -759,7 +759,7 @@ function WatchBody({
             <path d="M8 9.5h8M8 12.5h5" />
           </svg>
           Chat
-          {replies.length > 0 && <span className="rounded-full bg-surface/25 px-1.5 text-xs">{replies.length}</span>}
+          {replies.length > 0 && <span className="rounded-full bg-white/25 px-1.5 text-xs">{replies.length}</span>}
           {unread > 0 && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-500" data-testid="chat-unread" />}
         </button>
       )}
@@ -825,7 +825,7 @@ function WatchBody({
                   {r.timestampMs !== null && (
                     <button
                       onClick={() => seek(r.timestampMs)}
-                      className={`mr-1.5 rounded px-1.5 text-xs font-medium ${r.fromOwner ? "bg-surface text-accent" : "bg-surface/20 text-white"}`}
+                      className={`mr-1.5 rounded px-1.5 text-xs font-medium ${r.fromOwner ? "bg-surface text-accent" : "bg-white/20 text-white"}`}
                     >
                       {fmt(r.timestampMs)}
                     </button>

@@ -64,7 +64,7 @@ export default async function Watch({ params, searchParams }: Props) {
     const block = mine?.id === video.clientId ? clientBlock(mine) : null;
     if (mine && (block === "unavailable" || block === "off")) {
       return (
-        <div data-theme="light" className="grid min-h-screen place-items-center bg-canvas px-4 text-ink">
+        <div data-theme="navy" className="grid min-h-screen place-items-center bg-canvas px-4 text-ink">
           <div className="max-w-sm rounded-2xl border border-line bg-surface p-8 text-center" data-testid={block === "off" ? "video-link-off" : "video-unavailable"}>
             <Logo />
             <h1 className="mt-6 text-lg font-semibold text-ink">{block === "off" ? "This link has been turned off" : "Unavailable right now"}</h1>
@@ -76,7 +76,7 @@ export default async function Watch({ params, searchParams }: Props) {
       );
     }
     return (
-      <div data-theme="light" className="grid min-h-screen place-items-center bg-canvas px-4 text-ink">
+      <div data-theme="navy" className="grid min-h-screen place-items-center bg-canvas px-4 text-ink">
         <div className="max-w-sm rounded-2xl border border-line bg-surface p-8 text-center">
           <Logo />
           <h1 className="mt-6 text-lg font-semibold text-ink">This video is private</h1>
@@ -135,7 +135,7 @@ export default async function Watch({ params, searchParams }: Props) {
     : [undefined, 0];
 
   return (
-    <div data-theme={isMember ? "navy" : "light"} className="min-h-screen bg-canvas text-ink" style={isMember ? undefined : brandStyle(brand?.color ?? null)}>
+    <div data-theme="navy" className="min-h-screen bg-canvas text-ink" style={isMember ? undefined : brandStyle(brand?.color ?? null)}>
       {isMember ? (
         // The team gets the normal app menu, so they can get back to the Library and everything else.
         <AppHeader email={memberEmail ?? ""} plan={PLANS[workspace.plan].name} />

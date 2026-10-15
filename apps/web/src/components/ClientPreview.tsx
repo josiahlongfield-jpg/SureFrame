@@ -25,7 +25,7 @@ export default function ClientPreview({ brand, view, sender, origin }: { brand: 
   const shown = brand.logoUrl || brand.color ? brand : null;
   if (view === "email") return <EmailPreview brand={brand} sender={sender} origin={origin} />;
   return (
-    <div data-theme="light" className="min-h-screen bg-canvas text-ink" style={brandStyle(brand.color)} data-testid={`preview-${view}`}>
+    <div data-theme="navy" className="min-h-screen bg-canvas text-ink" style={brandStyle(brand.color)} data-testid={`preview-${view}`}>
       {view === "video" ? (
         <>
           <ClientHeader brand={shown} width="max-w-6xl" allVideosLink />
@@ -52,13 +52,13 @@ function VideoPage({ business, sender }: { business: string; sender: string }) {
       <section>
         <div className="relative overflow-hidden rounded-2xl bg-black shadow-sm">
           <div className="grid aspect-video place-items-center bg-gradient-to-br from-slate-700 to-slate-900">
-            <span className="grid h-16 w-16 place-items-center rounded-full bg-surface/90 text-ink shadow-lg">
+            <span className="grid h-16 w-16 place-items-center rounded-full bg-white/90 text-[#0c1428] shadow-lg">
               <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" /></svg>
             </span>
           </div>
           <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 bg-gradient-to-t from-black/70 to-transparent px-4 pb-3 pt-8 text-xs text-white/90">
             <span>0:00 / 3:12</span>
-            <span className="h-1 flex-1 rounded-full bg-surface/30"><span className="block h-1 w-1/4 rounded-full bg-surface" /></span>
+            <span className="h-1 flex-1 rounded-full bg-white/30"><span className="block h-1 w-1/4 rounded-full bg-white" /></span>
           </div>
         </div>
         <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
@@ -96,7 +96,7 @@ function VideoPage({ business, sender }: { business: string; sender: string }) {
           <div className="w-full rounded-lg border border-primary px-3 py-2 text-sm text-ink" style={{ minHeight: "4.5rem" }}>
             Sounds good, see you Thursday
           </div>
-          <span className="mt-2 block w-full rounded-lg bg-solid px-3 py-2.5 text-center text-sm font-semibold text-white">Send reply</span>
+          <span className="mt-2 block w-full rounded-lg bg-primary px-3 py-2.5 text-center text-sm font-semibold text-on-primary">Send reply</span>
         </div>
       </aside>
     </div>
@@ -111,7 +111,7 @@ function Bubble({ who, text, fromOwner = false, at }: { who: string; text: strin
         <span>{fromOwner ? "9:41 AM" : "10:02 AM"}</span>
       </div>
       <div className={`max-w-[90%] rounded-2xl px-3 py-2 ${fromOwner ? "rounded-tl-sm bg-surface-2 text-ink" : "rounded-tr-sm bg-primary text-white"}`}>
-        {at && <span className={`mr-1.5 rounded px-1.5 text-xs font-medium ${fromOwner ? "bg-surface text-accent" : "bg-surface/20 text-white"}`}>{at}</span>}
+        {at && <span className={`mr-1.5 rounded px-1.5 text-xs font-medium ${fromOwner ? "bg-surface text-accent" : "bg-white/20 text-white"}`}>{at}</span>}
         <span className="whitespace-pre-wrap">{text}</span>
       </div>
     </li>

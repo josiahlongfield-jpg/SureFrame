@@ -539,7 +539,7 @@ export default function Recorder({
         {phase === "countdown" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-black/60 text-white">
             <span className="text-8xl font-semibold">{count}</span>
-            <button onClick={() => (cancelled.current = true)} className="rounded-lg bg-surface/15 px-4 py-2 text-sm font-medium hover:bg-hover/25">Cancel</button>
+            <button onClick={() => (cancelled.current = true)} className="rounded-lg bg-white/15 px-4 py-2 text-sm font-medium hover:bg-white/25">Cancel</button>
           </div>
         )}
         {recordingish && (

@@ -104,18 +104,19 @@
   --color-line: rgb(255 255 255 / 0.08);
   --color-line-strong: rgb(255 255 255 / 0.16);
   /* #4a68f2 rather than #4f6ef7 for fills, so white button text passes AA (4.6:1). */
-  --color-primary: #4a68f2;
-  --color-primary-hover: #5d79f8;
+  /* --brand-* come from brandStyle() on client pages, so they show in the business's colour; SureFrame blue otherwise. */
+  --color-primary: var(--brand-fill, #4a68f2);
+  --color-primary-hover: var(--brand-fill-hover, #5d79f8);
   --color-on-primary: #ffffff;
-  --color-accent: #8ea3ff;
-  --color-highlight: #8ea3ff;
+  --color-accent: var(--brand-text, #8ea3ff);
+  --color-highlight: var(--brand-text, #8ea3ff);
   --color-lock: #ff8f84;
   --color-solid: rgb(255 255 255 / 0.06);
   --color-solid-hover: rgb(255 255 255 / 0.1);
   --color-on-solid: #eef2fb;
   --color-hover: rgb(255 255 255 / 0.05);
-  --color-primary-soft: rgb(79 110 247 / 0.16);
-  --color-primary-line: rgb(142 163 255 / 0.4);
+  --color-primary-soft: var(--brand-soft, rgb(79 110 247 / 0.16));
+  --color-primary-line: var(--brand-line, rgb(142 163 255 / 0.4));
   --color-ok-bg: rgb(52 211 153 / 0.12);
   --color-ok-fg: #6ee7b7;
   --color-ok-line: rgb(52 211 153 / 0.3);

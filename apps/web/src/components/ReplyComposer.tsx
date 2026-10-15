@@ -279,7 +279,7 @@ export default function ReplyComposer({
             rows={3}
             className="w-full resize-none rounded-lg border border-line-strong px-3 py-2 text-sm focus:border-primary focus:outline-none"
           />
-          <button disabled={busy || !text.trim()} className="mt-2 w-full rounded-lg bg-solid px-3 py-2.5 text-sm font-semibold text-white hover:bg-solid-hover disabled:opacity-50">
+          <button disabled={busy || !text.trim()} className="mt-2 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
             {phase === "sending" ? "Sending…" : "Send reply"}
           </button>
         </form>
