@@ -9,7 +9,7 @@ export default function NavLinks({ links, className }: { links: readonly (readon
   return links.map(([href, label]) => {
     const current = path === href || path.startsWith(`${href}/`);
     return (
-      <Link key={href} href={href} aria-current={current ? "page" : undefined} className={`group ${className} ${current ? "text-slate-900" : "text-slate-600 hover:text-slate-900"}`}>
+      <Link key={href} href={href} aria-current={current ? "page" : undefined} className={`group ${className} ${current ? "text-ink" : "text-muted hover:text-ink"}`}>
         <span className="inline-grid">
           <span aria-hidden className="invisible col-start-1 row-start-1 font-semibold">{label}</span>
           <span className={`col-start-1 row-start-1 ${current ? "font-semibold" : "group-hover:font-semibold group-focus-visible:font-semibold"}`}>{label}</span>

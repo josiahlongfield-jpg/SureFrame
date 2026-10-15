@@ -14,7 +14,7 @@ import { Badge, ConsoleNav, consoleAdmin, day, Done, Facts, History, planName, S
 
 export const metadata: Metadata = { title: "Workspace (support)", robots: { index: false } };
 
-const field = "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm";
+const field = "w-full rounded-xl border border-line-strong px-3 py-2 text-sm";
 const D = 86_400_000;
 
 /** Support admins: one workspace's status, members and clients, the support powers for it, and its support log. */
@@ -53,8 +53,8 @@ export default async function SupportWorkspace({ params, searchParams }: { param
   return (
     <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <ConsoleNav />
-      <h1 className="mt-3 break-words text-2xl font-semibold tracking-tight text-slate-900">{w.name}</h1>
-      <p className="mt-1 break-all text-xs text-slate-500">Workspace {w.id}</p>
+      <h1 className="mt-3 break-words text-2xl font-semibold tracking-tight text-ink">{w.name}</h1>
+      <p className="mt-1 break-all text-xs text-dim">Workspace {w.id}</p>
       <div className="mt-3 flex flex-wrap gap-2" data-testid="ws-badges">
         <Badge>{planName(w.plan)}</Badge>
         {w.complimentaryPlan && <Badge tone="green">Complimentary</Badge>}
@@ -65,13 +65,13 @@ export default async function SupportWorkspace({ params, searchParams }: { param
       <Done id={done} />
 
       <Section title="Status">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4" data-testid="ws-status">
+        <div className="rounded-2xl border border-line bg-surface p-4" data-testid="ws-status">
           <Facts
             rows={[
               [
                 "Owner",
                 owner ? (
-                  <Link href={`/support/users/${owner.user.id}`} className="break-all text-brand-700 hover:underline">
+                  <Link href={`/support/users/${owner.user.id}`} className="break-all text-accent hover:underline">
                     {owner.user.email}
                   </Link>
                 ) : (
@@ -88,12 +88,12 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                 w.stripeCustomerId || w.stripeSubscriptionId ? (
                   <span className="flex flex-col gap-1">
                     {w.stripeCustomerId && (
-                      <a href={stripeLink("customers", w.stripeCustomerId)} target="_blank" rel="noreferrer" className="break-all text-brand-700 hover:underline">
+                      <a href={stripeLink("customers", w.stripeCustomerId)} target="_blank" rel="noreferrer" className="break-all text-accent hover:underline">
                         Customer {w.stripeCustomerId}
                       </a>
                     )}
                     {w.stripeSubscriptionId && (
-                      <a href={stripeLink("subscriptions", w.stripeSubscriptionId)} target="_blank" rel="noreferrer" className="break-all text-brand-700 hover:underline">
+                      <a href={stripeLink("subscriptions", w.stripeSubscriptionId)} target="_blank" rel="noreferrer" className="break-all text-accent hover:underline">
                         Subscription {w.stripeSubscriptionId}
                       </a>
                     )}
@@ -120,8 +120,8 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                 w.suspendedAt ? (
                   <span key="s" className="flex flex-col gap-1">
                     <span>Since {utc(w.suspendedAt)}</span>
-                    {w.suspendedReason && <span className="whitespace-pre-wrap text-slate-600">Reason: {w.suspendedReason}</span>}
-                    {w.suspendedNote && <span className="whitespace-pre-wrap text-slate-600">Note to members: {w.suspendedNote}</span>}
+                    {w.suspendedReason && <span className="whitespace-pre-wrap text-muted">Reason: {w.suspendedReason}</span>}
+                    {w.suspendedNote && <span className="whitespace-pre-wrap text-muted">Note to members: {w.suspendedNote}</span>}
                   </span>
                 ) : (
                   "No"
@@ -133,7 +133,7 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                 w.legalHoldAt ? (
                   <span key="l" className="flex flex-col gap-1">
                     <span>On since {utc(w.legalHoldAt)}: nothing of it is deleted</span>
-                    {w.legalHoldReason && <span className="whitespace-pre-wrap text-slate-600">Reason: {w.legalHoldReason}</span>}
+                    {w.legalHoldReason && <span className="whitespace-pre-wrap text-muted">Reason: {w.legalHoldReason}</span>}
                   </span>
                 ) : (
                   "Off"
@@ -153,12 +153,12 @@ export default async function SupportWorkspace({ params, searchParams }: { param
       </Section>
 
       <Section title={`Members (${w.members.length})`}>
-        <ul className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white">
+        <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
           {w.members.map((m) => (
             <li key={m.id}>
-              <Link href={`/support/users/${m.user.id}`} className="block p-4 hover:bg-slate-50">
-                <p className="break-all font-medium text-slate-900">{m.user.email}</p>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+              <Link href={`/support/users/${m.user.id}`} className="block p-4 hover:bg-hover">
+                <p className="break-all font-medium text-ink">{m.user.email}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
                   <span>{m.role === "OWNER" ? "Owner" : m.role === "ADMIN" ? "Admin" : "Member"}</span>
                   {m.pausedAt && <Badge>Paused by the plan</Badge>}
                   {m.user.closedAt ? <Badge tone="red">Login closed</Badge> : m.user.suspendedAt && <Badge tone="red">Login suspended</Badge>}
@@ -171,7 +171,7 @@ export default async function SupportWorkspace({ params, searchParams }: { param
       </Section>
 
       {mine ? (
-        <p className="mt-8 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">You belong to this workspace, so the support powers can&rsquo;t be used on it.</p>
+        <p className="mt-8 rounded-2xl bg-warn-bg p-4 text-sm text-warn-fg">You belong to this workspace, so the support powers can&rsquo;t be used on it.</p>
       ) : (
         <Section title="Support powers">
           <div className="grid gap-3">
@@ -183,17 +183,17 @@ export default async function SupportWorkspace({ params, searchParams }: { param
               category
               submit="Send warning"
             >
-              <label className="grid gap-1 text-sm text-slate-700">
+              <label className="grid gap-1 text-sm text-muted">
                 Message in the email (optional)
                 <textarea name="message" maxLength={1000} rows={3} className={field} />
               </label>
             </PowerForm>
 
             {w.closedAt ? (
-              <p className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+              <p className="rounded-2xl border border-line bg-surface p-4 text-sm text-muted">
                 Closed by support. It can be reopened after a review from{" "}
                 {owner ? (
-                  <Link href={`/support/users/${owner.user.id}`} className="text-brand-700 hover:underline">
+                  <Link href={`/support/users/${owner.user.id}`} className="text-accent hover:underline">
                     the owner&rsquo;s page
                   </Link>
                 ) : (
@@ -212,7 +212,7 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                 submit="Suspend"
                 danger
               >
-                <label className="grid gap-1 text-sm text-slate-700">
+                <label className="grid gap-1 text-sm text-muted">
                   Note for members on the suspended page (optional)
                   <textarea name="note" maxLength={1000} rows={2} className={field} />
                 </label>
@@ -275,7 +275,7 @@ export default async function SupportWorkspace({ params, searchParams }: { param
               notify={emailOwner}
               submit="Set"
             >
-              <label className="grid gap-1 text-sm text-slate-700">
+              <label className="grid gap-1 text-sm text-muted">
                 Finished videos
                 <input name="value" type="number" inputMode="numeric" min={0} step={1} required defaultValue={used.recorded} className={field} />
               </label>
@@ -302,9 +302,9 @@ export default async function SupportWorkspace({ params, searchParams }: { param
             />
 
             {!w.closedAt && owner && (
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-muted">
                 To close this account for good, use Close permanently on{" "}
-                <Link href={`/support/users/${owner.user.id}`} className="text-brand-700 hover:underline">
+                <Link href={`/support/users/${owner.user.id}`} className="text-accent hover:underline">
                   the owner&rsquo;s page
                 </Link>
                 .
@@ -316,13 +316,13 @@ export default async function SupportWorkspace({ params, searchParams }: { param
 
       <Section title={`Clients (${active.length})`} id="clients">
         {active.length === 0 ? (
-          <p className="text-sm text-slate-600">No clients.</p>
+          <p className="text-sm text-muted">No clients.</p>
         ) : (
           <ul className="grid gap-3">
             {active.map((c) => (
-              <li key={c.id} id={`client-${c.id}`} className="rounded-2xl border border-slate-200 bg-white p-4" data-testid={`client-${c.id}`}>
-                <p className="break-words font-medium text-slate-900">{c.name}</p>
-                {c.email && <p className="break-all text-sm text-slate-600">{c.email}</p>}
+              <li key={c.id} id={`client-${c.id}`} className="rounded-2xl border border-line bg-surface p-4" data-testid={`client-${c.id}`}>
+                <p className="break-words font-medium text-ink">{c.name}</p>
+                {c.email && <p className="break-all text-sm text-muted">{c.email}</p>}
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
                   {c.linkDisabledAt ? (
                     <Badge tone="red">Link off since {day(c.linkDisabledAt)}</Badge>
@@ -332,12 +332,12 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                     <Badge tone="green">Link works</Badge>
                   )}
                   {c.linkOpenedAt ? (
-                    <span className="text-xs text-slate-500">Opened their link {day(c.linkOpenedAt)}</span>
+                    <span className="text-xs text-dim">Opened their link {day(c.linkOpenedAt)}</span>
                   ) : (
-                    <span className="text-xs text-slate-500">Hasn&rsquo;t opened their link</span>
+                    <span className="text-xs text-dim">Hasn&rsquo;t opened their link</span>
                   )}
                 </div>
-                {c.linkDisabledReason && <p className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-500">Reason: {c.linkDisabledReason}</p>}
+                {c.linkDisabledReason && <p className="mt-1 whitespace-pre-wrap break-words text-xs text-dim">Reason: {c.linkDisabledReason}</p>}
                 {!mine && (
                   <div className="mt-3">
                     {!c.linkDisabledAt ? (
@@ -373,16 +373,16 @@ export default async function SupportWorkspace({ params, searchParams }: { param
 
       <Section title={`Removed clients (${removed.length})`} id="removed">
         {removed.length === 0 ? (
-          <p className="text-sm text-slate-600">None.</p>
+          <p className="text-sm text-muted">None.</p>
         ) : (
           <ul className="grid gap-3">
             {removed.map((c) => {
               const due = !!c.purgeAt && c.purgeAt <= now;
               return (
-                <li key={c.id} id={`client-${c.id}`} className="rounded-2xl border border-slate-200 bg-white p-4" data-testid={`removed-${c.id}`}>
-                  <p className="break-words font-medium text-slate-900">{c.name}</p>
-                  {c.email && <p className="break-all text-sm text-slate-600">{c.email}</p>}
-                  <p className="mt-1 text-sm text-slate-600">
+                <li key={c.id} id={`client-${c.id}`} className="rounded-2xl border border-line bg-surface p-4" data-testid={`removed-${c.id}`}>
+                  <p className="break-words font-medium text-ink">{c.name}</p>
+                  {c.email && <p className="break-all text-sm text-muted">{c.email}</p>}
+                  <p className="mt-1 text-sm text-muted">
                     Removed {day(c.removedAt)}.{" "}
                     {c.purgeAt
                       ? due
@@ -390,11 +390,11 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                         : `Deleted for good on ${day(c.purgeAt)}${w.legalHoldAt ? " (held while legal hold is on)" : ""}.`
                       : "No deletion date yet (the clean-up job gives one and tells the owner)."}
                   </p>
-                  {c.linkDisabledAt && <p className="mt-1 text-xs text-slate-500">Their link was turned off by support before they were removed.</p>}
+                  {c.linkDisabledAt && <p className="mt-1 text-xs text-dim">Their link was turned off by support before they were removed.</p>}
                   {!mine && !due && (
                     <div className="mt-3 grid gap-2">
                       {w.deleteAt ? (
-                        <p className="text-sm text-slate-600">The account is closed, so they can&rsquo;t be restored until it&rsquo;s kept or reopened.</p>
+                        <p className="text-sm text-muted">The account is closed, so they can&rsquo;t be restored until it&rsquo;s kept or reopened.</p>
                       ) : (
                         <PowerForm
                           power="restoreClient"
@@ -447,12 +447,12 @@ export default async function SupportWorkspace({ params, searchParams }: { param
 
       {tickets.length > 0 && (
         <Section title="Support conversations">
-          <ul className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white">
+          <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
             {tickets.map((t) => (
               <li key={t.id}>
-                <Link href={`/support/${t.id}`} className="block p-4 text-sm hover:bg-slate-50">
-                  <p className="line-clamp-2 break-words text-slate-900">{t.summary ?? "Conversation"}</p>
-                  <p className="mt-1 text-xs text-slate-500">
+                <Link href={`/support/${t.id}`} className="block p-4 text-sm hover:bg-hover">
+                  <p className="line-clamp-2 break-words text-ink">{t.summary ?? "Conversation"}</p>
+                  <p className="mt-1 text-xs text-dim">
                     {t.status.replace("_", " ").toLowerCase()} · {utc(t.updatedAt)}
                   </p>
                 </Link>

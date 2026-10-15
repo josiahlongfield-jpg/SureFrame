@@ -46,5 +46,5 @@ const SecureMedia = forwardRef<HTMLMediaElement | null, Props>(function SecureMe
 export default SecureMedia;
 
 function MediaNotice({ text }: { text: string }) {
-  return <div className="grid min-h-12 place-items-center rounded-lg bg-slate-100 px-3 py-3 text-center text-xs text-slate-500">{text}</div>;
+  return <div className="grid min-h-12 place-items-center rounded-lg bg-surface-2 px-3 py-3 text-center text-xs text-dim">{text}</div>;
 }

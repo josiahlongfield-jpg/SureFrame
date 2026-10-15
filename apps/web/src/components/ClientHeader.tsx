@@ -9,11 +9,11 @@ import type { Brand } from "@/lib/branding";
  */
 export default function ClientHeader({ brand, width = "max-w-4xl", allVideosLink = false }: { brand: Brand | null; width?: "max-w-4xl" | "max-w-6xl"; allVideosLink?: boolean }) {
   return (
-    <header className="border-b border-slate-200 bg-white">
+    <header className="border-b border-line bg-surface">
       <div className={`mx-auto flex h-16 ${width} items-center justify-between gap-3 px-4 sm:px-6`}>
         <BrandMark brand={brand} href="/inbox" />
         {allVideosLink && (
-          <Link href="/inbox" className="shrink-0 text-sm font-medium text-slate-600 hover:text-slate-900">
+          <Link href="/inbox" className="shrink-0 text-sm font-medium text-muted hover:text-ink">
             All my videos
           </Link>
         )}

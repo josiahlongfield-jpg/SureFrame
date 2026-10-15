@@ -16,7 +16,7 @@ function Reveal({ teamKey }: { teamKey: CryptoKey }) {
     return (
       <button
         onClick={async () => setValue(await exportKey(teamKey))}
-        className="mt-4 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+        className="mt-4 rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:bg-hover"
       >
         Show recovery key
       </button>
@@ -24,7 +24,7 @@ function Reveal({ teamKey }: { teamKey: CryptoKey }) {
   }
   return (
     <div className="mt-4">
-      <p className="break-all rounded-lg bg-slate-50 px-3 py-2 font-mono text-sm text-slate-900" data-recovery-key={value}>
+      <p className="break-all rounded-lg bg-canvas px-3 py-2 font-mono text-sm text-ink" data-recovery-key={value}>
         {value.match(/.{1,4}/g)?.join(" ") ?? value}
       </p>
       <div className="mt-3 flex gap-2">
@@ -33,11 +33,11 @@ function Reveal({ teamKey }: { teamKey: CryptoKey }) {
             await navigator.clipboard.writeText(value);
             setCopied(true);
           }}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800"
+          className="rounded-lg border border-line-strong px-3 py-1.5 text-sm font-medium text-ink"
         >
           {copied ? "Copied" : "Copy"}
         </button>
-        <button onClick={() => setValue(undefined)} className="rounded-lg px-3 py-1.5 text-sm text-slate-600">
+        <button onClick={() => setValue(undefined)} className="rounded-lg px-3 py-1.5 text-sm text-muted">
           Hide
         </button>
       </div>

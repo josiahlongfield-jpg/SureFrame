@@ -33,7 +33,7 @@ const MediaPlayer = forwardRef<HTMLMediaElement | null, Props>(function MediaPla
   const onError = (e: React.SyntheticEvent<HTMLMediaElement>) => e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED && setUnplayable(true);
   if (unplayable) {
     return (
-      <p data-testid="unplayable" className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-600">
+      <p data-testid="unplayable" className="rounded-lg bg-surface-2 px-3 py-2 text-sm text-muted">
         This device can&apos;t play this recording&apos;s format. Try another browser or a computer.
       </p>
     );

@@ -12,7 +12,7 @@ import { Badge, ConsoleNav, consoleAdmin, day, Done, Facts, History, planName, S
 
 export const metadata: Metadata = { title: "Login (support)", robots: { index: false } };
 
-const field = "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm";
+const field = "w-full rounded-xl border border-line-strong px-3 py-2 text-sm";
 
 /** Support admins: one login's status, workspaces, the support powers for it, and its support log. */
 export default async function SupportUser({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ done?: string }> }) {
@@ -48,8 +48,8 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
   return (
     <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <ConsoleNav />
-      <h1 className="mt-3 break-all text-2xl font-semibold tracking-tight text-slate-900">{u.email}</h1>
-      <p className="mt-1 break-all text-xs text-slate-500">
+      <h1 className="mt-3 break-all text-2xl font-semibold tracking-tight text-ink">{u.email}</h1>
+      <p className="mt-1 break-all text-xs text-dim">
         {u.name ? `${u.name} · ` : ""}Login {u.id}
       </p>
       <div className="mt-3 flex flex-wrap gap-2" data-testid="user-badges">
@@ -61,7 +61,7 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
       <Done id={done} />
 
       <Section title="Status">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4" data-testid="user-status">
+        <div className="rounded-2xl border border-line bg-surface p-4" data-testid="user-status">
           <Facts
             rows={[
               [
@@ -71,7 +71,7 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
                 ) : u.suspendedAt ? (
                   <span key="s" className="flex flex-col gap-1">
                     <span>Suspended since {utc(u.suspendedAt)}</span>
-                    {u.suspendedReason && <span className="whitespace-pre-wrap text-slate-600">Reason: {u.suspendedReason}</span>}
+                    {u.suspendedReason && <span className="whitespace-pre-wrap text-muted">Reason: {u.suspendedReason}</span>}
                   </span>
                 ) : (
                   "Active"
@@ -94,14 +94,14 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
 
       <Section title={`Workspaces (${u.memberships.length})`}>
         {u.memberships.length === 0 ? (
-          <p className="text-sm text-slate-600">None.</p>
+          <p className="text-sm text-muted">None.</p>
         ) : (
-          <ul className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white">
+          <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
             {u.memberships.map((m) => (
               <li key={m.id}>
-                <Link href={`/support/workspaces/${m.workspaceId}`} className="block p-4 hover:bg-slate-50">
-                  <p className="break-words font-medium text-slate-900">{m.workspace.name}</p>
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                <Link href={`/support/workspaces/${m.workspaceId}`} className="block p-4 hover:bg-hover">
+                  <p className="break-words font-medium text-ink">{m.workspace.name}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
                     <span>
                       {m.role === "OWNER" ? "Owner" : m.role === "ADMIN" ? "Admin" : "Member"} · {m.workspace._count.members} on the team
                     </span>
@@ -118,7 +118,7 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
       </Section>
 
       {mine ? (
-        <p className="mt-8 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">This is your own login, so the support powers can&rsquo;t be used on it.</p>
+        <p className="mt-8 rounded-2xl bg-warn-bg p-4 text-sm text-warn-fg">This is your own login, so the support powers can&rsquo;t be used on it.</p>
       ) : (
         <Section title="Support powers">
           <div className="grid gap-3">
@@ -130,7 +130,7 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
               category
               submit="Send warning"
             >
-              <label className="grid gap-1 text-sm text-slate-700">
+              <label className="grid gap-1 text-sm text-muted">
                 Message in the email (optional)
                 <textarea name="message" maxLength={1000} rows={3} className={field} />
               </label>
@@ -159,24 +159,24 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
                 />
               ))}
 
-            <details className="group rounded-2xl border border-slate-200 bg-white" data-testid="export-user">
-              <summary className="cursor-pointer list-none p-4 text-sm font-semibold text-slate-900">
-                <span className="mr-2 inline-block text-slate-400 transition-transform group-open:rotate-90" aria-hidden>
+            <details className="group rounded-2xl border border-line bg-surface" data-testid="export-user">
+              <summary className="cursor-pointer list-none p-4 text-sm font-semibold text-ink">
+                <span className="mr-2 inline-block text-dim transition-transform group-open:rotate-90" aria-hidden>
                   ▸
                 </span>
                 Download their data
               </summary>
-              <form method="post" action="/api/support/export" className="grid gap-3 border-t border-slate-100 p-4">
+              <form method="post" action="/api/support/export" className="grid gap-3 border-t border-line p-4">
                 <input type="hidden" name="userId" value={u.id} />
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-muted">
                   The same download as Settings &gt; Account, for an account that can&rsquo;t sign in to get it (closed by support, or its address blocked). Send it only to{" "}
                   {u.email}, from the support inbox. Encrypted recordings and messages stay encrypted.
                 </p>
-                <label className="grid gap-1 text-sm text-slate-700">
+                <label className="grid gap-1 text-sm text-muted">
                   Reason (internal: kept in the support log, never shown to the customer)
                   <textarea name="reason" required maxLength={500} rows={2} className={field} />
                 </label>
-                <button className="justify-self-start rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Download</button>
+                <button className="justify-self-start rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">Download</button>
               </form>
             </details>
 
@@ -198,7 +198,7 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
                   <>
                     Only on a request from {u.email} itself. The account opens again and won&rsquo;t be deleted on {day(u.deleteAt)}; clients the plan covers get their links back,
                     and renewal is turned back on if closing stopped it and the plan is still running. Teams they left don&rsquo;t take them back.
-                    {u.suspendedAt && <span className="mt-1 block font-medium text-amber-800">The login is suspended: unsuspend it first.</span>}
+                    {u.suspendedAt && <span className="mt-1 block font-medium text-warn-fg">The login is suspended: unsuspend it first.</span>}
                   </>
                 }
                 notify={emailThem}
@@ -253,11 +253,11 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
             )}
 
             {ownsTeam ? (
-              <p className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+              <p className="rounded-2xl border border-line bg-surface p-4 text-sm text-muted">
                 Delete now isn&rsquo;t available: this login owns a team with other staff, who have to leave it first (closing the account takes them off it).
               </p>
             ) : held ? (
-              <p className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">Delete now isn&rsquo;t available while legal hold is on.</p>
+              <p className="rounded-2xl border border-line bg-surface p-4 text-sm text-muted">Delete now isn&rsquo;t available while legal hold is on.</p>
             ) : (
               <PowerForm
                 power="deleteAccountNow"
@@ -300,12 +300,12 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
 
       {tickets.length > 0 && (
         <Section title="Support conversations">
-          <ul className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white">
+          <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
             {tickets.map((t) => (
               <li key={t.id}>
-                <Link href={`/support/${t.id}`} className="block p-4 text-sm hover:bg-slate-50">
-                  <p className="line-clamp-2 break-words text-slate-900">{t.summary ?? "Conversation"}</p>
-                  <p className="mt-1 text-xs text-slate-500">
+                <Link href={`/support/${t.id}`} className="block p-4 text-sm hover:bg-hover">
+                  <p className="line-clamp-2 break-words text-ink">{t.summary ?? "Conversation"}</p>
+                  <p className="mt-1 text-xs text-dim">
                     {t.status.replace("_", " ").toLowerCase()} · {utc(t.updatedAt)}
                   </p>
                 </Link>

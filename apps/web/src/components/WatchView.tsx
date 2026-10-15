@@ -153,17 +153,17 @@ function LostKey({ clientId }: { clientId: string }) {
     setState(body?.asked ? "asked" : "failed");
   }
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-600 sm:p-16" data-testid="lost-key">
+    <div className="rounded-2xl border border-line bg-surface p-10 text-center text-muted sm:p-16" data-testid="lost-key">
       <p>Open this video from the personal link you were sent to unlock it on this device.</p>
-      <p className="mt-2 text-sm text-slate-500">Can&rsquo;t find the link, or this browser forgot it? We&rsquo;ll ask them to send it again.</p>
+      <p className="mt-2 text-sm text-dim">Can&rsquo;t find the link, or this browser forgot it? We&rsquo;ll ask them to send it again.</p>
       {state === "asked" ? (
-        <p className="mt-4 text-sm font-medium text-emerald-700" role="status">Done. They&rsquo;ve been asked to send your personal link again.</p>
+        <p className="mt-4 text-sm font-medium text-ok-fg" role="status">Done. They&rsquo;ve been asked to send your personal link again.</p>
       ) : (
-        <button onClick={ask} disabled={state === "busy"} className="mt-4 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
+        <button onClick={ask} disabled={state === "busy"} className="mt-4 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60">
           {state === "busy" ? "Asking…" : "Ask for my link again"}
         </button>
       )}
-      {state === "failed" && <p role="alert" className="mt-2 text-sm text-red-700">That didn&rsquo;t go through. Please contact them directly.</p>}
+      {state === "failed" && <p role="alert" className="mt-2 text-sm text-danger-fg">That didn&rsquo;t go through. Please contact them directly.</p>}
     </div>
   );
 }
@@ -194,19 +194,19 @@ function FirstLinkDialog({ clients, videoId, teamKey, onCopied, onClose }: { cli
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-solid/40 p-4" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="first-link-title"
         data-testid="first-link-dialog"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+        className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl"
       >
-        <h2 id="first-link-title" className="text-lg font-semibold text-slate-900">
+        <h2 id="first-link-title" className="text-lg font-semibold text-ink">
           {one ? `Send ${first(one.name)} their personal link` : "Send these clients their personal links"}
         </h2>
-        <div className="mt-3 space-y-3 text-sm text-slate-600">
+        <div className="mt-3 space-y-3 text-sm text-muted">
           <p>
             {one ? `${one.name} hasn't opened their personal link yet` : "These clients haven't opened their personal links yet"}, so this first time it&apos;s up to you to send it, by email, text or any message app.
           </p>
@@ -218,17 +218,17 @@ function FirstLinkDialog({ clients, videoId, teamKey, onCopied, onClose }: { cli
         <ul className="mt-4 grid gap-2">
           {clients.map((c) => (
             <li key={c.id} className="flex items-center justify-between gap-3">
-              {!one && <span className="text-sm text-slate-800">{c.name}</span>}
+              {!one && <span className="text-sm text-ink">{c.name}</span>}
               <button
                 onClick={() => copy(c)}
-                className={`${one ? "w-full" : ""} rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700`}
+                className={`${one ? "w-full" : ""} rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover`}
               >
                 {copied === c.id ? "Link copied" : `Copy ${first(c.name)}'s link`}
               </button>
             </li>
           ))}
         </ul>
-        <button onClick={onClose} className="mt-3 w-full rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        <button onClick={onClose} className="mt-3 w-full rounded-xl border border-line-strong px-4 py-2 text-sm font-medium text-muted hover:bg-hover">
           Done
         </button>
       </div>
@@ -242,7 +242,7 @@ function markLinkOpened(clientId: string) {
 }
 
 function Locked({ text }: { text: string }) {
-  return <p className="rounded-2xl border border-slate-200 bg-white p-16 text-center text-slate-600">{text}</p>;
+  return <p className="rounded-2xl border border-line bg-surface p-16 text-center text-muted">{text}</p>;
 }
 
 /** Statuses where the recording is fully uploaded and safe on the server. */
@@ -560,15 +560,15 @@ function WatchBody({
       <section>
         <div style={showPlayer ? frame.style : undefined} className="relative mx-auto overflow-hidden rounded-2xl bg-black shadow-sm">
           {video.status === "RECORDING" ? (
-            <div className="grid aspect-video place-items-center text-slate-300">This recording is still uploading. Refresh in a moment.</div>
+            <div className="grid aspect-video place-items-center text-dim">This recording is still uploading. Refresh in a moment.</div>
           ) : expired ? (
-            <div className="grid aspect-video place-items-center px-6 text-center text-slate-300">
+            <div className="grid aspect-video place-items-center px-6 text-center text-dim">
               This recording has been deleted from our servers. Ask the sender if they kept a copy.
             </div>
           ) : playError ? (
-            <div className="grid aspect-video place-items-center text-slate-300">Couldn&apos;t unlock this recording on this device.</div>
+            <div className="grid aspect-video place-items-center text-dim">Couldn&apos;t unlock this recording on this device.</div>
           ) : unplayable ? (
-            <div data-testid="unplayable" className="grid aspect-video place-items-center px-6 text-center text-slate-300">
+            <div data-testid="unplayable" className="grid aspect-video place-items-center px-6 text-center text-dim">
               This device can&apos;t play this recording&apos;s format. Try another browser or a computer, or ask the sender to record it again.
             </div>
           ) : (
@@ -596,12 +596,12 @@ function WatchBody({
                 onChange={(e) => setTitle(e.target.value)}
                 onBlur={saveTitle}
                 aria-label="Video title"
-                className="w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-2xl font-semibold text-slate-900 hover:border-slate-200 focus:border-brand-600 focus:outline-none"
+                className="w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-2xl font-semibold text-ink hover:border-line focus:border-primary focus:outline-none"
               />
             ) : (
-              <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
+              <h1 className="text-2xl font-semibold text-ink">{title}</h1>
             )}
-            <p className="mt-1 px-1 text-sm text-slate-500">
+            <p className="mt-1 px-1 text-sm text-dim">
               {ownerName} · {new Date(video.createdAt).toLocaleDateString("en-US", { dateStyle: "medium" })} · {video.viewCount} {video.viewCount === 1 ? "view" : "views"}
             </p>
           </div>
@@ -612,16 +612,16 @@ function WatchBody({
                   onClick={send}
                   disabled={sending || !!emailed}
                   data-testid="send-button"
-                  className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+                  className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
                 >
                   {emailed ? "Sent" : sending ? "Sending…" : `Send to ${recipient.name.split(" ")[0]}`}
                 </button>
-                <button onClick={copyLink} className="rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                <button onClick={copyLink} className="rounded-xl border border-line-strong px-4 py-2 text-sm text-muted hover:bg-hover">
                   {copied ? "Link copied" : "Copy link"}
                 </button>
               </>
             ) : (
-              <button onClick={copyLink} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+              <button onClick={copyLink} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">
                 {copied ? "Link copied" : `Copy ${recipient.name.split(" ")[0]}'s link`}
               </button>
             ))}
@@ -629,19 +629,19 @@ function WatchBody({
               <a
                 href={playable}
                 download={`${title.replace(/[^\w\- ]+/g, "").trim() || "recording"}.${video.mimeType.includes("mp4") ? "mp4" : "webm"}`}
-                className="rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                className="rounded-xl border border-line-strong px-4 py-2 text-sm text-muted hover:bg-hover"
               >
                 Save to device
               </a>
             )}
             {canEdit && canDelete && (
-              <button onClick={remove} className="rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Delete</button>
+              <button onClick={remove} className="rounded-xl border border-line-strong px-4 py-2 text-sm text-muted hover:bg-hover">Delete</button>
             )}
           </div>
         </div>
 
         {video.purgeAt && !expired && (
-          <p className="mt-3 flex items-center gap-2 px-1 text-xs text-slate-500">
+          <p className="mt-3 flex items-center gap-2 px-1 text-xs text-dim">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
             End-to-end encrypted. Our encrypted copy is deleted on{" "}
             {new Date(video.purgeAt).toLocaleDateString("en-US", { dateStyle: "medium" })}. Save it to your device to keep it.
@@ -649,7 +649,7 @@ function WatchBody({
         )}
 
         {canEdit && recipient?.removed && (
-          <p data-testid="recipient-removed" className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p data-testid="recipient-removed" className="mt-5 rounded-2xl border border-warn-line bg-warn-bg p-4 text-sm text-warn-fg">
             {recipient.name} was removed from your clients, so their link no longer opens this.
             {recipient.removed.until &&
               (recipient.removed.keepsRecording
@@ -660,22 +660,22 @@ function WatchBody({
           </p>
         )}
         {canEdit && sendMany?.sourceId && (
-          <p className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+          <p className="mt-5 rounded-2xl border border-line bg-surface p-4 text-sm text-muted">
             This is {recipient?.name ?? "a client"}&apos;s own conversation about this recording.{" "}
-            <Link href={`/v/${sendMany.sourceId}`} className="font-medium text-brand-700 hover:underline">See the original</Link>
+            <Link href={`/v/${sendMany.sourceId}`} className="font-medium text-accent hover:underline">See the original</Link>
           </p>
         )}
         {canEdit && !sendMany?.sourceId && !expired && (
-          <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="mt-5 rounded-2xl border border-line bg-surface p-4">
             <label className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="font-medium text-slate-900">Send to</span>
+              <span className="font-medium text-ink">Send to</span>
               <select
                 value={sentTo ?? ""}
                 onChange={(e) => sendTo(e.target.value || null)}
                 // Once there are replies, the conversation belongs to this client.
                 disabled={!!sentTo && replies.length > 0}
                 title={sentTo && replies.length > 0 ? "This client has replied, so the video stays with them. Use Send to more clients to share it." : undefined}
-                className="min-w-48 rounded-lg border border-slate-300 bg-white px-3 py-2"
+                className="min-w-48 rounded-lg border border-line-strong bg-surface px-3 py-2"
               >
                 <option value="">Only my team (private)</option>
                 {clients.map((c) => (
@@ -683,10 +683,10 @@ function WatchBody({
                 ))}
               </select>
               {clients.length === 0 && (
-                <Link href="/clients" className="text-brand-700 hover:underline">Add a client first</Link>
+                <Link href="/clients" className="text-accent hover:underline">Add a client first</Link>
               )}
             </label>
-            <p className="mt-2 text-xs text-slate-500" data-testid="send-status">
+            <p className="mt-2 text-xs text-dim" data-testid="send-status">
               {!recipient
                 ? "Nobody outside your team can watch this until you send it to a client."
                 : sendError
@@ -701,7 +701,7 @@ function WatchBody({
                   ? `Only your team and ${recipient.name} can watch this.`
                 : !recipient.hasLink
                   ? <>Only your team and {recipient.name} can watch this. {recipient.name} hasn&apos;t had their personal link yet, so send it to them yourself this first time.{" "}
-                      <button type="button" onClick={() => setFirstLink([recipient])} className="font-medium text-brand-700 hover:underline">Why?</button></>
+                      <button type="button" onClick={() => setFirstLink([recipient])} className="font-medium text-accent hover:underline">Why?</button></>
                   : emailed === "sent"
                     ? `Only your team and ${recipient.name} can watch this. We've emailed ${recipient.name} to say it's waiting.`
                     : emailed === "when-ready"
@@ -723,7 +723,7 @@ function WatchBody({
 
         <div ref={reactionsRow} className="mt-4 flex gap-2">
           {REACTIONS.map((e) => (
-            <button key={e} onClick={() => react(e)} aria-label={`React ${e}`} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-lg hover:bg-slate-100">
+            <button key={e} onClick={() => react(e)} aria-label={`React ${e}`} className="rounded-full border border-line bg-surface px-3 py-1.5 text-lg hover:bg-hover">
               {e}
             </button>
           ))}
@@ -752,18 +752,18 @@ function WatchBody({
           onClick={openSheet}
           data-testid="chat-bubble"
           aria-label={`Open conversation (${replies.length} ${replies.length === 1 ? "reply" : "replies"}${unread ? `, ${unread} new` : ""})`}
-          className="fixed bottom-5 left-5 z-50 flex items-center gap-2 rounded-full bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg hover:bg-brand-700 lg:hidden"
+          className="fixed bottom-5 left-5 z-50 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-semibold text-white shadow-lg hover:bg-primary-hover lg:hidden"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
             <path d="M4 5h16v11H9l-5 4V5z" />
             <path d="M8 9.5h8M8 12.5h5" />
           </svg>
           Chat
-          {replies.length > 0 && <span className="rounded-full bg-white/25 px-1.5 text-xs">{replies.length}</span>}
+          {replies.length > 0 && <span className="rounded-full bg-surface/25 px-1.5 text-xs">{replies.length}</span>}
           {unread > 0 && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-500" data-testid="chat-unread" />}
         </button>
       )}
-      {expanded && <div className="fixed inset-0 z-40 bg-slate-900/50" onClick={() => setExpanded(false)} aria-hidden />}
+      {expanded && <div className="fixed inset-0 z-40 bg-solid/50" onClick={() => setExpanded(false)} aria-hidden />}
       <aside
         ref={panel}
         data-testid="conversation"
@@ -774,18 +774,18 @@ function WatchBody({
         aria-label={expanded || sheet ? "Conversation" : undefined}
         className={
           sheet
-            ? "fixed inset-0 z-[60] flex h-[100dvh] flex-col bg-white pb-[env(safe-area-inset-bottom)] lg:hidden"
+            ? "fixed inset-0 z-[60] flex h-[100dvh] flex-col bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
             : expanded
-              ? "fixed inset-x-4 inset-y-6 z-50 mx-auto flex max-w-3xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl"
+              ? "fixed inset-x-4 inset-y-6 z-50 mx-auto flex max-w-3xl flex-col rounded-2xl border border-line bg-surface shadow-2xl"
               : // Kept mounted (just hidden) on phones, so a reply in progress is never lost.
-                "hidden flex-col self-start rounded-2xl border border-slate-200 bg-white lg:flex"
+                "hidden flex-col self-start rounded-2xl border border-line bg-surface lg:flex"
         }
       >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div>
-            <h2 className="font-semibold text-slate-900">Conversation</h2>
-            <p className="text-xs text-slate-500">Reply with a video, a voice note or a message. End-to-end encrypted.</p>
-            {sheet && sheetNote && <p role="alert" className="mt-2 text-xs font-medium text-amber-800">{sheetNote}</p>}
+            <h2 className="font-semibold text-ink">Conversation</h2>
+            <p className="text-xs text-dim">Reply with a video, a voice note or a message. End-to-end encrypted.</p>
+            {sheet && sheetNote && <p role="alert" className="mt-2 text-xs font-medium text-warn-fg">{sheetNote}</p>}
           </div>
           {sheet ? (
             <button
@@ -793,7 +793,7 @@ function WatchBody({
               onClick={closeSheet}
               aria-label="Close conversation"
               data-testid="chat-close"
-              className="-mr-1 shrink-0 rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              className="-mr-1 shrink-0 rounded-lg p-2 text-muted hover:bg-hover hover:text-ink"
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
             </button>
@@ -802,7 +802,7 @@ function WatchBody({
             onClick={() => setExpanded((v) => !v)}
             aria-label={expanded ? "Close larger view" : "Open conversation in a larger view"}
             title={expanded ? "Close" : "Expand"}
-            className="hidden shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 lg:block"
+            className="hidden shrink-0 rounded-lg p-1.5 text-dim hover:bg-hover hover:text-ink lg:block"
           >
             {expanded ? (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -813,19 +813,19 @@ function WatchBody({
           )}
         </div>
         <ul className="flex-1 space-y-4 overflow-y-auto px-5 py-4 text-sm">
-          {replies.length === 0 && <li className="text-slate-500">No replies yet. Be the first to respond.</li>}
+          {replies.length === 0 && <li className="text-dim">No replies yet. Be the first to respond.</li>}
           {replies.map((r) => (
             <li key={r.id} className={`flex flex-col ${r.fromOwner ? "items-start" : "items-end"}`}>
-              <div className="mb-1 flex items-center gap-2 text-xs text-slate-500">
-                <span className="font-medium text-slate-800">{r.authorName}</span>
+              <div className="mb-1 flex items-center gap-2 text-xs text-dim">
+                <span className="font-medium text-ink">{r.authorName}</span>
                 <span>{new Date(r.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
               </div>
               {r.kind === "TEXT" ? (
-                <div className={`max-w-[90%] rounded-2xl px-3 py-2 ${r.fromOwner ? "rounded-tl-sm bg-slate-100 text-slate-800" : "rounded-tr-sm bg-brand-600 text-white"}`}>
+                <div className={`max-w-[90%] rounded-2xl px-3 py-2 ${r.fromOwner ? "rounded-tl-sm bg-surface-2 text-ink" : "rounded-tr-sm bg-primary text-white"}`}>
                   {r.timestampMs !== null && (
                     <button
                       onClick={() => seek(r.timestampMs)}
-                      className={`mr-1.5 rounded px-1.5 text-xs font-medium ${r.fromOwner ? "bg-white text-brand-700" : "bg-white/20 text-white"}`}
+                      className={`mr-1.5 rounded px-1.5 text-xs font-medium ${r.fromOwner ? "bg-surface text-accent" : "bg-surface/20 text-white"}`}
                     >
                       {fmt(r.timestampMs)}
                     </button>
@@ -884,7 +884,7 @@ function ReplyMedia({ reply, conversationKey }: { reply: ReplyDTO; conversationK
     if (media.parentKeyWrap) unwrapKey(media.parentKeyWrap, conversationKey).then(setKey, () => setKey(null));
   }, [media.parentKeyWrap, conversationKey]);
   if (media.expired) {
-    return <p className="rounded-lg bg-slate-100 px-3 py-3 text-xs text-slate-500">This reply has expired from our servers.</p>;
+    return <p className="rounded-lg bg-surface-2 px-3 py-3 text-xs text-dim">This reply has expired from our servers.</p>;
   }
   return <SecureMedia url={media.url} mediaKey={key} mimeType={media.mimeType} kind={reply.kind === "AUDIO" ? "AUDIO" : "VIDEO"} />;
 }
@@ -968,15 +968,15 @@ function SendToMany({
   }
 
   return (
-    <div className="mt-4 border-t border-slate-100 pt-4 text-sm">
+    <div className="mt-4 border-t border-line pt-4 text-sm">
       {copies.length > 0 && (
         <div className="mb-3">
-          <p className="font-medium text-slate-900">Also sent to</p>
+          <p className="font-medium text-ink">Also sent to</p>
           <ul className="mt-2 grid gap-1.5" data-testid="sent-copies">
             {copies.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center justify-between gap-2">
-                <Link href={`/v/${c.id}`} className="text-slate-800 hover:text-brand-700 hover:underline">{name(c.clientId)}</Link>
-                <button onClick={() => copyLink(c)} className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50">{copied === c.id ? "Copied" : "Copy their link"}</button>
+                <Link href={`/v/${c.id}`} className="text-ink hover:text-accent hover:underline">{name(c.clientId)}</Link>
+                <button onClick={() => copyLink(c)} className="rounded-lg border border-line-strong px-2.5 py-1 text-xs hover:bg-hover">{copied === c.id ? "Copied" : "Copy their link"}</button>
               </li>
             ))}
           </ul>
@@ -984,42 +984,42 @@ function SendToMany({
       )}
       {!open ? (
         available.length > 0 && (
-          <button onClick={() => setOpen(true)} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-50">Send to more clients</button>
+          <button onClick={() => setOpen(true)} className="rounded-lg border border-line-strong px-3 py-1.5 font-medium hover:bg-hover">Send to more clients</button>
         )
       ) : (
         <div className="grid gap-3">
           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quick picks">
-            <button onClick={() => pick(available.map((c) => c.id))} className="rounded-full border border-slate-300 px-3 py-1 hover:bg-slate-50">All clients</button>
-            {team && <button onClick={() => pick(available.filter((c) => c.assignedToId === sendMany.meId).map((c) => c.id))} className="rounded-full border border-slate-300 px-3 py-1 hover:bg-slate-50">My clients</button>}
+            <button onClick={() => pick(available.map((c) => c.id))} className="rounded-full border border-line-strong px-3 py-1 hover:bg-hover">All clients</button>
+            {team && <button onClick={() => pick(available.filter((c) => c.assignedToId === sendMany.meId).map((c) => c.id))} className="rounded-full border border-line-strong px-3 py-1 hover:bg-hover">My clients</button>}
             {team && sendMany.staff.filter((s) => s.id !== sendMany.meId).map((s) => (
-              <button key={s.id} onClick={() => pick(available.filter((c) => c.assignedToId === s.id).map((c) => c.id))} className="rounded-full border border-slate-300 px-3 py-1 hover:bg-slate-50">{s.name}&apos;s clients</button>
+              <button key={s.id} onClick={() => pick(available.filter((c) => c.assignedToId === s.id).map((c) => c.id))} className="rounded-full border border-line-strong px-3 py-1 hover:bg-hover">{s.name}&apos;s clients</button>
             ))}
-            {picked.size > 0 && <button onClick={() => setPicked(new Set())} className="rounded-full px-3 py-1 text-slate-500 hover:text-slate-900">Clear</button>}
+            {picked.size > 0 && <button onClick={() => setPicked(new Set())} className="rounded-full px-3 py-1 text-dim hover:text-ink">Clear</button>}
           </div>
-          <ul className="grid max-h-64 gap-1 overflow-y-auto rounded-lg border border-slate-200 p-2 sm:grid-cols-2">
+          <ul className="grid max-h-64 gap-1 overflow-y-auto rounded-lg border border-line p-2 sm:grid-cols-2">
             {available.map((c) => (
               <li key={c.id}>
-                <label className="flex items-center gap-2 rounded px-2 py-1 hover:bg-slate-50">
+                <label className="flex items-center gap-2 rounded px-2 py-1 hover:bg-hover">
                   <input type="checkbox" checked={picked.has(c.id)} onChange={() => toggle(c.id)} disabled={!c.teamKeyWrap} />
                   <span>{c.name}</span>
                 </label>
               </li>
             ))}
           </ul>
-          <label className="flex items-center gap-2 text-slate-700">
+          <label className="flex items-center gap-2 text-muted">
             <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
             Email clients who have an address on file
           </label>
           <div className="flex items-center gap-3">
-            <button onClick={send} disabled={busy || picked.size === 0} className="rounded-lg bg-brand-600 px-4 py-2 font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+            <button onClick={send} disabled={busy || picked.size === 0} className="rounded-lg bg-primary px-4 py-2 font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
               {busy ? "Sending…" : `Send to ${picked.size} ${picked.size === 1 ? "client" : "clients"}`}
             </button>
-            <button onClick={() => setOpen(false)} className="text-slate-500 hover:text-slate-900">Done</button>
+            <button onClick={() => setOpen(false)} className="text-dim hover:text-ink">Done</button>
           </div>
-          <p className="text-xs text-slate-500">Each client gets a private copy. They can reply, but never see each other&apos;s replies.</p>
+          <p className="text-xs text-dim">Each client gets a private copy. They can reply, but never see each other&apos;s replies.</p>
         </div>
       )}
-      {note && <p role="status" className="mt-2 text-slate-700">{note}</p>}
+      {note && <p role="status" className="mt-2 text-muted">{note}</p>}
     </div>
   );
 }
@@ -1029,7 +1029,7 @@ function ReactionSummary({ reactions, onSeek }: { reactions: { emoji: string; ti
   const byEmoji = new Map<string, (number | null)[]>();
   for (const r of reactions) byEmoji.set(r.emoji, [...(byEmoji.get(r.emoji) ?? []), r.timestampMs]);
   return (
-    <div data-testid="reaction-summary" className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+    <div data-testid="reaction-summary" className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
       <span>Reactions:</span>
       {[...byEmoji].map(([emoji, moments]) => {
         const at = [...new Set(moments.filter((m): m is number => m !== null).sort((a, b) => a - b))];
@@ -1038,11 +1038,11 @@ function ReactionSummary({ reactions, onSeek }: { reactions: { emoji: string; ti
             <span aria-hidden>{emoji}</span>
             <span>{moments.length}</span>
             {at.slice(0, 6).map((ms) => (
-              <button key={ms} type="button" onClick={() => onSeek(ms)} className="rounded bg-slate-100 px-1.5 text-xs text-slate-700 hover:bg-slate-200" aria-label={`Play from ${fmt(ms)}`}>
+              <button key={ms} type="button" onClick={() => onSeek(ms)} className="rounded bg-surface-2 px-1.5 text-xs text-muted hover:bg-line-strong" aria-label={`Play from ${fmt(ms)}`}>
                 {fmt(ms)}
               </button>
             ))}
-            {at.length > 6 && <span className="text-xs text-slate-400">+{at.length - 6} more</span>}
+            {at.length > 6 && <span className="text-xs text-dim">+{at.length - 6} more</span>}
           </span>
         );
       })}

@@ -14,10 +14,10 @@ export default function StaffNotices({ initial }: { initial: Notice[] }) {
     await fetch(`/api/team/notices/${id}/dismiss`, { method: "POST" }).catch(() => {});
   }
   return (
-    <div className="border-t border-amber-200 bg-amber-50">
-      <ul className="mx-auto max-w-6xl divide-y divide-amber-100 px-4 sm:px-6">
+    <div className="border-t border-warn-line bg-warn-bg">
+      <ul className="mx-auto max-w-6xl divide-y divide-warn-line px-4 sm:px-6">
         {notices.map((n) => (
-          <li key={n.id} role="status" data-testid="staff-notice" className="flex flex-wrap items-start justify-between gap-2 py-2 text-sm text-amber-950">
+          <li key={n.id} role="status" data-testid="staff-notice" className="flex flex-wrap items-start justify-between gap-2 py-2 text-sm text-warn-fg">
             <p className="min-w-0 flex-1">
               <span className="font-medium">Reminder from {n.from}:</span> <span className="whitespace-pre-wrap">{n.message}</span>
               {n.link && (
@@ -27,7 +27,7 @@ export default function StaffNotices({ initial }: { initial: Notice[] }) {
                 </>
               )}
             </p>
-            <button onClick={() => dismiss(n.id)} className="shrink-0 rounded-lg px-2 py-0.5 text-amber-800 hover:bg-amber-100">Dismiss</button>
+            <button onClick={() => dismiss(n.id)} className="shrink-0 rounded-lg px-2 py-0.5 text-warn-fg hover:bg-hover">Dismiss</button>
           </li>
         ))}
       </ul>

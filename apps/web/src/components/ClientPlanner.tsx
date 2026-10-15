@@ -26,7 +26,7 @@ export default function ClientPlanner({ clientId, title }: { clientId: string; t
   if (key === undefined) return null;
   if (!key) {
     return (
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+      <section className="rounded-2xl border border-line bg-surface p-5 text-sm text-muted">
         Open your personal link on this device to see your to-dos and notes.
       </section>
     );

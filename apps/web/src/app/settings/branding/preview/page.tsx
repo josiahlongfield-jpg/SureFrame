@@ -17,15 +17,15 @@ export default async function BrandingPreview({ searchParams }: { searchParams: 
   // framed ("refused to connect"). Say what happened and sign in at the top level.
   if (me?.suspended) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 p-6 text-center">
-        <a href="/suspended" target="_top" className="text-sm font-medium text-brand-700 hover:underline">This account is suspended.</a>
+      <main data-theme="light" className="grid min-h-screen place-items-center bg-canvas p-6 text-center text-ink">
+        <a href="/suspended" target="_top" className="text-sm font-medium text-accent hover:underline">This account is suspended.</a>
       </main>
     );
   }
   if (me && !me.paused && !me.agreed) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 p-6 text-center">
-        <a href={agreePath("/settings/branding")} target="_top" className="text-sm font-medium text-brand-700 hover:underline">
+      <main data-theme="light" className="grid min-h-screen place-items-center bg-canvas p-6 text-center text-ink">
+        <a href={agreePath("/settings/branding")} target="_top" className="text-sm font-medium text-accent hover:underline">
           Agree to the updated terms to see the preview.
         </a>
       </main>
@@ -33,10 +33,10 @@ export default async function BrandingPreview({ searchParams }: { searchParams: 
   }
   if (!me || me.paused) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 p-6 text-center">
+      <main data-theme="light" className="grid min-h-screen place-items-center bg-canvas p-6 text-center text-ink">
         <div>
-          <p className="text-sm text-slate-700">You&apos;ve been signed out, so the preview can&apos;t load.</p>
-          <a href="/login?next=%2Fsettings%2Fbranding" target="_top" className="mt-3 inline-block rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+          <p className="text-sm text-muted">You&apos;ve been signed out, so the preview can&apos;t load.</p>
+          <a href="/login?next=%2Fsettings%2Fbranding" target="_top" className="mt-3 inline-block rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">
             Sign in again
           </a>
         </div>
@@ -46,6 +46,6 @@ export default async function BrandingPreview({ searchParams }: { searchParams: 
   const { user, workspace } = me;
   const { view } = await searchParams;
   const brand = brandOf({ ...workspace, plan: "SOLO" });
-  const sender = user.name?.trim().split(/\s+/)[0] || "Sam";
+  const sender = user.name?.trim().split(/\s+/)[0] || "Team member 1";
   return <BrandPreviewFrame initial={brand} sender={sender} view={view === "inbox" || view === "email" ? (view as PreviewView) : "video"} />;
 }

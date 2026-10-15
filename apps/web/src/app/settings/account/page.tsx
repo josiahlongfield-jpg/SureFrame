@@ -63,71 +63,71 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
     <>
       {limited ? (
         <p className="mx-auto max-w-3xl px-4 pt-6 text-sm sm:px-6">
-          <Link href={paused ? "/paused" : "/agree"} className="font-medium text-brand-700 hover:underline">&larr; Back</Link>
+          <Link href={paused ? "/paused" : "/agree"} className="font-medium text-accent hover:underline">&larr; Back</Link>
         </p>
       ) : (
         <AppHeader email={user.email} plan={PLANS[workspace.plan].name} />
       )}
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Account</h1>
-        <p className="mt-1 text-sm text-slate-500">Signed in as {user.email}</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Account</h1>
+        <p className="mt-1 text-sm text-dim">Signed in as {user.email}</p>
 
-        {agreed && <section id="name" className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
-          <h2 className="font-semibold text-slate-900">Your name</h2>
-          <p className="mt-1 text-sm text-slate-600">
+        {agreed && <section id="name" className="mt-6 rounded-2xl border border-line bg-surface p-6">
+          <h2 className="font-semibold text-ink">Your name</h2>
+          <p className="mt-1 text-sm text-muted">
             Clients see it on the videos you send, as &ldquo;{user.name || "Your name"} from {workspace.name}&rdquo;. Your team sees it too.
           </p>
           <form action={rename} className="mt-4 flex flex-wrap gap-2">
             <input name="name" defaultValue={user.name ?? ""} required maxLength={80} autoComplete="name" aria-label="Your name" placeholder="e.g. Sam Lee"
-              className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-            <button className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Save name</button>
+              className="min-w-0 flex-1 rounded-xl border border-line-strong px-3 py-2 text-sm" />
+            <button className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">Save name</button>
           </form>
-          {saved === "name" && <p role="status" className="mt-2 text-sm text-emerald-700">Saved.</p>}
-          {error === "name" && <p className="mt-2 text-sm text-red-700">Enter your name.</p>}
+          {saved === "name" && <p role="status" className="mt-2 text-sm text-ok-fg">Saved.</p>}
+          {error === "name" && <p className="mt-2 text-sm text-danger-fg">Enter your name.</p>}
         </section>}
 
-        {onTeam && !limited && <section id="emails" className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
-          <h2 className="font-semibold text-slate-900">Emails to you</h2>
+        {onTeam && !limited && <section id="emails" className="mt-6 rounded-2xl border border-line bg-surface p-6">
+          <h2 className="font-semibold text-ink">Emails to you</h2>
           {role === "MEMBER" ? (
             <MyEmailPrefs initial={{ replyEmails: membership?.replyNotify !== "OFF" }} />
           ) : (
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-muted">
               Choose which client replies and staff activity you&apos;re emailed about on the{" "}
-              <Link href="/team" className="font-medium text-brand-700 hover:underline">Team overview</Link>.
+              <Link href="/team" className="font-medium text-accent hover:underline">Team overview</Link>.
             </p>
           )}
         </section>}
 
-        {!limited && <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
-          <h2 className="font-semibold text-slate-900">Recovery key</h2>
-          <p className="mt-1 text-sm text-slate-600">
+        {!limited && <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
+          <h2 className="font-semibold text-ink">Recovery key</h2>
+          <p className="mt-1 text-sm text-muted">
             Use this to unlock your videos on a phone or another computer. Keep it private: anyone signed in to your account with it can open your videos.
           </p>
           <ShowRecoveryKey workspaceId={workspace.id} fingerprint={workspace.keyFingerprint} />
         </section>}
 
         {!agreed && role === "OWNER" && workspace.stripeCustomerId && (
-          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6" data-testid="account-subscription">
-            <h2 className="font-semibold text-slate-900">Subscription</h2>
-            <p className="mt-1 mb-4 text-sm text-slate-600">Manage or cancel your subscription, see invoices or update your card.</p>
+          <section className="mt-6 rounded-2xl border border-line bg-surface p-6" data-testid="account-subscription">
+            <h2 className="font-semibold text-ink">Subscription</h2>
+            <p className="mt-1 mb-4 text-sm text-muted">Manage or cancel your subscription, see invoices or update your card.</p>
             <ManageBillingButton />
           </section>
         )}
 
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
-          <h2 className="font-semibold text-slate-900">Download your data</h2>
-          <p className="mt-1 text-sm text-slate-600">
+        <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
+          <h2 className="font-semibold text-ink">Download your data</h2>
+          <p className="mt-1 text-sm text-muted">
             A file with your account, clients, videos list, to-dos and notes. Encrypted content stays encrypted in the file.
             Download videos themselves from each video&apos;s page.
           </p>
-          <a href="/api/account/export" className="mt-4 inline-block rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+          <a href="/api/account/export" className="mt-4 inline-block rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:bg-hover">
             Download my data
           </a>
         </section>
 
-        <section className="mt-6 rounded-2xl border border-red-200 bg-white p-6">
-          <h2 className="font-semibold text-red-700">Delete account</h2>
-          <p className="mt-1 text-sm text-slate-600" data-testid="delete-explainer">
+        <section className="mt-6 rounded-2xl border border-danger-line bg-surface p-6">
+          <h2 className="font-semibold text-danger-fg">Delete account</h2>
+          <p className="mt-1 text-sm text-muted" data-testid="delete-explainer">
             Your account is closed straight away and permanently deleted on {deletesOn}. Until then, sign in to keep it with everything as it was.
             {ownsAlone && (
               <> Your workspace goes with it: its recordings, clients, to-dos and notes. Your clients&apos; links stop working now{ownWorkspace.stripeSubscriptionId ? <>, your plan won&apos;t renew</> : null}, recordings without cloud backup still expire on their usual dates, and removed clients are still deleted on their dates.</>
@@ -135,16 +135,16 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
             {teamNames.length > 0 && (
               <> You leave {teamNames.join(" and ")} straight away, and keeping your account won&apos;t put you back. Recordings you made for {teamNames.length === 1 ? "that team" : "those teams"} stay with {teamNames.length === 1 ? "it" : "them"}, and {teamNames.length === 1 ? "its" : "their"} clients aren&apos;t affected.</>
             )}
-            {" "}Want it deleted sooner? Email <a href={`mailto:${LEGAL.email}`} className="font-medium text-brand-700 hover:underline">{LEGAL.email}</a>.
+            {" "}Want it deleted sooner? Email <a href={`mailto:${LEGAL.email}`} className="font-medium text-accent hover:underline">{LEGAL.email}</a>.
           </p>
           <form action={remove} className="mt-4 space-y-3">
-            <label className="block text-sm text-slate-700">
+            <label className="block text-sm text-muted">
               Type <span className="font-semibold">{user.email}</span> to confirm
-              <input name="confirm" type="email" autoComplete="off" required className="mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
+              <input name="confirm" type="email" autoComplete="off" required className="mt-1 block w-full rounded-xl border border-line-strong px-3 py-2 text-sm" />
             </label>
-            {error === "confirm" && <p role="alert" className="text-sm text-red-700">That doesn&apos;t match your email.</p>}
-            {error === "failed" && <p role="alert" className="text-sm text-red-700">Your account couldn&apos;t be closed just now (we must stop any subscription first). Please try again in a few minutes, or ask in Help.</p>}
-            {error === "team" && <p role="alert" className="text-sm text-red-700">You own a team with other staff. Remove them on the Team page first.</p>}
+            {error === "confirm" && <p role="alert" className="text-sm text-danger-fg">That doesn&apos;t match your email.</p>}
+            {error === "failed" && <p role="alert" className="text-sm text-danger-fg">Your account couldn&apos;t be closed just now (we must stop any subscription first). Please try again in a few minutes, or ask in Help.</p>}
+            {error === "team" && <p role="alert" className="text-sm text-danger-fg">You own a team with other staff. Remove them on the Team page first.</p>}
             <DeleteAccountButton />
           </form>
         </section>

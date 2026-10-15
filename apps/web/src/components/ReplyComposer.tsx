@@ -245,8 +245,8 @@ export default function ReplyComposer({
   ];
 
   return (
-    <div className="border-t border-slate-100 p-4">
-      <div role="tablist" aria-label="Reply type" className="mb-3 grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1 text-sm">
+    <div className="border-t border-line p-4">
+      <div role="tablist" aria-label="Reply type" className="mb-3 grid grid-cols-3 gap-1 rounded-lg bg-surface-2 p-1 text-sm">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -254,7 +254,7 @@ export default function ReplyComposer({
             aria-selected={mode === t.id}
             disabled={busy}
             onClick={() => setMode(t.id)}
-            className={`rounded-md px-2 py-1.5 font-medium transition disabled:opacity-50 ${mode === t.id ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+            className={`rounded-md px-2 py-1.5 font-medium transition disabled:opacity-50 ${mode === t.id ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"}`}
           >
             {t.label}
           </button>
@@ -277,16 +277,16 @@ export default function ReplyComposer({
             placeholder="Write a reply…"
             aria-label="Reply"
             rows={3}
-            className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-600 focus:outline-none"
+            className="w-full resize-none rounded-lg border border-line-strong px-3 py-2 text-sm focus:border-primary focus:outline-none"
           />
-          <button disabled={busy || !text.trim()} className="mt-2 w-full rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
+          <button disabled={busy || !text.trim()} className="mt-2 w-full rounded-lg bg-solid px-3 py-2.5 text-sm font-semibold text-white hover:bg-solid-hover disabled:opacity-50">
             {phase === "sending" ? "Sending…" : "Send reply"}
           </button>
         </form>
       ) : (
         <div>
           {mode === "VIDEO" ? (
-            <div style={frame.style} className="relative mx-auto overflow-hidden rounded-lg bg-slate-900">
+            <div style={frame.style} className="relative mx-auto overflow-hidden rounded-lg bg-solid">
               <video ref={previewRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full object-cover ${facing === "user" ? "-scale-x-100" : ""}`} />
               {phase === "preview" && (
                 <button onClick={() => setFacing((f) => (f === "user" ? "environment" : "user"))} className="absolute right-2 top-2 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white">
@@ -296,7 +296,7 @@ export default function ReplyComposer({
               {phase === "recording" && <RecBadge ms={elapsed} />}
             </div>
           ) : (
-            <div className="relative grid h-20 place-items-center rounded-lg bg-slate-50 text-sm text-slate-500">
+            <div className="relative grid h-20 place-items-center rounded-lg bg-canvas text-sm text-dim">
               {phase === "recording" ? <RecBadge ms={elapsed} inline /> : "Tap record and start talking"}
             </div>
           )}
@@ -310,15 +310,15 @@ export default function ReplyComposer({
               <button onClick={stop} className="mt-2 w-full rounded-lg bg-red-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
                 Stop and send
               </button>
-              <p className="mt-1 text-center text-xs text-slate-500">Replies can be up to {Math.round(maxMs / 60_000)} minutes. It sends by itself at the limit.</p>
+              <p className="mt-1 text-center text-xs text-dim">Replies can be up to {Math.round(maxMs / 60_000)} minutes. It sends by itself at the limit.</p>
             </>
           ) : (
-            <button onClick={start} disabled={phase !== "preview"} className="mt-2 w-full rounded-lg bg-brand-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+            <button onClick={start} disabled={phase !== "preview"} className="mt-2 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
               {phase === "sending" ? "Sending…" : `Record ${mode === "VIDEO" ? "video" : "voice"} reply`}
             </button>
           )}
           {upload?.retrying && (
-            <p className="mt-2 text-xs text-amber-700">
+            <p className="mt-2 text-xs text-warn-fg">
               {upload.unsaved
                 ? "Connection lost and this browser's storage is full. Keep this page open; sending resumes when you're back online."
                 : "Connection lost. Still saving on this device; sending resumes automatically."}
@@ -326,7 +326,7 @@ export default function ReplyComposer({
           )}
         </div>
       )}
-      {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-sm text-danger-fg">{error}</p>}
     </div>
   );
 }

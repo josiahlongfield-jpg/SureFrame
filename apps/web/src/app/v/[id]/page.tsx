@@ -64,11 +64,11 @@ export default async function Watch({ params, searchParams }: Props) {
     const block = mine?.id === video.clientId ? clientBlock(mine) : null;
     if (mine && (block === "unavailable" || block === "off")) {
       return (
-        <div className="grid min-h-screen place-items-center bg-slate-50 px-4">
-          <div className="max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center" data-testid={block === "off" ? "video-link-off" : "video-unavailable"}>
+        <div data-theme="light" className="grid min-h-screen place-items-center bg-canvas px-4 text-ink">
+          <div className="max-w-sm rounded-2xl border border-line bg-surface p-8 text-center" data-testid={block === "off" ? "video-link-off" : "video-unavailable"}>
             <Logo />
-            <h1 className="mt-6 text-lg font-semibold text-slate-900">{block === "off" ? "This link has been turned off" : "Unavailable right now"}</h1>
-            <p className="mt-2 text-sm text-slate-600">
+            <h1 className="mt-6 text-lg font-semibold text-ink">{block === "off" ? "This link has been turned off" : "Unavailable right now"}</h1>
+            <p className="mt-2 text-sm text-muted">
               {block === "off" ? `It no longer opens your videos from ${mine.workspace.name}.` : `Videos from ${mine.workspace.name} are unavailable right now.`}
             </p>
           </div>
@@ -76,14 +76,14 @@ export default async function Watch({ params, searchParams }: Props) {
       );
     }
     return (
-      <div className="grid min-h-screen place-items-center bg-slate-50 px-4">
-        <div className="max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center">
+      <div data-theme="light" className="grid min-h-screen place-items-center bg-canvas px-4 text-ink">
+        <div className="max-w-sm rounded-2xl border border-line bg-surface p-8 text-center">
           <Logo />
-          <h1 className="mt-6 text-lg font-semibold text-slate-900">This video is private</h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <h1 className="mt-6 text-lg font-semibold text-ink">This video is private</h1>
+          <p className="mt-2 text-sm text-muted">
             Open it from the personal link you were sent, or sign in if it&apos;s yours.
           </p>
-          <Link href={`/login?next=/v/${id}`} className="mt-6 inline-block text-sm font-medium text-brand-700 hover:underline">
+          <Link href={`/login?next=/v/${id}`} className="mt-6 inline-block text-sm font-medium text-accent hover:underline">
             Sign in
           </Link>
         </div>
@@ -135,7 +135,7 @@ export default async function Watch({ params, searchParams }: Props) {
     : [undefined, 0];
 
   return (
-    <div className="min-h-screen bg-slate-50" style={brandStyle(brand?.color ?? null)}>
+    <div data-theme={isMember ? "navy" : "light"} className="min-h-screen bg-canvas text-ink" style={isMember ? undefined : brandStyle(brand?.color ?? null)}>
       {isMember ? (
         // The team gets the normal app menu, so they can get back to the Library and everything else.
         <AppHeader email={memberEmail ?? ""} plan={PLANS[workspace.plan].name} />
@@ -144,7 +144,7 @@ export default async function Watch({ params, searchParams }: Props) {
       )}
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {expired ? (
-          <p className="rounded-2xl border border-slate-200 bg-white p-16 text-center text-slate-600">This link has expired.</p>
+          <p className="rounded-2xl border border-line bg-surface p-16 text-center text-muted">This link has expired.</p>
         ) : (
           <>
           {!isMember && PLANS[workspace.plan].showsPromo && <SureFramePromo videoId={video.id} />}

@@ -56,72 +56,72 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
         {staff.map((s) => {
           const theirs = clients.filter((c) => c.assignedToId === s.userId);
           return (
-            <li key={s.userId} className="rounded-2xl border border-slate-200 bg-white p-5" data-testid={`staff-${s.email}`}>
+            <li key={s.userId} className="rounded-2xl border border-line bg-surface p-5" data-testid={`staff-${s.email}`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="font-medium text-slate-900">{s.name}{s.userId === meId && " (you)"}</p>
-                  <p className="text-xs text-slate-500">{s.email}</p>
+                  <p className="font-medium text-ink">{s.name}{s.userId === meId && " (you)"}</p>
+                  <p className="text-xs text-dim">{s.email}</p>
                 </div>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{ROLE_LABEL[s.role]}</span>
+                <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted">{ROLE_LABEL[s.role]}</span>
               </div>
               {s.role === "MEMBER" ? (
                 <div className="mt-3">
                   <PermChecks name={s.name} email={s.email} perms={s.perms} self={false} editable onChange={(k, v) => setPerm(s, k, v)} />
                 </div>
               ) : (
-                <p className="mt-2 text-xs text-slate-500">Full access to every client and video.</p>
+                <p className="mt-2 text-xs text-dim">Full access to every client and video.</p>
               )}
               {s.role === "MEMBER" && s.own && (
-                <p className="mt-2 text-xs text-slate-500" data-testid="own-settings">
+                <p className="mt-2 text-xs text-dim" data-testid="own-settings">
                   Their own settings: reply emails {s.own.replyEmails ? "on" : "off"}
                   {" · "}reminder defaults: {s.own.ownDefaults ? "their own" : "the business's"}
                   {" · "}client emails: {s.own.message ? "their own message" : "the business's message"}, replies to {s.own.replyTo ?? "the business's reply-to"}
                 </p>
               )}
-              <p className="mt-3 text-sm text-slate-700">
+              <p className="mt-3 text-sm text-muted">
                 <span className="font-medium">Looks after:</span>{" "}
                 {theirs.length ? theirs.map((c, i) => (
                   <span key={c.id}>{i > 0 && ", "}<Link href={`/clients/${c.id}`} className="hover:underline">{c.name}</Link></span>
-                )) : <span className="text-slate-500">no clients yet</span>}
+                )) : <span className="text-dim">no clients yet</span>}
               </p>
             </li>
           );
         })}
       </ul>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h3 className="font-semibold text-slate-900">Reassign clients</h3>
-        <p className="mt-1 text-xs text-slate-500">Tick clients, then choose who looks after them. Members only see the clients assigned to them, unless they can see all clients.</p>
+      <section className="rounded-2xl border border-line bg-surface p-5">
+        <h3 className="font-semibold text-ink">Reassign clients</h3>
+        <p className="mt-1 text-xs text-dim">Tick clients, then choose who looks after them. Members only see the clients assigned to them, unless they can see all clients.</p>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-          <button type="button" onClick={() => setPicked(new Set(clients.filter((c) => !c.assignedToId).map((c) => c.id)))} className="rounded-full border border-slate-300 px-3 py-1 hover:bg-slate-50">Pick unassigned</button>
-          <button type="button" onClick={() => setPicked(new Set(clients.map((c) => c.id)))} className="rounded-full border border-slate-300 px-3 py-1 hover:bg-slate-50">Pick all</button>
-          {picked.size > 0 && <button type="button" onClick={() => setPicked(new Set())} className="rounded-full px-3 py-1 text-slate-500 hover:text-slate-900">Clear</button>}
+          <button type="button" onClick={() => setPicked(new Set(clients.filter((c) => !c.assignedToId).map((c) => c.id)))} className="rounded-full border border-line-strong px-3 py-1 hover:bg-hover">Pick unassigned</button>
+          <button type="button" onClick={() => setPicked(new Set(clients.map((c) => c.id)))} className="rounded-full border border-line-strong px-3 py-1 hover:bg-hover">Pick all</button>
+          {picked.size > 0 && <button type="button" onClick={() => setPicked(new Set())} className="rounded-full px-3 py-1 text-dim hover:text-ink">Clear</button>}
         </div>
-        <ul className="mt-3 grid max-h-72 gap-1 overflow-y-auto rounded-lg border border-slate-200 p-2 sm:grid-cols-2">
+        <ul className="mt-3 grid max-h-72 gap-1 overflow-y-auto rounded-lg border border-line p-2 sm:grid-cols-2">
           {clients.map((c) => (
             <li key={c.id}>
-              <label className="flex items-center justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-slate-50">
+              <label className="flex items-center justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-hover">
                 <span className="flex items-center gap-2">
                   <input type="checkbox" checked={picked.has(c.id)} onChange={() => toggle(c.id)} aria-label={`Pick ${c.name}`} />
                   {c.name}
                 </span>
-                <span className="text-xs text-slate-500">{nameOf(c.assignedToId)}</span>
+                <span className="text-xs text-dim">{nameOf(c.assignedToId)}</span>
               </label>
             </li>
           ))}
-          {clients.length === 0 && <li className="px-2 py-1 text-sm text-slate-500">No clients yet.</li>}
+          {clients.length === 0 && <li className="px-2 py-1 text-sm text-dim">No clients yet.</li>}
         </ul>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-          <select value={target} onChange={(e) => setTarget(e.target.value)} aria-label="Assign picked clients to" className="rounded-lg border border-slate-300 bg-white px-2 py-1.5">
+          <select value={target} onChange={(e) => setTarget(e.target.value)} aria-label="Assign picked clients to" className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
             <option value="">Shared (nobody)</option>
             {staff.map((s) => <option key={s.userId} value={s.userId}>{s.name}</option>)}
           </select>
-          <button type="button" onClick={assign} disabled={busy || picked.size === 0} className="rounded-lg bg-brand-600 px-4 py-1.5 font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+          <button type="button" onClick={assign} disabled={busy || picked.size === 0} className="rounded-lg bg-primary px-4 py-1.5 font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
             Assign {picked.size || ""} {picked.size === 1 ? "client" : "clients"}
           </button>
         </div>
       </section>
-      {note && <p role="status" className="text-sm text-slate-700">{note}</p>}
+      {note && <p role="status" className="text-sm text-muted">{note}</p>}
     </div>
   );
 }
@@ -149,12 +149,12 @@ export function NotifyPrefs({ meId, staff, initial }: { meId: string; staff: Ove
   const toggleIn = (list: string[], id: string, on: boolean) => (on ? [...new Set([...list, id])] : list.filter((x) => x !== id));
 
   return (
-    <div className="grid gap-5 rounded-2xl border border-slate-200 bg-white p-5 text-sm">
+    <div className="grid gap-5 rounded-2xl border border-line bg-surface p-5 text-sm">
       <fieldset>
-        <legend className="font-medium text-slate-900">Client replies</legend>
-        <p className="text-xs text-slate-500">You always hear about your own clients unless this is off. Staff hear about replies from their clients unless they turned that off for themselves.</p>
+        <legend className="font-medium text-ink">Client replies</legend>
+        <p className="text-xs text-dim">You always hear about your own clients unless this is off. Staff hear about replies from their clients unless they turned that off for themselves.</p>
         {quiet.length > 0 && (
-          <p className="mt-1 text-xs text-amber-800" data-testid="quiet-staff">
+          <p className="mt-1 text-xs text-warn-fg" data-testid="quiet-staff">
             {quiet.map((s) => s.name).join(", ")} turned off reply emails for their clients. Pick All staff or select them to hear about those replies yourself.
           </p>
         )}
@@ -167,7 +167,7 @@ export function NotifyPrefs({ meId, staff, initial }: { meId: string; staff: Ove
           ))}
         </div>
         {prefs.replyNotify === "SELECTED" && (
-          <div className="mt-2 flex flex-wrap gap-3 rounded-lg bg-slate-50 px-3 py-2">
+          <div className="mt-2 flex flex-wrap gap-3 rounded-lg bg-canvas px-3 py-2">
             {others.map((s) => (
               <label key={s.userId} className="flex items-center gap-1.5">
                 <input type="checkbox" checked={prefs.replyNotifyStaff.includes(s.userId)} onChange={(e) => save({ ...prefs, replyNotifyStaff: toggleIn(prefs.replyNotifyStaff, s.userId, e.target.checked) })} aria-label={`Replies to ${s.name}'s clients`} />
@@ -178,7 +178,7 @@ export function NotifyPrefs({ meId, staff, initial }: { meId: string; staff: Ove
         )}
       </fieldset>
       <fieldset>
-        <legend className="font-medium text-slate-900">Videos sent by staff</legend>
+        <legend className="font-medium text-ink">Videos sent by staff</legend>
         <div className="mt-2 flex flex-wrap gap-3">
           {SCOPES.map((s) => (
             <label key={s.value} className="flex items-center gap-1.5">
@@ -188,7 +188,7 @@ export function NotifyPrefs({ meId, staff, initial }: { meId: string; staff: Ove
           ))}
         </div>
         {prefs.sentNotify === "SELECTED" && (
-          <div className="mt-2 grid gap-1.5 rounded-lg bg-slate-50 px-3 py-2">
+          <div className="mt-2 grid gap-1.5 rounded-lg bg-canvas px-3 py-2">
             {others.map((s) => (
               <label key={s.userId} className="flex items-center gap-1.5">
                 <input type="checkbox" checked={prefs.sentNotifyStaff.includes(s.userId)} onChange={(e) => save({ ...prefs, sentNotifyStaff: toggleIn(prefs.sentNotifyStaff, s.userId, e.target.checked) })} aria-label={`Tell me when ${s.name} sends a video`} />
@@ -198,8 +198,8 @@ export function NotifyPrefs({ meId, staff, initial }: { meId: string; staff: Ove
           </div>
         )}
       </fieldset>
-      <p className="text-xs text-slate-500">Emails are combined: at most one every 15 minutes per conversation or staff member. They never include replies or video titles.</p>
-      {saved && <p role="status" className="text-xs text-slate-600">{saved}</p>}
+      <p className="text-xs text-dim">Emails are combined: at most one every 15 minutes per conversation or staff member. They never include replies or video titles.</p>
+      {saved && <p role="status" className="text-xs text-muted">{saved}</p>}
     </div>
   );
 }
@@ -232,11 +232,11 @@ export function StaffReminderForm({ meId, staff, clients, videos }: { meId: stri
     setTo(new Set());
   }
 
-  if (!others.length) return <p className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Invite staff on the Team page to send them reminders.</p>;
+  if (!others.length) return <p className="rounded-2xl border border-line bg-surface p-5 text-sm text-dim">Invite staff on the Team page to send them reminders.</p>;
   return (
-    <form onSubmit={send} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 text-sm">
+    <form onSubmit={send} className="grid gap-3 rounded-2xl border border-line bg-surface p-5 text-sm">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="font-medium text-slate-900">To</span>
+        <span className="font-medium text-ink">To</span>
         <label className="flex items-center gap-1.5">
           <input type="checkbox" checked={to.size === others.length} onChange={(e) => setTo(e.target.checked ? new Set(others.map((s) => s.userId)) : new Set())} />
           Everyone
@@ -248,9 +248,9 @@ export function StaffReminderForm({ meId, staff, clients, videos }: { meId: stri
           </label>
         ))}
       </div>
-      <textarea value={message} onChange={(e) => setMessage(e.target.value)} required maxLength={500} rows={2} placeholder="e.g. Please check in with your clients before Friday." aria-label="Reminder message" className="rounded-lg border border-slate-300 px-3 py-2" />
+      <textarea value={message} onChange={(e) => setMessage(e.target.value)} required maxLength={500} rows={2} placeholder="e.g. Please check in with your clients before Friday." aria-label="Reminder message" className="rounded-lg border border-line-strong px-3 py-2" />
       <div className="flex flex-wrap items-center gap-2">
-        <select value={link} onChange={(e) => setLink(e.target.value)} aria-label="Link to" className="max-w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5">
+        <select value={link} onChange={(e) => setLink(e.target.value)} aria-label="Link to" className="max-w-full rounded-lg border border-line-strong bg-surface px-2 py-1.5">
           <option value="">No link</option>
           <optgroup label="Clients">
             {clients.map((c) => <option key={c.id} value={`client:${c.id}`}>{c.name}</option>)}
@@ -259,10 +259,10 @@ export function StaffReminderForm({ meId, staff, clients, videos }: { meId: stri
             {videos.map((v) => <option key={v.id} value={`video:${v.id}`}>{v.title}</option>)}
           </optgroup>
         </select>
-        <button disabled={busy || !to.size || !message.trim()} className="rounded-lg bg-brand-600 px-4 py-1.5 font-semibold text-white hover:bg-brand-700 disabled:opacity-50">Send reminder</button>
+        <button disabled={busy || !to.size || !message.trim()} className="rounded-lg bg-primary px-4 py-1.5 font-semibold text-white hover:bg-primary-hover disabled:opacity-50">Send reminder</button>
       </div>
-      <p className="text-xs text-slate-500">They get an email and see it in the app until they dismiss it.</p>
-      {note && <p role="status" className="text-slate-700">{note}</p>}
+      <p className="text-xs text-dim">They get an email and see it in the app until they dismiss it.</p>
+      {note && <p role="status" className="text-muted">{note}</p>}
     </form>
   );
 }

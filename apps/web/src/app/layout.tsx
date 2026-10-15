@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { BRAND } from "@/lib/brand";
 import { fontVars } from "./fonts";
 import "./globals.css";
@@ -20,9 +20,11 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: `${BRAND.name}: ${BRAND.tagline}`, description },
 };
 
+export const viewport: Viewport = { themeColor: "#0c1428", colorScheme: "dark" };
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={fontVars}>
+    <html lang="en" data-theme="navy" className={fontVars}>
       <body className="min-h-screen antialiased">{children}</body>
     </html>
   );

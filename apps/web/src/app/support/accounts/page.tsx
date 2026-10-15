@@ -31,25 +31,25 @@ export default async function Accounts() {
   };
   return (
     <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <Link href="/support" className="text-sm text-brand-700 hover:underline">← Support inbox</Link>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Free plans</h1>
-      <p className="mt-2 text-sm text-slate-600">
+      <Link href="/support" className="text-sm text-accent hover:underline">← Support inbox</Link>
+      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Free plans</h1>
+      <p className="mt-2 text-sm text-muted">
         Give someone a paid plan without a card. They keep everything if they later pay, and nothing changes for them in the meantime. Ask them to sign in once
         first so their workspace exists.
       </p>
       <CompForm plans={Object.entries(PLANS).map(([id, p]) => ({ id, name: p.name }))} />
       <CompAiForm />
-      <h2 className="mt-8 text-lg font-semibold text-slate-900">Currently free</h2>
+      <h2 className="mt-8 text-lg font-semibold text-ink">Currently free</h2>
       {comped.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-600">No one yet.</p>
+        <p className="mt-2 text-sm text-muted">No one yet.</p>
       ) : (
-        <ul className="mt-2 divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white">
+        <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface">
           {comped.map((w) => (
             <li key={w.id} className="flex justify-between gap-3 p-4 text-sm">
-              <span className="text-slate-900">
-                {w.name} <span className="text-slate-500">({w.members[0]?.user.email})</span>
+              <span className="text-ink">
+                {w.name} <span className="text-dim">({w.members[0]?.user.email})</span>
               </span>
-              <span className="text-slate-600">
+              <span className="text-muted">
                 {w.stripeSubscriptionId ? `Paying, ${PLANS[w.plan].name}` : PLANS[w.complimentaryPlan!].name}
                 {w.aiAssistComplimentary && (w.aiAssist ? " + AI summaries" : " + AI summaries (switched off)")}
               </span>

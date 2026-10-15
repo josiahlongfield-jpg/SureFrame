@@ -13,8 +13,8 @@ export default async function SupportLog({ searchParams }: { searchParams: Promi
   return (
     <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <ConsoleNav />
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">Support log</h1>
-      <p className="mt-2 text-sm text-slate-600">
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">Support log</h1>
+      <p className="mt-2 text-sm text-muted">
         Each use of the support powers and the free-plan tools: who did what, to whom and when, with the reason given. The latest 200 are shown. Records are kept{" "}
         {ADMIN_ACTION_KEEP_YEARS} years, also after the account is deleted.
       </p>

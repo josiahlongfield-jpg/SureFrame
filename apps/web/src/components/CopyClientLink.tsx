@@ -22,7 +22,7 @@ function Button({ clientId, link, teamKeyWrap, teamKey }: { clientId: string; li
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+      className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm hover:bg-hover"
     >
       {copied ? "Copied" : "Copy personal link"}
     </button>

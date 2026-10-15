@@ -39,6 +39,6 @@ function Unlocked({ teamKey, clientId = null, clientName, clientTeamKeyWrap, cli
       .finally(() => setReady(true));
   }, [clientTeamKeyWrap, teamKey]);
 
-  if (!ready) return <p className="text-sm text-slate-500">Unlocking…</p>;
+  if (!ready) return <p className="text-sm text-dim">Unlocking…</p>;
   return <Planner role="member" clientId={clientId} clientName={clientName} client={client} defaults={defaults} privateKey={teamKey} sharedKey={clientKey} title={title} note={note} teamWho={teamWho} />;
 }

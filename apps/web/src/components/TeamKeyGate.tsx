@@ -118,14 +118,14 @@ export default function TeamKeyGate({
   }
 
   if (state.kind === "loading") {
-    return <div className="grid h-40 place-items-center text-sm text-slate-500">Unlocking…</div>;
+    return <div className="grid h-40 place-items-center text-sm text-dim">Unlocking…</div>;
   }
 
   if (state.kind === "recover") {
     return (
-      <div className="mt-6 max-w-md rounded-2xl border border-slate-200 bg-white p-6">
-        <h2 className="font-semibold text-slate-900">Unlock your videos in this browser</h2>
-        <p className="mt-2 text-sm text-slate-600">
+      <div className="mt-6 max-w-md rounded-2xl border border-line bg-surface p-6">
+        <h2 className="font-semibold text-ink">Unlock your videos in this browser</h2>
+        <p className="mt-2 text-sm text-muted">
           Your videos are end-to-end encrypted, so not even we can open them. Each browser keeps its own copy of the key, so a new device, a different browser or cleared browser data asks for it once. Enter the recovery key saved when the account was set up. If you joined from an invite link, you can open that link again in this browser instead.
         </p>
         <form onSubmit={recover} className="mt-4 grid gap-3">
@@ -136,11 +136,11 @@ export default function TeamKeyGate({
             placeholder="Recovery key"
             autoComplete="off"
             spellCheck={false}
-            className="rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm"
+            className="rounded-lg border border-line-strong px-3 py-2 font-mono text-sm"
           />
-          <button className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Unlock</button>
+          <button className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover">Unlock</button>
         </form>
-        {state.error && <p role="alert" className="mt-2 text-sm text-red-700">{state.error}</p>}
+        {state.error && <p role="alert" className="mt-2 text-sm text-danger-fg">{state.error}</p>}
       </div>
     );
   }
@@ -157,12 +157,12 @@ function RecoveryKeyNotice({ value, onDone }: { value: string; onDone: () => voi
   const [copied, setCopied] = useState(false);
   const grouped = value.match(/.{1,4}/g)?.join(" ") ?? value;
   return (
-    <div role="dialog" aria-label="Save your recovery key" className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-      <h2 className="font-semibold text-amber-900">Save your recovery key</h2>
-      <p className="mt-1 text-sm text-amber-900">
+    <div role="dialog" aria-label="Save your recovery key" className="mb-6 rounded-2xl border border-warn-line bg-warn-bg p-5">
+      <h2 className="font-semibold text-warn-fg">Save your recovery key</h2>
+      <p className="mt-1 text-sm text-warn-fg">
         Your videos are end-to-end encrypted on this device. You&apos;ll need this key to open them on another computer, phone or browser. We can&apos;t recover it for you.
       </p>
-      <p className="mt-3 break-all rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900" data-recovery-key={value}>
+      <p className="mt-3 break-all rounded-lg bg-surface px-3 py-2 font-mono text-sm text-ink" data-recovery-key={value}>
         {grouped}
       </p>
       <div className="mt-3 flex gap-2">
@@ -171,7 +171,7 @@ function RecoveryKeyNotice({ value, onDone }: { value: string; onDone: () => voi
             await navigator.clipboard.writeText(value);
             setCopied(true);
           }}
-          className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900"
+          className="rounded-lg border border-warn-line bg-surface px-3 py-1.5 text-sm font-medium text-warn-fg"
         >
           {copied ? "Copied" : "Copy"}
         </button>

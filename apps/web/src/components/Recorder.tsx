@@ -502,12 +502,12 @@ export default function Recorder({
     <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
       <div
         style={bigCamera ? frame.style : undefined}
-        className={`relative mx-auto overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-sm ${bigCamera ? "" : "aspect-video w-full"}`}
+        className={`relative mx-auto overflow-hidden rounded-2xl border border-line bg-solid shadow-sm ${bigCamera ? "" : "aspect-video w-full"}`}
       >
         {bigCamera ? (
           <video ref={previewRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full -scale-x-100 object-cover" />
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-slate-300" data-testid="screen-panel">
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-dim" data-testid="screen-panel">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="20" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
             <p className="text-sm">
               {phase === "setup"
@@ -539,7 +539,7 @@ export default function Recorder({
         {phase === "countdown" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-black/60 text-white">
             <span className="text-8xl font-semibold">{count}</span>
-            <button onClick={() => (cancelled.current = true)} className="rounded-lg bg-white/15 px-4 py-2 text-sm font-medium hover:bg-white/25">Cancel</button>
+            <button onClick={() => (cancelled.current = true)} className="rounded-lg bg-surface/15 px-4 py-2 text-sm font-medium hover:bg-hover/25">Cancel</button>
           </div>
         )}
         {recordingish && (
@@ -552,13 +552,13 @@ export default function Recorder({
 
       <aside className="flex flex-col gap-5">
         {recovered.length > 0 && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+          <div className="rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg">
             {recovered.length === 1 ? "We finished uploading a recording that was interrupted." : `We finished uploading ${recovered.length} recordings that were interrupted.`}{" "}
             <a className="font-medium underline" href={recovered.length === 1 ? `/v/${recovered[0]}` : "/library"}>{recovered.length === 1 ? "View it" : "See your library"}</a>
           </div>
         )}
         {error && (
-          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <div role="alert" className="rounded-xl border border-danger-line bg-danger-bg p-3 text-sm text-danger-fg">
             {error}
             {upgrade && (
               <>
@@ -569,62 +569,62 @@ export default function Recorder({
           </div>
         )}
         {notice && !error && (phase === "setup" || recordingish) && (
-          <div key={flash} className={`rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 ${flash ? "notice-flash" : ""}`}>{notice}</div>
+          <div key={flash} className={`rounded-xl border border-line bg-canvas p-3 text-sm text-muted ${flash ? "notice-flash" : ""}`}>{notice}</div>
         )}
 
         {phase === "setup" && (
           <>
             <fieldset className="flex flex-col gap-2">
-              <legend className="mb-2 text-sm font-semibold text-slate-900">What do you want to record?</legend>
+              <legend className="mb-2 text-sm font-semibold text-ink">What do you want to record?</legend>
               {MODES.filter((m) => canShareScreen || m.id === "camera").map((m) => (
-                <label key={m.id} className={`cursor-pointer rounded-xl border p-3 transition ${noCamera && m.id !== "screen" ? "opacity-60 " : ""}${mode === m.id ? "border-brand-600 bg-brand-50 ring-1 ring-brand-600" : "border-slate-200 hover:border-slate-300"}`}>
+                <label key={m.id} className={`cursor-pointer rounded-xl border p-3 transition ${noCamera && m.id !== "screen" ? "opacity-60 " : ""}${mode === m.id ? "border-primary bg-primary-soft ring-1 ring-primary" : "border-line hover:border-line-strong"}`}>
                   <input type="radio" name="mode" className="sr-only" checked={mode === m.id} onChange={() => (noCamera && m.id !== "screen" ? setFlash((n) => n + 1) : setMode(m.id))} />
-                  <span className="block text-sm font-medium text-slate-900">{m.label}</span>
-                  <span className="block text-xs text-slate-500">{m.hint}</span>
+                  <span className="block text-sm font-medium text-ink">{m.label}</span>
+                  <span className="block text-xs text-dim">{m.hint}</span>
                 </label>
               ))}
               {mode === "screen+camera" && !cameraWithScreen && (
-                <p className="text-xs text-amber-700">This browser can&rsquo;t put your camera in a screen recording. Use Chrome, Edge or Brave, or choose Camera only.</p>
+                <p className="text-xs text-warn-fg">This browser can&rsquo;t put your camera in a screen recording. Use Chrome, Edge or Brave, or choose Camera only.</p>
               )}
             </fieldset>
 
             <div className="grid gap-3 text-sm">
               {mode !== "screen" && (
                 <label className="grid gap-1">
-                  <span className="font-medium text-slate-700">Camera</span>
-                  <select className="rounded-lg border border-slate-300 bg-white px-3 py-2" value={camId ?? ""} onChange={(e) => setCamId(e.target.value || undefined)}>
+                  <span className="font-medium text-muted">Camera</span>
+                  <select className="rounded-lg border border-line-strong bg-surface px-3 py-2" value={camId ?? ""} onChange={(e) => setCamId(e.target.value || undefined)}>
                     <option value="">Default camera</option>
                     {cams.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || "Camera"}</option>)}
                   </select>
                 </label>
               )}
               <label className="grid gap-1">
-                <span className="font-medium text-slate-700">Microphone</span>
-                <select className="rounded-lg border border-slate-300 bg-white px-3 py-2" value={micId ?? ""} onChange={(e) => setMicId(e.target.value || undefined)}>
+                <span className="font-medium text-muted">Microphone</span>
+                <select className="rounded-lg border border-line-strong bg-surface px-3 py-2" value={micId ?? ""} onChange={(e) => setMicId(e.target.value || undefined)}>
                   <option value="">Default microphone</option>
                   {mics.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || "Microphone"}</option>)}
                 </select>
               </label>
               {phase === "setup" && <MicLevel deviceId={micId} />}
               <label className="grid gap-1">
-                <span className="font-medium text-slate-700">Quality</span>
-                <select className="rounded-lg border border-slate-300 bg-white px-3 py-2" value={quality} onChange={(e) => setQuality(Number(e.target.value) as Quality)}>
+                <span className="font-medium text-muted">Quality</span>
+                <select className="rounded-lg border border-line-strong bg-surface px-3 py-2" value={quality} onChange={(e) => setQuality(Number(e.target.value) as Quality)}>
                   {allowedQualities.map((q) => <option key={q} value={q}>{q === 2160 ? "4K" : `${q}p`}</option>)}
                 </select>
-                {maxResolution < 1080 && <span className="text-xs text-slate-500"><a href="/pricing" className="font-medium text-brand-700 hover:underline">Upgrade to a paid plan</a> for 1080p and 4K.</span>}
+                {maxResolution < 1080 && <span className="text-xs text-dim"><a href="/pricing" className="font-medium text-accent hover:underline">Upgrade to a paid plan</a> for 1080p and 4K.</span>}
               </label>
             </div>
 
-            <button onClick={start} className="rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white shadow-sm hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">
+            <button onClick={start} className="rounded-xl bg-primary px-4 py-3 font-semibold text-white shadow-sm hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
               Start recording
             </button>
             {freeVideos && freeLeft !== null && (
-              <p className="text-sm text-slate-600" data-testid="free-videos-left">
+              <p className="text-sm text-muted" data-testid="free-videos-left">
                 {freeLeft} of {freeVideos.limit} free videos left.{" "}
-                {freeLeft <= 5 && <a href="/pricing" className="font-medium text-brand-700 hover:underline">See plans</a>}
+                {freeLeft <= 5 && <a href="/pricing" className="font-medium text-accent hover:underline">See plans</a>}
               </p>
             )}
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-dim">
               Your recording uploads while you talk. Until it&rsquo;s safely up, a copy is kept in this browser, so after a crash or dropped connection it picks up where it left off.
             </p>
           </>
@@ -634,26 +634,26 @@ export default function Recorder({
           <>
             <div className="flex gap-2">
               {phase === "recording" ? (
-                <button onClick={pause} className="flex-1 rounded-xl border border-slate-300 px-4 py-3 font-medium hover:bg-slate-50">Pause</button>
+                <button onClick={pause} className="flex-1 rounded-xl border border-line-strong px-4 py-3 font-medium hover:bg-hover">Pause</button>
               ) : (
-                <button onClick={resume} className="flex-1 rounded-xl border border-slate-300 px-4 py-3 font-medium hover:bg-slate-50">Resume</button>
+                <button onClick={resume} className="flex-1 rounded-xl border border-line-strong px-4 py-3 font-medium hover:bg-hover">Resume</button>
               )}
               <button onClick={stop} className="flex-1 rounded-xl bg-red-600 px-4 py-3 font-semibold text-white hover:bg-red-700">Stop</button>
             </div>
             {mode === "screen+camera" && !bubbleOpen && !wholeScreen && (
-              <button onClick={popOutBubble} className="rounded-xl border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">Pop out camera bubble</button>
+              <button onClick={popOutBubble} className="rounded-xl border border-line-strong px-4 py-2 text-sm hover:bg-hover">Pop out camera bubble</button>
             )}
-            <button onClick={discard} className="text-sm text-slate-500 underline-offset-2 hover:underline">Discard and start over</button>
+            <button onClick={discard} className="text-sm text-dim underline-offset-2 hover:underline">Discard and start over</button>
             <UploadBadge s={upload} />
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-dim">
               Limit on your plan: {maxDurationMin % 60 === 0 && maxDurationMin >= 60 ? `${maxDurationMin / 60} hour${maxDurationMin === 60 ? "" : "s"}` : `${maxDurationMin} minutes`}.
             </p>
           </>
         )}
 
         {phase === "finishing" && (
-          <div className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-sm">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+          <div className="flex items-center gap-3 rounded-xl border border-line p-4 text-sm">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             Finishing upload… your link will open in a moment.
           </div>
         )}
@@ -663,19 +663,19 @@ export default function Recorder({
 }
 
 function UploadBadge({ s }: { s: UploadState }) {
-  if (s.error) return <p className="text-sm text-red-700">{s.error}</p>;
+  if (s.error) return <p className="text-sm text-danger-fg">{s.error}</p>;
   if (s.retrying)
     return (
-      <p className="text-sm text-amber-700">
+      <p className="text-sm text-warn-fg">
         {s.unsaved
           ? "Connection lost and this browser's storage is full. Keep this page open; the upload resumes when you're back online."
           : "Connection lost. Still recording and saving locally; upload resumes automatically."}
       </p>
     );
   return (
-    <p className="text-sm text-emerald-700">
+    <p className="text-sm text-ok-fg">
       Uploaded: {(s.uploadedBytes / 1024 / 1024).toFixed(1)} MB
-      {s.bufferedBytes > 0 && <span className="text-slate-500"> (+{(s.bufferedBytes / 1024 / 1024).toFixed(1)} MB on device)</span>}
+      {s.bufferedBytes > 0 && <span className="text-dim"> (+{(s.bufferedBytes / 1024 / 1024).toFixed(1)} MB on device)</span>}
     </p>
   );
 }

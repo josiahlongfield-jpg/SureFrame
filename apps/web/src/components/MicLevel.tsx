@@ -99,10 +99,10 @@ export default function MicLevel({ deviceId, stream: given }: { deviceId?: strin
   const warn = state === "quiet" || state === "stopped" || state === "blocked";
   return (
     <div className="grid gap-1" data-testid="mic-level" data-state={state}>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-200" aria-hidden>
+      <div className="h-2 overflow-hidden rounded-full bg-line-strong" aria-hidden>
         <div ref={bar} className={`h-full w-0 rounded-full transition-[width] duration-75 ${warn ? "bg-amber-500" : "bg-emerald-500"}`} />
       </div>
-      <span className={`text-xs ${warn ? "text-amber-800" : "text-slate-500"}`} aria-live="polite">
+      <span className={`text-xs ${warn ? "text-warn-fg" : "text-dim"}`} aria-live="polite">
         {state === "starting" && "Checking your microphone…"}
         {state === "listening" && "Say something. The bar should move when you speak."}
         {state === "hearing" && "Picking up sound. Make sure the bar moves with your voice, not just background noise."}
@@ -111,7 +111,7 @@ export default function MicLevel({ deviceId, stream: given }: { deviceId?: strin
         {state === "stopped" && `This microphone has stopped sending sound. Check it's switched on and connected${given ? "" : ", or choose another one above"}.`}
         {state === "blocked" && `We can't use this microphone. Allow it in your browser's address bar${given ? "" : ", or pick another one above"}.`}
       </span>
-      {label && state !== "blocked" && <span className="text-xs text-slate-500" data-testid="mic-in-use">Listening to: {label}</span>}
+      {label && state !== "blocked" && <span className="text-xs text-dim" data-testid="mic-in-use">Listening to: {label}</span>}
     </div>
   );
 }

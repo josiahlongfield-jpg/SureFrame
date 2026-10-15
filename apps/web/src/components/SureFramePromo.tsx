@@ -39,9 +39,9 @@ export default function SureFramePromo({ videoId }: { videoId: string }) {
   };
 
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="promo-title" data-testid="sureframe-promo" className="fixed inset-0 z-50 grid place-items-center bg-slate-900/70 px-4">
+    <div role="dialog" aria-modal="true" aria-labelledby="promo-title" data-testid="sureframe-promo" className="fixed inset-0 z-50 grid place-items-center bg-solid/70 px-4">
       <style>{PROMO_CSS}</style>
-      <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white text-center shadow-2xl">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl bg-surface text-center shadow-2xl">
         {/* A 10-second animated promo, drawn on the page: no video file, nothing loaded from elsewhere. */}
         <div className="sf-promo relative aspect-video overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-brand-900" aria-hidden="true">
           <div className="sf-s1 absolute inset-0 grid place-items-center">
@@ -60,7 +60,7 @@ export default function SureFramePromo({ videoId }: { videoId: string }) {
               </span>
             </div>
             <div className="grid gap-2 text-left">
-              <span className="sf-b1 rounded-2xl rounded-bl-sm bg-white/15 px-3 py-1.5 text-xs text-white">Here&apos;s your update</span>
+              <span className="sf-b1 rounded-2xl rounded-bl-sm bg-surface/15 px-3 py-1.5 text-xs text-white">Here&apos;s your update</span>
               <span className="sf-b2 rounded-2xl rounded-br-sm bg-brand-500 px-3 py-1.5 text-xs text-white">Thanks, looks great!</span>
             </div>
           </div>
@@ -72,20 +72,20 @@ export default function SureFramePromo({ videoId }: { videoId: string }) {
           <div className="sf-bar absolute inset-x-0 bottom-0 h-1 origin-left bg-brand-500" />
         </div>
         <div className="p-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-brand-700">Sent with SureFrame</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-accent">Sent with SureFrame</p>
           <h2 id="promo-title" className="sr-only">Private video messages for businesses and their clients</h2>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-muted">
             Record once, send to any number of clients, and get a video, voice or text reply back. Every video is end-to-end encrypted, and clients never pay.
           </p>
           <div className="mt-5 grid gap-3">
             <button
               onClick={close}
               disabled={left > 0}
-              className="rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-700 disabled:bg-slate-300 disabled:text-slate-600"
+              className="rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover disabled:bg-line-strong disabled:text-muted"
             >
               {left > 0 ? `Watch your video in ${left}` : "Watch your video"}
             </button>
-            <a href="/?ref=promo" target="_blank" rel="noopener" className="text-sm font-medium text-brand-700 hover:underline">
+            <a href="/?ref=promo" target="_blank" rel="noopener" className="text-sm font-medium text-accent hover:underline">
               Run a business? Try SureFrame free
             </a>
           </div>

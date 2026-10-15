@@ -21,14 +21,14 @@ export const VIEWS: { id: PreviewView; label: string }[] = [
 
 export function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: { id: T; label: string }[]; onChange: (v: T) => void }) {
   return (
-    <div role="group" aria-label={label} className="inline-flex rounded-lg bg-slate-100 p-1 text-sm">
+    <div role="group" aria-label={label} className="inline-flex rounded-lg bg-surface-2 p-1 text-sm">
       {options.map((o) => (
         <button
           key={o.id}
           type="button"
           aria-pressed={value === o.id}
           onClick={() => onChange(o.id)}
-          className={`rounded-md px-3 py-1.5 font-medium ${value === o.id ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+          className={`rounded-md px-3 py-1.5 font-medium ${value === o.id ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"}`}
         >
           {o.label}
         </button>
@@ -79,10 +79,10 @@ export function PreviewStage({ brand, view, device, fit = "width", testId }: { b
     <div ref={box} className={fit === "contain" ? "h-full w-full" : "w-full"}>
       <div className="mx-auto" style={{ width: size.w * scale + pad, height: size.h * scale + pad, visibility: scale ? "visible" : "hidden" }}>
         <div
-          className={device === "phone" ? "h-full w-full overflow-hidden rounded-[2.25rem] bg-slate-900 shadow-xl" : "h-full w-full overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm"}
+          className={device === "phone" ? "h-full w-full overflow-hidden rounded-[2.25rem] bg-solid shadow-xl" : "h-full w-full overflow-hidden rounded-xl border border-line-strong bg-surface shadow-sm"}
           style={device === "phone" ? { padding: BEZEL } : undefined}
         >
-          <div className={device === "phone" ? "h-full w-full overflow-hidden rounded-[1.6rem] bg-white" : "h-full w-full overflow-hidden"}>
+          <div className={device === "phone" ? "h-full w-full overflow-hidden rounded-[1.6rem] bg-surface" : "h-full w-full overflow-hidden"}>
             <iframe
               ref={frame}
               src={src}
@@ -111,12 +111,12 @@ export function FullPreview({ brand, view, device, onView, onDevice, onClose }: 
     };
   }, [onClose]);
   return (
-    <div role="dialog" aria-modal="true" aria-label="Full preview of what your clients see" data-testid="full-preview" className="fixed inset-0 z-50 flex flex-col bg-slate-800">
-      <div className="flex flex-wrap items-center gap-3 border-b border-slate-700 bg-slate-900 px-4 py-3">
+    <div role="dialog" aria-modal="true" aria-label="Full preview of what your clients see" data-testid="full-preview" className="fixed inset-0 z-50 flex flex-col bg-solid-hover">
+      <div className="flex flex-wrap items-center gap-3 border-b border-line-strong bg-solid px-4 py-3">
         <p className="mr-auto text-sm font-semibold text-white">What your clients see</p>
         <Segmented label="Page" value={view} options={VIEWS} onChange={onView} />
         <Segmented label="Screen size" value={device} options={[{ id: "desktop", label: "Desktop" }, { id: "phone", label: "Phone" }]} onChange={onDevice} />
-        <button type="button" onClick={onClose} autoFocus className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 hover:bg-slate-100">
+        <button type="button" onClick={onClose} autoFocus className="rounded-lg bg-surface px-3 py-1.5 text-sm font-semibold text-ink hover:bg-hover">
           Close
         </button>
       </div>

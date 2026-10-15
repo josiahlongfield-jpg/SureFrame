@@ -23,20 +23,20 @@ export default function ClientEmail({ clientId, firstName, initial, optedOut }: 
   if (editing) {
     return (
       <form onSubmit={save} className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" aria-label="Client email" autoFocus className="rounded-lg border border-slate-300 px-2 py-1" />
-        <button className="rounded-lg bg-slate-900 px-3 py-1 font-medium text-white">Save</button>
-        <button type="button" onClick={() => setEditing(false)} className="text-slate-500">Cancel</button>
-        {error && <span role="alert" className="text-red-700">{error}</span>}
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" aria-label="Client email" autoFocus className="rounded-lg border border-line-strong px-2 py-1" />
+        <button className="rounded-lg bg-solid px-3 py-1 font-medium text-white">Save</button>
+        <button type="button" onClick={() => setEditing(false)} className="text-dim">Cancel</button>
+        {error && <span role="alert" className="text-danger-fg">{error}</span>}
       </form>
     );
   }
   return (
-    <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+    <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-dim">
       {initial ? initial : <span>No email yet, so {firstName} can&apos;t get reminders.</span>}
-      <button onClick={() => setEditing(true)} className="font-medium text-brand-700 hover:underline">
+      <button onClick={() => setEditing(true)} className="font-medium text-accent hover:underline">
         {initial ? "Change" : "Add email"}
       </button>
-      {initial && optedOut && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-800">{firstName} turned reminder emails off</span>}
+      {initial && optedOut && <span className="rounded bg-warn-bg px-1.5 py-0.5 text-xs text-warn-fg">{firstName} turned reminder emails off</span>}
     </p>
   );
 }

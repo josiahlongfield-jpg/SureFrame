@@ -38,22 +38,22 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
     <>
       <AppHeader email={user.email} plan={plan.name} />
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Clients</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Clients</h1>
         {!perms.seeAllClients && (
-          <p className="mt-1 text-sm text-slate-500">You see the clients assigned to you. The owner or an admin can assign more.</p>
+          <p className="mt-1 text-sm text-dim">You see the clients assigned to you. The owner or an admin can assign more.</p>
         )}
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-dim">
           Clients watch and reply to the videos you send them for free. They don&apos;t need an account, just their personal link.
         </p>
         {clients.some((c) => c.pausedAt) && (
-          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" data-testid="paused-clients-note">
+          <p className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="paused-clients-note">
             Your plan covers {seats.limit} {seats.limit === 1 ? "client" : "clients"}, so the clients marked Paused can&apos;t open their videos or be sent new ones.
             Pausing doesn&apos;t delete anything, though recordings still expire on the usual schedule. Upgrade or add seats, or remove clients you no longer need, and they&apos;re restored straight away (longest-standing first).
             Please let them know about the change.
           </p>
         )}
         {clients.some((c) => c.linkDisabledAt) && (
-          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900" data-testid="link-off-clients-note">
+          <p className="mt-4 rounded-xl border border-danger-line bg-danger-bg p-3 text-sm text-danger-fg" data-testid="link-off-clients-note">
             SureFrame support has turned off the personal link of the clients marked Link off. They can&apos;t open their videos or be sent new ones, and they still use a client seat.
             Contact support@sureframe.app about it.
           </p>

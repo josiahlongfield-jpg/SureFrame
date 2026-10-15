@@ -63,18 +63,18 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
   const brand = clients.length === 1 ? brandOf(clients[0].workspace) : null;
 
   return (
-    <div className="min-h-screen bg-slate-50" style={brandStyle(brand?.color ?? null)}>
+    <div data-theme="light" className="min-h-screen bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
       {arrivedAs && clients.some((c) => c.id === arrivedAs) && <ClientKeyCapture clientId={arrivedAs} />}
       <ClientHeader brand={brand} />
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Your videos</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Your videos</h1>
         {invalid && (
-          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <p className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg">
             That link is no longer active. Ask the person who sent it for a new one.
           </p>
         )}
         {ended.map((r) => (
-          <p key={r.workspace.name} className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" data-testid="client-removed">
+          <p key={r.workspace.name} className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="client-removed">
             {r.workspace.name} has ended your access to your videos from them. If that&rsquo;s a mistake, contact them.
             {r.purgeAt && r.purgeAt > now && (
               <> They can restore it until {zoned(r.workspace.timezone).longDay(r.purgeAt)}, after which your videos, messages and shared to-dos with them are deleted.</>
@@ -82,42 +82,42 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
           </p>
         ))}
         {removed && ended.length === 0 && (
-          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" data-testid="client-removed">
+          <p className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="client-removed">
             The business that sent you this link has ended your access, so it no longer opens your videos. If that&rsquo;s a mistake, contact them.
           </p>
         )}
         {closedNames.map((name) => (
-          <p key={name} className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" data-testid="client-closed">
+          <p key={name} className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="client-closed">
             {name} has closed their SureFrame account, so this link no longer opens your videos from them. If you need anything, contact them directly.
           </p>
         ))}
         {closed && closedNames.length === 0 && (
-          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" data-testid="client-closed">
+          <p className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="client-closed">
             The business that sent you this link has closed their SureFrame account, so it no longer opens your videos. If you need anything, contact them directly.
           </p>
         )}
         {unavailableNames.map((name) => (
-          <p key={name} className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" data-testid="client-unavailable">
+          <p key={name} className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="client-unavailable">
             Videos from {name} are unavailable right now.
           </p>
         ))}
         {unavailable && unavailableNames.length === 0 && (
-          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" data-testid="client-unavailable">
+          <p className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="client-unavailable">
             Videos from the business that sent you this link are unavailable right now.
           </p>
         )}
         {offNames.map((name) => (
-          <p key={name} className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" data-testid="client-link-off">
+          <p key={name} className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="client-link-off">
             This link has been turned off, so it no longer opens your videos from {name}.
           </p>
         ))}
         {off && offNames.length === 0 && (
-          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" data-testid="client-link-off">
+          <p className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="client-link-off">
             This link has been turned off.
           </p>
         )}
         {(paused || pausedNames.length > 0) && (
-          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" data-testid="client-paused">
+          <p className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="client-paused">
             Your access {pausedNames.length > 0 ? <>to videos from {pausedNames.join(", ")} </> : ""}is paused because{" "}
             {pausedNames.length > 1 ? "these businesses changed their" : "this business changed its"} SureFrame plan. The pause doesn&rsquo;t delete anything, but videos are only kept for a limited time, so please contact{" "}
             them soon to have it restored.
@@ -125,25 +125,25 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
         )}
         {clients.length === 0 ? (
           pausedNames.length > 0 || removed || ended.length > 0 || closed || closedNames.length > 0 || unavailable || unavailableNames.length > 0 || off || offNames.length > 0 ? null : 
-          <p className="mt-6 text-slate-600">Open the personal link you were sent to see your videos here.</p>
+          <p className="mt-6 text-muted">Open the personal link you were sent to see your videos here.</p>
         ) : (
           clients.map((c) => (
             <section key={c.id} className="mt-8">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">From {c.workspace.name}</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-dim">From {c.workspace.name}</h2>
               {aiAssistActive(c.workspace) && <AiNotice className="mt-2" />}
               {c.videos.length === 0 ? (
-                <p className="mt-3 text-sm text-slate-500">Nothing yet.</p>
+                <p className="mt-3 text-sm text-dim">Nothing yet.</p>
               ) : (
-                <ul className="mt-3 divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
+                <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface">
                   {c.videos.map((v) => (
                     <li key={v.id}>
-                      <Link href={`/v/${v.id}`} className="flex items-center justify-between px-5 py-4 hover:bg-slate-50">
+                      <Link href={`/v/${v.id}`} className="flex items-center justify-between px-5 py-4 hover:bg-hover">
                         <span className="min-w-0">
-                          <span className="block truncate font-medium text-slate-900">{v.title}</span>
+                          <span className="block truncate font-medium text-ink">{v.title}</span>
                           {/* Who sent it, never their email: "Sam from Business". */}
-                          {v.owner.name && <span className="block text-xs text-slate-500">{v.owner.name} from {c.workspace.name}</span>}
+                          {v.owner.name && <span className="block text-xs text-dim">{v.owner.name} from {c.workspace.name}</span>}
                         </span>
-                        <span className="shrink-0 pl-3 text-sm text-slate-500">{zoned(c.workspace.timezone).day(v.sentAt ?? v.createdAt)}</span>
+                        <span className="shrink-0 pl-3 text-sm text-dim">{zoned(c.workspace.timezone).day(v.sentAt ?? v.createdAt)}</span>
                       </Link>
                     </li>
                   ))}
@@ -153,9 +153,9 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
                 <ClientPlanner clientId={c.id} title="Your to-dos & notes" />
               </div>
               {c.email && (
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-dim">
                   Reminder and new-video emails to {c.email} are {c.remindersOff ? "off" : "on"}.{" "}
-                  <a href={unsubscribeUrl(c.id)} className="font-medium text-brand-700 hover:underline">
+                  <a href={unsubscribeUrl(c.id)} className="font-medium text-accent hover:underline">
                     {c.remindersOff ? "Turn on" : "Turn off"}
                   </a>
                 </p>

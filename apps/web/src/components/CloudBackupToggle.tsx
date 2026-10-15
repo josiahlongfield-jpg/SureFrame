@@ -40,15 +40,15 @@ export default function CloudBackupToggle({
   }
 
   return (
-    <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+    <div className="mt-6 rounded-2xl border border-line bg-surface p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="font-semibold text-slate-900">Cloud backup</p>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="font-semibold text-ink">Cloud backup</p>
+          <p className="mt-1 text-sm text-muted">
             Your videos are end-to-end encrypted. We keep an encrypted copy so your clients can watch it, and delete it after {days} days. To keep your own copy,
             open a video and choose Save to device. Cloud backup keeps our encrypted copies until you delete them. We still can&apos;t open them.
           </p>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-dim">
             Optional: US${price} a month (US${yearlyPrice} a year on yearly billing).
             {needsSubscription && " Available once you start a paid subscription."}
           </p>
@@ -59,13 +59,13 @@ export default function CloudBackupToggle({
           aria-label="Cloud backup"
           onClick={toggle}
           disabled={busy || (!on && !canEnable)}
-          className={`relative h-7 w-12 shrink-0 rounded-full transition disabled:opacity-50 ${on ? "bg-brand-600" : "bg-slate-300"}`}
+          className={`relative h-7 w-12 shrink-0 rounded-full transition disabled:opacity-50 ${on ? "bg-primary" : "bg-line-strong"}`}
         >
-          <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${on ? "left-6" : "left-1"}`} />
+          <span className={`absolute top-1 h-5 w-5 rounded-full bg-surface shadow transition ${on ? "left-6" : "left-1"}`} />
         </button>
       </div>
-      {!canEnable && !on && <p className="mt-3 text-sm text-slate-600">Available on paid plans.</p>}
-      {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
+      {!canEnable && !on && <p className="mt-3 text-sm text-muted">Available on paid plans.</p>}
+      {error && <p role="alert" className="mt-3 text-sm text-danger-fg">{error}</p>}
     </div>
   );
 }

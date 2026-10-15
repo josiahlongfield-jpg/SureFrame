@@ -128,20 +128,25 @@
 }
 
 html {
-  color-scheme: light;
-}
-
-body {
-  background: #fff;
-  color: #0f172a;
-}
-
-/* A navy page paints the whole window, including overscroll. */
-html:has(body > [data-theme="navy"]),
-body:has(> [data-theme="navy"]) {
   color-scheme: dark;
   background: #0a1020;
 }
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+html[data-theme="navy"] body {
+  background:
+    radial-gradient(1200px 700px at 85% -10%, rgb(79 110 247 / 0.22), transparent 60%),
+    linear-gradient(180deg, #0c1428, #0a1020 900px);
+  background-color: #0a1020;
+}
+
+/* Client pages are light, in the business's own colour. */
+html:has(body > [data-theme="light"]) { color-scheme: light; background: #f8fafc; }
+html:has(body > [data-theme="light"]) body { background: #f8fafc; }
+
 .navy-glow {
   background:
     radial-gradient(1200px 700px at 85% -10%, rgb(79 110 247 / 0.28), transparent 60%),

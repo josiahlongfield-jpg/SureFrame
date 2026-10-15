@@ -34,6 +34,9 @@ MAP = {
     # status
     "bg-emerald-50": "bg-ok-bg", "border-emerald-200": "border-ok-line", "text-emerald-700": "text-ok-fg", "text-emerald-800": "text-ok-fg", "text-emerald-900": "text-ok-fg", "text-emerald-600": "text-ok-fg",
     "bg-amber-50": "bg-warn-bg", "border-amber-200": "border-warn-line", "border-amber-300": "border-warn-line", "text-amber-700": "text-warn-fg", "text-amber-800": "text-warn-fg", "text-amber-900": "text-warn-fg",
+    "bg-amber-100": "bg-warn-bg", "hover:bg-amber-100": "hover:bg-hover", "text-amber-950": "text-warn-fg", "divide-amber-100": "divide-warn-line",
+    "bg-emerald-100": "bg-ok-bg", "hover:bg-emerald-100": "hover:bg-hover", "border-emerald-300": "border-ok-line", "text-emerald-950": "text-ok-fg",
+    "bg-red-100": "bg-danger-bg", "outline-brand-600": "outline-primary", "bg-slate-300": "bg-line-strong", "border-slate-700": "border-line-strong",
     "bg-red-50": "bg-danger-bg", "border-red-200": "border-danger-line", "border-red-300": "border-danger-line", "text-red-600": "text-danger-fg", "text-red-700": "text-danger-fg", "text-red-800": "text-danger-fg", "text-red-900": "text-danger-fg",
 }
 

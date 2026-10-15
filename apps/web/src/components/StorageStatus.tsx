@@ -24,21 +24,21 @@ export default function StorageStatus({ status, purgeAt, cloudBackup }: { status
 
   if (status === "RECORDING") return null;
   const base = "mt-1 flex items-center gap-1.5 text-xs";
-  if (status === "EXPIRED") return <p data-testid="storage-status" className={`${base} text-slate-500`}>Deleted from our servers</p>;
+  if (status === "EXPIRED") return <p data-testid="storage-status" className={`${base} text-dim`}>Deleted from our servers</p>;
   if (!purgeAt) {
     return (
-      <p data-testid="storage-status" className={`${base} text-emerald-700`}>
+      <p data-testid="storage-status" className={`${base} text-ok-fg`}>
         {cloudBackup ? "Saved to cloud backup" : "Kept on our servers"}
       </p>
     );
   }
-  if (now === null) return <p data-testid="storage-status" className={`${base} text-slate-500`}>&nbsp;</p>;
+  if (now === null) return <p data-testid="storage-status" className={`${base} text-dim`}>&nbsp;</p>;
   const at = new Date(purgeAt);
   const left = at.getTime() - now;
   const soon = left < 48 * 3_600_000;
   const when = at.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
   return (
-    <p data-testid="storage-status" data-soon={soon ? "true" : undefined} className={`${base} ${soon ? "font-medium text-amber-700" : "text-slate-500"}`} title="Save it to your device to keep a copy">
+    <p data-testid="storage-status" data-soon={soon ? "true" : undefined} className={`${base} ${soon ? "font-medium text-warn-fg" : "text-dim"}`} title="Save it to your device to keep a copy">
       {left <= 0 ? (
         <>Deleting from our servers now (was due {when})</>
       ) : (

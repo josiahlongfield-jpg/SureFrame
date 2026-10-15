@@ -181,7 +181,7 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
                 ? "Unlocking…"
                 : "Make a transcript";
   return (
-    <section className="mt-5 rounded-2xl border border-slate-200 bg-white" data-testid="ai-insight" data-open={open || undefined} aria-busy={busy}>
+    <section className="mt-5 rounded-2xl border border-line bg-surface" data-testid="ai-insight" data-open={open || undefined} aria-busy={busy}>
       <h2>
         <button
           type="button"
@@ -189,76 +189,76 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
           aria-expanded={open}
           aria-controls={bodyId}
           data-testid="ai-toggle"
-          className={`flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${open ? "rounded-t-2xl" : "rounded-2xl"}`}
+          className={`flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${open ? "rounded-t-2xl" : "rounded-2xl"}`}
         >
-          <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-700">AI</span>
+          <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-accent">AI</span>
           <span className="min-w-0 flex-1">
-            <span className="block font-semibold text-slate-900">AI summary and transcript</span>
-            <span className="block text-xs text-slate-500" data-testid="ai-hint">{hint}</span>
+            <span className="block font-semibold text-ink">AI summary and transcript</span>
+            <span className="block text-xs text-dim" data-testid="ai-hint">{hint}</span>
           </span>
-          <span className="hidden text-xs font-medium text-brand-700 sm:inline">{open ? "Hide" : "Show"}</span>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden className={`shrink-0 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`}>
+          <span className="hidden text-xs font-medium text-accent sm:inline">{open ? "Hide" : "Show"}</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden className={`shrink-0 text-dim transition-transform ${open ? "rotate-180" : ""}`}>
             <path d="M6 9l6 6 6-6" />
           </svg>
         </button>
       </h2>
       {/* Stays mounted while collapsed, so a transcript in progress keeps going. */}
-      <div id={bodyId} hidden={!open} className="border-t border-slate-100 px-5 pb-5 pt-2">
+      <div id={bodyId} hidden={!open} className="border-t border-line px-5 pb-5 pt-2">
 
-        {unreadable && <p className="mt-2 text-sm text-slate-600">This summary was locked with a different key and can&apos;t be opened on this device.</p>}
+        {unreadable && <p className="mt-2 text-sm text-muted">This summary was locked with a different key and can&apos;t be opened on this device.</p>}
 
         {status.kind === "working" && <Working progress={status.progress} />}
-        {status.kind === "summarising" && <p role="status" className="mt-2 text-sm text-slate-600">Transcript done. Writing the summary…</p>}
+        {status.kind === "summarising" && <p role="status" className="mt-2 text-sm text-muted">Transcript done. Writing the summary…</p>}
 
         {status.kind === "failed" && (
-          <div role="alert" className="mt-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900" data-testid="ai-failed">
+          <div role="alert" className="mt-2 rounded-xl bg-warn-bg p-3 text-sm text-warn-fg" data-testid="ai-failed">
             <p className="font-medium">Transcript unavailable, try again.</p>
-            <p className="mt-1 text-amber-800">
+            <p className="mt-1 text-warn-fg">
               {status.model
                 ? "Transcripts aren't ready on SureFrame yet: the speech model isn't installed. Please try again later."
                 : status.device || support?.mobile || support?.lowMemory
                 ? "This device may not be able to make transcripts. A computer with Chrome or Edge and plenty of memory works best."
                 : "Something went wrong making the transcript. Your video is safe and unchanged."}
             </p>
-            {status.message && !status.model && <p className="mt-1 text-xs text-amber-700">Details: {status.message}</p>}
-            <button onClick={make} className="mt-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-medium hover:bg-amber-100">Try again</button>
+            {status.message && !status.model && <p className="mt-1 text-xs text-warn-fg">Details: {status.message}</p>}
+            <button onClick={make} className="mt-2 rounded-lg border border-warn-line bg-surface px-3 py-1.5 font-medium hover:bg-hover">Try again</button>
           </div>
         )}
 
         {summary ? (
-          <div className="mt-2 text-sm text-slate-700" data-testid="ai-summary">
+          <div className="mt-2 text-sm text-muted" data-testid="ai-summary">
             <p className="whitespace-pre-wrap">{summary.overview}</p>
             {summary.keyPoints.length > 0 && (
               <>
-                <h3 className="mt-3 font-medium text-slate-900">Key points</h3>
+                <h3 className="mt-3 font-medium text-ink">Key points</h3>
                 <ul className="mt-1 list-disc space-y-1 pl-5">{summary.keyPoints.map((p, i) => <li key={i}>{p}</li>)}</ul>
               </>
             )}
             {summary.actionItems.length > 0 && (
               <>
-                <h3 className="mt-3 font-medium text-slate-900">Action items</h3>
+                <h3 className="mt-3 font-medium text-ink">Action items</h3>
                 <ul className="mt-1 list-disc space-y-1 pl-5">{summary.actionItems.map((p, i) => <li key={i}>{p}</li>)}</ul>
               </>
             )}
-            <p className="mt-3 text-xs text-slate-500">Written by AI from an automatic transcript. It can contain mistakes, so check anything important against the video.</p>
+            <p className="mt-3 text-xs text-dim">Written by AI from an automatic transcript. It can contain mistakes, so check anything important against the video.</p>
           </div>
         ) : (
           !busy &&
           status.kind !== "failed" &&
           !transcript &&
           canMake && (
-            <div className="mt-2 text-sm text-slate-600">
+            <div className="mt-2 text-sm text-muted">
               <p>Make a transcript on this device and a short AI summary of this video. The audio stays on this device; only the transcript text is sent to write the summary.</p>
-              {(support?.mobile || support?.lowMemory) && <p className="mt-1 text-amber-800">This device may struggle with this. It works best on a computer.</p>}
+              {(support?.mobile || support?.lowMemory) && <p className="mt-1 text-warn-fg">This device may struggle with this. It works best on a computer.</p>}
               {tooLong ? (
-                <p className="mt-2 text-amber-800" data-testid="ai-too-long">Transcripts are available for videos up to {MAX_TRANSCRIBE_MINUTES} minutes.</p>
+                <p className="mt-2 text-warn-fg" data-testid="ai-too-long">Transcripts are available for videos up to {MAX_TRANSCRIBE_MINUTES} minutes.</p>
               ) : support && !support.device ? (
-                <p className="mt-2 text-amber-800">This browser can&apos;t make transcripts. Try again on a computer with Chrome or Edge.</p>
+                <p className="mt-2 text-warn-fg">This browser can&apos;t make transcripts. Try again on a computer with Chrome or Edge.</p>
               ) : (
                 <button
                   onClick={make}
                   disabled={!mediaUrl || !support}
-                  className="mt-3 rounded-lg bg-brand-600 px-4 py-2 font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+                  className="mt-3 rounded-lg bg-primary px-4 py-2 font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
                 >
                   Make transcript and summary
                 </button>
@@ -268,24 +268,24 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
         )}
 
         {status.kind === "summaryFailed" && (
-          <div role="alert" className="mt-2 text-sm text-slate-700">
+          <div role="alert" className="mt-2 text-sm text-muted">
             <p>{status.message}</p>
             {transcript && transcript.segments.length > 0 && (
-              <button onClick={() => summarise(transcript)} className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-50">Try the summary again</button>
+              <button onClick={() => summarise(transcript)} className="mt-2 rounded-lg border border-line-strong px-3 py-1.5 font-medium hover:bg-hover">Try the summary again</button>
             )}
           </div>
         )}
         {!summary && transcript && status.kind === "idle" && canMake && transcript.segments.length > 0 && (
-          <button onClick={() => summarise(transcript)} className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50">Write the summary</button>
+          <button onClick={() => summarise(transcript)} className="mt-2 rounded-lg border border-line-strong px-3 py-1.5 text-sm font-medium hover:bg-hover">Write the summary</button>
         )}
 
         {transcript && (
-          <details className="mt-4 border-t border-slate-100 pt-3 text-sm" data-testid="ai-transcript">
-            <summary className="cursor-pointer font-medium text-slate-900">Transcript</summary>
+          <details className="mt-4 border-t border-line pt-3 text-sm" data-testid="ai-transcript">
+            <summary className="cursor-pointer font-medium text-ink">Transcript</summary>
             {transcript.segments.length === 0 ? (
-              <p className="mt-2 text-slate-500">No speech was found.</p>
+              <p className="mt-2 text-dim">No speech was found.</p>
             ) : (
-              <div className="mt-2 max-h-96 space-y-3 overflow-y-auto pr-1 leading-relaxed text-slate-700">
+              <div className="mt-2 max-h-96 space-y-3 overflow-y-auto pr-1 leading-relaxed text-muted">
                 {paragraphs(transcript.segments).map((para, p) => (
                   <p key={p}>
                     {para.map((s, i) => (
@@ -297,7 +297,7 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
                           title={`Play from ${fmt(s.start)}`}
                           onClick={() => onSeek(Math.round(s.start * 1000))}
                           onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onSeek(Math.round(s.start * 1000)))}
-                          className="cursor-pointer rounded hover:bg-slate-100 focus-visible:bg-slate-100 focus-visible:outline-none"
+                          className="cursor-pointer rounded hover:bg-hover focus-visible:bg-surface-2 focus-visible:outline-none"
                         >
                           {s.text}
                         </span>
@@ -307,11 +307,11 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
                 ))}
               </div>
             )}
-            <p className="mt-2 text-xs text-slate-500">Made automatically on the sender&apos;s device. Words, names and numbers can be misheard. Click any sentence to play the video from there.</p>
+            <p className="mt-2 text-xs text-dim">Made automatically on the sender&apos;s device. Words, names and numbers can be misheard. Click any sentence to play the video from there.</p>
           </details>
         )}
         {canRemove && sealed && !busy && (
-          <button onClick={remove} className="mt-3 text-xs text-slate-500 underline hover:text-slate-900">Remove transcript and summary</button>
+          <button onClick={remove} className="mt-3 text-xs text-dim underline hover:text-ink">Remove transcript and summary</button>
         )}
       </div>
     </section>
@@ -326,10 +326,10 @@ function Working({ progress }: { progress: Progress }) {
         ? `Downloading the transcription model to this device${progress.bytes ? ` (${Math.round(progress.bytes / 1_000_000)} MB, first time only)` : ""}…`
         : "Making the transcript on this device…";
   return (
-    <div role="status" className="mt-2 text-sm text-slate-600">
+    <div role="status" className="mt-2 text-sm text-muted">
       <p>{label} You can keep watching while this runs.</p>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${Math.max(3, Math.round(progress.fraction * 100))}%` }} />
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2">
+        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.max(3, Math.round(progress.fraction * 100))}%` }} />
       </div>
     </div>
   );

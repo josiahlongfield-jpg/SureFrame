@@ -211,16 +211,16 @@ export default function Planner({
             checked={i.done}
             onChange={() => patch(i, { done: !i.done })}
             aria-label={`Mark "${i.text}" ${i.done ? "not done" : "done"}`}
-            className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600"
+            className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
           />
         ) : (
-          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-300" aria-hidden />
+          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-line-strong" aria-hidden />
         )}
         <div className="min-w-0 flex-1">
-          <p className={`whitespace-pre-wrap text-sm ${i.done ? "text-slate-400 line-through" : "text-slate-800"}`}>{i.text}</p>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-500">
+          <p className={`whitespace-pre-wrap text-sm ${i.done ? "text-dim line-through" : "text-ink"}`}>{i.text}</p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-dim">
             {i.dueAt && (
-              <span className={!i.done && new Date(i.dueAt).getTime() < now ? "font-medium text-red-600" : ""}>
+              <span className={!i.done && new Date(i.dueAt).getTime() < now ? "font-medium text-danger-fg" : ""}>
                 Due {new Date(i.dueAt).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
               </span>
             )}
@@ -233,7 +233,7 @@ export default function Planner({
               <span className="inline-flex items-center gap-1" title="Email reminders">
                 <BellIcon /> {sortRules(i.reminders).map(ruleLabel).join(", ")}
                 {role === "member" && (
-                  <span className="text-slate-400">
+                  <span className="text-dim">
                     {" "}
                     {/* A client who turned emails off isn't sent one, though the to-do keeps asking for when they turn them back on. */}
                     · {[i.remindClient && !client?.remindersOff && first, i.remindTeam && teamWho.tag].filter(Boolean).join(" and ")}
@@ -242,7 +242,7 @@ export default function Planner({
               </span>
             )}
             {role === "member" && clientId && (
-              <button onClick={() => toggleShare(i)} className={`rounded px-1.5 ${i.shared ? "bg-brand-50 text-brand-700" : "bg-slate-100 text-slate-600"} hover:underline`}>
+              <button onClick={() => toggleShare(i)} className={`rounded px-1.5 ${i.shared ? "bg-primary-soft text-accent" : "bg-surface-2 text-muted"} hover:underline`}>
                 {i.shared ? `Shared with ${first}` : "Private to your team"}
               </button>
             )}
@@ -250,11 +250,11 @@ export default function Planner({
         </div>
         {role === "member" && (
           // Always visible on touch screens, which have no hover.
-          <div className="flex gap-2 text-xs text-slate-400 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
-            <button onClick={() => setEditing(i.id)} aria-label={`Edit "${i.text}"`} className="hover:text-slate-800">
+          <div className="flex gap-2 text-xs text-dim [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
+            <button onClick={() => setEditing(i.id)} aria-label={`Edit "${i.text}"`} className="hover:text-ink">
               Edit
             </button>
-            <button onClick={() => remove(i)} aria-label="Delete" className="hover:text-red-600">
+            <button onClick={() => remove(i)} aria-label="Delete" className="hover:text-danger-fg">
               Delete
             </button>
           </div>
@@ -263,12 +263,12 @@ export default function Planner({
     );
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5">
-      <h2 className="font-semibold text-slate-900">{title}</h2>
-      {note && <p className="mt-1 text-xs text-slate-500">{note}</p>}
+    <section className="rounded-2xl border border-line bg-surface p-5">
+      <h2 className="font-semibold text-ink">{title}</h2>
+      {note && <p className="mt-1 text-xs text-dim">{note}</p>}
       {role === "member" && (
         <form onSubmit={add} className="mt-4 grid gap-3">
-          <div role="tablist" aria-label="Item type" className="grid w-48 grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 text-xs">
+          <div role="tablist" aria-label="Item type" className="grid w-48 grid-cols-2 gap-1 rounded-lg bg-surface-2 p-1 text-xs">
             {(["TASK", "NOTE"] as const).map((k) => (
               <button
                 key={k}
@@ -276,7 +276,7 @@ export default function Planner({
                 role="tab"
                 aria-selected={kind === k}
                 onClick={() => setKind(k)}
-                className={`rounded-md px-2 py-1 font-medium ${kind === k ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}
+                className={`rounded-md px-2 py-1 font-medium ${kind === k ? "bg-surface text-ink shadow-sm" : "text-muted"}`}
               >
                 {k === "TASK" ? "To-do" : "Note"}
               </button>
@@ -288,13 +288,13 @@ export default function Planner({
             rows={kind === "NOTE" ? 3 : 1}
             placeholder={kind === "TASK" ? "Add a to-do…" : "Write a note…"}
             aria-label={kind === "TASK" ? "New to-do" : "New note"}
-            className="resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-600 focus:outline-none"
+            className="resize-none rounded-lg border border-line-strong px-3 py-2 text-sm focus:border-primary focus:outline-none"
           />
           {clientId && (
-            <label className="flex items-center gap-2 text-sm text-slate-600">
-              <input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} className="accent-brand-600" />
+            <label className="flex items-center gap-2 text-sm text-muted">
+              <input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} className="accent-primary" />
               Share with {first}
-              <span className="text-xs text-slate-400">{share ? `${first} can see this` : "Only your team can see this"}</span>
+              <span className="text-xs text-dim">{share ? `${first} can see this` : "Only your team can see this"}</span>
             </label>
           )}
           {kind === "TASK" && (
@@ -309,35 +309,35 @@ export default function Planner({
             />
           )}
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <button className="ml-auto rounded-lg bg-slate-900 px-3 py-1.5 font-medium text-white hover:bg-slate-800">Add</button>
+            <button className="ml-auto rounded-lg bg-solid px-3 py-1.5 font-medium text-white hover:bg-solid-hover">Add</button>
           </div>
-          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+          {error && <p role="alert" className="text-sm text-danger-fg">{error}</p>}
         </form>
       )}
 
       {!loaded ? (
-        <p className="mt-4 text-sm text-slate-500">Loading…</p>
+        <p className="mt-4 text-sm text-dim">Loading…</p>
       ) : loadError ? (
-        <p role="alert" className="mt-4 text-sm text-red-700">Couldn&apos;t load this list. Refresh the page to try again.</p>
+        <p role="alert" className="mt-4 text-sm text-danger-fg">Couldn&apos;t load this list. Refresh the page to try again.</p>
       ) : items.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-500">{role === "client" ? "Nothing shared with you yet." : "Nothing here yet."}</p>
+        <p className="mt-4 text-sm text-dim">{role === "client" ? "Nothing shared with you yet." : "Nothing here yet."}</p>
       ) : (
-        <div className="mt-4 divide-y divide-slate-100">
+        <div className="mt-4 divide-y divide-line">
           {open.length > 0 && (
             <div className="pb-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">To do</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-dim">To do</h3>
               <ul>{open.map(row)}</ul>
             </div>
           )}
           {notes.length > 0 && (
             <div className="py-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Notes</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-dim">Notes</h3>
               <ul>{notes.map(row)}</ul>
             </div>
           )}
           {done.length > 0 && (
             <div className="pt-2">
-              <button onClick={() => setShowDone((v) => !v)} className="text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-800">
+              <button onClick={() => setShowDone((v) => !v)} className="text-xs font-semibold uppercase tracking-wide text-dim hover:text-ink">
                 Done ({done.length}) {showDone ? "▾" : "▸"}
               </button>
               {showDone && <ul>{done.map(row)}</ul>}
@@ -375,7 +375,7 @@ function ItemEditor({
   });
   return (
     <form
-      className="grid gap-3 rounded-xl bg-slate-50 p-3"
+      className="grid gap-3 rounded-xl bg-canvas p-3"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!text.trim()) return;
@@ -384,13 +384,13 @@ function ItemEditor({
         setBusy(false);
       }}
     >
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={item.kind === "NOTE" ? 3 : 1} aria-label="Edit text" className="resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={item.kind === "NOTE" ? 3 : 1} aria-label="Edit text" className="resize-none rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm" />
       {item.kind === "TASK" && (
         <ScheduleFields value={s} onChange={setS} clientName={clientName} clientEmail={client?.email} clientOptedOut={client?.remindersOff} canShareReminders={item.shared} teamLabel={teamLabel} />
       )}
       <div className="flex justify-end gap-2 text-sm">
-        <button type="button" onClick={onCancel} className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100">Cancel</button>
-        <button disabled={busy} className="rounded-lg bg-slate-900 px-3 py-1.5 font-medium text-white hover:bg-slate-800 disabled:opacity-50">Save</button>
+        <button type="button" onClick={onCancel} className="rounded-lg px-3 py-1.5 text-muted hover:bg-hover">Cancel</button>
+        <button disabled={busy} className="rounded-lg bg-solid px-3 py-1.5 font-medium text-white hover:bg-solid-hover disabled:opacity-50">Save</button>
       </div>
     </form>
   );

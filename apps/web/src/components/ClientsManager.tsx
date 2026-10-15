@@ -236,14 +236,14 @@ function Manager({
 
   return (
     <div className="mt-8 grid gap-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6">
+      <section className="rounded-2xl border border-line bg-surface p-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-slate-500">Client seats</p>
-            <p className="mt-1 text-3xl font-semibold text-slate-900">
-              {seats.used} <span className="text-lg font-normal text-slate-500">of {seats.limit} used</span>
+            <p className="text-sm font-medium text-dim">Client seats</p>
+            <p className="mt-1 text-3xl font-semibold text-ink">
+              {seats.used} <span className="text-lg font-normal text-dim">of {seats.limit} used</span>
             </p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-dim">
               {includedSeats} included with your plan{extraSeats > 0 && ` + ${extraSeats} extra`}
             </p>
           </div>
@@ -253,18 +253,18 @@ function Manager({
             aria-valuemin={0}
             aria-valuenow={seats.used}
             aria-valuemax={seats.limit}
-            className="h-2 w-full overflow-hidden rounded-full bg-slate-100 sm:w-64"
+            className="h-2 w-full overflow-hidden rounded-full bg-surface-2 sm:w-64"
           >
-            <div className={`h-full ${full ? "bg-amber-500" : "bg-brand-600"}`} style={{ width: `${Math.min(100, (seats.used / Math.max(1, seats.limit)) * 100)}%` }} />
+            <div className={`h-full ${full ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${Math.min(100, (seats.used / Math.max(1, seats.limit)) * 100)}%` }} />
           </div>
         </div>
         {!isOwner ? null : canBuySeats ? (
-          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-5 text-sm">
-            <span className="text-slate-700">Need more?</span>
-            <select value={buyQty} onChange={(e) => setBuyQty(Number(e.target.value))} aria-label="Extra clients" className="rounded-lg border border-slate-300 bg-white px-2 py-1.5">
+          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-5 text-sm">
+            <span className="text-muted">Need more?</span>
+            <select value={buyQty} onChange={(e) => setBuyQty(Number(e.target.value))} aria-label="Extra clients" className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
               {[1, 5, 10, 25, 50].map((n) => <option key={n} value={n}>{n} {n === 1 ? "client" : "clients"}</option>)}
             </select>
-            <button onClick={buySeats} className="rounded-lg bg-slate-900 px-3 py-1.5 font-medium text-white hover:bg-slate-800">
+            <button onClick={buySeats} className="rounded-lg bg-solid px-3 py-1.5 font-medium text-white hover:bg-solid-hover">
               Add for {money(buyQty * seatPrice)}/{per}
             </button>
             <span className="w-full sm:hidden" />
@@ -272,43 +272,43 @@ function Manager({
               <RemoveExtras extra={extraSeats} spare={seats.limit - seats.used} noun={{ one: "client seat", many: "client seats", holder: "clients" }} endpoint="/api/billing/seats" field="extraSeats" onError={setError} />
             </span>
             {suggestStudio && (
-              <p data-testid="studio-hint" className="mt-3 w-full rounded-lg bg-brand-50 px-3 py-2 text-brand-900">
+              <p data-testid="studio-hint" className="mt-3 w-full rounded-lg bg-primary-soft px-3 py-2 text-ink">
                 That would bring Solo to {money(soloAfter)}/month. Studio is {money(studioHint.studioPrice)}/month with {studioHint.studioClients} clients and 3 staff logins (yours included).{" "}
                 <Link href="/pricing" className="font-medium underline">Compare plans</Link>
               </p>
             )}
           </div>
         ) : complimentary ? (
-          <p className="mt-5 border-t border-slate-100 pt-5 text-sm text-slate-600" data-testid="comp-seats-note">
-            Extra clients can be added once you start a paid subscription. <Link href="/pricing" className="font-medium text-brand-700 hover:underline">Choose a paid plan</Link>
+          <p className="mt-5 border-t border-line pt-5 text-sm text-muted" data-testid="comp-seats-note">
+            Extra clients can be added once you start a paid subscription. <Link href="/pricing" className="font-medium text-accent hover:underline">Choose a paid plan</Link>
           </p>
         ) : (
-          <p className="mt-5 border-t border-slate-100 pt-5 text-sm text-slate-600">
-            <Link href="/pricing" className="font-medium text-brand-700 hover:underline">Upgrade</Link> for 10 or more clients, with extra clients at {money(seatPrice)} each per month.
+          <p className="mt-5 border-t border-line pt-5 text-sm text-muted">
+            <Link href="/pricing" className="font-medium text-accent hover:underline">Upgrade</Link> for 10 or more clients, with extra clients at {money(seatPrice)} each per month.
           </p>
         )}
       </section>
 
       {canAdd && (
-      <section className="rounded-2xl border border-slate-200 bg-white p-6">
-        <h2 className="font-semibold text-slate-900">Add a client</h2>
+      <section className="rounded-2xl border border-line bg-surface p-6">
+        <h2 className="font-semibold text-ink">Add a client</h2>
         <form onSubmit={add} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-          <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Name" aria-label="Client name" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email (optional)" aria-label="Client email" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          <button disabled={busy || full} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+          <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Name" aria-label="Client name" className="rounded-lg border border-line-strong px-3 py-2 text-sm" />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email (optional)" aria-label="Client email" className="rounded-lg border border-line-strong px-3 py-2 text-sm" />
+          <button disabled={busy || full} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
             Add client
           </button>
         </form>
         {removedMatch && (
-          <p className="mt-2 text-sm text-slate-600" data-testid="removed-match">
+          <p className="mt-2 text-sm text-muted" data-testid="removed-match">
             {removedMatch.name} was removed on {dates.day(new Date(removedMatch.removedAt))}. Restore them instead to keep their history.{" "}
-            <button type="button" onClick={() => restore(removedMatch)} disabled={full || working === removedMatch.id} className="font-medium text-brand-700 hover:underline disabled:opacity-50">
+            <button type="button" onClick={() => restore(removedMatch)} disabled={full || working === removedMatch.id} className="font-medium text-accent hover:underline disabled:opacity-50">
               Restore {first(removedMatch.name)}
             </button>
           </p>
         )}
         {full && (
-          <p className="mt-2 text-sm text-amber-700" data-testid="seats-full">
+          <p className="mt-2 text-sm text-warn-fg" data-testid="seats-full">
             All {seats.limit} client seats are in use.{" "}
             {!isOwner
               ? "Ask the owner to add seats, or remove a client to add someone new."
@@ -317,46 +317,46 @@ function Manager({
                 : "Upgrade your plan, or remove a client to add someone new."}
           </p>
         )}
-        {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
+        {error && <p role="alert" className="mt-2 text-sm text-danger-fg">{error}</p>}
       </section>
       )}
 
       {(notice || listError) && (
-        <p role={listError ? "alert" : "status"} data-testid="clients-notice" className={`rounded-xl border p-3 text-sm ${listError ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+        <p role={listError ? "alert" : "status"} data-testid="clients-notice" className={`rounded-xl border p-3 text-sm ${listError ? "border-danger-line bg-danger-bg text-danger-fg" : "border-ok-line bg-ok-bg text-ok-fg"}`}>
           {listError ?? notice}
         </p>
       )}
 
-      <section className="rounded-2xl border border-slate-200 bg-white">
+      <section className="rounded-2xl border border-line bg-surface">
         {team && (
-          <div role="tablist" aria-label="Which clients" className="flex gap-1 border-b border-slate-100 px-4 pt-3 text-sm">
+          <div role="tablist" aria-label="Which clients" className="flex gap-1 border-b border-line px-4 pt-3 text-sm">
             {(["all", "mine"] as const).map((k) => (
               <button key={k} role="tab" aria-selected={show === k} onClick={() => setShow(k)}
-                className={`rounded-t-lg px-3 py-2 ${show === k ? "border-b-2 border-brand-600 font-medium text-slate-900" : "text-slate-500 hover:text-slate-900"}`}>
+                className={`rounded-t-lg px-3 py-2 ${show === k ? "border-b-2 border-primary font-medium text-ink" : "text-dim hover:text-ink"}`}>
                 {k === "all" ? `All clients (${clients.length})` : `My clients (${clients.filter((c) => c.assignedToId === meId).length})`}
               </button>
             ))}
           </div>
         )}
         {shown.length === 0 ? (
-          <p className="p-6 text-sm text-slate-500">{clients.length === 0 && seesAll ? "No clients yet." : "No clients are assigned to you yet."}</p>
+          <p className="p-6 text-sm text-dim">{clients.length === 0 && seesAll ? "No clients yet." : "No clients are assigned to you yet."}</p>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-line">
             {shown.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
                 <div>
-                  <Link href={`/clients/${c.id}`} className="font-medium text-slate-900 hover:text-brand-700 hover:underline">{c.name}</Link>
+                  <Link href={`/clients/${c.id}`} className="font-medium text-ink hover:text-accent hover:underline">{c.name}</Link>
                   {c.paused && (
-                    <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800" data-testid="client-paused-badge" title="Over your plan's client limit">
+                    <span className="ml-2 rounded-full bg-warn-bg px-2 py-0.5 text-xs font-semibold text-warn-fg" data-testid="client-paused-badge" title="Over your plan's client limit">
                       Paused
                     </span>
                   )}
                   {c.linkOff && (
-                    <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800" data-testid="client-link-off-badge" title="Turned off by SureFrame support">
+                    <span className="ml-2 rounded-full bg-danger-bg px-2 py-0.5 text-xs font-semibold text-danger-fg" data-testid="client-link-off-badge" title="Turned off by SureFrame support">
                       Link off
                     </span>
                   )}
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-dim">
                     {c.email ? `${c.email} · ` : ""}{c.videoCount} {c.videoCount === 1 ? "video" : "videos"}
                     {staff.length > 1 && seesAll && !canManage && ` · ${staffName(c.assignedToId) ?? "Shared"}`}
                   </p>
@@ -364,21 +364,21 @@ function Manager({
                 <div className="flex flex-wrap gap-2 text-sm">
                   {staff.length > 1 && canManage && (
                     <select aria-label={`Who looks after ${c.name}`} value={c.assignedToId ?? ""} onChange={(e) => assign(c, e.target.value || null)}
-                      className="rounded-lg border border-slate-300 bg-white px-2 py-1.5">
+                      className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
                       <option value="">Shared</option>
                       {staff.map((p) => <option key={p.id} value={p.id}>{p.id === meId ? `${p.name} (you)` : p.name}</option>)}
                     </select>
                   )}
                   {!c.linkOff && (
-                    <button onClick={() => copy(c)} className="rounded-lg border border-slate-300 px-3 py-1.5 hover:bg-slate-50">
+                    <button onClick={() => copy(c)} className="rounded-lg border border-line-strong px-3 py-1.5 hover:bg-hover">
                       {copied === c.id ? "Copied" : "Copy personal link"}
                     </button>
                   )}
-                  {canManage && <button onClick={() => askRemove(c)} className="rounded-lg px-3 py-1.5 text-slate-500 hover:bg-slate-50 hover:text-red-700">Remove</button>}
+                  {canManage && <button onClick={() => askRemove(c)} className="rounded-lg px-3 py-1.5 text-dim hover:bg-hover hover:text-danger-fg">Remove</button>}
                 </div>
                 {confirming?.id === c.id && (
-                  <div data-testid="remove-client-confirm" className="w-full rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-slate-700">
-                    <p className="font-medium text-slate-900">Remove {c.name}? Their personal link stops working now and their seat is freed.</p>
+                  <div data-testid="remove-client-confirm" className="w-full rounded-xl border border-danger-line bg-danger-bg p-4 text-sm text-muted">
+                    <p className="font-medium text-ink">Remove {c.name}? Their personal link stops working now and their seat is freed.</p>
                     <p className="mt-2">
                       Their videos, conversations, to-dos and notes are kept until {dates.longDay(confirming.until)}, so you can restore them from Removed clients on this page.
                       {!cloudBackup && " Recordings without cloud backup still leave our servers on their usual dates, and restoring doesn't bring those back."}
@@ -396,7 +396,7 @@ function Manager({
                       <button onClick={() => remove(c)} disabled={working === c.id} className="rounded-lg bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700 disabled:opacity-60">
                         Remove {first(c.name)}
                       </button>
-                      <button onClick={() => setConfirming(null)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:bg-slate-50">Cancel</button>
+                      <button onClick={() => setConfirming(null)} className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 hover:bg-hover">Cancel</button>
                     </div>
                   </div>
                 )}
@@ -407,21 +407,21 @@ function Manager({
       </section>
 
       {canManage && removed.length > 0 && (
-        <section ref={removedSection} data-testid="removed-clients" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white">
+        <section ref={removedSection} data-testid="removed-clients" className="scroll-mt-6 rounded-2xl border border-line bg-surface">
           <div className="px-6 pt-5">
-            <h2 className="font-semibold text-slate-900">Removed clients</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <h2 className="font-semibold text-ink">Removed clients</h2>
+            <p className="mt-1 text-sm text-dim">
               Their links don&apos;t work and they don&apos;t use a seat. They&apos;re kept until the date shown, then deleted for good with their videos, conversations, to-dos and notes.
               {!cloudBackup && " Recordings without cloud backup still leave our servers on their usual dates before then, and restoring doesn't bring those back."} Restoring uses a client
               seat.
             </p>
           </div>
-          <ul className="mt-3 divide-y divide-slate-100">
+          <ul className="mt-3 divide-y divide-line">
             {removed.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
                 <div>
-                  <p className="font-medium text-slate-900">{r.name}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="font-medium text-ink">{r.name}</p>
+                  <p className="text-xs text-dim">
                     {r.email ? `${r.email} · ` : ""}Removed {dates.day(new Date(r.removedAt))}
                     {r.purgeAt && ` · deleted for good after ${dates.dayTime(new Date(r.purgeAt))} ${dates.zoneName(new Date(r.purgeAt))}`}
                   </p>
@@ -431,14 +431,14 @@ function Manager({
                   disabled={full || working === r.id}
                   title={full ? "Free a seat or add seats to restore" : undefined}
                   data-testid="restore-client"
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50"
+                  className="rounded-lg border border-line-strong px-3 py-1.5 text-sm hover:bg-hover disabled:opacity-50"
                 >
                   {working === r.id ? "Restoring…" : "Restore"}
                 </button>
               </li>
             ))}
           </ul>
-          {full && <p className="px-6 pb-4 text-xs text-amber-700">All client seats are in use. Free a seat or add seats to restore someone.</p>}
+          {full && <p className="px-6 pb-4 text-xs text-warn-fg">All client seats are in use. Free a seat or add seats to restore someone.</p>}
         </section>
       )}
     </div>

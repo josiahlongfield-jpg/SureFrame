@@ -32,7 +32,7 @@ export default function RedeemCode({ subscribed, hasDiscount }: { subscribed: bo
 
   if (done) {
     return (
-      <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" data-testid="code-done">
+      <p className="mt-4 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="code-done">
         {done.applied ? (
           <>
             {done.code} applied: {done.summary}. It comes off your next bill.
@@ -52,7 +52,7 @@ export default function RedeemCode({ subscribed, hasDiscount }: { subscribed: bo
   if (hasDiscount) return null;
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="mt-4 text-sm font-medium text-brand-700 hover:underline" data-testid="have-code">
+      <button type="button" onClick={() => setOpen(true)} className="mt-4 text-sm font-medium text-accent hover:underline" data-testid="have-code">
         Have a discount code?
       </button>
     );
@@ -72,13 +72,13 @@ export default function RedeemCode({ subscribed, hasDiscount }: { subscribed: bo
         spellCheck={false}
         maxLength={40}
         required
-        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm uppercase sm:w-56"
+        className="w-full rounded-xl border border-line-strong px-3 py-2 text-sm uppercase sm:w-56"
       />
-      <button disabled={busy || !code.trim()} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
+      <button disabled={busy || !code.trim()} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60">
         {busy ? "Checking…" : subscribed ? "Apply" : "Save for checkout"}
       </button>
       {error && (
-        <p role="alert" className="text-sm text-red-700 sm:basis-full">
+        <p role="alert" className="text-sm text-danger-fg sm:basis-full">
           {error}
         </p>
       )}

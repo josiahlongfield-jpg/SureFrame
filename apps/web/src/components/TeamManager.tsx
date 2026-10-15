@@ -174,22 +174,22 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
 
   return (
     <>
-      <section className="rounded-2xl border border-slate-200 bg-white p-6">
-        <p className="text-sm font-medium text-slate-500">Staff logins</p>
-        <p className="mt-1 text-3xl font-semibold text-slate-900">
-          {seats.used} <span className="text-lg font-normal text-slate-500">of {seats.limit} used</span>
+      <section className="rounded-2xl border border-line bg-surface p-6">
+        <p className="text-sm font-medium text-dim">Staff logins</p>
+        <p className="mt-1 text-3xl font-semibold text-ink">
+          {seats.used} <span className="text-lg font-normal text-dim">of {seats.limit} used</span>
         </p>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-dim">
           {includedStaff} included with your plan{extraStaff > 0 && ` + ${extraStaff} extra`}
           {seats.pending > 0 && ` · ${seats.pending} waiting to join`}
         </p>
         {canBuyStaff && (
-          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-5 text-sm">
-            <span className="text-slate-700">Need more?</span>
-            <select value={buyQty} onChange={(e) => setBuyQty(Number(e.target.value))} aria-label="Extra staff logins" className="rounded-lg border border-slate-300 bg-white px-2 py-1.5">
+          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-5 text-sm">
+            <span className="text-muted">Need more?</span>
+            <select value={buyQty} onChange={(e) => setBuyQty(Number(e.target.value))} aria-label="Extra staff logins" className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
               {[1, 2, 3, 5, 10].map((n) => <option key={n} value={n}>{n} {n === 1 ? "login" : "logins"}</option>)}
             </select>
-            <button onClick={buyStaff} className="rounded-lg bg-slate-900 px-3 py-1.5 font-medium text-white hover:bg-slate-800">Add for {money(buyQty * staffPrice)}/{per}</button>
+            <button onClick={buyStaff} className="rounded-lg bg-solid px-3 py-1.5 font-medium text-white hover:bg-solid-hover">Add for {money(buyQty * staffPrice)}/{per}</button>
             <span className="w-full sm:hidden" />
             <span className="sm:ml-auto">
               <RemoveExtras extra={extraStaff} spare={seats.limit - seats.used} noun={{ one: "staff login", many: "staff logins", holder: "staff or cancel invites" }} endpoint="/api/billing/staff" field="extraStaff" onError={setError} />
@@ -199,36 +199,36 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
       </section>
 
       {canManage && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6">
-          <h2 className="font-semibold text-slate-900">Invite someone</h2>
+        <section className="rounded-2xl border border-line bg-surface p-6">
+          <h2 className="font-semibold text-ink">Invite someone</h2>
           <form onSubmit={invite} className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Their email (optional: then only they can join)" aria-label="Staff email" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as Role)} aria-label="Role" className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm">
+            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Their email (optional: then only they can join)" aria-label="Staff email" className="rounded-lg border border-line-strong px-3 py-2 text-sm" />
+            <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as Role)} aria-label="Role" className="rounded-lg border border-line-strong bg-surface px-2 py-2 text-sm">
               <option value="MEMBER">Member</option>
               <option value="ADMIN">Admin</option>
             </select>
-            <button disabled={busy || full} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">Create invite link</button>
+            <button disabled={busy || full} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50">Create invite link</button>
           </form>
-          <p className="mt-2 text-xs text-slate-500">Members record, send and reply to the clients assigned to them; you choose what else each one can do below. Admins have full access and can also invite staff, assign clients and remove them.</p>
-          {full && <p className="mt-2 text-sm text-amber-700">{seats.limit === 1 ? "Team logins come with Studio and Agency." : "All staff logins are in use."}</p>}
+          <p className="mt-2 text-xs text-dim">Members record, send and reply to the clients assigned to them; you choose what else each one can do below. Admins have full access and can also invite staff, assign clients and remove them.</p>
+          {full && <p className="mt-2 text-sm text-warn-fg">{seats.limit === 1 ? "Team logins come with Studio and Agency." : "All staff logins are in use."}</p>}
           {link && (
-            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm">
-              <p className="font-medium text-emerald-900">Send this link to them yourself. It works once and expires in 7 days.</p>
-              <p data-testid="invite-link" className="mt-2 break-all rounded-lg bg-white px-3 py-2 font-mono text-xs text-slate-900">{link}</p>
+            <div className="mt-4 rounded-xl border border-ok-line bg-ok-bg p-4 text-sm">
+              <p className="font-medium text-ok-fg">Send this link to them yourself. It works once and expires in 7 days.</p>
+              <p data-testid="invite-link" className="mt-2 break-all rounded-lg bg-surface px-3 py-2 font-mono text-xs text-ink">{link}</p>
               <button
                 onClick={async () => { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-                className="mt-2 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 hover:bg-emerald-100">
+                className="mt-2 rounded-lg border border-ok-line bg-surface px-3 py-1.5 hover:bg-hover">
                 {copied ? "Copied" : "Copy link"}
               </button>
-              <p className="mt-2 text-xs text-emerald-900">It carries the key that unlocks your team&apos;s encrypted videos, so we can&apos;t email it for you.</p>
+              <p className="mt-2 text-xs text-ok-fg">It carries the key that unlocks your team&apos;s encrypted videos, so we can&apos;t email it for you.</p>
             </div>
           )}
-          {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
+          {error && <p role="alert" className="mt-2 text-sm text-danger-fg">{error}</p>}
         </section>
       )}
 
       {resetDue && canManage && (
-        <section role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
+        <section role="alert" className="rounded-2xl border border-warn-line bg-warn-bg p-6 text-sm text-warn-fg">
           <h2 className="font-semibold">{keyResetNeeded} left the team and still holds its keys</h2>
           <p className="mt-1">Reset your team&apos;s keys and every client&apos;s personal link so they can&apos;t open anything through {BRAND.name} again. Clients with an email get their new link automatically.</p>
           <button onClick={() => resetKeys()} disabled={!!removing} className="mt-3 rounded-lg bg-amber-600 px-4 py-2 font-semibold text-white hover:bg-amber-700 disabled:opacity-50">
@@ -238,32 +238,32 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
       )}
       {reset && <ResetDone {...reset} />}
 
-      <section className="rounded-2xl border border-slate-200 bg-white">
-        <ul className="divide-y divide-slate-100">
+      <section className="rounded-2xl border border-line bg-surface">
+        <ul className="divide-y divide-line">
           {members.map((m) => (
             <li key={m.userId} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
               <div>
-                <p className="font-medium text-slate-900">
+                <p className="font-medium text-ink">
                   {m.name}{m.userId === meId && " (you)"}
                   {m.paused && (
-                    <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800" data-testid="staff-paused-badge" title="Over your plan's staff limit">
+                    <span className="ml-2 rounded-full bg-warn-bg px-2 py-0.5 text-xs font-semibold text-warn-fg" data-testid="staff-paused-badge" title="Over your plan's staff limit">
                       Paused
                     </span>
                   )}
                 </p>
-                <p className="text-xs text-slate-500">{m.email}</p>
+                <p className="text-xs text-dim">{m.email}</p>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 {canManage && m.role !== "OWNER" ? (
-                  <select aria-label={`Role for ${m.name}`} value={m.role} onChange={(e) => changeRole(m, e.target.value as Role)} className="rounded-lg border border-slate-300 bg-white px-2 py-1.5">
+                  <select aria-label={`Role for ${m.name}`} value={m.role} onChange={(e) => changeRole(m, e.target.value as Role)} className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
                     <option value="MEMBER">Member</option>
                     <option value="ADMIN">Admin</option>
                   </select>
                 ) : (
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{ROLE_LABEL[m.role]}</span>
+                  <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted">{ROLE_LABEL[m.role]}</span>
                 )}
                 {m.role !== "OWNER" && canManage && m.userId !== meId && (
-                  <button onClick={() => remove(m)} disabled={!!removing} data-testid="remove-member" className="rounded-lg px-3 py-1.5 text-slate-500 hover:bg-slate-50 hover:text-red-700 disabled:opacity-50">
+                  <button onClick={() => remove(m)} disabled={!!removing} data-testid="remove-member" className="rounded-lg px-3 py-1.5 text-dim hover:bg-hover hover:text-danger-fg disabled:opacity-50">
                     {removing === m.userId ? "Resetting keys…" : "Remove"}
                   </button>
                 )}
@@ -276,10 +276,10 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
           {invites.map((i) => (
             <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
               <div>
-                <p className="font-medium text-slate-700">{i.email ?? "Invite link"}</p>
-                <p className="text-xs text-slate-500">Waiting to join · {ROLE_LABEL[i.role]} · expires {new Date(i.expiresAt).toLocaleDateString("en-US", { dateStyle: "medium" })}</p>
+                <p className="font-medium text-muted">{i.email ?? "Invite link"}</p>
+                <p className="text-xs text-dim">Waiting to join · {ROLE_LABEL[i.role]} · expires {new Date(i.expiresAt).toLocaleDateString("en-US", { dateStyle: "medium" })}</p>
               </div>
-              <button onClick={() => cancel(i)} className="rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-50 hover:text-red-700">Cancel invite</button>
+              <button onClick={() => cancel(i)} className="rounded-lg px-3 py-1.5 text-sm text-dim hover:bg-hover hover:text-danger-fg">Cancel invite</button>
             </li>
           ))}
         </ul>
@@ -296,7 +296,7 @@ function ResetDone({ name, removed, emailed, toSend, recoveryKey }: { name: stri
     setTimeout(() => setCopied(undefined), 2000);
   };
   return (
-    <section role="status" data-testid="key-reset" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-sm text-emerald-950">
+    <section role="status" data-testid="key-reset" className="rounded-2xl border border-ok-line bg-ok-bg p-6 text-sm text-ok-fg">
       <h2 className="font-semibold">{removed ? `${name} was removed and your keys were reset` : "Your keys were reset"}</h2>
       <p className="mt-1">
         Every client has a new personal link and their old links no longer work.
@@ -308,9 +308,9 @@ function ResetDone({ name, removed, emailed, toSend, recoveryKey }: { name: stri
           <p className="mt-4 font-medium">These clients have no email on file. Send them their new link:</p>
           <ul className="mt-2 grid gap-2">
             {toSend.map((c) => (
-              <li key={c.id} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-slate-800">
+              <li key={c.id} className="flex items-center justify-between gap-3 rounded-lg bg-surface px-3 py-2 text-ink">
                 <span>{c.name}</span>
-                <button onClick={() => copy(c.id, c.link)} className="rounded-lg border border-slate-300 px-3 py-1 hover:bg-slate-50">{copied === c.id ? "Copied" : "Copy new link"}</button>
+                <button onClick={() => copy(c.id, c.link)} className="rounded-lg border border-line-strong px-3 py-1 hover:bg-hover">{copied === c.id ? "Copied" : "Copy new link"}</button>
               </li>
             ))}
           </ul>
@@ -318,8 +318,8 @@ function ResetDone({ name, removed, emailed, toSend, recoveryKey }: { name: stri
       )}
       <p className="mt-4 font-medium">Your new recovery key</p>
       <p className="mt-1">Save it somewhere safe. Your old recovery key only works for people still on the team.</p>
-      <p data-testid="new-recovery-key" className="mt-2 break-all rounded-lg bg-white px-3 py-2 font-mono text-xs text-slate-900">{recoveryKey.match(/.{1,4}/g)?.join(" ")}</p>
-      <button onClick={() => copy("recovery", recoveryKey)} className="mt-2 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 hover:bg-emerald-100">{copied === "recovery" ? "Copied" : "Copy recovery key"}</button>
+      <p data-testid="new-recovery-key" className="mt-2 break-all rounded-lg bg-surface px-3 py-2 font-mono text-xs text-ink">{recoveryKey.match(/.{1,4}/g)?.join(" ")}</p>
+      <button onClick={() => copy("recovery", recoveryKey)} className="mt-2 rounded-lg border border-ok-line bg-surface px-3 py-1.5 hover:bg-hover">{copied === "recovery" ? "Copied" : "Copy recovery key"}</button>
     </section>
   );
 }
@@ -330,13 +330,13 @@ function Switcher({ workspaces }: { workspaces: { id: string; name: string; acti
     if (res.ok) window.location.assign("/library");
   }
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6">
-      <h2 className="font-semibold text-slate-900">Your workspaces</h2>
+    <section className="rounded-2xl border border-line bg-surface p-6">
+      <h2 className="font-semibold text-ink">Your workspaces</h2>
       <ul className="mt-3 grid gap-2 text-sm">
         {workspaces.map((w) => (
           <li key={w.id} className="flex items-center justify-between">
-            <span className="text-slate-800">{w.name}</span>
-            {w.active ? <span className="text-xs text-slate-500">Current</span> : <button onClick={() => go(w.id)} className="rounded-lg border border-slate-300 px-3 py-1.5 hover:bg-slate-50">Switch</button>}
+            <span className="text-ink">{w.name}</span>
+            {w.active ? <span className="text-xs text-dim">Current</span> : <button onClick={() => go(w.id)} className="rounded-lg border border-line-strong px-3 py-1.5 hover:bg-hover">Switch</button>}
           </li>
         ))}
       </ul>

@@ -36,7 +36,7 @@ async function AiAddOn({ workspace }: { workspace: Workspace }) {
 async function FreeVideosUsed({ workspaceId, limit }: { workspaceId: string; limit: number }) {
   const { used } = await videosUsed(workspaceId);
   return (
-    <p className="mt-3 text-sm text-slate-700" data-testid="free-videos-used">
+    <p className="mt-3 text-sm text-muted" data-testid="free-videos-used">
       {Math.min(used, limit)} of {limit} free videos used. Deleting a video doesn&apos;t give its place back.
     </p>
   );
@@ -62,8 +62,8 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
       <>
         <AppHeader email={user.email} plan={plan.name} />
         <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Billing</h1>
-          <p className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">Billing</h1>
+          <p className="mt-6 rounded-2xl border border-line bg-surface p-6 text-sm text-muted">
             {workspace.name} is on the {plan.name} plan. Only the workspace owner can change the plan or billing.
           </p>
         </main>
@@ -74,67 +74,67 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
     <>
       <AppHeader email={user.email} plan={plan.name} />
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Billing</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Billing</h1>
         {upgraded && (
-          <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+          <p className="mt-4 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg">
             Thanks for upgrading. Your plan updates as soon as payment is confirmed.
           </p>
         )}
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
-          <p className="text-sm text-slate-500">{workspace.name}</p>
-          <p className="mt-1 text-xl font-semibold text-slate-900">
+        <div className="mt-6 rounded-2xl border border-line bg-surface p-6">
+          <p className="text-sm text-dim">{workspace.name}</p>
+          <p className="mt-1 text-xl font-semibold text-ink">
             {plan.name} plan
             {workspace.stripeSubscriptionId && workspace.billingInterval && (
-              <span className="ml-2 text-sm font-normal text-slate-500" data-testid="billing-interval">billed {workspace.billingInterval === "year" ? "yearly" : "monthly"}</span>
+              <span className="ml-2 text-sm font-normal text-dim" data-testid="billing-interval">billed {workspace.billingInterval === "year" ? "yearly" : "monthly"}</span>
             )}
           </p>
           {comp && (
-            <p className="mt-1 text-sm text-emerald-700">
+            <p className="mt-1 text-sm text-ok-fg">
               Complimentary from {BRAND.name}. No card needed. Choosing a paid plan replaces it with your own subscription; your clients and videos stay as they are.
               {workspace.aiAssistComplimentary && " Free AI summaries end then, and can be added as a paid add-on."}
             </p>
           )}
           {(workspace.subscriptionStatus === "past_due" || workspace.subscriptionStatus === "unpaid") && workspace.stripeSubscriptionId && (
-            <p role="alert" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" data-testid="payment-failed">
+            <p role="alert" className="mt-3 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="payment-failed">
               Your last payment didn&apos;t go through. Update your card under Manage subscription so your plan carries on.
             </p>
           )}
           {workspace.cancelsAt ? (
-            <p className="mt-1 text-sm font-medium text-amber-700" data-testid="cancels-on">
+            <p className="mt-1 text-sm font-medium text-warn-fg" data-testid="cancels-on">
               Cancels {day(workspace.cancelsAt, workspace.timezone)}
             </p>
           ) : (
             workspace.currentPeriodEnd && (
-              <p className="mt-1 text-sm text-slate-500" data-testid="renews-on">
+              <p className="mt-1 text-sm text-dim" data-testid="renews-on">
                 Renews {day(workspace.currentPeriodEnd, workspace.timezone)}
               </p>
             )
           )}
           {workspace.stripeSubscriptionId && workspace.foundingPrices && (
-            <p className="mt-2 text-sm text-emerald-700" data-testid="founding-prices">
+            <p className="mt-2 text-sm text-ok-fg" data-testid="founding-prices">
               <span className="font-semibold">Founding prices.</span> You keep today&apos;s prices for your plan, extra clients and extra staff while this
               subscription stays active, even if our prices go up.
             </p>
           )}
           {discount && (
-            <p className="mt-2 text-sm text-slate-700" data-testid="discount">
+            <p className="mt-2 text-sm text-muted" data-testid="discount">
               Discount: {discount}
               {workspace.discountEndsAt ? `, until ${day(workspace.discountEndsAt, workspace.timezone)}` : ""}.
             </p>
           )}
           {plan.showsPromo && (
-            <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+            <p className="mt-3 rounded-xl bg-canvas p-3 text-sm text-muted">
               Your clients see a short SureFrame intro before each video. Any paid plan removes it and lets you add your own logo and colours (a small Made with {BRAND.name} credit stays).
             </p>
           )}
-          <ul className="mt-4 space-y-1 text-sm text-slate-700">
+          <ul className="mt-4 space-y-1 text-sm text-muted">
             {plan.features.map((f) => <li key={f}>• {f}</li>)}
           </ul>
           {plan.maxVideos !== null && (
             <FreeVideosUsed workspaceId={workspace.id} limit={plan.maxVideos} />
           )}
           {workspace.stripeSubscriptionId && (
-            <p className="mt-4 text-xs text-slate-500" data-testid="cancel-note">
+            <p className="mt-4 text-xs text-dim" data-testid="cancel-note">
               If you cancel, or a payment can&apos;t be taken, you move to the Free plan when the paid period ends. Clients and staff beyond its limits are then
               paused until you upgrade or remove some. Please tell them about any change.
               {freeLimit !== null && ` Free includes ${freeLimit} videos in total, counting the ones you've already recorded, so you may need a paid plan to record new ones.`}
@@ -144,7 +144,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
           <div className="mt-6 flex gap-3">
             {workspace.stripeCustomerId && <ManageBillingButton />}
             {(workspace.plan !== "AGENCY" || comp) && (
-              <Link href="/pricing" className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">{comp ? "Choose a paid plan" : "Upgrade"}</Link>
+              <Link href="/pricing" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">{comp ? "Choose a paid plan" : "Upgrade"}</Link>
             )}
           </div>
           <RedeemCode subscribed={!!workspace.stripeSubscriptionId} hasDiscount={!!discount} />

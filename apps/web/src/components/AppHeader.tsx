@@ -31,23 +31,23 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
     : [];
   const signOutForm = (
     <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
-      <button className="whitespace-nowrap text-slate-500 hover:text-slate-900">Sign out</button>
+      <button className="whitespace-nowrap text-dim hover:text-ink">Sign out</button>
     </form>
   );
   return (
-    <header className="relative border-b border-slate-200 bg-white">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+    <header className="relative border-b border-line bg-canvas/80 backdrop-blur">
+      <div className="mx-auto flex h-16 max-w-6xl sm:h-[72px] items-center justify-between gap-4 px-4 sm:px-6">
         <div className="flex items-center gap-6">
-          <Logo href="/library" />
+          <Logo href="/library" tone="dark" />
           {/* Eight links need the room: below xl they sit behind the Menu button. */}
           <nav className="hidden gap-4 text-sm xl:flex">
             <NavLinks links={links} className="" />
           </nav>
         </div>
         <div className="flex items-center gap-3 text-sm">
-          <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 xl:inline">{plan}</span>
-          <span className="hidden text-slate-500 2xl:inline">{email}</span>
-          <Link href="/record" className="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-700">
+          <span className="hidden rounded-full border border-line px-2.5 py-1 font-mono text-[11px] font-medium uppercase tracking-wider text-muted xl:inline">{plan}</span>
+          <span className="hidden text-dim 2xl:inline">{email}</span>
+          <Link href="/record" className="rounded-[10px] bg-primary px-4 py-2 font-medium text-white shadow-[0_8px_24px_-10px_rgb(79_110_247/0.9)] hover:bg-primary-hover">
             <span className="sm:hidden">Record</span>
             <span className="hidden sm:inline">New recording</span>
           </Link>
@@ -57,7 +57,7 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
         </div>
       </div>
       {me?.termsNotice && (
-        <p className="border-t border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900" data-testid="terms-notice">
+        <p className="border-t border-warn-line bg-warn-bg px-4 py-2 text-center text-sm text-warn-fg" data-testid="terms-notice">
           We&apos;ve updated our Terms of Service and Privacy Policy
           {me.termsNotice.from ? `, and they apply to you from ${zoned(me.workspace.timezone).longDay(me.termsNotice.from)}` : ""}.{" "}
           <Link href="/agree" className="font-medium underline">

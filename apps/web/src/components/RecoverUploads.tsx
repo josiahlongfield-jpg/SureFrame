@@ -26,14 +26,14 @@ export default function RecoverUploads({ always = false }: { always?: boolean })
 
   if (!done.length) return null;
   return (
-    <div role="status" data-testid="recovered-uploads" className="border-t border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-sm text-emerald-900">
+    <div role="status" data-testid="recovered-uploads" className="border-t border-ok-line bg-ok-bg px-4 py-2 text-center text-sm text-ok-fg">
       Finished uploading {done.length === 1 ? "a recording that was interrupted" : `${done.length} recordings that were interrupted`}.{" "}
       {done.length === 1 ? (
         <Link className="font-medium underline" href={`/v/${done[0]}`}>View it</Link>
       ) : (
         <Link className="font-medium underline" href="/library">See your library</Link>
       )}
-      <button onClick={() => setDone([])} className="ml-3 text-emerald-700 hover:text-emerald-900" aria-label="Dismiss">✕</button>
+      <button onClick={() => setDone([])} className="ml-3 text-ok-fg hover:text-ok-fg" aria-label="Dismiss">✕</button>
     </div>
   );
 }

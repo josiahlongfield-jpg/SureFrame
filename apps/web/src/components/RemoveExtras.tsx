@@ -28,7 +28,7 @@ export default function RemoveExtras({
   const [busy, setBusy] = useState(false);
   if (extra <= 0) return null;
   if (removable <= 0) {
-    return <p className="w-full text-xs text-slate-500">To stop paying for extra {noun.many}, remove {noun.holder} first; every one is in use.</p>;
+    return <p className="w-full text-xs text-dim">To stop paying for extra {noun.many}, remove {noun.holder} first; every one is in use.</p>;
   }
 
   async function remove() {
@@ -44,13 +44,13 @@ export default function RemoveExtras({
 
   return (
     <span className="flex flex-wrap items-center gap-2" data-testid={`remove-${field}`}>
-      <span className="text-slate-700">Fewer needed?</span>
-      <select value={Math.min(qty, removable)} onChange={(e) => setQty(Number(e.target.value))} aria-label={`Extra ${noun.many} to remove`} className="rounded-lg border border-slate-300 bg-white px-2 py-1.5">
+      <span className="text-muted">Fewer needed?</span>
+      <select value={Math.min(qty, removable)} onChange={(e) => setQty(Number(e.target.value))} aria-label={`Extra ${noun.many} to remove`} className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
         {Array.from({ length: Math.min(removable, 50) }, (_, i) => i + 1).map((n) => (
           <option key={n} value={n}>{n} {n === 1 ? noun.one : noun.many}</option>
         ))}
       </select>
-      <button onClick={remove} disabled={busy} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60">Remove</button>
+      <button onClick={remove} disabled={busy} className="rounded-lg border border-line-strong px-3 py-1.5 font-medium text-ink hover:bg-hover disabled:opacity-60">Remove</button>
     </span>
   );
 }

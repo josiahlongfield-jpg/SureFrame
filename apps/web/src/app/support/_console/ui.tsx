@@ -26,10 +26,10 @@ export function stripeLink(kind: "customers" | "subscriptions", id: string) {
 export const planName = (p: keyof typeof PLANS) => PLANS[p].name;
 
 const TONES = {
-  red: "bg-red-100 text-red-800",
-  amber: "bg-amber-100 text-amber-900",
-  slate: "bg-slate-100 text-slate-700",
-  green: "bg-emerald-100 text-emerald-800",
+  red: "bg-danger-bg text-danger-fg",
+  amber: "bg-warn-bg text-warn-fg",
+  slate: "bg-surface-2 text-muted",
+  green: "bg-ok-bg text-ok-fg",
   purple: "bg-purple-100 text-purple-800",
 } as const;
 
@@ -43,7 +43,7 @@ export function Badge({ tone = "slate", children, testId }: { tone?: keyof typeo
 
 /** The console's own navigation, under the page title. */
 export function ConsoleNav() {
-  const link = "text-sm text-brand-700 hover:underline";
+  const link = "text-sm text-accent hover:underline";
   return (
     <nav className="flex flex-wrap gap-x-4 gap-y-1">
       <Link href="/support" className={link}>
@@ -71,8 +71,8 @@ export function Facts({ rows }: { rows: [string, React.ReactNode][] }) {
     <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[11rem_1fr]">
       {rows.map(([k, v]) => (
         <div key={k} className="contents">
-          <dt className="pt-2 text-slate-500 sm:pt-0">{k}</dt>
-          <dd className="min-w-0 break-words text-slate-900">{v}</dd>
+          <dt className="pt-2 text-dim sm:pt-0">{k}</dt>
+          <dd className="min-w-0 break-words text-ink">{v}</dd>
         </div>
       ))}
     </dl>
@@ -82,7 +82,7 @@ export function Facts({ rows }: { rows: [string, React.ReactNode][] }) {
 export function Section({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
   return (
     <section id={id} className="mt-8">
-      <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+      <h2 className="text-lg font-semibold text-ink">{title}</h2>
       <div className="mt-3">{children}</div>
     </section>
   );
@@ -215,7 +215,7 @@ export async function Done({ id }: { id?: string }) {
   const facts = actionFacts(row);
   const failed = (row.details as Details | null)?.status === "failed";
   return (
-    <div role="status" data-testid="done" className={`mt-6 rounded-2xl p-4 text-sm ${failed ? "bg-red-50 text-red-900" : "bg-emerald-50 text-emerald-900"}`}>
+    <div role="status" data-testid="done" className={`mt-6 rounded-2xl p-4 text-sm ${failed ? "bg-danger-bg text-danger-fg" : "bg-ok-bg text-ok-fg"}`}>
       <p className="font-semibold">
         {failed ? "Didn't finish: " : "Done: "}
         {actionLabel(row.action)}
@@ -236,7 +236,7 @@ export async function Done({ id }: { id?: string }) {
 
 /** A list of support-log rows, newest first. */
 export async function History({ rows, links = false, empty = "Nothing yet." }: { rows: AdminAction[]; links?: boolean; empty?: string }) {
-  if (!rows.length) return <p className="text-sm text-slate-600">{empty}</p>;
+  if (!rows.length) return <p className="text-sm text-muted">{empty}</p>;
   // Only link to what still exists.
   const [users, workspaces] = links
     ? await Promise.all([
@@ -247,29 +247,29 @@ export async function History({ rows, links = false, empty = "Nothing yet." }: {
   const userIds = new Set(users.map((u) => u.id));
   const wsIds = new Set(workspaces.map((w) => w.id));
   return (
-    <ol className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white" data-testid="history">
+    <ol className="divide-y divide-line rounded-2xl border border-line bg-surface" data-testid="history">
       {rows.map((r) => (
         <li key={r.id} className="p-4 text-sm" data-action={r.action}>
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-            <p className="font-medium text-slate-900">
+            <p className="font-medium text-ink">
               {actionLabel(r.action)}
-              {(r.details as Details | null)?.status === "failed" && <span className="text-red-700"> (didn&rsquo;t finish)</span>}
+              {(r.details as Details | null)?.status === "failed" && <span className="text-danger-fg"> (didn&rsquo;t finish)</span>}
             </p>
-            <p className="text-xs text-slate-500">{utc(r.createdAt)}</p>
+            <p className="text-xs text-dim">{utc(r.createdAt)}</p>
           </div>
-          {r.target && <p className="mt-1 break-words text-slate-700">{r.target}</p>}
-          {r.reason && <p className="mt-1 whitespace-pre-wrap break-words text-slate-600">Reason: {r.reason}</p>}
+          {r.target && <p className="mt-1 break-words text-muted">{r.target}</p>}
+          {r.reason && <p className="mt-1 whitespace-pre-wrap break-words text-muted">Reason: {r.reason}</p>}
           {actionFacts(r).map((f) => (
-            <p key={f} className="mt-1 break-words text-xs text-slate-500">
+            <p key={f} className="mt-1 break-words text-xs text-dim">
               {f}
             </p>
           ))}
-          <p className="mt-1 break-words text-xs text-slate-400">
+          <p className="mt-1 break-words text-xs text-dim">
             By {r.actorEmail}
             {links && r.workspaceId && wsIds.has(r.workspaceId) && (
               <>
                 {" · "}
-                <Link href={`/support/workspaces/${r.workspaceId}`} className="text-brand-700 hover:underline">
+                <Link href={`/support/workspaces/${r.workspaceId}`} className="text-accent hover:underline">
                   Workspace
                 </Link>
               </>
@@ -277,7 +277,7 @@ export async function History({ rows, links = false, empty = "Nothing yet." }: {
             {links && r.userId && userIds.has(r.userId) && (
               <>
                 {" · "}
-                <Link href={`/support/users/${r.userId}`} className="text-brand-700 hover:underline">
+                <Link href={`/support/users/${r.userId}`} className="text-accent hover:underline">
                   Login
                 </Link>
               </>

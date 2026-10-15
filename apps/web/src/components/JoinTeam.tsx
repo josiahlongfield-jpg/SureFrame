@@ -54,21 +54,21 @@ export default function JoinTeam({ token, signedIn }: { token: string; signedIn:
   }
 
   if (inviteKey === null) {
-    return <p className="mt-6 text-sm text-amber-700">This link is missing its security key. Open the full link exactly as it was sent to you.</p>;
+    return <p className="mt-6 text-sm text-warn-fg">This link is missing its security key. Open the full link exactly as it was sent to you.</p>;
   }
   return (
     <div className="mt-6 grid gap-3">
       {signedIn ? (
-        <button onClick={join} disabled={busy} className="rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+        <button onClick={join} disabled={busy} className="rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
           {busy ? "Joining…" : "Join the team"}
         </button>
       ) : (
-        <Link href={`/login?next=${encodeURIComponent(`/join/${token}`)}`} className="rounded-xl bg-brand-600 px-4 py-3 text-center font-semibold text-white hover:bg-brand-700">
+        <Link href={`/login?next=${encodeURIComponent(`/join/${token}`)}`} className="rounded-xl bg-primary px-4 py-3 text-center font-semibold text-white hover:bg-primary-hover">
           Sign in to join
         </Link>
       )}
-      <p className="text-xs text-slate-500">Videos stay end-to-end encrypted. This link carries the key that lets your device open them, so don&apos;t share it.</p>
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      <p className="text-xs text-dim">Videos stay end-to-end encrypted. This link carries the key that lets your device open them, so don&apos;t share it.</p>
+      {error && <p role="alert" className="text-sm text-danger-fg">{error}</p>}
     </div>
   );
 }

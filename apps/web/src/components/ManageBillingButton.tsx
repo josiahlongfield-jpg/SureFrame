@@ -8,7 +8,7 @@ export default function ManageBillingButton() {
     else alert(data.error ?? "Could not open billing portal");
   }
   return (
-    <button onClick={go} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50">
+    <button onClick={go} className="rounded-xl border border-line-strong px-4 py-2 text-sm font-medium hover:bg-hover">
       Manage subscription
     </button>
   );
