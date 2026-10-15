@@ -21,7 +21,7 @@ export default async function Help() {
         <p className="mt-2 text-sm text-dim" data-testid="reply-time">
           When a person is needed, we reply within 2 business days (Queensland, Australia time), by email and here in the chat.
         </p>
-        <div className="mt-8 flex h-[65vh] min-h-[420px] flex-col overflow-hidden rounded-2xl border border-line bg-surface">
+        <div className="mt-8 flex h-[65vh] min-h-[26.25rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface">
           <ChatBoundary>
             <SupportChat signedIn={signedIn} className="flex-1" />
           </ChatBoundary>

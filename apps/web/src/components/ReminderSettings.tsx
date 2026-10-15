@@ -70,7 +70,7 @@ export default function ReminderSettings({ initial }: { initial: Settings }) {
   const field = "rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none";
 
   return (
-    <form onSubmit={save} className="mt-8 grid gap-6 lg:grid-cols-[1fr_380px]">
+    <form onSubmit={save} className="mt-8 grid gap-6 lg:grid-cols-[1fr_23.75rem]">
       <div className="grid gap-6">
         <section className="grid gap-4 rounded-2xl border border-line bg-surface p-6">
           <h2 className="font-semibold text-ink">Your business</h2>

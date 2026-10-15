@@ -130,7 +130,73 @@
 html {
   color-scheme: dark;
   background: #0a1020;
+
+  /*
+   * Everything is sized in rem, so this one value scales the whole site to the screen. Up to a
+   * 1440 x 800 window it's the browser's normal size; past that it grows with whichever of the
+   * window's width or height runs out first (so wide but short windows don't overflow), up to 1.75x.
+   */
+  font-size: clamp(100%, min(100vw / 90, 100vh / 50), 28px);
 }
+
+/* SVG icons sized by width/height attributes grow with it too (any CSS beats those attributes; :where keeps classes winning). */
+:where(svg[width="8"]) { width: 0.5rem; } :where(svg[height="8"]) { height: 0.5rem; }
+:where(svg[width="9"]) { width: 0.5625rem; } :where(svg[height="9"]) { height: 0.5625rem; }
+:where(svg[width="10"]) { width: 0.625rem; } :where(svg[height="10"]) { height: 0.625rem; }
+:where(svg[width="11"]) { width: 0.6875rem; } :where(svg[height="11"]) { height: 0.6875rem; }
+:where(svg[width="12"]) { width: 0.75rem; } :where(svg[height="12"]) { height: 0.75rem; }
+:where(svg[width="13"]) { width: 0.8125rem; } :where(svg[height="13"]) { height: 0.8125rem; }
+:where(svg[width="14"]) { width: 0.875rem; } :where(svg[height="14"]) { height: 0.875rem; }
+:where(svg[width="15"]) { width: 0.9375rem; } :where(svg[height="15"]) { height: 0.9375rem; }
+:where(svg[width="16"]) { width: 1rem; } :where(svg[height="16"]) { height: 1rem; }
+:where(svg[width="17"]) { width: 1.0625rem; } :where(svg[height="17"]) { height: 1.0625rem; }
+:where(svg[width="18"]) { width: 1.125rem; } :where(svg[height="18"]) { height: 1.125rem; }
+:where(svg[width="19"]) { width: 1.1875rem; } :where(svg[height="19"]) { height: 1.1875rem; }
+:where(svg[width="20"]) { width: 1.25rem; } :where(svg[height="20"]) { height: 1.25rem; }
+:where(svg[width="21"]) { width: 1.3125rem; } :where(svg[height="21"]) { height: 1.3125rem; }
+:where(svg[width="22"]) { width: 1.375rem; } :where(svg[height="22"]) { height: 1.375rem; }
+:where(svg[width="23"]) { width: 1.4375rem; } :where(svg[height="23"]) { height: 1.4375rem; }
+:where(svg[width="24"]) { width: 1.5rem; } :where(svg[height="24"]) { height: 1.5rem; }
+:where(svg[width="25"]) { width: 1.5625rem; } :where(svg[height="25"]) { height: 1.5625rem; }
+:where(svg[width="26"]) { width: 1.625rem; } :where(svg[height="26"]) { height: 1.625rem; }
+:where(svg[width="27"]) { width: 1.6875rem; } :where(svg[height="27"]) { height: 1.6875rem; }
+:where(svg[width="28"]) { width: 1.75rem; } :where(svg[height="28"]) { height: 1.75rem; }
+:where(svg[width="29"]) { width: 1.8125rem; } :where(svg[height="29"]) { height: 1.8125rem; }
+:where(svg[width="30"]) { width: 1.875rem; } :where(svg[height="30"]) { height: 1.875rem; }
+:where(svg[width="31"]) { width: 1.9375rem; } :where(svg[height="31"]) { height: 1.9375rem; }
+:where(svg[width="32"]) { width: 2rem; } :where(svg[height="32"]) { height: 2rem; }
+:where(svg[width="33"]) { width: 2.0625rem; } :where(svg[height="33"]) { height: 2.0625rem; }
+:where(svg[width="34"]) { width: 2.125rem; } :where(svg[height="34"]) { height: 2.125rem; }
+:where(svg[width="35"]) { width: 2.1875rem; } :where(svg[height="35"]) { height: 2.1875rem; }
+:where(svg[width="36"]) { width: 2.25rem; } :where(svg[height="36"]) { height: 2.25rem; }
+:where(svg[width="37"]) { width: 2.3125rem; } :where(svg[height="37"]) { height: 2.3125rem; }
+:where(svg[width="38"]) { width: 2.375rem; } :where(svg[height="38"]) { height: 2.375rem; }
+:where(svg[width="39"]) { width: 2.4375rem; } :where(svg[height="39"]) { height: 2.4375rem; }
+:where(svg[width="40"]) { width: 2.5rem; } :where(svg[height="40"]) { height: 2.5rem; }
+:where(svg[width="41"]) { width: 2.5625rem; } :where(svg[height="41"]) { height: 2.5625rem; }
+:where(svg[width="42"]) { width: 2.625rem; } :where(svg[height="42"]) { height: 2.625rem; }
+:where(svg[width="43"]) { width: 2.6875rem; } :where(svg[height="43"]) { height: 2.6875rem; }
+:where(svg[width="44"]) { width: 2.75rem; } :where(svg[height="44"]) { height: 2.75rem; }
+:where(svg[width="45"]) { width: 2.8125rem; } :where(svg[height="45"]) { height: 2.8125rem; }
+:where(svg[width="46"]) { width: 2.875rem; } :where(svg[height="46"]) { height: 2.875rem; }
+:where(svg[width="47"]) { width: 2.9375rem; } :where(svg[height="47"]) { height: 2.9375rem; }
+:where(svg[width="48"]) { width: 3rem; } :where(svg[height="48"]) { height: 3rem; }
+:where(svg[width="49"]) { width: 3.0625rem; } :where(svg[height="49"]) { height: 3.0625rem; }
+:where(svg[width="50"]) { width: 3.125rem; } :where(svg[height="50"]) { height: 3.125rem; }
+:where(svg[width="51"]) { width: 3.1875rem; } :where(svg[height="51"]) { height: 3.1875rem; }
+:where(svg[width="52"]) { width: 3.25rem; } :where(svg[height="52"]) { height: 3.25rem; }
+:where(svg[width="53"]) { width: 3.3125rem; } :where(svg[height="53"]) { height: 3.3125rem; }
+:where(svg[width="54"]) { width: 3.375rem; } :where(svg[height="54"]) { height: 3.375rem; }
+:where(svg[width="55"]) { width: 3.4375rem; } :where(svg[height="55"]) { height: 3.4375rem; }
+:where(svg[width="56"]) { width: 3.5rem; } :where(svg[height="56"]) { height: 3.5rem; }
+:where(svg[width="57"]) { width: 3.5625rem; } :where(svg[height="57"]) { height: 3.5625rem; }
+:where(svg[width="58"]) { width: 3.625rem; } :where(svg[height="58"]) { height: 3.625rem; }
+:where(svg[width="59"]) { width: 3.6875rem; } :where(svg[height="59"]) { height: 3.6875rem; }
+:where(svg[width="60"]) { width: 3.75rem; } :where(svg[height="60"]) { height: 3.75rem; }
+:where(svg[width="61"]) { width: 3.8125rem; } :where(svg[height="61"]) { height: 3.8125rem; }
+:where(svg[width="62"]) { width: 3.875rem; } :where(svg[height="62"]) { height: 3.875rem; }
+:where(svg[width="63"]) { width: 3.9375rem; } :where(svg[height="63"]) { height: 3.9375rem; }
+:where(svg[width="64"]) { width: 4rem; } :where(svg[height="64"]) { height: 4rem; }
 
 body {
   background: var(--color-canvas);
@@ -138,8 +204,8 @@ body {
 }
 html[data-theme="navy"] body {
   background:
-    radial-gradient(1200px 700px at 85% -10%, rgb(79 110 247 / 0.22), transparent 60%),
-    linear-gradient(180deg, #0c1428, #0a1020 900px);
+    radial-gradient(75rem 43.75rem at 85% -10%, rgb(79 110 247 / 0.22), transparent 60%),
+    linear-gradient(180deg, #0c1428, #0a1020 56.25rem);
   background-color: #0a1020;
 }
 
@@ -149,15 +215,15 @@ html:has(body > [data-theme="light"]) body { background: #f8fafc; }
 
 .navy-glow {
   background:
-    radial-gradient(1200px 700px at 85% -10%, rgb(79 110 247 / 0.28), transparent 60%),
-    radial-gradient(900px 600px at -10% 110%, rgb(255 93 79 / 0.07), transparent 60%),
+    radial-gradient(75rem 43.75rem at 85% -10%, rgb(79 110 247 / 0.28), transparent 60%),
+    radial-gradient(56.25rem 37.5rem at -10% 110%, rgb(255 93 79 / 0.07), transparent 60%),
     linear-gradient(180deg, #0c1428, #0a1020);
 }
 
 @utility kicker {
   font-family: var(--font-mono);
   font-weight: 500;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.2;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -173,7 +239,7 @@ html:has(body > [data-theme="light"]) body { background: #f8fafc; }
 
 @keyframes float {
   from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(-120px); opacity: 0; }
+  to { transform: translateY(-7.5rem); opacity: 0; }
 }
 
 /* Draws the eye to a note when someone picks an option it explains is unavailable. */

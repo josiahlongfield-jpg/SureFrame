@@ -81,7 +81,7 @@ export default function BrandingForm(props: { workspaceId: string; name: string;
   const closeFull = useCallback(() => setFull(false), []);
 
   return (
-    <div className="mt-6 space-y-6 xl:grid xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start xl:gap-6 xl:space-y-0">
+    <div className="mt-6 space-y-6 xl:grid xl:grid-cols-[minmax(0,1fr)_23.75rem] xl:items-start xl:gap-6 xl:space-y-0">
       <div className="grid gap-6 rounded-2xl border border-line bg-surface p-6 md:grid-cols-2 xl:order-2 xl:grid-cols-1">
         <label className="grid gap-1 md:col-span-2 xl:col-span-1">
           <span className="text-sm font-medium text-muted">Business name</span>

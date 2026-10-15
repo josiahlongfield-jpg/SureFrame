@@ -48,7 +48,7 @@ export default function ClientPreview({ brand, view, sender, origin }: { brand: 
 
 function VideoPage({ business, sender }: { business: string; sender: string }) {
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
+    <div className="grid gap-8 lg:grid-cols-[1fr_21.25rem]">
       <section>
         <div className="relative overflow-hidden rounded-2xl bg-black shadow-sm">
           <div className="grid aspect-video place-items-center bg-gradient-to-br from-slate-700 to-slate-900">

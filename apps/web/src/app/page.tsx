@@ -59,30 +59,30 @@ export default function Home() {
     <div data-theme="navy" className="navy-glow min-h-screen text-ink">
       <SiteHeader navy />
       <main>
-        <section className="mx-auto grid max-w-[1440px] items-center gap-10 px-4 pb-16 pt-6 sm:px-6 sm:pt-10 xl:min-h-[calc(100svh-72px)] xl:grid-cols-[500px_minmax(0,1fr)] xl:gap-14 xl:px-16 xl:pb-10 xl:pt-0">
-          <div className="grid content-center gap-4 sm:gap-[18px]">
-            <p className="kicker inline-flex items-center gap-2"><span className="h-[13px] w-[13px]">{Icon.lockFilled}</span>Private video for you and your clients</p>
-            <h1 className="display text-[40px] sm:text-[56px] xl:text-[62px]">
+        <section className="mx-auto grid max-w-[90rem] items-center gap-10 px-4 pb-16 pt-6 sm:px-6 sm:pt-10 xl:min-h-[calc(100svh-4.5rem)] xl:grid-cols-[31.25rem_minmax(0,1fr)] xl:gap-14 xl:px-16 xl:pb-10 xl:pt-0">
+          <div className="grid content-center gap-4 sm:gap-[1.125rem]">
+            <p className="kicker inline-flex items-center gap-2"><span className="h-[0.8125rem] w-[0.8125rem]">{Icon.lockFilled}</span>Private video for you and your clients</p>
+            <h1 className="display text-[2.5rem] sm:text-[3.5rem] xl:text-[3.875rem]">
               One take is <span className="text-highlight">all it takes.</span>
             </h1>
-            <p className="max-w-[30em] text-[15px] leading-relaxed text-muted sm:text-[17px]">Record it once, send it privately, and keep every client on track.</p>
+            <p className="max-w-[30em] text-[0.9375rem] leading-relaxed text-muted sm:text-[1.0625rem]">Record it once, send it privately, and keep every client on track.</p>
             <div className="flex flex-wrap items-center gap-2.5">
-              <Link href="/record" className="rounded-[10px] bg-primary px-4 py-3 text-sm font-medium text-on-primary shadow-[0_8px_24px_-10px_rgb(79_110_247/0.9)] hover:bg-primary-hover sm:px-[18px] sm:text-[15px]">
+              <Link href="/record" className="rounded-[0.625rem] bg-primary px-4 py-3 text-sm font-medium text-on-primary shadow-[0_0.5rem_1.5rem_-0.625rem_rgb(79_110_247/0.9)] hover:bg-primary-hover sm:px-[1.125rem] sm:text-[0.9375rem]">
                 Record your first video, free
               </Link>
-              <Link href="/pricing" className="rounded-[10px] border border-line bg-solid px-4 py-3 text-sm font-medium text-on-solid hover:bg-solid-hover sm:px-[18px] sm:text-[15px]">
+              <Link href="/pricing" className="rounded-[0.625rem] border border-line bg-solid px-4 py-3 text-sm font-medium text-on-solid hover:bg-solid-hover sm:px-[1.125rem] sm:text-[0.9375rem]">
                 See pricing
               </Link>
-              <span className="ml-1.5 text-[13px] text-muted max-sm:hidden">Free for 3 clients</span>
+              <span className="ml-1.5 text-[0.8125rem] text-muted max-sm:hidden">Free for 3 clients</span>
             </div>
-            <ul className="mt-1 grid grid-cols-2 gap-x-2.5 gap-y-2 border-t border-line pt-3 sm:mt-3.5 sm:gap-x-[22px] sm:gap-y-3.5 sm:pt-[22px]">
+            <ul className="mt-1 grid grid-cols-2 gap-x-2.5 gap-y-2 border-t border-line pt-3 sm:mt-3.5 sm:gap-x-[1.375rem] sm:gap-y-3.5 sm:pt-[1.375rem]">
               {points(RETENTION_DAYS).map((p) => (
-                <li key={p.title} className="grid grid-cols-[22px_1fr] items-center gap-x-[7px] sm:grid-cols-[34px_1fr] sm:items-start sm:gap-x-3 sm:gap-y-0.5">
-                  <span className={`grid h-[22px] w-[22px] place-items-center rounded-md sm:row-span-2 sm:h-[34px] sm:w-[34px] sm:rounded-[9px] [&_svg]:h-[13px] [&_svg]:w-[13px] sm:[&_svg]:h-[18px] sm:[&_svg]:w-[18px] ${"coral" in p ? "bg-[rgb(255_93_79/0.14)] text-lock" : "bg-[rgb(142_163_255/0.12)] text-highlight"}`}>
+                <li key={p.title} className="grid grid-cols-[1.375rem_1fr] items-center gap-x-[0.4375rem] sm:grid-cols-[2.125rem_1fr] sm:items-start sm:gap-x-3 sm:gap-y-0.5">
+                  <span className={`grid h-[1.375rem] w-[1.375rem] place-items-center rounded-md sm:row-span-2 sm:h-[2.125rem] sm:w-[2.125rem] sm:rounded-[0.5625rem] [&_svg]:h-[0.8125rem] [&_svg]:w-[0.8125rem] sm:[&_svg]:h-[1.125rem] sm:[&_svg]:w-[1.125rem] ${"coral" in p ? "bg-[rgb(255_93_79/0.14)] text-lock" : "bg-[rgb(142_163_255/0.12)] text-highlight"}`}>
                     {Icon[p.icon]}
                   </span>
-                  <b className="text-[12.5px] font-medium leading-tight sm:text-[14.5px] sm:font-semibold sm:tracking-[-0.01em]">{p.title}</b>
-                  <span className="text-[12.5px] leading-snug text-muted max-sm:hidden">{p.line}</span>
+                  <b className="text-[0.78125rem] font-medium leading-tight sm:text-[0.90625rem] sm:font-semibold sm:tracking-[-0.01em]">{p.title}</b>
+                  <span className="text-[0.78125rem] leading-snug text-muted max-sm:hidden">{p.line}</span>
                 </li>
               ))}
             </ul>
@@ -111,7 +111,7 @@ export default function Home() {
           <div className="mx-auto grid max-w-6xl gap-8 px-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-3">
             {PILLARS.map((p) => (
               <div key={p.title}>
-                <div className="mb-4 grid h-10 w-10 place-items-center rounded-[10px] bg-[rgb(142_163_255/0.12)] text-highlight">
+                <div className="mb-4 grid h-10 w-10 place-items-center rounded-[0.625rem] bg-[rgb(142_163_255/0.12)] text-highlight">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><path d={p.icon} /></svg>
                 </div>
                 <h3 className="font-semibold tracking-tight">{p.title}</h3>
@@ -164,7 +164,7 @@ export default function Home() {
               Studio includes 3 staff logins and Agency includes 10, the owner&rsquo;s own login included. Assign clients to staff, choose what each person can see and do, see how the team is keeping up with clients, and keep billing with the owner. Clients never need an account.
             </p>
             <p className="mt-6 font-medium">Free for 3 clients. Paid plans from US$15 a month.</p>
-            <Link href="/pricing" className="mt-6 inline-block rounded-[10px] bg-primary px-6 py-3 font-medium text-on-primary hover:bg-primary-hover">
+            <Link href="/pricing" className="mt-6 inline-block rounded-[0.625rem] bg-primary px-6 py-3 font-medium text-on-primary hover:bg-primary-hover">
               Compare plans
             </Link>
           </div>

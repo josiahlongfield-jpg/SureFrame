@@ -28,7 +28,7 @@ function Record() {
         <span className="f-btn sec">Pop out camera bubble</span>
         <span className="f-link" style={{ justifySelf: "start" }}>Discard and start over</span>
         <div className="f-hr" />
-        <p className="f-ok" style={{ fontSize: 12.5 }}>Uploaded: 12.3 MB <span className="f-mut">(+0.8 MB on device)</span></p>
+        <p className="f-ok" style={{ fontSize: "0.78125rem" }}>Uploaded: 12.3 MB <span className="f-mut">(+0.8 MB on device)</span></p>
         <p className="f-dim">Limit on your plan: 4 hours.</p>
       </div>
     </div>
@@ -52,11 +52,11 @@ function Send() {
         <div className="f-hr" />
         <p style={{ fontWeight: 500 }}>Send to more clients</p>
         <div className="f-row"><span className="f-chip">All clients</span><span className="f-chip">My clients</span><span className="f-chip" style={{ border: 0 }}>Clear</span></div>
-        <div className="f-cards" style={{ gap: "7px 14px" }}>
+        <div className="f-cards" style={{ gap: "0.4375rem 0.875rem" }}>
           {list.map(([n, on]) => <span key={n} className="f-check"><Cb on={on} />{n}</span>)}
         </div>
         <span className="f-check"><Cb on />Email clients who have an address on file</span>
-        <div className="f-row"><span className="f-btn pri">Send to 3 clients</span><span className="f-mut" style={{ fontSize: 12.5 }}>Done</span></div>
+        <div className="f-row"><span className="f-btn pri">Send to 3 clients</span><span className="f-mut" style={{ fontSize: "0.78125rem" }}>Done</span></div>
         <p className="f-dim">Each client gets a private copy. They can reply, but never see each other&apos;s replies.</p>
       </div>
     </div>
@@ -74,7 +74,7 @@ function Replies() {
         <p className="f-h2">Weekly check-in</p>
         <div className="f-react"><span>👍</span><span>❤️</span><span>🎉</span><span>👀</span></div>
       </div>
-      <div className="f-box" style={{ gap: 10 }}>
+      <div className="f-box" style={{ gap: "0.625rem" }}>
         <div>
           <p className="f-h2">Conversation</p>
           <p className="f-dim">Reply with a video, a voice note or a message. End-to-end encrypted.</p>
@@ -104,7 +104,7 @@ function Replies() {
 function Todos() {
   return (
     <div className="f-cols">
-      <div className="f-stack" style={{ gap: 8 }}>
+      <div className="f-stack" style={{ gap: "0.5rem" }}>
         <p className="f-h">To do</p>
         <div className="f-todo">
           <Cb /><span>Book your next session</span>
@@ -118,12 +118,12 @@ function Todos() {
           <Cb /><span>Prepare next week&apos;s update</span>
           <div className="meta"><span>Due Tue, Oct 21, 9:00 AM</span><span className="f-chip">Private to your team</span></div>
         </div>
-        <p className="f-h" style={{ marginTop: 4 }}>Done (2) ▸</p>
+        <p className="f-h" style={{ marginTop: "0.25rem" }}>Done (2) ▸</p>
       </div>
       <div className="f-side f-stack">
         <div className="f-box">
           <p className="f-h">Remind</p>
-          <div className="f-row" style={{ gap: 6 }}><span className="f-chip on">1 day before</span><span className="f-chip">On the day (8am)</span></div>
+          <div className="f-row" style={{ gap: "0.375rem" }}><span className="f-chip on">1 day before</span><span className="f-chip">On the day (8am)</span></div>
           <span className="f-check"><Cb on />Email Client A</span>
           <span className="f-check"><Cb on />Email me</span>
         </div>
@@ -139,10 +139,10 @@ function Todos() {
 
 function AiSummary() {
   return (
-    <div className="f-box f-ai" style={{ gap: 8 }}>
+    <div className="f-box f-ai" style={{ gap: "0.5rem" }}>
       <div className="f-row" style={{ justifyContent: "space-between" }}>
         <div className="f-row"><span className="f-aipill">AI</span><b style={{ fontWeight: 600 }}>AI summary and transcript</b><span className="f-dim">Summary ready</span></div>
-        <span className="f-mut f-hide-sm" style={{ fontSize: 12 }}>Hide</span>
+        <span className="f-mut f-hide-sm" style={{ fontSize: "0.75rem" }}>Hide</span>
       </div>
       <p className="f-mut">A walkthrough of this week&apos;s progress, the two questions still open, and the plan for next week.</p>
       <b style={{ fontWeight: 500 }}>Key points</b>
@@ -177,7 +177,7 @@ function Backup({ days }: { days: number }) {
               <div className="f-thumb">{Icon.lock}<em>{d}</em></div>
               <b>{t}</b>
               <span className="f-dim">{m}</span>
-              <span className="f-ok" style={{ fontSize: 11.5 }}>Saved to cloud backup</span>
+              <span className="f-ok" style={{ fontSize: "0.71875rem" }}>Saved to cloud backup</span>
             </div>
           ))}
         </div>
@@ -186,11 +186,11 @@ function Backup({ days }: { days: number }) {
         <div className="f-box">
           <div className="f-row" style={{ justifyContent: "space-between", flexWrap: "nowrap" }}>
             <b style={{ fontWeight: 600 }}>Cloud backup</b>
-            <span style={{ width: 30, height: 17, borderRadius: 999, background: "var(--color-primary)", position: "relative", flex: "none" }}>
-              <span style={{ position: "absolute", right: 2, top: 2, width: 13, height: 13, borderRadius: "50%", background: "#fff" }} />
+            <span style={{ width: "1.875rem", height: "1.0625rem", borderRadius: 999, background: "var(--color-primary)", position: "relative", flex: "none" }}>
+              <span style={{ position: "absolute", right: "0.125rem", top: "0.125rem", width: "0.8125rem", height: "0.8125rem", borderRadius: "50%", background: "#fff" }} />
             </span>
           </div>
-          <p className="f-mut" style={{ fontSize: 12 }}>We keep an encrypted copy so your clients can watch it, and delete it after {days} days. Cloud backup keeps our encrypted copies until you delete them. We still can&apos;t open them.</p>
+          <p className="f-mut" style={{ fontSize: "0.75rem" }}>We keep an encrypted copy so your clients can watch it, and delete it after {days} days. Cloud backup keeps our encrypted copies until you delete them. We still can&apos;t open them.</p>
           <p className="f-dim">Optional: US$5 a month</p>
         </div>
         <p className="f-dim">Settings › Billing</p>
@@ -207,13 +207,13 @@ function Branding() {
         <header><i>Your logo here</i><b>Your business name</b><span>via SureFrame</span></header>
         <div className="body">
           <div className="f-screen"><div className="f-play">{Icon.play}</div><div className="f-cam"><Face /></div></div>
-          <b style={{ fontWeight: 600, fontSize: 12.5 }}>Weekly check-in</b>
+          <b style={{ fontWeight: 600, fontSize: "0.78125rem" }}>Weekly check-in</b>
           <span className="sm">Team member 1 from Your business name · Oct 15</span>
           <span className="bub">Thanks, that makes sense!</span>
         </div>
         <footer>Made with SureFrame · Privacy · Terms</footer>
       </div>
-      <div className="f-side f-box" style={{ gap: 8 }}>
+      <div className="f-side f-box" style={{ gap: "0.5rem" }}>
         <p className="f-h">Business name</p>
         <span className="f-field">Your business name</span>
         <p className="f-h">Logo</p>
@@ -250,7 +250,7 @@ function Team() {
           <tr className="all"><td>All</td><td>29</td><td className="wide">1</td><td>3</td><td className="wide">3h</td><td>1</td></tr>
         </tbody>
       </table>
-      <p className="f-h f-hide-sm" style={{ marginTop: 4 }}>Staff and clients</p>
+      <p className="f-h f-hide-sm" style={{ marginTop: "0.25rem" }}>Staff and clients</p>
       <div className="f-cards f-hide-sm">
         <div className="f-person"><div className="f-row"><b style={{ fontWeight: 500 }}>Team member 2</b><span className="f-chip">Member</span></div><span className="f-dim">Looks after: Client C, Client D</span></div>
         <div className="f-person"><div className="f-row"><b style={{ fontWeight: 500 }}>Team member 3</b><span className="f-chip">Admin</span></div><span className="f-dim">Looks after: Client E</span></div>

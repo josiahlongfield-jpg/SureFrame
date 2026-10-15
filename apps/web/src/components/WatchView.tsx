@@ -556,7 +556,7 @@ function WatchBody({
   };
 
   return (
-    <div className="grid gap-8 pb-20 lg:grid-cols-[1fr_340px] lg:pb-0">
+    <div className="grid gap-8 pb-20 lg:grid-cols-[1fr_21.25rem] lg:pb-0">
       <section>
         <div style={showPlayer ? frame.style : undefined} className="relative mx-auto overflow-hidden rounded-2xl bg-black shadow-sm">
           {video.status === "RECORDING" ? (

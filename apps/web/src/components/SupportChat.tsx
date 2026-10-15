@@ -160,7 +160,7 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
             data-enable-grammarly="false"
             placeholder="Type your question…"
             aria-label="Your message"
-            className="min-h-[44px] flex-1 resize-none rounded-lg border border-line-strong px-3 py-2 text-sm"
+            className="min-h-[2.75rem] flex-1 resize-none rounded-lg border border-line-strong px-3 py-2 text-sm"
           />
           <button disabled={busy || !text.trim()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
             Send
@@ -181,7 +181,7 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
             </button>
           )}
         </div>
-        <p className="mt-2 text-[11px] text-dim">
+        <p className="mt-2 text-[0.6875rem] text-dim">
           Answers come from an AI assistant and can be wrong. Never share your recovery key, password or card details.{" "}
           <a href="/legal/privacy" className="underline hover:text-muted">Privacy</a>
         </p>
@@ -235,7 +235,7 @@ export default function SupportWidget({ signedIn }: { signedIn: boolean }) {
   return (
     <>
       {open && (
-        <div role="dialog" aria-label="SureFrame help" className="fixed inset-x-3 bottom-20 z-50 flex h-[70vh] max-h-[600px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl sm:inset-x-auto sm:right-6 sm:w-[380px]">
+        <div role="dialog" aria-label="SureFrame help" className="fixed inset-x-3 bottom-20 z-50 flex h-[70vh] max-h-[37.5rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl sm:inset-x-auto sm:right-6 sm:w-[23.75rem]">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <p className="font-semibold text-ink">SureFrame help</p>
             <button onClick={() => setOpen(false)} aria-label="Close help" className="rounded-lg px-2 text-dim hover:text-ink">

@@ -8,7 +8,7 @@ export default async function SiteHeader({ navy = false }: { navy?: boolean } = 
   const link = "whitespace-nowrap rounded-lg px-2 py-2 text-muted hover:text-ink sm:px-3";
   return (
     <header className={`sticky top-0 z-20 backdrop-blur ${navy ? "bg-canvas/70" : "border-b border-line bg-surface/80"}`}>
-      <div className={`mx-auto flex items-center justify-between px-4 sm:px-6 ${navy ? "h-[60px] max-w-[1440px] sm:h-[72px] xl:px-16" : "h-16 max-w-6xl"}`}>
+      <div className={`mx-auto flex items-center justify-between px-4 sm:px-6 ${navy ? "h-[3.75rem] max-w-[90rem] sm:h-[4.5rem] xl:px-16" : "h-16 max-w-6xl"}`}>
         <Logo tone={navy ? "dark" : "light"} />
         <nav className="flex items-center gap-1 text-sm sm:gap-3">
           {navy && <Link href="/#features" className={`${link} max-sm:hidden`}>Features</Link>}
@@ -20,7 +20,7 @@ export default async function SiteHeader({ navy = false }: { navy?: boolean } = 
             <Link href="/login" className={link}>Sign in</Link>
           )}
           {/* Short on phones, as in the app's header, so the bar fits a 360px screen. */}
-          <Link href="/record" className={`whitespace-nowrap rounded-[10px] bg-primary px-3 py-2 font-medium text-on-primary hover:bg-primary-hover sm:px-4 ${navy ? "shadow-[0_8px_24px_-10px_rgb(79_110_247/0.9)]" : ""}`}>
+          <Link href="/record" className={`whitespace-nowrap rounded-[0.625rem] bg-primary px-3 py-2 font-medium text-on-primary hover:bg-primary-hover sm:px-4 ${navy ? "shadow-[0_0.5rem_1.5rem_-0.625rem_rgb(79_110_247/0.9)]" : ""}`}>
             <span className="sm:hidden">Record</span>
             <span className="hidden sm:inline">{navy ? "Start free" : "Start recording"}</span>
           </Link>

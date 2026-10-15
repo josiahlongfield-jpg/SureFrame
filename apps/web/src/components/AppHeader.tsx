@@ -37,7 +37,7 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
   // No backdrop-blur on the header: it would pin the fixed Help button, prompts and dialogs inside it.
   return (
     <header className="relative border-b border-line bg-canvas/80">
-      <div className="mx-auto flex h-16 max-w-6xl sm:h-[72px] items-center justify-between gap-4 px-4 sm:px-6">
+      <div className="mx-auto flex h-16 max-w-6xl sm:h-[4.5rem] items-center justify-between gap-4 px-4 sm:px-6">
         <div className="flex items-center gap-6">
           <Logo href="/library" tone="dark" />
           {/* Eight links need the room: below xl they sit behind the Menu button. */}
@@ -46,9 +46,8 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
           </nav>
         </div>
         <div className="flex items-center gap-3 text-sm">
-          <span className="hidden rounded-full border border-line px-2.5 py-1 font-mono text-[11px] font-medium uppercase tracking-wider text-muted xl:inline">{plan}</span>
-          <span className="hidden text-dim 2xl:inline">{email}</span>
-          <Link href="/record" className="rounded-[10px] bg-primary px-4 py-2 font-medium text-white shadow-[0_8px_24px_-10px_rgb(79_110_247/0.9)] hover:bg-primary-hover">
+          <span className="hidden rounded-full border border-line px-2.5 py-1 font-mono text-[0.6875rem] font-medium uppercase tracking-wider text-muted xl:inline">{plan}</span>
+          <Link href="/record" className="whitespace-nowrap rounded-[0.625rem] bg-primary px-4 py-2 font-medium text-white shadow-[0_0.5rem_1.5rem_-0.625rem_rgb(79_110_247/0.9)] hover:bg-primary-hover">
             <span className="sm:hidden">Record</span>
             <span className="hidden sm:inline">New recording</span>
           </Link>

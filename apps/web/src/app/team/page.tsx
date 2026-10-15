@@ -84,7 +84,7 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
             </div>
           </div>
           <div className="mt-3 overflow-x-auto rounded-2xl border border-line bg-surface">
-            <table className="w-full min-w-[640px] text-sm" data-testid="team-stats">
+            <table className="w-full min-w-[40rem] text-sm" data-testid="team-stats">
               <thead className="text-left text-xs uppercase tracking-wide text-dim">
                 <tr>
                   <th className="px-4 py-3 font-medium">Staff</th>

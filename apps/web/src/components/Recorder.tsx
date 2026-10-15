@@ -499,7 +499,7 @@ export default function Recorder({
   const allowedQualities = ([720, 1080, 2160] as Quality[]).filter((q) => q <= maxResolution);
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
+    <div className="grid gap-8 lg:grid-cols-[1fr_21.25rem]">
       <div
         style={bigCamera ? frame.style : undefined}
         className={`relative mx-auto overflow-hidden rounded-2xl border border-line bg-solid shadow-sm ${bigCamera ? "" : "aspect-video w-full"}`}

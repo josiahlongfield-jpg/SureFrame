@@ -113,8 +113,13 @@ ok("same person can reopen it on another device", (await staff.request.post(BASE
 // Assign Avery to the staff member; "My clients" shows them.
 await owner.goto(BASE + "/clients");
 await owner.selectOption('select[aria-label="Who looks after Avery"]', staffUser.id);
-await owner.waitForTimeout(500);
-ok("owner assigned the client", (await prisma.client.findUnique({ where: { id: avery.id } })).assignedToId === staffUser.id);
+// The change saves in the background: give it a few seconds rather than a fixed pause.
+let assigned = false;
+for (let i = 0; i < 20 && !assigned; i++) {
+  await owner.waitForTimeout(250);
+  assigned = (await prisma.client.findUnique({ where: { id: avery.id } })).assignedToId === staffUser.id;
+}
+ok("owner assigned the client", assigned);
 await staff.goto(BASE + "/clients");
 await staff.waitForSelector("text=Avery");
 ok("staff sees the client once it's assigned to them", await staff.isVisible("a:has-text('Avery')") && !(await staff.isVisible("text=/All clients \\(/")));
