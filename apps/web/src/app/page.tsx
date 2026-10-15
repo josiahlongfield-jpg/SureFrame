@@ -89,7 +89,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="border-t border-line py-20">
+        <section className="border-t border-line bg-canvas-2/60 py-20">
           <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
             <p className="kicker">AI add-on</p>
             <h2 className="display mt-3 text-3xl sm:text-4xl">Transcripts made on your device.</h2>
@@ -104,11 +104,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="border-y border-line bg-surface py-10 text-center">
-          <p className="mx-auto max-w-3xl px-4 text-lg font-medium sm:px-6">Your clients never pay, never sign up and never see third-party ads.</p>
-        </section>
-
-        <section className="py-20">
+        <section className="border-t border-line py-20">
           <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
             <p className="kicker">Studio and Agency</p>
             <h2 className="display mt-3 text-3xl sm:text-4xl">Ready for your whole team</h2>
