@@ -26,7 +26,7 @@ export default function Home() {
     <div data-theme="navy" className="navy-glow min-h-screen text-ink">
       <SiteHeader navy />
       <main>
-        <section className="mx-auto grid max-w-[90rem] items-center gap-10 px-4 pb-16 pt-6 sm:px-6 sm:pt-10 xl:min-h-[calc(100svh-4.5rem)] xl:grid-cols-[31.25rem_minmax(0,1fr)] xl:gap-14 xl:px-16 xl:pb-10 xl:pt-0">
+        <section className="mx-auto grid max-w-[90rem] items-center gap-10 xl:content-center xl:items-stretch px-4 pb-16 pt-6 sm:px-6 sm:pt-10 xl:min-h-[calc(100svh-4.5rem)] xl:grid-cols-[31.25rem_minmax(0,1fr)] xl:gap-14 xl:px-16 xl:pb-10 xl:pt-0">
           <div className="grid content-center gap-4 sm:gap-[1.125rem]">
             <p className="kicker inline-flex items-center gap-2"><span className="h-[0.8125rem] w-[0.8125rem]">{Icon.lockFilled}</span>Private video for you and your clients</p>
             <h1 className="display text-[2.5rem] sm:text-[3.5rem] xl:text-[3.875rem]">
