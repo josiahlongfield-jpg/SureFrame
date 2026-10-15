@@ -84,7 +84,7 @@ function Replies() {
       <div className="f-box" style={{ gap: "0.625rem" }}>
         <div>
           <p className="f-h2">Conversation</p>
-          <p className="f-dim">Reply with a video, a voice note or a message. End-to-end encrypted.</p>
+          <p className="f-dim f-hide-sm">Reply with a video, a voice note or a message. End-to-end encrypted.</p>
         </div>
         <div className="f-bub them">
           <small>Client A · Oct 15, 3:04 PM</small>
@@ -94,7 +94,7 @@ function Replies() {
           <small>Client A · Oct 15, 3:06 PM</small>
           <div className="f-audio"><i>{Icon.play}</i><b /><span>0:42</span></div>
         </div>
-        <div className="f-bub">
+        <div className="f-bub f-hide-sm">
           <small>Team member 1 · Oct 15, 4:10 PM</small>
           <div>Great. I&apos;ll send the next steps tomorrow.</div>
         </div>

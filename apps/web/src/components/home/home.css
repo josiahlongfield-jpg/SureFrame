@@ -44,7 +44,7 @@
 /* Building blocks */
 .f-cols { display: grid; gap: 0.75rem; grid-template-columns: 1.45fr 1fr; min-height: 0; }
 @container (max-width: 35rem) { .f-cols { grid-template-columns: 1fr; } .f-cols > .f-side { display: none; } }
-.f-box { background: var(--color-tile); border: 1px solid var(--color-line); border-radius: 0.625rem; padding: 0.75rem; display: grid; gap: 0.5625rem; align-content: start; min-width: 0; min-height: 0; }
+.f-box { grid-template-columns: minmax(0, 1fr); background: var(--color-tile); border: 1px solid var(--color-line); border-radius: 0.625rem; padding: 0.75rem; display: grid; gap: 0.5625rem; align-content: start; min-width: 0; min-height: 0; }
 .f-h { margin: 0; font: 500 0.65625rem/1.2 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--color-dim); }
 .f-h2 { font-size: 0.875rem; font-weight: 600; letter-spacing: -0.01em; }
 .f-mut { color: var(--color-muted); }
@@ -76,7 +76,7 @@
 
 /* Video stand-ins */
 .f-screen { position: relative; border-radius: 0.625rem; background: #09192f; overflow: hidden; min-height: 0; }
-.f-screen .msg { position: absolute; inset: 0 0 18% 30%; display: grid; place-content: center; justify-items: center; gap: 0.5rem; padding: 0 8%; text-align: center; color: rgb(238 242 251 / 0.75); font-size: 0.78125rem; }
+.f-screen .msg { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 0.5rem; padding: 0 8%; text-align: center; color: rgb(238 242 251 / 0.75); font-size: 0.78125rem; }
 .f-screen .msg svg { width: 2.125rem; height: 2.125rem; color: rgb(238 242 251 / 0.5); }
 .f-cam { position: absolute; left: 2.5%; bottom: 3.5%; height: 24%; aspect-ratio: 1; border-radius: 50%; overflow: hidden; border: 0.125rem solid rgb(255 255 255 / 0.9); background: linear-gradient(135deg, #ff8f84, #e85d4f); }
 .f-cam svg { width: 100%; height: 100%; display: block; }
@@ -93,13 +93,14 @@
 .f-react span { padding: 0.1875rem 0.4375rem; border-radius: 62.4375rem; background: rgb(255 255 255 / 0.05); border: 1px solid var(--color-line); }
 
 /* Conversation */
-.f-bub { display: grid; gap: 0.1875rem; max-width: 86%; }
-.f-bub small { font-size: 0.65625rem; color: var(--color-dim); }
+.f-bub { display: grid; gap: 0.1875rem; max-width: 86%; min-width: 0; }
+.f-bub small { font-size: 0.65625rem; color: var(--color-dim); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .f-bub > div { font-size: 0.78125rem; line-height: 1.45; padding: 0.5rem 0.625rem; border-radius: 0.75rem; background: var(--color-surface-2); }
 .f-bub.them { justify-self: end; justify-items: end; }
 .f-bub.them > div { background: var(--color-primary); color: var(--color-on-primary); }
 .f-moment { display: inline-block; font: 500 0.65625rem/1 var(--font-mono); padding: 0.1875rem 0.375rem; border-radius: 62.4375rem; background: rgb(255 255 255 / 0.22); margin-right: 0.375rem; }
-.f-audio { display: flex; align-items: center; gap: 0.5rem; width: 11.875rem; padding: 0.375rem 0.5625rem !important; }
+.f-audio { display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.375rem 0.5625rem !important; }
+.f-bub:has(.f-audio) { width: min(11.875rem, 86%); }
 .f-audio i { width: 1.125rem; height: 1.125rem; border-radius: 50%; background: rgb(255 255 255 / 0.9); display: grid; place-items: center; color: var(--color-primary); font-style: normal; }
 .f-audio i svg { width: 0.5625rem; height: 0.5625rem; margin-left: 1px; }
 .f-audio b { flex: 1; height: 0.1875rem; border-radius: 0.125rem; background: rgb(255 255 255 / 0.35); position: relative; }
