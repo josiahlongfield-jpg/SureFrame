@@ -16,12 +16,12 @@ export default function LogoMark({ size = 32, tone = "light", className }: { siz
   );
 }
 
-/** The name with a bold "Sure". */
+/** The name with a bold "Sure" and an extra-light "Frame". */
 export function Wordmark({ className = "" }: { className?: string }) {
   return (
-    <span className={`tracking-tight ${className}`}>
+    <span className={`tracking-[-0.02em] ${className}`}>
       <span className="font-bold">Sure</span>
-      <span className="font-normal">Frame</span>
+      <span className="font-extralight">Frame</span>
     </span>
   );
 }

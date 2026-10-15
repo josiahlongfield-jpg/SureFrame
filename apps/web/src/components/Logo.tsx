@@ -2,11 +2,12 @@ import Link from "next/link";
 import { BRAND } from "@/lib/brand";
 import LogoMark, { Wordmark } from "./LogoMark";
 
-export default function Logo({ href = "/" }: { href?: string }) {
+/** `tone="dark"` is for SureFrame's navy pages. */
+export default function Logo({ href = "/", tone = "light" }: { href?: string; tone?: "light" | "dark" }) {
   return (
-    <Link href={href} aria-label={BRAND.name} className="flex items-center gap-2 text-lg text-slate-900">
-      <LogoMark size={30} />
-      <Wordmark />
+    <Link href={href} aria-label={BRAND.name} className={`flex items-center gap-2 text-lg ${tone === "dark" ? "text-ink" : "text-slate-900"}`}>
+      <LogoMark size={tone === "dark" ? 26 : 30} tone={tone} />
+      <Wordmark className={tone === "dark" ? "text-xl" : ""} />
     </Link>
   );
 }

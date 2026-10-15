@@ -3,11 +3,118 @@
 @theme {
   --color-brand-50: #eef4ff;
   --color-brand-100: #dbe6ff;
+  --color-brand-200: #bfd0ff;
   --color-brand-500: #4f6ef7;
   --color-brand-600: #3b55e6;
   --color-brand-700: #2f43c4;
   --color-brand-900: #1e2a6b;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /*
+   * Semantic colours. The defaults are the light look; [data-theme="navy"] swaps them
+   * for SureFrame's dark navy look and [data-theme="light"] brings the light look back
+   * inside a navy page (client pages, which carry the business's own branding).
+   */
+  --color-canvas: #f8fafc;
+  --color-canvas-2: #f1f5f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f5f9;
+  --color-tile: #f8fafc;
+  --color-ink: #0f172a;
+  --color-muted: #475569;
+  --color-dim: #64748b;
+  --color-line: #e2e8f0;
+  --color-line-strong: #cbd5e1;
+  --color-primary: #3b55e6;
+  --color-primary-hover: #2f43c4;
+  --color-on-primary: #ffffff;
+  --color-accent: #2f43c4;
+  --color-highlight: #3b55e6;
+  --color-lock: #e5483b;
+  --color-solid: #0f172a;
+  --color-solid-hover: #1e293b;
+  --color-on-solid: #ffffff;
+  --color-ok-bg: #ecfdf5;
+  --color-ok-fg: #047857;
+  --color-ok-line: #a7f3d0;
+  --color-warn-bg: #fffbeb;
+  --color-warn-fg: #b45309;
+  --color-warn-line: #fde68a;
+  --color-danger-bg: #fef2f2;
+  --color-danger-fg: #b91c1c;
+  --color-danger-line: #fecaca;
+
+  --tracking-display: -0.045em;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --color-canvas: #f8fafc;
+  --color-canvas-2: #f1f5f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f5f9;
+  --color-tile: #f8fafc;
+  --color-ink: #0f172a;
+  --color-muted: #475569;
+  --color-dim: #64748b;
+  --color-line: #e2e8f0;
+  --color-line-strong: #cbd5e1;
+  /* Resolved on this element, so a business colour set by brandStyle() on the same element carries through. */
+  --color-primary: var(--color-brand-600);
+  --color-primary-hover: var(--color-brand-700);
+  --color-on-primary: #ffffff;
+  --color-accent: var(--color-brand-700);
+  --color-highlight: var(--color-brand-600);
+  --color-lock: #e5483b;
+  --color-solid: #0f172a;
+  --color-solid-hover: #1e293b;
+  --color-on-solid: #ffffff;
+  --color-ok-bg: #ecfdf5;
+  --color-ok-fg: #047857;
+  --color-ok-line: #a7f3d0;
+  --color-warn-bg: #fffbeb;
+  --color-warn-fg: #b45309;
+  --color-warn-line: #fde68a;
+  --color-danger-bg: #fef2f2;
+  --color-danger-fg: #b91c1c;
+  --color-danger-line: #fecaca;
+}
+
+[data-theme="navy"] {
+  color-scheme: dark;
+  --color-canvas: #0c1428;
+  --color-canvas-2: #0a1020;
+  --color-surface: #111a31;
+  --color-surface-2: #16203a;
+  --color-tile: rgb(255 255 255 / 0.04);
+  --color-ink: #eef2fb;
+  --color-muted: #9aa6c4;
+  --color-dim: #7884a4;
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-line-strong: rgb(255 255 255 / 0.16);
+  /* #4a68f2 rather than #4f6ef7 for fills, so white button text passes AA (4.6:1). */
+  --color-primary: #4a68f2;
+  --color-primary-hover: #5d79f8;
+  --color-on-primary: #ffffff;
+  --color-accent: #8ea3ff;
+  --color-highlight: #8ea3ff;
+  --color-lock: #ff8f84;
+  --color-solid: rgb(255 255 255 / 0.06);
+  --color-solid-hover: rgb(255 255 255 / 0.1);
+  --color-on-solid: #eef2fb;
+  --color-ok-bg: rgb(52 211 153 / 0.12);
+  --color-ok-fg: #6ee7b7;
+  --color-ok-line: rgb(52 211 153 / 0.3);
+  --color-warn-bg: rgb(251 191 36 / 0.12);
+  --color-warn-fg: #fcd34d;
+  --color-warn-line: rgb(251 191 36 / 0.3);
+  --color-danger-bg: rgb(255 93 79 / 0.13);
+  --color-danger-fg: #ffa59c;
+  --color-danger-line: rgb(255 93 79 / 0.35);
 }
 
 html {
@@ -19,6 +126,35 @@ body {
   color: #0f172a;
 }
 
+/* A navy page paints the whole window, including overscroll. */
+html:has(body > [data-theme="navy"]) {
+  color-scheme: dark;
+  background: #0a1020;
+}
+.navy-glow {
+  background:
+    radial-gradient(1200px 700px at 85% -10%, rgb(79 110 247 / 0.28), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, rgb(255 93 79 / 0.07), transparent 60%),
+    linear-gradient(180deg, #0c1428, #0a1020);
+}
+
+@utility kicker {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-lock);
+}
+
+@utility display {
+  font-weight: 600;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.02;
+  text-wrap: balance;
+}
+
 @keyframes float {
   from { transform: translateY(0); opacity: 1; }
   to { transform: translateY(-120px); opacity: 0; }
@@ -27,7 +163,7 @@ body {
 /* Draws the eye to a note when someone picks an option it explains is unavailable. */
 @keyframes notice-flash {
   0%, 30% { border-color: #ef4444; box-shadow: 0 0 0 1px #ef4444; }
-  100% { border-color: var(--color-slate-200); box-shadow: 0 0 0 0 transparent; }
+  100% { border-color: var(--color-line); box-shadow: 0 0 0 0 transparent; }
 }
 .notice-flash { animation: notice-flash 1.2s ease-out; }
 @media (prefers-reduced-motion: reduce) {

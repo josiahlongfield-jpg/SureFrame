@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { BRAND } from "@/lib/brand";
+import { fontVars } from "./fonts";
 import "./globals.css";
 
 const description =
-  "Private, end-to-end encrypted video messages between your business and your clients. Recordings saved as you make them, and clients who never pay.";
+  "Record it once, send it privately, and keep every client on track. End-to-end encrypted video messages between your business and your clients, who never pay.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL ?? "http://localhost:3000"),
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={fontVars}>
       <body className="min-h-screen antialiased">{children}</body>
     </html>
   );

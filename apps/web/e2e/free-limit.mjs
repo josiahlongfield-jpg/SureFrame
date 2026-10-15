@@ -211,23 +211,23 @@ ok("the card explains a recording still uploading", await b.isVisible("[data-tes
 const visitor = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
 await visitor.goto(BASE + "/");
 const home = await visitor.textContent("main");
-ok("home: hero badge says Uploading as you record", home.includes("Uploading as you record") && !home.includes("Saved to cloud"));
-ok("home: a copy stays on your device until the upload finishes", home.includes("a copy stays on your device until the upload finishes") && !home.includes("backed up on your device"));
-ok("home: Works in your browser", home.includes("Works in your browser") && !home.includes("Works in any browser"));
+ok("home: headline and sub-line", home.includes("One take is") && home.includes("Record it once, send it privately"));
+for (const t of ["Crash-safe recording", "End-to-end encrypted", "No account or expense for clients", "Optional AI and backup", "Ready when you are", "Nothing to install"]) ok(`home: point "${t}"`, home.includes(t));
+ok("home: the device copy is only until the upload finishes", home.includes("with a copy on your device until the upload finishes") && !home.includes("backed up on your device"));
+ok("home: eight feature tabs", (await visitor.locator("[role=tab]").count()) === 8);
 ok("home: removed staff can't open anything through SureFrame", home.includes("your team's keys and every client link are reset, so they can't open anything through SureFrame again."));
 await visitor.goto(BASE + "/pricing");
 const pricing = await visitor.textContent("main");
 ok("pricing: Studio badge says Best for teams", pricing.includes("Best for teams") && !pricing.includes("Most popular"));
 ok("pricing: Free lists 25 videos in total", pricing.includes("25 videos in total"));
 ok("pricing: footnote says deleting doesn't give a place back", pricing.includes("Free includes 25 videos in total, not per month") && pricing.includes("give its place back"));
-// The longer hero badge mustn't cover the camera bubble on narrow phones.
+// The first screen fits narrow phones without sideways scrolling.
 for (const width of [320, 360, 375]) {
   const phone = await (await browser.newContext({ viewport: { width, height: 740 } })).newPage();
   await phone.goto(BASE + "/");
-  const badge = await phone.locator("text=Uploading as you record").boundingBox();
-  const bubble = await phone.locator('[aria-label="Camera bubble"]').boundingBox();
-  const overlap = badge && bubble && badge.x < bubble.x + bubble.width && bubble.x < badge.x + badge.width && badge.y < bubble.y + bubble.height && bubble.y < badge.y + badge.height;
-  ok(`home: hero badge clear of the camera bubble at ${width}px`, !!badge && !!bubble && !overlap, JSON.stringify({ badge, bubble }));
+  const wide = await phone.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  ok(`home: no sideways scroll at ${width}px`, !wide);
+  ok(`home: headline and tabs visible at ${width}px`, (await phone.isVisible("h1")) && (await phone.isVisible("[role=tablist]")));
   if (width === 320) await phone.screenshot({ path: `${shots}/free-limit-home-320.png` });
   await phone.context().close();
 }

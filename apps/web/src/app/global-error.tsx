@@ -3,6 +3,7 @@
 import "./globals.css";
 import { useEffect } from "react";
 import { reportClientError } from "@/lib/clientError";
+import { fontVars } from "./fonts";
 
 /** Shown when the root layout itself fails, so it brings its own <html> and <body>. */
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
@@ -10,7 +11,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
     reportClientError("layout", error);
   }, [error]);
   return (
-    <html lang="en">
+    <html lang="en" className={fontVars}>
       <body className="min-h-screen text-slate-900 antialiased">
         <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4 text-center">
           <h1 className="text-2xl font-semibold">Something went wrong</h1>
