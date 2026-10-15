@@ -7,39 +7,6 @@ import { points } from "@/components/home/points";
 import { BRAND } from "@/lib/brand";
 import { RETENTION_DAYS } from "@/lib/retention";
 
-const PILLARS = [
-  {
-    title: "Protected from crashes",
-    body: "Videos upload as you record, and a copy stays on your device until the upload finishes. If the browser crashes or Wi-Fi drops, reopen it on the same device and your video carries on uploading by itself.",
-    icon: "M12 3l8 4v5c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V7z",
-  },
-  {
-    title: "Share in a second",
-    body: "Your link is ready the moment you hit stop. No “processing” screen, no waiting for a render before your client can watch.",
-    icon: "M10 14l11-11M21 3l-7 18-3-8-8-3z",
-  },
-  {
-    title: "Private by design",
-    body: "Every video is encrypted on your device before it uploads. Only you, the team members you allow and the client you send it to can open it. Not even we can.",
-    icon: "M6 11h12v10H6zM9 11V7a3 3 0 0 1 6 0v4",
-  },
-  {
-    title: "Works in your browser",
-    body: "Record on a computer or a phone with nothing to install. iPhone and Android apps are coming soon.",
-    icon: "M7 2h10v20H7zM11 18h2",
-  },
-  {
-    title: "Everything for each client in one place",
-    body: "Send a video, add their to-dos and notes, and set email reminders, all private to you and them.",
-    icon: "M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01",
-  },
-  {
-    title: "Your brand, front and centre",
-    body: "On paid plans, your logo and colours are on every page and email your clients see.",
-    icon: "M12 3a9 9 0 1 0 0 18c1 0 1.5-.7 1.5-1.5 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.8.7-1.5 1.5-1.5H16a5 5 0 0 0 5-5c0-4-4-7.8-9-7.8zM7.5 11h.01M10.5 7.5h.01M15 8h.01",
-  },
-];
-
 const AUDIENCES = "Coaches, personal trainers, consultants, tutors, agencies, clinics and many more.";
 
 const PRIVACY = [
@@ -108,20 +75,6 @@ export default function Home() {
         </section>
 
         <section className="border-t border-line py-20">
-          <div className="mx-auto grid max-w-6xl gap-8 px-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-3">
-            {PILLARS.map((p) => (
-              <div key={p.title}>
-                <div className="mb-4 grid h-10 w-10 place-items-center rounded-[0.625rem] bg-[rgb(142_163_255/0.12)] text-highlight">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><path d={p.icon} /></svg>
-                </div>
-                <h3 className="font-semibold tracking-tight">{p.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted">{p.body}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="border-t border-line bg-canvas-2/60 py-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <p className="kicker text-center">Private by design</p>
             <h2 className="display mt-3 text-center text-3xl sm:text-4xl">How we keep it private</h2>
