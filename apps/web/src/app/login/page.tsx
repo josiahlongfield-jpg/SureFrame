@@ -30,36 +30,36 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   const hasDev = authProviders.some((p) => p.id === "dev");
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <Logo />
-        <h1 className="mt-6 text-xl font-semibold text-slate-900">Sign in to start recording</h1>
+    <main data-theme="navy" className="flex min-h-screen items-center justify-center navy-glow text-ink px-4">
+      <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-8 shadow-sm">
+        <Logo tone="dark" />
+        <h1 className="mt-6 text-xl font-semibold text-ink">Sign in to start recording</h1>
         {deleted && (
-          <p role="status" className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800" data-testid="deleted-note">
+          <p role="status" className="mt-3 rounded-lg bg-ok-bg px-3 py-2 text-sm text-ok-fg" data-testid="deleted-note">
             Your account is closed and will be deleted in {DELETION_GRACE_DAYS} days. We&apos;ve emailed you the date. Changed your mind? Sign in before then to keep it.
           </p>
         )}
         {closed && !deleted && (
-          <p role="status" className="mt-3 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700" data-testid="closed-note">
+          <p role="status" className="mt-3 rounded-lg bg-surface-2 px-3 py-2 text-sm text-muted" data-testid="closed-note">
             Your account stays closed and will be deleted on the date in our email. Changed your mind? Sign in before then to keep it.
           </p>
         )}
         {signedOut && (
-          <p className="mt-3 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700" data-testid="signed-out-note">
+          <p className="mt-3 rounded-lg bg-surface-2 px-3 py-2 text-sm text-muted" data-testid="signed-out-note">
             For your security you were signed out because the browser was closed or the page was left unused. Please sign in again.
           </p>
         )}
         <div className="mt-6 grid gap-3">
           {authProviders.some((p) => p.id === "google") && (
             <form action={async () => { "use server"; await signIn("google", { redirectTo }); }}>
-              <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-3 font-medium hover:bg-slate-50">
+              <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-line-strong px-4 py-3 font-medium hover:bg-hover">
                 <GoogleMark /> Continue with Google
               </button>
             </form>
           )}
           {hasGoogle && (hasEmail || hasDev) && (
-            <div className="flex items-center gap-3 text-xs text-slate-400">
-              <span className="h-px flex-1 bg-slate-200" />or<span className="h-px flex-1 bg-slate-200" />
+            <div className="flex items-center gap-3 text-xs text-dim">
+              <span className="h-px flex-1 bg-line-strong" />or<span className="h-px flex-1 bg-line-strong" />
             </div>
           )}
           {hasEmail && (
@@ -92,11 +92,11 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
               }}
             >
               <label className="grid gap-1 text-sm">
-                <span className="font-medium text-slate-700">Email</span>
-                <input name="email" type="email" required autoComplete="email" placeholder="you@company.com" className="rounded-lg border border-slate-300 px-3 py-2" />
+                <span className="font-medium text-muted">Email</span>
+                <input name="email" type="email" required autoComplete="email" placeholder="you@company.com" className="rounded-lg border border-line-strong px-3 py-2" />
               </label>
-              <button className="rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-700">Email me a sign-in link</button>
-              <p className="text-xs text-slate-500">No password needed. We&apos;ll email you a link that signs you in.</p>
+              <button className="rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover">Email me a sign-in link</button>
+              <p className="text-xs text-dim">No password needed. We&apos;ll email you a link that signs you in.</p>
             </form>
           )}
           {hasDev && (
@@ -114,24 +114,24 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
               }}
             >
               <label className="grid gap-1 text-sm">
-                <span className="font-medium text-slate-700">Work email</span>
-                <input name="email" type="email" required placeholder="you@company.com" className="rounded-lg border border-slate-300 px-3 py-2" />
+                <span className="font-medium text-muted">Work email</span>
+                <input name="email" type="email" required placeholder="you@company.com" className="rounded-lg border border-line-strong px-3 py-2" />
               </label>
               {previewPassword && (
                 <label className="grid gap-1 text-sm">
-                  <span className="font-medium text-slate-700">Preview password</span>
-                  <input name="password" type="password" required className="rounded-lg border border-slate-300 px-3 py-2" />
+                  <span className="font-medium text-muted">Preview password</span>
+                  <input name="password" type="password" required className="rounded-lg border border-line-strong px-3 py-2" />
                 </label>
               )}
-              <button className="rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-700">Continue</button>
+              <button className="rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover">Continue</button>
             </form>
           )}
-          {error && <p role="alert" className="text-sm text-red-700">{errorText(error)}</p>}
+          {error && <p role="alert" className="text-sm text-danger-fg">{errorText(error)}</p>}
           {authProviders.length === 0 && (
-            <p className="text-sm text-slate-600">No sign-in method is configured. Set RESEND_API_KEY, AUTH_GOOGLE_ID or AUTH_DEV_LOGIN.</p>
+            <p className="text-sm text-muted">No sign-in method is configured. Set RESEND_API_KEY, AUTH_GOOGLE_ID or AUTH_DEV_LOGIN.</p>
           )}
         </div>
-        <p className="mt-6 text-xs text-slate-500">
+        <p className="mt-6 text-xs text-dim">
           By continuing you agree to our <Link href="/legal/terms" className="underline">Terms</Link> and{" "}
           <Link href="/legal/privacy" className="underline">Privacy Policy</Link>.
         </p>

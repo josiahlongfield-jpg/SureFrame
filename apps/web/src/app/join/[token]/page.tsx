@@ -41,24 +41,24 @@ export default async function Join({ params }: { params: Promise<{ token: string
             : null;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <Logo />
+    <main data-theme="navy" className="flex min-h-screen items-center justify-center navy-glow text-ink px-4">
+      <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-8 shadow-sm">
+        <Logo tone="dark" />
         {problem || !invite ? (
           <>
-            <h1 className="mt-6 text-xl font-semibold text-slate-900">{problem}</h1>
+            <h1 className="mt-6 text-xl font-semibold text-ink">{problem}</h1>
             {closed && problem === ACCOUNT_CLOSED_JOIN ? (
-              <a href={closed.fresh ? "/account/restore" : "/login?next=/account/restore"} className="mt-4 inline-block text-sm font-medium text-brand-700 hover:underline">
+              <a href={closed.fresh ? "/account/restore" : "/login?next=/account/restore"} className="mt-4 inline-block text-sm font-medium text-accent hover:underline">
                 Keep my account
               </a>
             ) : bySupport && problem === bySupport ? null : (
-              <p className="mt-2 text-sm text-slate-600">Ask whoever invited you to send a new link.</p>
+              <p className="mt-2 text-sm text-muted">Ask whoever invited you to send a new link.</p>
             )}
           </>
         ) : (
           <>
-            <h1 className="mt-6 text-xl font-semibold text-slate-900">Join {invite.workspace.name}</h1>
-            <p className="mt-2 text-sm text-slate-600">
+            <h1 className="mt-6 text-xl font-semibold text-ink">Join {invite.workspace.name}</h1>
+            <p className="mt-2 text-sm text-muted">
               {invite.invitedBy.name ?? invite.invitedBy.email} invited you to record and reply to clients on SureFrame
               {invite.role === "ADMIN" ? " as an admin" : ""}.
             </p>

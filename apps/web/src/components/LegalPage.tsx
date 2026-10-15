@@ -22,18 +22,18 @@ export function SubprocessorList({ customerData = false }: { customerData?: bool
  */
 export default function LegalPage({ title, version, updated = LEGAL.updated, children }: { title: string; version?: string; updated?: string; children: ReactNode }) {
   return (
-    <>
-      <SiteHeader />
+    <div data-theme="navy" className="navy-glow min-h-screen text-ink">
+      <SiteHeader navy />
       <main className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-900">{title}</h1>
-        <p className="mt-2 text-sm text-slate-500">
+        <h1 className="text-3xl font-semibold tracking-tight text-ink">{title}</h1>
+        <p className="mt-2 text-sm text-dim">
           {version && `Version ${version} · `}Last updated {updated}
         </p>
-        <div className="legal mt-8 space-y-4 text-[15px] leading-7 text-slate-700 [&_h2]:mt-10 [&_h2]:scroll-mt-20 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-slate-900 [&_h3]:mt-6 [&_h3]:scroll-mt-20 [&_h3]:font-semibold [&_h3]:text-slate-900 [&_a]:text-brand-700 [&_a]:underline [&_li]:ml-5 [&_li]:list-disc [&_ul]:space-y-1 [&_li>ul]:mt-1">
+        <div className="legal mt-8 space-y-4 text-[15px] leading-7 text-muted [&_h2]:mt-10 [&_h2]:scroll-mt-20 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-ink [&_h3]:mt-6 [&_h3]:scroll-mt-20 [&_h3]:font-semibold [&_h3]:text-ink [&_a]:text-accent [&_a]:underline [&_li]:ml-5 [&_li]:list-disc [&_ul]:space-y-1 [&_li>ul]:mt-1">
           {children}
         </div>
       </main>
       <SiteFooter />
-    </>
+    </div>
   );
 }

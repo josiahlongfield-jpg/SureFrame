@@ -86,23 +86,23 @@ export default function UpgradeButton({ plan, interval = "month", featured = fal
       <button
         onClick={start}
         disabled={busy}
-        className={`w-full rounded-xl px-4 py-3 font-semibold disabled:opacity-60 ${featured ? "bg-brand-600 text-white hover:bg-brand-700" : "bg-slate-900 text-white hover:bg-slate-800"}`}
+        className={`w-full rounded-xl px-4 py-3 font-semibold disabled:opacity-60 ${featured ? "bg-primary text-white hover:bg-primary-hover" : "bg-solid text-white hover:bg-solid-hover"}`}
       >
         {busy && !confirm ? "One moment…" : `Get ${name}`}
       </button>
-      {note && <p className="mt-2 text-sm text-slate-600">{note}</p>}
-      {error && !confirm && <p className="mt-2 text-sm text-red-700">{error}</p>}
+      {note && <p className="mt-2 text-sm text-muted">{note}</p>}
+      {error && !confirm && <p className="mt-2 text-sm text-danger-fg">{error}</p>}
       {confirm && (
-        <div role="dialog" aria-modal="true" aria-labelledby={`confirm-${plan}`} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" data-testid="plan-confirm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 text-left shadow-xl">
-            <h2 id={`confirm-${plan}`} className="text-lg font-semibold text-slate-900">
+        <div role="dialog" aria-modal="true" aria-labelledby={`confirm-${plan}`} className="fixed inset-0 z-50 flex items-center justify-center bg-solid/40 p-4" data-testid="plan-confirm">
+          <div className="w-full max-w-md rounded-2xl bg-surface p-6 text-left shadow-xl">
+            <h2 id={`confirm-${plan}`} className="text-lg font-semibold text-ink">
               Switch to {name}?
             </h2>
-            <p className="mt-3 text-sm text-slate-700">
+            <p className="mt-3 text-sm text-muted">
               {name} is US${price} a {interval}, plus any tax. Your extra clients, cloud backup and AI add-on carry over (the AI add-on moves to {name}&apos;s price). Extra
               staff logins are only on Studio and Agency.
             </p>
-            <dl className="mt-4 space-y-1 rounded-xl bg-slate-50 p-4 text-sm text-slate-700" data-testid="due-today">
+            <dl className="mt-4 space-y-1 rounded-xl bg-canvas p-4 text-sm text-muted" data-testid="due-today">
               <div className="flex justify-between gap-4">
                 <dt>{name}, from today</dt>
                 <dd>{money(confirm.plan, confirm.currency)}</dd>
@@ -137,29 +137,29 @@ export default function UpgradeButton({ plan, interval = "month", featured = fal
                   <dd>−{money(confirm.balance, confirm.currency)}</dd>
                 </div>
               )}
-              <div className="flex justify-between gap-4 border-t border-slate-200 pt-2 font-semibold text-slate-900">
+              <div className="flex justify-between gap-4 border-t border-line pt-2 font-semibold text-ink">
                 <dt>Due today</dt>
                 <dd>{money(confirm.dueToday, confirm.currency)}</dd>
               </div>
             </dl>
-            <p className="mt-3 text-sm text-slate-600">
+            <p className="mt-3 text-sm text-muted">
               {confirm.dueToday > 0 && <>Charged to {confirm.paymentMethod ? <strong>{confirm.paymentMethod}</strong> : "the card you subscribed with"}. </>}
               {confirm.leftover > 0 && <>The remaining {money(confirm.leftover, confirm.currency)} comes off your next bills. </>}
               {confirm.cancelling
                 ? "Your subscription is still set to cancel, so it won't renew. To keep it going, choose Manage subscription on the Billing page and renew it."
                 : `Your plan then renews on this date each ${interval}.`}
             </p>
-            {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
+            {error && <p className="mt-3 text-sm text-danger-fg">{error}</p>}
             <div className="mt-6 flex flex-col gap-2 sm:flex-row-reverse">
-              <button onClick={goToCheckout} disabled={busy} className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
+              <button onClick={goToCheckout} disabled={busy} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60">
                 {busy ? "Switching…" : confirm.dueToday > 0 ? `Pay ${money(confirm.dueToday, confirm.currency)} and switch` : "Switch plan"}
               </button>
               {confirm.dueToday > 0 && (
-                <button onClick={changeCard} disabled={busy} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60">
+                <button onClick={changeCard} disabled={busy} className="rounded-xl border border-line-strong px-4 py-2.5 text-sm font-medium text-ink hover:bg-hover disabled:opacity-60">
                   Use a different card
                 </button>
               )}
-              <button onClick={() => { setConfirm(undefined); setError(undefined); }} disabled={busy} className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 disabled:opacity-60">
+              <button onClick={() => { setConfirm(undefined); setError(undefined); }} disabled={busy} className="rounded-xl px-4 py-2.5 text-sm font-medium text-muted hover:text-ink disabled:opacity-60">
                 Cancel
               </button>
             </div>

@@ -57,57 +57,57 @@ export default async function Restore() {
   const teams = [...new Set(leftTeams.map((i) => i.workspace.name))];
   const signOutButton = (label: string, primary = false) => (
     <form action={leaveClosed}>
-      <button className={primary ? "rounded-xl bg-brand-600 px-4 py-2.5 font-semibold text-white hover:bg-brand-700" : "rounded-xl border border-slate-300 px-4 py-2.5 font-semibold text-slate-800 hover:bg-slate-50"}>
+      <button className={primary ? "rounded-xl bg-primary px-4 py-2.5 font-semibold text-white hover:bg-primary-hover" : "rounded-xl border border-line-strong px-4 py-2.5 font-semibold text-ink hover:bg-hover"}>
         {label}
       </button>
     </form>
   );
 
   return (
-    <main className="mx-auto max-w-md px-4 py-16 sm:px-6">
-      <Logo />
+    <main data-theme="navy" className="text-ink mx-auto max-w-md px-4 py-16 sm:px-6">
+      <Logo tone="dark" />
       {closed.closedAt || closed.suspendedAt ? (
         <>
-          <h1 className="mt-10 text-2xl font-semibold tracking-tight text-slate-900">{closed.closedAt ? "Your account has been closed" : "This account is suspended"}</h1>
-          <p className="mt-3 text-slate-600" data-testid="restore-by-support">
+          <h1 className="mt-10 text-2xl font-semibold tracking-tight text-ink">{closed.closedAt ? "Your account has been closed" : "This account is suspended"}</h1>
+          <p className="mt-3 text-muted" data-testid="restore-by-support">
             {closed.closedAt ? (
               <>SureFrame support closed this account on {dates.longDay(closed.closedAt)}, and it will be deleted for good on {dates.longDay(closed.deleteAt)}, unless the law requires us to keep it longer. It can&apos;t be kept from here.</>
             ) : (
               <>Your SureFrame login has been suspended, so this account can&apos;t be kept from here. It is scheduled for deletion on {dates.longDay(closed.deleteAt)}.</>
             )}{" "}
             If you think this is a mistake, email{" "}
-            <a href={`mailto:${LEGAL.email}`} className="font-medium text-brand-700 hover:underline">{LEGAL.email}</a>
+            <a href={`mailto:${LEGAL.email}`} className="font-medium text-accent hover:underline">{LEGAL.email}</a>
             {closed.closedAt ? ` within ${LEGAL.reviewDays} days of the closure to ask for a review.` : "."}
           </p>
           <div className="mt-6">{signOutButton("Sign out")}</div>
         </>
       ) : !closed.fresh ? (
         <>
-          <h1 className="mt-10 text-2xl font-semibold tracking-tight text-slate-900">Sign in again to keep your account</h1>
-          <p className="mt-3 text-slate-600">
+          <h1 className="mt-10 text-2xl font-semibold tracking-tight text-ink">Sign in again to keep your account</h1>
+          <p className="mt-3 text-muted">
             Your account is closed and scheduled for deletion. To keep it, sign in again on this device first.
           </p>
-          <Link href="/login?next=/account/restore" className="mt-6 inline-block rounded-xl bg-brand-600 px-4 py-2.5 font-semibold text-white hover:bg-brand-700">
+          <Link href="/login?next=/account/restore" className="mt-6 inline-block rounded-xl bg-primary px-4 py-2.5 font-semibold text-white hover:bg-primary-hover">
             Sign in
           </Link>
         </>
       ) : closed.deleteAt <= now ? (
         <>
-          <h1 className="mt-10 text-2xl font-semibold tracking-tight text-slate-900">Your account is being deleted</h1>
-          <p className="mt-3 text-slate-600" data-testid="restore-too-late">
+          <h1 className="mt-10 text-2xl font-semibold tracking-tight text-ink">Your account is being deleted</h1>
+          <p className="mt-3 text-muted" data-testid="restore-too-late">
             It reached its deletion date, so it can no longer be kept. If you think this is a mistake, email{" "}
-            <a href={`mailto:${LEGAL.email}`} className="font-medium text-brand-700 hover:underline">{LEGAL.email}</a> straight away.
+            <a href={`mailto:${LEGAL.email}`} className="font-medium text-accent hover:underline">{LEGAL.email}</a> straight away.
           </p>
           <div className="mt-6">{signOutButton("Sign out")}</div>
         </>
       ) : (
         <>
-          <h1 className="mt-10 text-2xl font-semibold tracking-tight text-slate-900">Your account is scheduled for deletion on {dates.longDay(closed.deleteAt)}</h1>
-          <p className="mt-3 text-slate-600" data-testid="restore-message">
+          <h1 className="mt-10 text-2xl font-semibold tracking-tight text-ink">Your account is scheduled for deletion on {dates.longDay(closed.deleteAt)}</h1>
+          <p className="mt-3 text-muted" data-testid="restore-message">
             You closed it{closed.deletionRequestedAt ? ` on ${dates.longDay(closed.deletionRequestedAt)}` : ""}.
             {ws ? <> Keep it and {ws.name} carries on as it was, with its recordings, clients, to-dos and notes.</> : <> Keep it and you can carry on using it.</>}
           </p>
-          <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-slate-600">
+          <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-muted">
             {ws && <li>Your clients&apos; links work again, for the clients your plan covers.</li>}
             {ws?.renewalStoppedAt &&
               (ws.stripeSubscriptionId ? (
@@ -127,10 +127,10 @@ export default async function Restore() {
               <li>Keeping it won&apos;t put you back on {teams.join(" and ")}; ask {teams.length === 1 ? "them" : "each team"} for a new invite.</li>
             )}
           </ul>
-          <p className="mt-4 text-sm text-slate-600">Continue signs you out and leaves your account closed. It&apos;s deleted for good on {dates.longDay(closed.deleteAt)}.</p>
+          <p className="mt-4 text-sm text-muted">Continue signs you out and leaves your account closed. It&apos;s deleted for good on {dates.longDay(closed.deleteAt)}.</p>
           <div className="mt-6 flex flex-wrap gap-3">
             <form action={keep}>
-              <button className="rounded-xl bg-brand-600 px-4 py-2.5 font-semibold text-white hover:bg-brand-700">Keep my account</button>
+              <button className="rounded-xl bg-primary px-4 py-2.5 font-semibold text-white hover:bg-primary-hover">Keep my account</button>
             </form>
             {signOutButton("Continue")}
           </div>

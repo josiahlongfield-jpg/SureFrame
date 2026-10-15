@@ -9,7 +9,7 @@ function Submit({ ticked }: { ticked: boolean }) {
     <button
       disabled={!ticked || pending}
       data-testid="agree-submit"
-      className="w-full rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-8"
+      className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-8"
     >
       {pending ? "Saving…" : "Agree"}
     </button>
@@ -22,7 +22,7 @@ export default function AgreeForm({ action, next }: { action: (form: FormData) =
   return (
     <form action={action} className="mt-6 grid gap-4">
       <input type="hidden" name="next" value={next} />
-      <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-slate-800">
+      <label className="flex items-start gap-3 rounded-xl border border-line bg-surface p-4 text-ink">
         <input
           type="checkbox"
           name="agree"
@@ -30,7 +30,7 @@ export default function AgreeForm({ action, next }: { action: (form: FormData) =
           checked={ticked}
           onChange={(e) => setTicked(e.target.checked)}
           data-testid="agree-checkbox"
-          className="mt-0.5 h-5 w-5 shrink-0 accent-brand-600"
+          className="mt-0.5 h-5 w-5 shrink-0 accent-primary"
         />
         <span>I have read and agree to the Terms of Service and Privacy Policy</span>
       </label>

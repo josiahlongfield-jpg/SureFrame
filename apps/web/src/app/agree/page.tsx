@@ -58,21 +58,21 @@ export default async function Agree({ searchParams }: { searchParams: Promise<{ 
   }
 
   const docLink = (href: string, label: string) => (
-    <a href={href} target="_blank" rel="noopener" className="font-medium text-brand-700 underline">
+    <a href={href} target="_blank" rel="noopener" className="font-medium text-accent underline">
       {label}
     </a>
   );
 
   return (
-    <main className="mx-auto max-w-lg px-4 py-12 sm:px-6 sm:py-16">
-      <Logo href="/agree" />
+    <main data-theme="navy" className="text-ink mx-auto max-w-lg px-4 py-12 sm:px-6 sm:py-16">
+      <Logo href="/agree" tone="dark" />
       {updated ? (
         <>
-          <h1 className="mt-10 text-2xl font-semibold tracking-tight text-slate-900" data-testid="agree-heading">
+          <h1 className="mt-10 text-2xl font-semibold tracking-tight text-ink" data-testid="agree-heading">
             We&rsquo;ve updated our Terms of Service and Privacy Policy
           </h1>
-          <p className="mt-3 text-slate-600">Please read them and agree to keep using {LEGAL.product}. The main changes:</p>
-          <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-slate-700" data-testid="agree-changes">
+          <p className="mt-3 text-muted">Please read them and agree to keep using {LEGAL.product}. The main changes:</p>
+          <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-muted" data-testid="agree-changes">
             {changes.map((c) => (
               <li key={c}>{c}</li>
             ))}
@@ -80,31 +80,31 @@ export default async function Agree({ searchParams }: { searchParams: Promise<{ 
         </>
       ) : (
         <>
-          <h1 className="mt-10 text-2xl font-semibold tracking-tight text-slate-900" data-testid="agree-heading">
+          <h1 className="mt-10 text-2xl font-semibold tracking-tight text-ink" data-testid="agree-heading">
             Before you continue
           </h1>
-          <p className="mt-3 text-slate-600">
+          <p className="mt-3 text-muted">
             Please read and agree to our Terms of Service and Privacy Policy. They explain how {LEGAL.product} works, what you and we each agree to, and how we
             handle your information.
           </p>
         </>
       )}
-      <p className="mt-4 text-slate-600">
+      <p className="mt-4 text-muted">
         Read the {docLink("/legal/terms", "Terms of Service")} and the {docLink("/legal/privacy", "Privacy Policy")} (they open in a new tab).
       </p>
       {error === "tick" && (
-        <p role="alert" className="mt-4 text-sm text-red-700">
+        <p role="alert" className="mt-4 text-sm text-danger-fg">
           Tick the box to agree.
         </p>
       )}
       <AgreeForm action={agree} next={to} />
-      <p className="mt-3 text-xs text-slate-500">
+      <p className="mt-3 text-xs text-dim">
         We keep a record of when you agree and to which versions (Terms {LEGAL.termsVersion}, Privacy Policy {LEGAL.privacyVersion}).
       </p>
-      <div className="mt-8 grid gap-3 border-t border-slate-200 pt-6 text-sm text-slate-600">
+      <div className="mt-8 grid gap-3 border-t border-line pt-6 text-sm text-muted">
         <p>
           Don&rsquo;t agree? You can{" "}
-          <Link href="/settings/account" className="font-medium text-brand-700 hover:underline" data-testid="agree-account">
+          <Link href="/settings/account" className="font-medium text-accent hover:underline" data-testid="agree-account">
             download your data, manage or cancel your subscription, or delete your account
           </Link>
           .
@@ -115,7 +115,7 @@ export default async function Agree({ searchParams }: { searchParams: Promise<{ 
             await signOut({ redirectTo: "/" });
           }}
         >
-          <button className="font-medium text-brand-700 hover:underline">Sign out</button>
+          <button className="font-medium text-accent hover:underline">Sign out</button>
         </form>
       </div>
       {/* A recording interrupted before the terms changed finishes uploading here too. */}

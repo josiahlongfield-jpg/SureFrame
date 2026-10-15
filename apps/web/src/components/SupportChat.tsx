@@ -116,9 +116,9 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
         <Bubble author="ASSISTANT" body={WELCOME} />
         {ticket?.messages.map((m) => <Bubble key={m.id} author={m.author} body={m.body} />)}
-        {busy && <p className="text-sm text-slate-500">Thinking…</p>}
+        {busy && <p className="text-sm text-dim">Thinking…</p>}
         {withPerson && (
-          <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900" data-testid="with-person">
+          <p className="rounded-xl bg-warn-bg p-3 text-xs text-warn-fg" data-testid="with-person">
             {ticket.status === "ANSWERED" ? "The SureFrame team has replied." : "A person from the SureFrame team will reply"}
             {signedIn || ticket.hasEmail ? " here and by email." : " here. Add your email below to get the reply by email too."}
           </p>
@@ -126,7 +126,7 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
         <div ref={end} />
       </div>
       <form
-        className="border-t border-slate-200 p-3"
+        className="border-t border-line p-3"
         onSubmit={(e) => {
           e.preventDefault();
           send(text);
@@ -140,7 +140,7 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
             placeholder="Your email (so we can reply)"
             aria-label="Your email"
             data-gramm="false"
-            className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="mb-2 w-full rounded-lg border border-line-strong px-3 py-2 text-sm"
           />
         )}
         <div className="flex items-end gap-2">
@@ -160,30 +160,30 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
             data-enable-grammarly="false"
             placeholder="Type your question…"
             aria-label="Your message"
-            className="min-h-[44px] flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="min-h-[44px] flex-1 resize-none rounded-lg border border-line-strong px-3 py-2 text-sm"
           />
-          <button disabled={busy || !text.trim()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+          <button disabled={busy || !text.trim()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
             Send
           </button>
         </div>
-        {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
-        <div className="mt-2 flex justify-between text-xs text-slate-500">
+        {error && <p role="alert" className="mt-2 text-sm text-danger-fg">{error}</p>}
+        <div className="mt-2 flex justify-between text-xs text-dim">
           {!withPerson ? (
-            <button type="button" onClick={() => send("I'd like to talk to a person, please.")} disabled={busy} className="hover:text-slate-900">
+            <button type="button" onClick={() => send("I'd like to talk to a person, please.")} disabled={busy} className="hover:text-ink">
               Talk to a person
             </button>
           ) : (
             <span />
           )}
           {ticket && (
-            <button type="button" onClick={startOver} className="hover:text-slate-900">
+            <button type="button" onClick={startOver} className="hover:text-ink">
               New conversation
             </button>
           )}
         </div>
-        <p className="mt-2 text-[11px] text-slate-500">
+        <p className="mt-2 text-[11px] text-dim">
           Answers come from an AI assistant and can be wrong. Never share your recovery key, password or card details.{" "}
-          <a href="/legal/privacy" className="underline hover:text-slate-700">Privacy</a>
+          <a href="/legal/privacy" className="underline hover:text-muted">Privacy</a>
         </p>
       </form>
     </div>
@@ -194,8 +194,8 @@ function Bubble({ author, body }: { author: Message["author"]; body: string }) {
   const mine = author === "CUSTOMER";
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${mine ? "bg-brand-600 text-white" : author === "STAFF" ? "border border-emerald-200 bg-emerald-50 text-slate-900" : "bg-slate-100 text-slate-900"}`}>
-        {author === "STAFF" && <p className="mb-1 text-xs font-semibold text-emerald-800">SureFrame team</p>}
+      <div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${mine ? "bg-primary text-white" : author === "STAFF" ? "border border-ok-line bg-ok-bg text-ink" : "bg-surface-2 text-ink"}`}>
+        {author === "STAFF" && <p className="mb-1 text-xs font-semibold text-ok-fg">SureFrame team</p>}
         {body}
       </div>
     </div>
@@ -218,12 +218,12 @@ export class ChatBoundary extends Component<{ children: ReactNode }, { failed: b
   render() {
     if (!this.state.failed) return this.props.children;
     return (
-      <div className="flex flex-1 flex-col items-start gap-3 p-4 text-sm text-slate-700" role="alert">
+      <div className="flex flex-1 flex-col items-start gap-3 p-4 text-sm text-muted" role="alert">
         <p>The chat hit a problem in this browser. A browser extension that edits text boxes can cause this.</p>
-        <button onClick={() => this.setState({ failed: false })} className="rounded-lg bg-brand-600 px-3 py-2 font-semibold text-white hover:bg-brand-700">
+        <button onClick={() => this.setState({ failed: false })} className="rounded-lg bg-primary px-3 py-2 font-semibold text-white hover:bg-primary-hover">
           Try again
         </button>
-        <a href="/help" className="text-brand-700 hover:underline">Open the help page instead</a>
+        <a href="/help" className="text-accent hover:underline">Open the help page instead</a>
       </div>
     );
   }
@@ -235,10 +235,10 @@ export default function SupportWidget({ signedIn }: { signedIn: boolean }) {
   return (
     <>
       {open && (
-        <div role="dialog" aria-label="SureFrame help" className="fixed inset-x-3 bottom-20 z-50 flex h-[70vh] max-h-[600px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:inset-x-auto sm:right-6 sm:w-[380px]">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <p className="font-semibold text-slate-900">SureFrame help</p>
-            <button onClick={() => setOpen(false)} aria-label="Close help" className="rounded-lg px-2 text-slate-500 hover:text-slate-900">
+        <div role="dialog" aria-label="SureFrame help" className="fixed inset-x-3 bottom-20 z-50 flex h-[70vh] max-h-[600px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl sm:inset-x-auto sm:right-6 sm:w-[380px]">
+          <div className="flex items-center justify-between border-b border-line px-4 py-3">
+            <p className="font-semibold text-ink">SureFrame help</p>
+            <button onClick={() => setOpen(false)} aria-label="Close help" className="rounded-lg px-2 text-dim hover:text-ink">
               ✕
             </button>
           </div>
@@ -250,7 +250,7 @@ export default function SupportWidget({ signedIn }: { signedIn: boolean }) {
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg hover:bg-slate-800 sm:right-6"
+        className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full bg-solid px-4 py-3 text-sm font-semibold text-white shadow-lg hover:bg-solid-hover sm:right-6"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
         Help

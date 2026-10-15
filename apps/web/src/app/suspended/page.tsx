@@ -39,24 +39,24 @@ export default async function Suspended() {
   }
 
   const support = (
-    <a href={`mailto:${LEGAL.email}`} className="font-medium text-brand-700 hover:underline">
+    <a href={`mailto:${LEGAL.email}`} className="font-medium text-accent hover:underline">
       {LEGAL.email}
     </a>
   );
 
   return (
-    <main className="mx-auto max-w-md px-4 py-16 sm:px-6">
-      <Logo />
-      <h1 className="mt-10 text-2xl font-semibold tracking-tight text-slate-900">This account is suspended</h1>
-      <p className="mt-3 text-slate-600" data-testid="suspended-message">
+    <main data-theme="navy" className="text-ink mx-auto max-w-md px-4 py-16 sm:px-6">
+      <Logo tone="dark" />
+      <h1 className="mt-10 text-2xl font-semibold tracking-tight text-ink">This account is suspended</h1>
+      <p className="mt-3 text-muted" data-testid="suspended-message">
         {loginSuspended ? <>Your SureFrame login ({user.email}) has been suspended</> : <>{workspace.name} has been suspended</>}. Nothing has been deleted. Contact {support}.
       </p>
       {!loginSuspended && workspace.suspendedNote && (
-        <p className="mt-3 whitespace-pre-wrap rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700" data-testid="suspended-note">
+        <p className="mt-3 whitespace-pre-wrap rounded-xl border border-line bg-surface p-3 text-sm text-muted" data-testid="suspended-note">
           {workspace.suspendedNote}
         </p>
       )}
-      <p className="mt-3 text-sm text-slate-600">
+      <p className="mt-3 text-sm text-muted">
         {loginSuspended ? "While it's suspended you can't use SureFrame with this login." : "While it's suspended, nobody on the team can use it and clients can't open their videos."}
         {!loginSuspended && !workspace.cloudBackup && " Recordings without cloud backup still follow the usual deletion schedule in our Terms."}
       </p>
@@ -65,7 +65,7 @@ export default async function Suspended() {
           {others.map((m) => (
             <form key={m.workspaceId} action={switchTo}>
               <input type="hidden" name="workspaceId" value={m.workspaceId} />
-              <button className="w-full rounded-xl border border-slate-300 px-4 py-3 text-left font-medium text-slate-800 hover:bg-slate-50">
+              <button className="w-full rounded-xl border border-line-strong px-4 py-3 text-left font-medium text-ink hover:bg-hover">
                 Go to {m.workspace.name}
               </button>
             </form>
@@ -74,15 +74,15 @@ export default async function Suspended() {
       )}
       <ul className="mt-6 grid gap-2 text-sm">
         <li>
-          <Link href="/help" className="font-medium text-brand-700 hover:underline">Get help</Link>
+          <Link href="/help" className="font-medium text-accent hover:underline">Get help</Link>
         </li>
         <li>
-          <a href="/api/account/export" className="font-medium text-brand-700 hover:underline" data-testid="suspended-export">Download my data</a>
+          <a href="/api/account/export" className="font-medium text-accent hover:underline" data-testid="suspended-export">Download my data</a>
         </li>
       </ul>
       {me.role === "OWNER" && !user.closedAt && workspace.stripeCustomerId && (
         <div className="mt-6">
-          <p className="mb-2 text-sm text-slate-600">You can still manage or cancel your subscription.</p>
+          <p className="mb-2 text-sm text-muted">You can still manage or cancel your subscription.</p>
           <ManageBillingButton />
         </div>
       )}
@@ -93,7 +93,7 @@ export default async function Suspended() {
           await signOut({ redirectTo: "/" });
         }}
       >
-        <button className="rounded-xl bg-brand-600 px-4 py-2.5 font-semibold text-white hover:bg-brand-700">Sign out</button>
+        <button className="rounded-xl bg-primary px-4 py-2.5 font-semibold text-white hover:bg-primary-hover">Sign out</button>
       </form>
     </main>
   );

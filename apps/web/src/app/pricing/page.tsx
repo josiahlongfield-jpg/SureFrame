@@ -29,23 +29,23 @@ function Offers({ founding, ended, busy, linked, auto }: { founding: string | nu
   return (
     <>
       {founding && (
-        <p className={`${box} border-brand-200 bg-brand-50 text-brand-900`} data-testid="founding-banner">
+        <p className={`${box} border-primary-line bg-primary-soft text-ink`} data-testid="founding-banner">
           <span className="font-semibold">Founding prices:</span> start a subscription by {founding} and keep these prices for your plan, extra clients and extra
           staff for as long as it stays active, even if our prices go up.
         </p>
       )}
       {ended && (
-        <p className={`${box} border-slate-200 bg-slate-50 text-slate-700`} data-testid="offer-ended">
+        <p className={`${box} border-line bg-canvas text-muted`} data-testid="offer-ended">
           The code {ended} has ended or isn&rsquo;t valid. You can still subscribe at the prices below.
         </p>
       )}
       {busy && (
-        <p className={`${box} border-slate-200 bg-slate-50 text-slate-700`} data-testid="offer-busy">
+        <p className={`${box} border-line bg-canvas text-muted`} data-testid="offer-busy">
           We couldn&rsquo;t check that code just now. Open the link again in a few minutes.
         </p>
       )}
       {offer && (
-        <p className={`${box} border-emerald-200 bg-emerald-50 text-emerald-900`} data-testid="offer-banner">
+        <p className={`${box} border-ok-line bg-ok-bg text-ok-fg`} data-testid="offer-banner">
           <span className="font-semibold">{offer === linked ? `Code ${offer.code}:` : "Offer:"}</span> {offer.summary}
           {who}.{offer.expiresAt ? ` Use it by ${qldDay(offer.expiresAt)}.` : ""} It comes off at checkout when you start a subscription
           {offer === linked ? "" : ", no code needed"}.{subscribersToo ? " Already subscribed? Enter it on Settings > Billing." : ""}
@@ -66,32 +66,33 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
   const endedLink = typeof query.ended === "string" && isCodeShaped(query.ended) ? query.ended.toUpperCase() : null;
   const ended = endedLink ?? (code && lookup && !lookup.offer ? code : null);
   return (
-    <>
-      <SiteHeader />
+    <div data-theme="navy" className="navy-glow min-h-screen text-ink">
+      <SiteHeader navy />
       <main className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
         <div className="text-center">
-          <h1 className="text-4xl font-semibold tracking-tight text-slate-900">Simple pricing. Clients always free.</h1>
-          <p className="mt-4 text-slate-600">Pick a plan by how many clients you work with.</p>
+          <p className="kicker">Pricing</p>
+          <h1 className="display mt-3 text-4xl   text-ink">Simple pricing. Clients always free.</h1>
+          <p className="mt-4 text-muted">Pick a plan by how many clients you work with.</p>
         </div>
         <Offers founding={foundingOpen() ? foundingLastDay() : null} ended={ended} busy={query.code === "busy"} linked={linked} auto={auto} />
         <PricingTable />
-        <p className="mt-10 text-center text-sm text-slate-500">More than 100 clients? Add extra clients for US$1.50 a month each.</p>
-        <p className="mt-2 text-center text-sm text-slate-500" data-testid="free-videos-note">
+        <p className="mt-10 text-center text-sm text-dim">More than 100 clients? Add extra clients for US$1.50 a month each.</p>
+        <p className="mt-2 text-center text-sm text-dim" data-testid="free-videos-note">
           Free includes {PLANS.FREE.maxVideos} videos in total, not per month, counting videos recorded on any plan. Deleting a video doesn&rsquo;t give its place
           back. Replies and sending a video to more clients don&rsquo;t count.
         </p>
-        <p className="mt-2 text-center text-sm text-slate-500" data-testid="currency-note">All prices are in US dollars (USD), plus any sales tax, VAT or GST that applies where you are. Checkout may offer to charge you in your own currency at Stripe&rsquo;s exchange rate; otherwise your bank converts it.</p>
+        <p className="mt-2 text-center text-sm text-dim" data-testid="currency-note">All prices are in US dollars (USD), plus any sales tax, VAT or GST that applies where you are. Checkout may offer to charge you in your own currency at Stripe&rsquo;s exchange rate; otherwise your bank converts it.</p>
 
         <section className="mx-auto mt-16 max-w-3xl" aria-labelledby="add-ons">
-          <h2 id="add-ons" className="text-center text-2xl font-semibold tracking-tight text-slate-900">Optional add-ons</h2>
+          <h2 id="add-ons" className="text-center text-2xl font-semibold tracking-tight text-ink">Optional add-ons</h2>
           <div className="mt-6 grid gap-6 md:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6" data-testid="addon-ai">
-              <h3 className="font-semibold text-slate-900">AI transcripts and summaries</h3>
-              <p className="mt-2 text-sm text-slate-600">
+            <div className="rounded-2xl border border-line bg-surface p-6" data-testid="addon-ai">
+              <h3 className="font-semibold text-ink">AI transcripts and summaries</h3>
+              <p className="mt-2 text-sm text-muted">
                 A transcript and a short summary with key points and action items under each video, for your team and your client. The transcript is made on your own
                 device and the audio isn&apos;t sent anywhere for it; only the transcript text is sent to Anthropic&apos;s Claude to write the summary. AI summaries can contain mistakes. Videos up to 30 minutes.
               </p>
-              <ul className="mt-4 space-y-1 text-sm text-slate-700">
+              <ul className="mt-4 space-y-1 text-sm text-muted">
                 {(["SOLO", "STUDIO", "AGENCY"] as const).map((id) => (
                   <li key={id} className="flex justify-between gap-3">
                     <span>{PLANS[id].name}</span>
@@ -101,17 +102,17 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
                   </li>
                 ))}
               </ul>
-              <p className="mt-3 text-xs text-slate-500">Not available on Free. Off unless you switch it on. Works best on a computer.</p>
+              <p className="mt-3 text-xs text-dim">Not available on Free. Off unless you switch it on. Works best on a computer.</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
-              <h3 className="font-semibold text-slate-900">Cloud backup</h3>
-              <p className="mt-2 text-sm text-slate-600">Keep the encrypted copies of your videos on our servers until you delete them, instead of for {RETENTION_DAYS} days. We still can&apos;t open them.</p>
-              <p className="mt-4 text-sm text-slate-700">US${CLOUD_BACKUP_PRICE}/month or US${CLOUD_BACKUP_PRICE_YEARLY}/year on any paid plan</p>
+            <div className="rounded-2xl border border-line bg-surface p-6">
+              <h3 className="font-semibold text-ink">Cloud backup</h3>
+              <p className="mt-2 text-sm text-muted">Keep the encrypted copies of your videos on our servers until you delete them, instead of for {RETENTION_DAYS} days. We still can&apos;t open them.</p>
+              <p className="mt-4 text-sm text-muted">US${CLOUD_BACKUP_PRICE}/month or US${CLOUD_BACKUP_PRICE_YEARLY}/year on any paid plan</p>
             </div>
           </div>
         </section>
       </main>
       <SiteFooter />
-    </>
+    </div>
   );
 }

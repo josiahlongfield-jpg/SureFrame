@@ -11,6 +11,7 @@
 
   /*
    * Semantic colours. The defaults are the light look; [data-theme="navy"] swaps them
+   * for SureFrame's dark navy look and [data-theme="navy"] swaps them
    * for SureFrame's dark navy look and [data-theme="light"] brings the light look back
    * inside a navy page (client pages, which carry the business's own branding).
    */
@@ -33,6 +34,9 @@
   --color-solid: #0f172a;
   --color-solid-hover: #1e293b;
   --color-on-solid: #ffffff;
+  --color-hover: #f8fafc;
+  --color-primary-soft: #eef4ff;
+  --color-primary-line: #bfd0ff;
   --color-ok-bg: #ecfdf5;
   --color-ok-fg: #047857;
   --color-ok-line: #a7f3d0;
@@ -73,6 +77,9 @@
   --color-solid: #0f172a;
   --color-solid-hover: #1e293b;
   --color-on-solid: #ffffff;
+  --color-hover: #f8fafc;
+  --color-primary-soft: #eef4ff;
+  --color-primary-line: #bfd0ff;
   --color-ok-bg: #ecfdf5;
   --color-ok-fg: #047857;
   --color-ok-line: #a7f3d0;
@@ -106,6 +113,9 @@
   --color-solid: rgb(255 255 255 / 0.06);
   --color-solid-hover: rgb(255 255 255 / 0.1);
   --color-on-solid: #eef2fb;
+  --color-hover: rgb(255 255 255 / 0.05);
+  --color-primary-soft: rgb(79 110 247 / 0.16);
+  --color-primary-line: rgb(142 163 255 / 0.4);
   --color-ok-bg: rgb(52 211 153 / 0.12);
   --color-ok-fg: #6ee7b7;
   --color-ok-line: rgb(52 211 153 / 0.3);
@@ -127,7 +137,8 @@ body {
 }
 
 /* A navy page paints the whole window, including overscroll. */
-html:has(body > [data-theme="navy"]) {
+html:has(body > [data-theme="navy"]),
+body:has(> [data-theme="navy"]) {
   color-scheme: dark;
   background: #0a1020;
 }

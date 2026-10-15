@@ -42,21 +42,21 @@ export default async function Handoff({ searchParams }: { searchParams: Promise<
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center">
-        <Logo />
+    <main data-theme="navy" className="grid min-h-screen place-items-center navy-glow text-ink px-4">
+      <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-8 text-center">
+        <Logo tone="dark" />
         {valid ? (
           <>
-            <h1 className="mt-6 text-lg font-semibold text-slate-900">Sign in to the SureFrame app?</h1>
-            <p className="mt-2 text-sm text-slate-600">You&apos;ll be signed in as {user.email}. Only continue if you just opened the SureFrame app.</p>
+            <h1 className="mt-6 text-lg font-semibold text-ink">Sign in to the SureFrame app?</h1>
+            <p className="mt-2 text-sm text-muted">You&apos;ll be signed in as {user.email}. Only continue if you just opened the SureFrame app.</p>
             <form action={approve} className="mt-6">
-              <button className="w-full rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-700">Continue to the app</button>
+              <button className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover">Continue to the app</button>
             </form>
           </>
         ) : (
           <>
-            <h1 className="mt-6 text-lg font-semibold text-slate-900">Update the SureFrame app</h1>
-            <p className="mt-2 text-sm text-slate-600">This sign-in link is missing information. Update the app and try again.</p>
+            <h1 className="mt-6 text-lg font-semibold text-ink">Update the SureFrame app</h1>
+            <p className="mt-2 text-sm text-muted">This sign-in link is missing information. Update the app and try again.</p>
           </>
         )}
       </div>
