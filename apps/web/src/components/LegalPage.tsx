@@ -22,7 +22,7 @@ export function SubprocessorList({ customerData = false }: { customerData?: bool
  */
 export default function LegalPage({ title, version, updated = LEGAL.updated, children }: { title: string; version?: string; updated?: string; children: ReactNode }) {
   return (
-    <div data-theme="navy" className="navy-glow min-h-screen text-ink">
+    <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
       <SiteHeader navy />
       <main className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
         <h1 className="text-3xl font-semibold tracking-tight text-ink">{title}</h1>

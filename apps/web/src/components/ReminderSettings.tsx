@@ -133,7 +133,7 @@ export default function ReminderSettings({ initial }: { initial: Settings }) {
         </section>
 
         <div className="flex items-center gap-3">
-          <button disabled={status === "saving"} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
+          <button disabled={status === "saving"} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
             {status === "saving" ? "Saving…" : "Save changes"}
           </button>
           {status === "saved" && <span role="status" className="text-sm text-ok-fg">Saved</span>}

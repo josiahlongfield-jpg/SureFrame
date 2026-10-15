@@ -13,11 +13,12 @@ export function newVideoEmail(o: { business: string; sender?: string | null; cli
   const after = "It's private to you. If it doesn't open on this device, use the personal link they gave you first." + (o.noReply ? ` Please don't reply to this email; contact ${o.business} directly.` : "");
   const stop = o.unsubscribe ? `Don't want emails from ${o.business}? Turn them off: ${o.unsubscribe}` : "";
   const text = [lead, "", `Watch it: ${o.link}`, "", after, ...(stop ? ["", stop] : [])].join("\n");
-  const { fill, link } = emailColors(o.color);
+  const colors = emailColors(o.color);
+  const { link } = colors;
   const html = emailShell(`${emailLogo(o.logoUrl, o.business)}
 <p style="font-size:16px;line-height:1.5;margin:0 0 16px">${esc(lead)}</p>
-${emailButton(o.link, "Watch the video", fill)}
+${emailButton(o.link, "Watch the video", colors)}
 <p style="font-size:12px;line-height:1.5;color:${EMAIL.muted};margin:0">${esc(after)}</p>
-${o.unsubscribe ? `<p style="font-size:11px;color:${EMAIL.dim};margin:16px 0 0">Don&#39;t want emails from ${esc(o.business)}? <a href="${esc(o.unsubscribe)}" style="color:${link}">Turn them off</a></p>` : ""}`);
+${o.unsubscribe ? `<p style="font-size:11px;color:${EMAIL.dim};margin:16px 0 0">Don&#39;t want emails from ${esc(o.business)}? <a href="${esc(o.unsubscribe)}" style="color:${link}">Turn them off</a></p>` : ""}`, undefined, colors.fill);
   return { subject, text, html };
 }

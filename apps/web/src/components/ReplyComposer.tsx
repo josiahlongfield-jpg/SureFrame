@@ -313,7 +313,7 @@ export default function ReplyComposer({
               <p className="mt-1 text-center text-xs text-dim">Replies can be up to {Math.round(maxMs / 60_000)} minutes. It sends by itself at the limit.</p>
             </>
           ) : (
-            <button onClick={start} disabled={phase !== "preview"} className="mt-2 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
+            <button onClick={start} disabled={phase !== "preview"} className="mt-2 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
               {phase === "sending" ? "Sending…" : `Record ${mode === "VIDEO" ? "video" : "voice"} reply`}
             </button>
           )}

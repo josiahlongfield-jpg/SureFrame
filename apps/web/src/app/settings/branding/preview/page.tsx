@@ -17,14 +17,14 @@ export default async function BrandingPreview({ searchParams }: { searchParams: 
   // framed ("refused to connect"). Say what happened and sign in at the top level.
   if (me?.suspended) {
     return (
-      <main data-theme="navy" className="grid min-h-screen place-items-center bg-canvas p-6 text-center text-ink">
+      <main data-theme="fresh" className="grid min-h-screen place-items-center bg-canvas p-6 text-center text-ink">
         <a href="/suspended" target="_top" className="text-sm font-medium text-accent hover:underline">This account is suspended.</a>
       </main>
     );
   }
   if (me && !me.paused && !me.agreed) {
     return (
-      <main data-theme="navy" className="grid min-h-screen place-items-center bg-canvas p-6 text-center text-ink">
+      <main data-theme="fresh" className="grid min-h-screen place-items-center bg-canvas p-6 text-center text-ink">
         <a href={agreePath("/settings/branding")} target="_top" className="text-sm font-medium text-accent hover:underline">
           Agree to the updated terms to see the preview.
         </a>
@@ -33,10 +33,10 @@ export default async function BrandingPreview({ searchParams }: { searchParams: 
   }
   if (!me || me.paused) {
     return (
-      <main data-theme="navy" className="grid min-h-screen place-items-center bg-canvas p-6 text-center text-ink">
+      <main data-theme="fresh" className="grid min-h-screen place-items-center bg-canvas p-6 text-center text-ink">
         <div>
           <p className="text-sm text-muted">You&apos;ve been signed out, so the preview can&apos;t load.</p>
-          <a href="/login?next=%2Fsettings%2Fbranding" target="_top" className="mt-3 inline-block rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">
+          <a href="/login?next=%2Fsettings%2Fbranding" target="_top" className="mt-3 inline-block rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">
             Sign in again
           </a>
         </div>

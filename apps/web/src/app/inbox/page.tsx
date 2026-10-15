@@ -63,7 +63,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
   const brand = clients.length === 1 ? brandOf(clients[0].workspace) : null;
 
   return (
-    <div data-theme="navy" className="min-h-screen bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
+    <div data-theme="fresh" className="min-h-screen bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
       {arrivedAs && clients.some((c) => c.id === arrivedAs) && <ClientKeyCapture clientId={arrivedAs} />}
       <ClientHeader brand={brand} />
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">

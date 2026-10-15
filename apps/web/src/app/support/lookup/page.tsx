@@ -64,7 +64,7 @@ export default async function Lookup({ searchParams }: { searchParams: Promise<{
           aria-label="Search"
           className="min-w-0 flex-1 rounded-xl border border-line-strong px-3 py-2 text-sm"
         />
-        <button className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">Search</button>
+        <button className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">Search</button>
       </form>
       <p className="mt-2 text-xs text-dim">Also finds account, workspace and client ids, and Stripe customer and subscription ids.</p>
       {raw && !searching && <p className="mt-6 text-sm text-muted">Type at least 2 characters.</p>}

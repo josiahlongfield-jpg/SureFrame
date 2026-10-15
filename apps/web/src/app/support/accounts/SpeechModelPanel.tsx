@@ -78,7 +78,7 @@ export default function SpeechModelPanel({ status, canInstall }: { status: Model
       <button
         onClick={install}
         disabled={busy || !canInstall}
-        className="mt-3 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+        className="mt-3 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60"
       >
         {busy ? "Installing…" : status ? "Update speech model" : "Install speech model"}
       </button>

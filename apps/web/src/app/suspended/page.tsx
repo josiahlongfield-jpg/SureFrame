@@ -45,7 +45,7 @@ export default async function Suspended() {
   );
 
   return (
-    <main data-theme="navy" className="text-ink mx-auto max-w-md px-4 py-16 sm:px-6">
+    <main data-theme="fresh" className="text-ink mx-auto max-w-md px-4 py-16 sm:px-6">
       <Logo tone="dark" />
       <h1 className="mt-10 text-2xl font-semibold tracking-tight text-ink">This account is suspended</h1>
       <p className="mt-3 text-muted" data-testid="suspended-message">
@@ -93,7 +93,7 @@ export default async function Suspended() {
           await signOut({ redirectTo: "/" });
         }}
       >
-        <button className="rounded-xl bg-primary px-4 py-2.5 font-semibold text-white hover:bg-primary-hover">Sign out</button>
+        <button className="rounded-xl bg-primary px-4 py-2.5 font-semibold text-on-primary hover:bg-primary-hover">Sign out</button>
       </form>
     </main>
   );

@@ -160,7 +160,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
               ))}
             </ol>
             <div className="mt-6 flex flex-wrap items-center gap-4">
-              <Link href="/clients" className="rounded-xl bg-primary px-5 py-2.5 font-semibold text-white hover:bg-primary-hover">Add your clients</Link>
+              <Link href="/clients" className="rounded-xl bg-primary px-5 py-2.5 font-semibold text-on-primary hover:bg-primary-hover">Add your clients</Link>
               <Link href="/record" className="text-sm text-dim hover:text-ink">Record first instead</Link>
             </div>
           </div>
@@ -168,7 +168,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
           <div className="rounded-2xl border border-dashed border-line-strong p-16 text-center">
             <h2 className="font-semibold text-ink">No videos yet</h2>
             <p className="mt-1 text-sm text-dim">Record your first video and it will show up here.</p>
-            <Link href="/record" className="mt-6 inline-block rounded-xl bg-primary px-5 py-2.5 font-semibold text-white hover:bg-primary-hover">Record a video</Link>
+            <Link href="/record" className="mt-6 inline-block rounded-xl bg-primary px-5 py-2.5 font-semibold text-on-primary hover:bg-primary-hover">Record a video</Link>
           </div>
         ) : (
           <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

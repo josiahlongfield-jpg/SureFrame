@@ -9,7 +9,7 @@ function Submit({ ticked }: { ticked: boolean }) {
     <button
       disabled={!ticked || pending}
       data-testid="agree-submit"
-      className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-8"
+      className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-8"
     >
       {pending ? "Saving…" : "Agree"}
     </button>

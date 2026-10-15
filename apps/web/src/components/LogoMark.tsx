@@ -3,7 +3,7 @@
  * "light" is for light backgrounds, "dark" for dark ones, "mono" takes the text colour.
  */
 export default function LogoMark({ size = 32, tone = "light", className }: { size?: number; tone?: "light" | "dark" | "mono"; className?: string }) {
-  const frame = tone === "dark" ? "#ffffff" : tone === "mono" ? "currentColor" : "#3b55e6";
+  const frame = tone === "dark" ? "#ffffff" : tone === "mono" ? "currentColor" : "#0f2747";
   const lock = tone === "dark" ? "#ff7a6e" : tone === "mono" ? "currentColor" : "#ff5d4f";
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" className={className} aria-hidden="true">

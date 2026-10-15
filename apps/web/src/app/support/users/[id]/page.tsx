@@ -176,7 +176,7 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
                   Reason (internal: kept in the support log, never shown to the customer)
                   <textarea name="reason" required maxLength={500} rows={2} className={field} />
                 </label>
-                <button className="justify-self-start rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">Download</button>
+                <button className="justify-self-start rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">Download</button>
               </form>
             </details>
 

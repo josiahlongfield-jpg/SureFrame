@@ -615,7 +615,7 @@ export default function Recorder({
               </label>
             </div>
 
-            <button onClick={start} className="rounded-xl bg-primary px-4 py-3 font-semibold text-white shadow-sm hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+            <button onClick={start} className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary shadow-sm hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
               Start recording
             </button>
             {freeVideos && freeLeft !== null && (

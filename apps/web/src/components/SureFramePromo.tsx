@@ -43,7 +43,7 @@ export default function SureFramePromo({ videoId }: { videoId: string }) {
       <style>{PROMO_CSS}</style>
       <div data-theme="navy" className="w-full max-w-md overflow-hidden rounded-2xl border border-line bg-surface text-center text-ink shadow-2xl">
         {/* A 10-second animated promo, drawn on the page: no video file, nothing loaded from elsewhere. */}
-        <div className="sf-promo relative aspect-video overflow-hidden bg-gradient-to-br from-[#0c1428] via-[#0c1428] to-brand-900" aria-hidden="true">
+        <div className="sf-promo relative aspect-video overflow-hidden bg-gradient-to-br from-[#0f2747] via-[#0f2747] to-[#173357]" aria-hidden="true">
           <div className="sf-s1 absolute inset-0 grid place-items-center">
             <div className="flex items-center gap-3 text-2xl text-white">
               <LogoMark size={44} tone="dark" />
@@ -51,7 +51,7 @@ export default function SureFramePromo({ videoId }: { videoId: string }) {
             </div>
           </div>
           <div className="sf-s2 absolute inset-0 flex items-center justify-center gap-4 px-6">
-            <div className="relative h-24 w-36 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 shadow-lg">
+            <div className="relative h-24 w-36 rounded-lg bg-gradient-to-br from-[#ff8a7d] to-[#e85d4f] shadow-lg">
               <span className="absolute inset-0 grid place-items-center text-white/90">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z" /></svg>
               </span>
@@ -61,7 +61,7 @@ export default function SureFramePromo({ videoId }: { videoId: string }) {
             </div>
             <div className="grid gap-2 text-left">
               <span className="sf-b1 rounded-2xl rounded-bl-sm bg-white/15 px-3 py-1.5 text-xs text-white">Here&apos;s your update</span>
-              <span className="sf-b2 rounded-2xl rounded-br-sm bg-[#4a68f2] px-3 py-1.5 text-xs text-white">Thanks, looks great!</span>
+              <span className="sf-b2 rounded-2xl rounded-br-sm bg-[#ff6f61] px-3 py-1.5 text-xs text-[#0f2747]">Thanks, looks great!</span>
             </div>
           </div>
           <div className="sf-s3 absolute inset-0 grid place-items-center px-8">
@@ -69,7 +69,7 @@ export default function SureFramePromo({ videoId }: { videoId: string }) {
               Private video messages for businesses and their clients.
             </p>
           </div>
-          <div className="sf-bar absolute inset-x-0 bottom-0 h-1 origin-left bg-brand-500" />
+          <div className="sf-bar absolute inset-x-0 bottom-0 h-1 origin-left bg-[#ff6f61]" />
         </div>
         <div className="p-6">
           <p className="text-xs font-semibold uppercase tracking-wider text-accent">Sent with SureFrame</p>
@@ -81,7 +81,7 @@ export default function SureFramePromo({ videoId }: { videoId: string }) {
             <button
               onClick={close}
               disabled={left > 0}
-              className="rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover disabled:bg-line-strong disabled:text-muted"
+              className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover disabled:bg-line-strong disabled:text-muted"
             >
               {left > 0 ? `Watch your video in ${left}` : "Watch your video"}
             </button>

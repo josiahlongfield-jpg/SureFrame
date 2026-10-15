@@ -349,7 +349,7 @@ function Manager({
         <form onSubmit={add} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
           <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Name" aria-label="Client name" className="rounded-lg border border-line-strong px-3 py-2 text-sm" />
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email (optional)" aria-label="Client email" className="rounded-lg border border-line-strong px-3 py-2 text-sm" />
-          <button disabled={busy || full} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
+          <button disabled={busy || full} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
             Add client
           </button>
         </form>
@@ -378,7 +378,7 @@ function Manager({
               </p>
             )}
             <div className="flex gap-2">
-              <button type="button" onClick={addMany} disabled={busy || !fresh.length || fresh.length > seats.limit - seats.used} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
+              <button type="button" onClick={addMany} disabled={busy || !fresh.length || fresh.length > seats.limit - seats.used} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
                 {busy ? "Adding…" : `Add ${fresh.length || ""} ${fresh.length === 1 ? "client" : "clients"}`}
               </button>
               <button type="button" onClick={() => setBulk(null)} className="rounded-lg px-3 py-2 text-sm text-dim hover:text-ink">Cancel</button>

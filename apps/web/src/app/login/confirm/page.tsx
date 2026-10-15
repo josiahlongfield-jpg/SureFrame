@@ -19,7 +19,7 @@ export default async function ConfirmSignIn({ searchParams }: { searchParams: Pr
             <a
               href={callback}
               rel="nofollow"
-              className="mt-6 block rounded-xl bg-primary px-4 py-3 text-center text-sm font-semibold text-white hover:bg-primary-hover"
+              className="mt-6 block rounded-xl bg-primary px-4 py-3 text-center text-sm font-semibold text-on-primary hover:bg-primary-hover"
               data-testid="confirm-sign-in"
             >
               Sign in

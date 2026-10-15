@@ -109,7 +109,7 @@ function Power({ power, hidden, title, intro, submit, danger = false, category =
         )}
         <button
           disabled={pending}
-          className={`justify-self-start rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${danger ? "bg-red-600 hover:bg-red-700" : "bg-primary hover:bg-primary-hover"}`}
+          className={`justify-self-start rounded-xl px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-60 ${danger ? "bg-red-600 hover:bg-red-700" : "bg-primary hover:bg-primary-hover"}`}
         >
           {pending ? "Working…" : submit}
         </button>

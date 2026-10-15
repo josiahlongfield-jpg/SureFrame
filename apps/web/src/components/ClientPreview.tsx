@@ -25,7 +25,7 @@ export default function ClientPreview({ brand, view, sender, origin }: { brand: 
   const shown = brand.logoUrl || brand.color ? brand : null;
   if (view === "email") return <EmailPreview brand={brand} sender={sender} origin={origin} />;
   return (
-    <div data-theme="navy" className="min-h-screen bg-canvas text-ink" style={brandStyle(brand.color)} data-testid={`preview-${view}`}>
+    <div data-theme="fresh" className="min-h-screen bg-canvas text-ink" style={brandStyle(brand.color)} data-testid={`preview-${view}`}>
       {view === "video" ? (
         <>
           <ClientHeader brand={shown} width="max-w-6xl" allVideosLink />
@@ -52,7 +52,7 @@ function VideoPage({ business, sender }: { business: string; sender: string }) {
       <section>
         <div className="relative overflow-hidden rounded-2xl bg-black shadow-sm">
           <div className="grid aspect-video place-items-center bg-gradient-to-br from-slate-700 to-slate-900">
-            <span className="grid h-16 w-16 place-items-center rounded-full bg-white/90 text-[#0c1428] shadow-lg">
+            <span className="grid h-16 w-16 place-items-center rounded-full bg-white/90 text-[#0f2747] shadow-lg">
               <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" /></svg>
             </span>
           </div>
@@ -110,7 +110,7 @@ function Bubble({ who, text, fromOwner = false, at }: { who: string; text: strin
         <span className="font-medium text-ink">{who}</span>
         <span>{fromOwner ? "9:41 AM" : "10:02 AM"}</span>
       </div>
-      <div className={`max-w-[90%] rounded-2xl px-3 py-2 ${fromOwner ? "rounded-tl-sm bg-surface-2 text-ink" : "rounded-tr-sm bg-primary text-white"}`}>
+      <div className={`max-w-[90%] rounded-2xl px-3 py-2 ${fromOwner ? "rounded-tl-sm bg-surface-2 text-ink" : "rounded-tr-sm bg-primary text-on-primary"}`}>
         {at && <span className={`mr-1.5 rounded px-1.5 text-xs font-medium ${fromOwner ? "bg-surface text-accent" : "bg-white/20 text-white"}`}>{at}</span>}
         <span className="whitespace-pre-wrap">{text}</span>
       </div>
@@ -177,7 +177,7 @@ function EmailPreview({ brand, sender, origin }: { brand: Brand; sender: string;
           </div>
         </div>
         {/* The real email HTML, isolated from the app's styles like a mail app would. */}
-        <iframe title="Email body" srcDoc={`<!doctype html><meta charset="utf-8"><body style="margin:0;background:#0c1428">${mail.html}</body>`} sandbox="allow-same-origin" className="h-[22rem] w-full" />
+        <iframe title="Email body" srcDoc={`<!doctype html><meta charset="utf-8"><body style="margin:0;background:#f3efea">${mail.html}</body>`} sandbox="allow-same-origin" className="h-[22rem] w-full" />
       </div>
     </div>
   );

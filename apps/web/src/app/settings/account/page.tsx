@@ -80,7 +80,7 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
           <form action={rename} className="mt-4 flex flex-wrap gap-2">
             <input name="name" defaultValue={user.name ?? ""} required maxLength={80} autoComplete="name" aria-label="Your name" placeholder="e.g. Sam Lee"
               className="min-w-0 flex-1 rounded-xl border border-line-strong px-3 py-2 text-sm" />
-            <button className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">Save name</button>
+            <button className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">Save name</button>
           </form>
           {saved === "name" && <p role="status" className="mt-2 text-sm text-ok-fg">Saved.</p>}
           {error === "name" && <p className="mt-2 text-sm text-danger-fg">Enter your name.</p>}

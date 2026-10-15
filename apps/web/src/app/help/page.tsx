@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default async function Help() {
   const signedIn = !!(await auth())?.user;
   return (
-    <div data-theme="navy" className="navy-glow min-h-screen text-ink">
+    <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
       <SiteHeader navy />
       <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
         <p className="kicker">Help</p>

@@ -44,20 +44,27 @@ function Send() {
           <p className="f-h2">Weekly check-in</p>
           <p className="f-dim">Team member 1 · Oct 15 · 3 views</p>
         </div>
-        <div className="f-row f-hide-sm"><span className="f-btn sec">Copy link</span><span className="f-btn sec">Save to device</span></div>
+        <div className="f-row f-hide-sm"><span className="f-btn sec">Save to device</span><span className="f-btn sec">Delete</span></div>
       </div>
       <div className="f-box">
-        <div className="f-row"><b style={{ fontWeight: 500 }}>Send to</b><span className="f-select">Client A</span></div>
-        <p className="f-dim f-hide-sm">Only your team and Client A can watch this. We&apos;ve emailed Client A to say it&apos;s waiting.</p>
-        <div className="f-hr" />
         <p style={{ fontWeight: 500 }}>Send to more clients</p>
-        <div className="f-row"><span className="f-chip">All clients</span><span className="f-chip">My clients</span><span className="f-chip" style={{ border: 0 }}>Clear</span></div>
-        <div className="f-cards" style={{ gap: "0.4375rem 0.875rem" }}>
-          {list.map(([n, on]) => <span key={n} className="f-check"><Cb on={on} />{n}</span>)}
+        <div className="f-pick">
+          <span className="f-select">3 clients chosen</span>
+          <div className="f-drop">
+            <div className="f-row"><span className="f-chip">All clients</span><span className="f-chip">My clients</span><span className="f-chip" style={{ border: 0 }}>Clear</span></div>
+            <div className="f-cards" style={{ gap: "0.4375rem 0.875rem" }}>
+              {list.map(([n, on]) => <span key={n} className="f-check"><Cb on={on} />{n}</span>)}
+            </div>
+          </div>
         </div>
-        <span className="f-check"><Cb on />Email clients who have an address on file</span>
-        <div className="f-row"><span className="f-btn pri">Send to 3 clients</span><span className="f-mut" style={{ fontSize: "0.78125rem" }}>Done</span></div>
-        <p className="f-dim">Each client gets a private copy. They can reply, but never see each other&apos;s replies.</p>
+        <div className="f-row"><span className="f-btn pri">Send by email</span><span className="f-btn sec">Get their links</span></div>
+        <p className="f-dim f-hide-sm">Send by email and we email each client to say it&apos;s waiting. Or copy the link and send it from your own app, texts or messages.</p>
+        <div className="f-hr" />
+        <p style={{ fontWeight: 500 }}>Sent to</p>
+        <div className="f-sent">
+          <span>Client A <span className="f-ok">Emailed</span></span>
+          <span className="f-row"><span className="f-btn sec sm">Email again</span><span className="f-btn sec sm">Copy link</span></span>
+        </div>
       </div>
     </div>
   );
@@ -174,7 +181,7 @@ function Backup({ days }: { days: number }) {
         <div className="f-cards">
           {vids.map(([t, d, m], i) => (
             <div key={t} className={`f-card${i > 1 ? " f-hide-sm" : ""}`}>
-              <div className="f-thumb">{Icon.lock}<em>{d}</em></div>
+              <div className={`f-thumb still s${i}`}><span className="slide" /><span className="cam"><Face /></span><em>{d}</em></div>
               <b>{t}</b>
               <span className="f-dim">{m}</span>
               <span className="f-ok" style={{ fontSize: "0.71875rem" }}>Saved to cloud backup</span>

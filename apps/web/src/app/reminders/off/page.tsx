@@ -31,7 +31,7 @@ export default async function RemindersOff({ searchParams }: { searchParams: Pro
   const fresh = client ? await db.client.findUnique({ where: { id: client.id } }) : null;
 
   return (
-    <div data-theme="navy" className="min-h-screen bg-canvas text-ink">
+    <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex h-16 max-w-xl items-center px-4"><Logo href="/" /></div>
       </header>

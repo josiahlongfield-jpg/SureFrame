@@ -162,7 +162,7 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
             aria-label="Your message"
             className="min-h-[2.75rem] flex-1 resize-none rounded-lg border border-line-strong px-3 py-2 text-sm"
           />
-          <button disabled={busy || !text.trim()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
+          <button disabled={busy || !text.trim()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
             Send
           </button>
         </div>
@@ -194,7 +194,7 @@ function Bubble({ author, body }: { author: Message["author"]; body: string }) {
   const mine = author === "CUSTOMER";
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${mine ? "bg-primary text-white" : author === "STAFF" ? "border border-ok-line bg-ok-bg text-ink" : "bg-surface-2 text-ink"}`}>
+      <div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${mine ? "bg-primary text-on-primary" : author === "STAFF" ? "border border-ok-line bg-ok-bg text-ink" : "bg-surface-2 text-ink"}`}>
         {author === "STAFF" && <p className="mb-1 text-xs font-semibold text-ok-fg">SureFrame team</p>}
         {body}
       </div>
@@ -220,7 +220,7 @@ export class ChatBoundary extends Component<{ children: ReactNode }, { failed: b
     return (
       <div className="flex flex-1 flex-col items-start gap-3 p-4 text-sm text-muted" role="alert">
         <p>The chat hit a problem in this browser. A browser extension that edits text boxes can cause this.</p>
-        <button onClick={() => this.setState({ failed: false })} className="rounded-lg bg-primary px-3 py-2 font-semibold text-white hover:bg-primary-hover">
+        <button onClick={() => this.setState({ failed: false })} className="rounded-lg bg-primary px-3 py-2 font-semibold text-on-primary hover:bg-primary-hover">
           Try again
         </button>
         <a href="/help" className="text-accent hover:underline">Open the help page instead</a>

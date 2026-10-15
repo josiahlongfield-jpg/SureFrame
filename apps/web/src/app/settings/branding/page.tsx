@@ -35,7 +35,7 @@ export default async function BrandingSettings() {
                 <Link href="/settings/reminders" className="font-medium underline">Settings &gt; Reminders</Link> (any plan).
               </p>
             )}
-            <Link href="/pricing" className="mt-4 inline-block rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">See plans</Link>
+            <Link href="/pricing" className="mt-4 inline-block rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">See plans</Link>
           </div>
         ) : (
           <BrandingForm workspaceId={workspace.id} name={workspace.name} color={brand.color} logoUrl={brand.logoUrl} />

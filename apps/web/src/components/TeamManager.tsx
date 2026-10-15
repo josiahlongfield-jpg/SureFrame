@@ -207,7 +207,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
               <option value="MEMBER">Member</option>
               <option value="ADMIN">Admin</option>
             </select>
-            <button disabled={busy || full} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50">Create invite link</button>
+            <button disabled={busy || full} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">Create invite link</button>
           </form>
           <p className="mt-2 text-xs text-dim">Members record, send and reply to the clients assigned to them; you choose what else each one can do below. Admins have full access and can also invite staff, assign clients and remove them.</p>
           {full && <p className="mt-2 text-sm text-warn-fg">{seats.limit === 1 ? "Team logins come with Studio and Agency." : "All staff logins are in use."}</p>}

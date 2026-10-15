@@ -59,11 +59,11 @@ export default function JoinTeam({ token, signedIn }: { token: string; signedIn:
   return (
     <div className="mt-6 grid gap-3">
       {signedIn ? (
-        <button onClick={join} disabled={busy} className="rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
+        <button onClick={join} disabled={busy} className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
           {busy ? "Joining…" : "Join the team"}
         </button>
       ) : (
-        <Link href={`/login?next=${encodeURIComponent(`/join/${token}`)}`} className="rounded-xl bg-primary px-4 py-3 text-center font-semibold text-white hover:bg-primary-hover">
+        <Link href={`/login?next=${encodeURIComponent(`/join/${token}`)}`} className="rounded-xl bg-primary px-4 py-3 text-center font-semibold text-on-primary hover:bg-primary-hover">
           Sign in to join
         </Link>
       )}

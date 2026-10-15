@@ -37,7 +37,9 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
   );
   // No backdrop-blur on the header: it would pin the fixed Help button, prompts and dialogs inside it.
   return (
-    <header className="relative border-b border-line bg-canvas/80">
+    <header className="relative">
+      {/* The bar itself is navy; notices, prompts and the help chat below it keep the page's colours. */}
+      <div data-theme="navy" className="bg-canvas text-ink">
       <div className="mx-auto flex h-16 max-w-6xl sm:h-[4.5rem] items-center justify-between gap-4 px-4 sm:px-6">
         <div className="flex items-center gap-6">
           <Logo href="/library" tone="dark" />
@@ -48,7 +50,7 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
         </div>
         <div className="flex items-center gap-3 text-sm">
           <span className="hidden rounded-full border border-line px-2.5 py-1 font-mono text-[0.6875rem] font-medium uppercase tracking-wider text-muted xl:inline">{plan}</span>
-          <Link href="/record" className="whitespace-nowrap rounded-[0.625rem] bg-primary px-4 py-2 font-medium text-white hover:bg-primary-hover">
+          <Link href="/record" className="whitespace-nowrap rounded-[0.625rem] bg-primary px-4 py-2 font-medium text-on-primary hover:bg-primary-hover">
             <span className="sm:hidden">Record</span>
             <span className="hidden sm:inline">New recording</span>
           </Link>
@@ -56,6 +58,7 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
           {/* Phones and small screens: everything else sits behind one Menu button. */}
           <MobileMenu links={links} plan={plan} email={email} signOut={signOutForm} />
         </div>
+      </div>
       </div>
       {me?.termsNotice && (
         <p className="border-t border-warn-line bg-warn-bg px-4 py-2 text-center text-sm text-warn-fg" data-testid="terms-notice">

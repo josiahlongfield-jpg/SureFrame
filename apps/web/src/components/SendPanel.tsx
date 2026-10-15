@@ -347,7 +347,7 @@ export default function SendPanel({
                   onClick={sendByEmail}
                   disabled={!picked.length || !!busy}
                   data-testid="send-email"
-                  className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
+                  className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
                 >
                   {busy === "email" ? "Sending…" : "Send by email"}
                 </button>

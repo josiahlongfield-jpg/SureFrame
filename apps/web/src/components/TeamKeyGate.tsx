@@ -138,7 +138,7 @@ export default function TeamKeyGate({
             spellCheck={false}
             className="rounded-lg border border-line-strong px-3 py-2 font-mono text-sm"
           />
-          <button className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover">Unlock</button>
+          <button className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover">Unlock</button>
         </form>
         {state.error && <p role="alert" className="mt-2 text-sm text-danger-fg">{state.error}</p>}
       </div>

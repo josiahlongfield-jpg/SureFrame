@@ -25,7 +25,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
       </p>
       {error.digest && <p className="mt-2 text-xs text-dim">Error reference: {error.digest}</p>}
       <div className="mt-6 flex gap-3">
-        <button onClick={reset} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">Try again</button>
+        <button onClick={reset} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">Try again</button>
         <Link href={inApp ? "/library" : "/"} className="rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:bg-hover">
           {inApp ? "Go to library" : "Go home"}
         </Link>

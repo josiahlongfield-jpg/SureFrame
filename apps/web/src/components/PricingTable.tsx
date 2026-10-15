@@ -34,7 +34,7 @@ export default function PricingTable() {
           const price = interval === "year" ? p.priceYearly : p.priceMonthly;
           return (
             <div key={id} className={`relative flex flex-col rounded-2xl border bg-surface p-6 ${featured ? "border-primary shadow-xl shadow-brand-900/10 ring-1 ring-primary" : "border-line"}`}>
-              {featured && <span className="absolute -top-3 left-6 w-fit rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white">Best for teams</span>}
+              {featured && <span className="absolute -top-3 left-6 w-fit rounded-full bg-primary px-3 py-1 text-xs font-semibold text-on-primary">Best for teams</span>}
               <h2 className="text-lg font-semibold text-ink">{p.name}</h2>
               <p className="mt-4 flex items-baseline gap-1">
                 <span className="text-4xl font-semibold text-ink">{price > 0 && <span className="text-xl align-top">US</span>}${price}</span>

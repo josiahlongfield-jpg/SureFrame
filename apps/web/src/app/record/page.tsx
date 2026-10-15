@@ -46,7 +46,7 @@ export default async function RecordPage() {
               </p>
               {allowance.uploading > 0 && !allowance.oldRule && <p className="mt-3 text-sm text-muted">{uploadingHint(allowance.uploading)}</p>}
               <div className="mt-5 flex flex-wrap gap-3">
-                <Link href="/pricing" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">See plans</Link>
+                <Link href="/pricing" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">See plans</Link>
                 <Link href="/library" className="rounded-xl border border-line-strong px-4 py-2 text-sm font-medium text-muted hover:bg-hover">Go to your library</Link>
               </div>
             </div>

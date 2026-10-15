@@ -258,7 +258,7 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
                 <button
                   onClick={make}
                   disabled={!mediaUrl || !support}
-                  className="mt-3 rounded-lg bg-primary px-4 py-2 font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
+                  className="mt-3 rounded-lg bg-primary px-4 py-2 font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
                 >
                   Make transcript and summary
                 </button>

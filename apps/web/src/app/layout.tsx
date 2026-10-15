@@ -20,11 +20,11 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: `${BRAND.name}: ${BRAND.tagline}`, description },
 };
 
-export const viewport: Viewport = { themeColor: "#0c1428", colorScheme: "dark" };
+export const viewport: Viewport = { themeColor: "#0f2747", colorScheme: "light" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" data-theme="navy" className={fontVars}>
+    <html lang="en" data-theme="fresh" className={fontVars}>
       <body className="min-h-screen antialiased">{children}</body>
     </html>
   );

@@ -44,14 +44,15 @@ export function reminderEmail(o: {
     o.unsubscribe ? `\nStop emails from ${o.business}: ${o.unsubscribe}` : "",
     "\nSent with SureFrame",
   ].join("\n");
-  const { fill, link } = emailColors(o.color);
+  const colors = emailColors(o.color);
+  const { link } = colors;
   const html = emailShell(`${emailLogo(o.logoUrl, o.business)}
 <p style="font-size:16px;line-height:1.5;margin:0 0 16px">${esc(lead)}</p>
 ${message ? `<p style="font-size:15px;line-height:1.5;white-space:pre-wrap;margin:0 0 16px;color:${EMAIL.body}">${esc(message)}</p>` : ""}
-${emailButton(o.link, "Open your list", fill)}
+${emailButton(o.link, "Open your list", colors)}
 <p style="font-size:12px;color:${EMAIL.muted};margin:0">For privacy, the details are only shown in the app.</p>
 ${o.noReply ? `<p style="font-size:12px;color:${EMAIL.muted};margin:8px 0 0">Please don&#39;t reply to this email; contact ${esc(o.business)} directly.</p>` : ""}
-${o.unsubscribe ? `<p style="font-size:12px;color:${EMAIL.muted};margin:8px 0 0"><a href="${esc(o.unsubscribe)}" style="color:${link}">Stop emails from ${esc(o.business)}</a></p>` : ""}`);
+${o.unsubscribe ? `<p style="font-size:12px;color:${EMAIL.muted};margin:8px 0 0"><a href="${esc(o.unsubscribe)}" style="color:${link}">Stop emails from ${esc(o.business)}</a></p>` : ""}`, undefined, colors.fill);
   return { subject, text, html, when };
 }
 

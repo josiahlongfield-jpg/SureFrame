@@ -50,7 +50,7 @@ export default async function Handoff({ searchParams }: { searchParams: Promise<
             <h1 className="mt-6 text-lg font-semibold text-ink">Sign in to the SureFrame app?</h1>
             <p className="mt-2 text-sm text-muted">You&apos;ll be signed in as {user.email}. Only continue if you just opened the SureFrame app.</p>
             <form action={approve} className="mt-6">
-              <button className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover">Continue to the app</button>
+              <button className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover">Continue to the app</button>
             </form>
           </>
         ) : (

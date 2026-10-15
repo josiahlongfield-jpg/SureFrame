@@ -23,9 +23,11 @@ const STEPS = [
 
 export default function Home() {
   return (
-    <div data-theme="navy" className="navy-glow min-h-screen text-ink">
+    <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
       <SiteHeader navy />
       <main>
+        {/* The first screen is navy, like the top bar above it. */}
+        <div data-theme="navy" className="navy-glow text-ink">
         <section className="mx-auto grid max-w-[90rem] items-center gap-10 xl:content-center xl:items-stretch px-4 pb-16 pt-6 sm:px-6 sm:pt-10 xl:min-h-[calc(100svh-4.5rem)] xl:grid-cols-[31.25rem_minmax(0,1fr)] xl:gap-14 xl:px-16 xl:pb-10 xl:pt-0">
           <div className="grid content-center gap-4 sm:gap-[1.125rem]">
             <p className="kicker inline-flex items-center gap-2"><span className="h-[0.8125rem] w-[0.8125rem]">{Icon.lockFilled}</span>Private video for you and your clients</p>
@@ -45,7 +47,7 @@ export default function Home() {
             <ul className="mt-1 grid grid-cols-2 gap-x-2.5 gap-y-2 border-t border-line pt-3 sm:mt-3.5 sm:gap-x-[1.375rem] sm:gap-y-3.5 sm:pt-[1.375rem]">
               {points(RETENTION_DAYS).map((p) => (
                 <li key={p.title} className="grid grid-cols-[1.375rem_1fr] items-center gap-x-[0.4375rem] sm:grid-cols-[2.125rem_1fr] sm:items-start sm:gap-x-3 sm:gap-y-0.5">
-                  <span className={`grid h-[1.375rem] w-[1.375rem] place-items-center rounded-md sm:row-span-2 sm:h-[2.125rem] sm:w-[2.125rem] sm:rounded-[0.5625rem] [&_svg]:h-[0.8125rem] [&_svg]:w-[0.8125rem] sm:[&_svg]:h-[1.125rem] sm:[&_svg]:w-[1.125rem] ${"coral" in p ? "bg-[rgb(255_93_79/0.14)] text-lock" : "bg-[rgb(142_163_255/0.12)] text-highlight"}`}>
+                  <span className={`grid h-[1.375rem] w-[1.375rem] place-items-center rounded-md sm:row-span-2 sm:h-[2.125rem] sm:w-[2.125rem] sm:rounded-[0.5625rem] [&_svg]:h-[0.8125rem] [&_svg]:w-[0.8125rem] sm:[&_svg]:h-[1.125rem] sm:[&_svg]:w-[1.125rem] bg-primary-soft text-highlight`}>
                     {Icon[p.icon]}
                   </span>
                   <b className="text-[0.78125rem] font-medium leading-tight sm:text-[0.90625rem] sm:font-semibold sm:tracking-[-0.01em]">{p.title}</b>
@@ -56,14 +58,15 @@ export default function Home() {
           </div>
           <FeatureFrames retentionDays={RETENTION_DAYS} />
         </section>
+        </div>
 
-        <section className="border-t border-line bg-canvas-2/60 py-20">
+        <section className="py-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <p className="kicker text-center">How it works</p>
             <h2 className="display mt-3 text-center text-3xl sm:text-4xl">Three steps. That&apos;s it.</h2>
             <ol className="mt-12 grid gap-4 sm:grid-cols-3">
               {STEPS.map(([t, b], i) => (
-                <li key={t} className="rounded-2xl border border-line bg-surface p-6">
+                <li key={t} className="rounded-2xl border border-line border-t-[0.1875rem] border-t-primary bg-surface p-6">
                   <span className="font-mono text-sm font-medium text-highlight">0{i + 1}</span>
                   <h3 className="mt-2 text-lg font-semibold tracking-tight">{t}</h3>
                   <p className="mt-1 text-sm text-muted">{b}</p>
@@ -74,13 +77,13 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="border-t border-line py-20">
+        <section data-theme="navy" className="bg-canvas py-20 text-ink">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <p className="kicker text-center">Private by design</p>
             <h2 className="display mt-3 text-center text-3xl sm:text-4xl">How we keep it private</h2>
             <div className="mt-12 grid gap-4 sm:grid-cols-3">
               {PRIVACY.map(([t, b]) => (
-                <div key={t} className="rounded-2xl border border-line bg-surface p-6">
+                <div key={t} className="rounded-2xl border border-line border-t-[0.1875rem] border-t-primary bg-surface p-6">
                   <h3 className="font-semibold tracking-tight">{t}</h3>
                   <p className="mt-2 text-sm leading-6 text-muted">{b}</p>
                 </div>
@@ -89,7 +92,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="border-t border-line bg-canvas-2/60 py-20">
+        <section className="bg-band py-20">
           <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
             <p className="kicker">AI add-on</p>
             <h2 className="display mt-3 text-3xl sm:text-4xl">Transcripts made on your device.</h2>
@@ -104,7 +107,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="border-t border-line py-20">
+        <section className="py-20">
           <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
             <p className="kicker">Studio and Agency</p>
             <h2 className="display mt-3 text-3xl sm:text-4xl">Ready for your whole team</h2>

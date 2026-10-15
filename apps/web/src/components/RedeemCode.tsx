@@ -74,7 +74,7 @@ export default function RedeemCode({ subscribed, hasDiscount }: { subscribed: bo
         required
         className="w-full rounded-xl border border-line-strong px-3 py-2 text-sm uppercase sm:w-56"
       />
-      <button disabled={busy || !code.trim()} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60">
+      <button disabled={busy || !code.trim()} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60">
         {busy ? "Checking…" : subscribed ? "Apply" : "Save for checkout"}
       </button>
       {error && (

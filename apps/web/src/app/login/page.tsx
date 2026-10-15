@@ -95,7 +95,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
                 <span className="font-medium text-muted">Email</span>
                 <input name="email" type="email" required autoComplete="email" placeholder="you@company.com" className="rounded-lg border border-line-strong px-3 py-2" />
               </label>
-              <button className="rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover">Email me a sign-in link</button>
+              <button className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover">Email me a sign-in link</button>
               <p className="text-xs text-dim">No password needed. We&apos;ll email you a link that signs you in.</p>
             </form>
           )}
@@ -123,7 +123,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
                   <input name="password" type="password" required className="rounded-lg border border-line-strong px-3 py-2" />
                 </label>
               )}
-              <button className="rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover">Continue</button>
+              <button className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover">Continue</button>
             </form>
           )}
           {error && <p role="alert" className="text-sm text-danger-fg">{errorText(error)}</p>}

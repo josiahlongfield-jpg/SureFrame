@@ -32,7 +32,7 @@ export default function CompForm({ plans }: { plans: { id: string; name: string 
             </option>
           ))}
         </select>
-        <button disabled={pending} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60">
+        <button disabled={pending} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60">
           {pending ? "Saving…" : "Save"}
         </button>
       </div>
@@ -56,7 +56,7 @@ export function CompAiForm() {
           <option value="on">AI summaries on</option>
           <option value="off">AI summaries off</option>
         </select>
-        <button disabled={pending} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60">
+        <button disabled={pending} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60">
           {pending ? "Saving…" : "Save AI"}
         </button>
       </div>

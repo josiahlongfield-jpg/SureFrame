@@ -202,7 +202,7 @@ function RepeatPicker({ due, value, onChange }: { due: string; value: Repeat | n
                         const next = on ? cur.filter((x) => x !== i) : [...cur, i].sort();
                         if (next.length) onChange({ ...value, weekdays: next });
                       }}
-                      className={`h-8 w-8 rounded-full text-xs font-semibold ${on ? "bg-primary text-white" : "bg-surface text-muted ring-1 ring-line-strong"}`}
+                      className={`h-8 w-8 rounded-full text-xs font-semibold ${on ? "bg-primary text-on-primary" : "bg-surface text-muted ring-1 ring-line-strong"}`}
                     >
                       {name[0]}
                     </button>

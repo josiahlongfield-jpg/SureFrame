@@ -144,7 +144,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
           <div className="mt-6 flex gap-3">
             {workspace.stripeCustomerId && <ManageBillingButton />}
             {(workspace.plan !== "AGENCY" || comp) && (
-              <Link href="/pricing" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">{comp ? "Choose a paid plan" : "Upgrade"}</Link>
+              <Link href="/pricing" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">{comp ? "Choose a paid plan" : "Upgrade"}</Link>
             )}
           </div>
           <RedeemCode subscribed={!!workspace.stripeSubscriptionId} hasDiscount={!!discount} />

@@ -86,7 +86,7 @@ export default function UpgradeButton({ plan, interval = "month", featured = fal
       <button
         onClick={start}
         disabled={busy}
-        className={`w-full rounded-xl px-4 py-3 font-semibold disabled:opacity-60 ${featured ? "bg-primary text-white hover:bg-primary-hover" : "bg-solid text-white hover:bg-solid-hover"}`}
+        className={`w-full rounded-xl px-4 py-3 font-semibold disabled:opacity-60 ${featured ? "bg-primary text-on-primary hover:bg-primary-hover" : "bg-solid text-on-solid hover:bg-solid-hover"}`}
       >
         {busy && !confirm ? "One moment…" : `Get ${name}`}
       </button>
@@ -151,7 +151,7 @@ export default function UpgradeButton({ plan, interval = "month", featured = fal
             </p>
             {error && <p className="mt-3 text-sm text-danger-fg">{error}</p>}
             <div className="mt-6 flex flex-col gap-2 sm:flex-row-reverse">
-              <button onClick={goToCheckout} disabled={busy} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60">
+              <button onClick={goToCheckout} disabled={busy} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60">
                 {busy ? "Switching…" : confirm.dueToday > 0 ? `Pay ${money(confirm.dueToday, confirm.currency)} and switch` : "Switch plan"}
               </button>
               {confirm.dueToday > 0 && (

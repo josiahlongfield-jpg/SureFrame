@@ -10,10 +10,9 @@
   --color-brand-900: #1e2a6b;
 
   /*
-   * Semantic colours. The defaults are the light look; [data-theme="navy"] swaps them
-   * for SureFrame's dark navy look and [data-theme="navy"] swaps them
-   * for SureFrame's dark navy look and [data-theme="light"] brings the light look back
-   * inside a navy page (client pages, which carry the business's own branding).
+   * Semantic colours. The defaults are a plain light look; [data-theme="fresh"] is SureFrame's
+   * page look (warm white, navy text, coral buttons) and [data-theme="navy"] is its navy frame
+   * (top bar, footer, the home page's first screen and one band, sign-in pages).
    */
   --color-canvas: #f8fafc;
   --color-canvas-2: #f1f5f9;
@@ -46,6 +45,7 @@
   --color-danger-bg: #fef2f2;
   --color-danger-fg: #b91c1c;
   --color-danger-line: #fecaca;
+  --color-band: #ffe6dc;
 
   --tracking-display: -0.045em;
 }
@@ -55,31 +55,33 @@
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-[data-theme="light"] {
+[data-theme="fresh"] {
   color-scheme: light;
-  --color-canvas: #f8fafc;
-  --color-canvas-2: #f1f5f9;
+  --color-canvas: #fbfaf8;
+  --color-canvas-2: #f3efea;
   --color-surface: #ffffff;
-  --color-surface-2: #f1f5f9;
-  --color-tile: #f8fafc;
-  --color-ink: #0f172a;
-  --color-muted: #475569;
-  --color-dim: #64748b;
-  --color-line: #e2e8f0;
-  --color-line-strong: #cbd5e1;
-  /* Resolved on this element, so a business colour set by brandStyle() on the same element carries through. */
-  --color-primary: var(--color-brand-600);
-  --color-primary-hover: var(--color-brand-700);
-  --color-on-primary: #ffffff;
-  --color-accent: var(--color-brand-700);
-  --color-highlight: var(--color-brand-600);
-  --color-lock: #e5483b;
-  --color-solid: #0f172a;
-  --color-solid-hover: #1e293b;
+  --color-surface-2: #f6f3ef;
+  --color-tile: #f8f6f3;
+  --color-ink: #0f2747;
+  --color-muted: #57687e;
+  --color-dim: #5e6e84;
+  --color-line: #ece4dc;
+  --color-line-strong: #d4cdc6;
+  /* --brand-* come from brandStyle() on client pages, so they show in the business's colour; coral otherwise. */
+  --color-primary: var(--brand-fill, #ff6f61);
+  --color-primary-hover: var(--brand-fill-hover, #f4604f);
+  /* Navy text on coral (5.5:1); white on a business's own colour. */
+  --color-on-primary: var(--brand-on, #0f2747);
+  --color-accent: var(--brand-text, #b8402c);
+  --color-highlight: var(--brand-text, #c4402f);
+  --color-lock: #ad3727;
+  --color-solid: #0f2747;
+  --color-solid-hover: #173357;
   --color-on-solid: #ffffff;
-  --color-hover: #f8fafc;
-  --color-primary-soft: #eef4ff;
-  --color-primary-line: #bfd0ff;
+  --color-hover: #f3efea;
+  --color-primary-soft: var(--brand-soft, rgb(255 111 97 / 0.14));
+  --color-primary-line: var(--brand-line, rgb(255 111 97 / 0.55));
+  --color-band: #ffe6dc;
   --color-ok-bg: #ecfdf5;
   --color-ok-fg: #047857;
   --color-ok-line: #a7f3d0;
@@ -93,30 +95,29 @@
 
 [data-theme="navy"] {
   color-scheme: dark;
-  --color-canvas: #0c1428;
-  --color-canvas-2: #0a1020;
-  --color-surface: #111a31;
-  --color-surface-2: #16203a;
-  --color-tile: rgb(255 255 255 / 0.04);
-  --color-ink: #eef2fb;
-  --color-muted: #9aa6c4;
-  --color-dim: #7884a4;
-  --color-line: rgb(255 255 255 / 0.08);
-  --color-line-strong: rgb(255 255 255 / 0.16);
-  /* #4a68f2 rather than #4f6ef7 for fills, so white button text passes AA (4.6:1). */
-  /* --brand-* come from brandStyle() on client pages, so they show in the business's colour; SureFrame blue otherwise. */
-  --color-primary: var(--brand-fill, #4a68f2);
-  --color-primary-hover: var(--brand-fill-hover, #5d79f8);
-  --color-on-primary: #ffffff;
-  --color-accent: var(--brand-text, #8ea3ff);
-  --color-highlight: var(--brand-text, #8ea3ff);
+  --color-canvas: #0f2747;
+  --color-canvas-2: #0b1e38;
+  --color-surface: #173357;
+  --color-surface-2: #1d3a60;
+  --color-tile: rgb(255 255 255 / 0.05);
+  --color-ink: #f4f6fb;
+  --color-muted: #bcc5d8;
+  --color-dim: #97a2bb;
+  --color-line: rgb(255 255 255 / 0.1);
+  --color-line-strong: rgb(255 255 255 / 0.2);
+  --color-primary: #ff6f61;
+  --color-primary-hover: #ff8579;
+  --color-on-primary: #0f2747;
+  --color-accent: #ff8f84;
+  --color-highlight: #ff8f84;
   --color-lock: #ff8f84;
-  --color-solid: rgb(255 255 255 / 0.06);
-  --color-solid-hover: rgb(255 255 255 / 0.1);
-  --color-on-solid: #eef2fb;
-  --color-hover: rgb(255 255 255 / 0.05);
-  --color-primary-soft: var(--brand-soft, rgb(79 110 247 / 0.16));
-  --color-primary-line: var(--brand-line, rgb(142 163 255 / 0.4));
+  --color-solid: rgb(255 255 255 / 0.08);
+  --color-solid-hover: rgb(255 255 255 / 0.14);
+  --color-on-solid: #f4f6fb;
+  --color-hover: rgb(255 255 255 / 0.06);
+  --color-primary-soft: rgb(255 111 97 / 0.16);
+  --color-primary-line: rgb(255 111 97 / 0.5);
+  --color-band: #173357;
   --color-ok-bg: rgb(52 211 153 / 0.12);
   --color-ok-fg: #6ee7b7;
   --color-ok-line: rgb(52 211 153 / 0.3);
@@ -129,8 +130,8 @@
 }
 
 html {
-  color-scheme: dark;
-  background: #0a1020;
+  color-scheme: light;
+  background: #fbfaf8;
 
   /*
    * Everything is sized in rem, so this one value scales the whole site to the screen. Up to a
@@ -203,22 +204,13 @@ body {
   background: var(--color-canvas);
   color: var(--color-ink);
 }
-html[data-theme="navy"] body {
-  background:
-    radial-gradient(75rem 43.75rem at 85% -10%, rgb(79 110 247 / 0.22), transparent 60%),
-    linear-gradient(180deg, #0c1428, #0a1020 56.25rem);
-  background-color: #0a1020;
-}
-
-/* Client pages are light, in the business's own colour. */
-html:has(body > [data-theme="light"]) { color-scheme: light; background: #f8fafc; }
-html:has(body > [data-theme="light"]) body { background: #f8fafc; }
+/* Sign-in and other one-screen pages that are all navy. */
+html:has(body > [data-theme="navy"]) { color-scheme: dark; background: #0b1e38; }
 
 .navy-glow {
   background:
-    radial-gradient(75rem 43.75rem at 85% -10%, rgb(79 110 247 / 0.28), transparent 60%),
-    radial-gradient(56.25rem 37.5rem at -10% 110%, rgb(255 93 79 / 0.07), transparent 60%),
-    linear-gradient(180deg, #0c1428, #0a1020);
+    radial-gradient(75rem 43.75rem at 85% -10%, rgb(255 111 97 / 0.14), transparent 60%),
+    linear-gradient(180deg, #0f2747, #0b1e38);
 }
 
 @utility kicker {

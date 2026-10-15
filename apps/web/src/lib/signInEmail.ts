@@ -12,7 +12,7 @@ export function signInEmail(url: string, host: string) {
     `If you didn't ask to sign in to ${host}, you can ignore this email.`,
   ].join("\n");
   const html = emailShell(`<p style="font-size:18px;font-weight:600;margin:0 0 16px">Sign in to ${esc(BRAND.name)}</p>
-${emailButton(url, "Sign in", emailColors().fill)}
+${emailButton(url, "Sign in", emailColors())}
 <p style="font-size:13px;color:${EMAIL.body};margin:0 0 8px">This link works once and expires in 24 hours.</p>
 <p style="font-size:12px;color:${EMAIL.muted};margin:0">If you didn't ask to sign in to ${esc(host)}, you can ignore this email.</p>`, BRAND.name);
   return { subject, text, html };

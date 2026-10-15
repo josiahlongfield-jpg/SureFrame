@@ -74,7 +74,7 @@ export async function staffReply(ticket: SupportTicket & { user: { email: string
     subject: "Reply from SureFrame support",
     text: [body, "", `See the whole conversation or reply: ${link}`].join("\n"),
     html: emailShell(`<div style="font-size:15px;line-height:1.5">${paragraphs(body)}</div>
-${emailButton(link, "See the conversation or reply", emailColors().fill)}`, "SureFrame support"),
+${emailButton(link, "See the conversation or reply", emailColors())}`, "SureFrame support"),
     replyTo: supportInbox(),
   });
   return true;

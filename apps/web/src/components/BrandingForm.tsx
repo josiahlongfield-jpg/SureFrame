@@ -159,7 +159,7 @@ export default function BrandingForm(props: { workspaceId: string; name: string;
           <button
             onClick={save}
             disabled={busy || !!problem || !dirty || !trimmed}
-            className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60"
           >
             {busy ? "Saving…" : "Save branding"}
           </button>

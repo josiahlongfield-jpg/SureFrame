@@ -64,7 +64,7 @@ export default async function Agree({ searchParams }: { searchParams: Promise<{ 
   );
 
   return (
-    <main data-theme="navy" className="text-ink mx-auto max-w-lg px-4 py-12 sm:px-6 sm:py-16">
+    <main data-theme="fresh" className="text-ink mx-auto max-w-lg px-4 py-12 sm:px-6 sm:py-16">
       <Logo href="/agree" tone="dark" />
       {updated ? (
         <>

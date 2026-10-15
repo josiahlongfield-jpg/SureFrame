@@ -48,7 +48,7 @@ export default async function SupportTicketPage({ params }: { params: Promise<{ 
       <form action={reply.bind(null, ticket.id)} className="mt-6 grid gap-3">
         <textarea name="body" required rows={6} aria-label="Your reply" placeholder="Write your reply…" className="rounded-xl border border-line-strong p-3 text-sm" />
         <div className="flex flex-wrap items-center gap-3">
-          <button className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover">{email ? "Send reply by email" : "Send reply"}</button>
+          <button className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover">{email ? "Send reply by email" : "Send reply"}</button>
           {ticket.status !== "CLOSED" ? (
             <button formAction={setStatus.bind(null, ticket.id, "CLOSED")} formNoValidate className="rounded-xl border border-line-strong px-4 py-2.5 text-sm font-medium text-muted hover:bg-hover">Close</button>
           ) : (

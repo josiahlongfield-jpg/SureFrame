@@ -57,14 +57,14 @@ export default async function Restore() {
   const teams = [...new Set(leftTeams.map((i) => i.workspace.name))];
   const signOutButton = (label: string, primary = false) => (
     <form action={leaveClosed}>
-      <button className={primary ? "rounded-xl bg-primary px-4 py-2.5 font-semibold text-white hover:bg-primary-hover" : "rounded-xl border border-line-strong px-4 py-2.5 font-semibold text-ink hover:bg-hover"}>
+      <button className={primary ? "rounded-xl bg-primary px-4 py-2.5 font-semibold text-on-primary hover:bg-primary-hover" : "rounded-xl border border-line-strong px-4 py-2.5 font-semibold text-ink hover:bg-hover"}>
         {label}
       </button>
     </form>
   );
 
   return (
-    <main data-theme="navy" className="text-ink mx-auto max-w-md px-4 py-16 sm:px-6">
+    <main data-theme="fresh" className="text-ink mx-auto max-w-md px-4 py-16 sm:px-6">
       <Logo tone="dark" />
       {closed.closedAt || closed.suspendedAt ? (
         <>
@@ -87,7 +87,7 @@ export default async function Restore() {
           <p className="mt-3 text-muted">
             Your account is closed and scheduled for deletion. To keep it, sign in again on this device first.
           </p>
-          <Link href="/login?next=/account/restore" className="mt-6 inline-block rounded-xl bg-primary px-4 py-2.5 font-semibold text-white hover:bg-primary-hover">
+          <Link href="/login?next=/account/restore" className="mt-6 inline-block rounded-xl bg-primary px-4 py-2.5 font-semibold text-on-primary hover:bg-primary-hover">
             Sign in
           </Link>
         </>
@@ -130,7 +130,7 @@ export default async function Restore() {
           <p className="mt-4 text-sm text-muted">Continue signs you out and leaves your account closed. It&apos;s deleted for good on {dates.longDay(closed.deleteAt)}.</p>
           <div className="mt-6 flex flex-wrap gap-3">
             <form action={keep}>
-              <button className="rounded-xl bg-primary px-4 py-2.5 font-semibold text-white hover:bg-primary-hover">Keep my account</button>
+              <button className="rounded-xl bg-primary px-4 py-2.5 font-semibold text-on-primary hover:bg-primary-hover">Keep my account</button>
             </form>
             {signOutButton("Continue")}
           </div>

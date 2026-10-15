@@ -66,7 +66,7 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
   const endedLink = typeof query.ended === "string" && isCodeShaped(query.ended) ? query.ended.toUpperCase() : null;
   const ended = endedLink ?? (code && lookup && !lookup.offer ? code : null);
   return (
-    <div data-theme="navy" className="navy-glow min-h-screen text-ink">
+    <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
       <SiteHeader navy />
       <main className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
         <div className="text-center">

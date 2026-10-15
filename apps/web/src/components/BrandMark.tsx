@@ -11,7 +11,7 @@ export default function BrandMark({ brand, href }: { brand: Brand | null; href: 
         // eslint-disable-next-line @next/next/no-img-element
         <img src={brand.logoUrl} alt="" className="h-8 max-w-[8rem] shrink-0 object-contain" />
       ) : (
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary text-sm text-white">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary text-sm text-on-primary">
           {brand.name.trim().charAt(0).toUpperCase()}
         </span>
       )}

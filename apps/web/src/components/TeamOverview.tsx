@@ -116,7 +116,7 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
             <option value="">Shared (nobody)</option>
             {staff.map((s) => <option key={s.userId} value={s.userId}>{s.name}</option>)}
           </select>
-          <button type="button" onClick={assign} disabled={busy || picked.size === 0} className="rounded-lg bg-primary px-4 py-1.5 font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
+          <button type="button" onClick={assign} disabled={busy || picked.size === 0} className="rounded-lg bg-primary px-4 py-1.5 font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
             Assign {picked.size || ""} {picked.size === 1 ? "client" : "clients"}
           </button>
         </div>
@@ -259,7 +259,7 @@ export function StaffReminderForm({ meId, staff, clients, videos }: { meId: stri
             {videos.map((v) => <option key={v.id} value={`video:${v.id}`}>{v.title}</option>)}
           </optgroup>
         </select>
-        <button disabled={busy || !to.size || !message.trim()} className="rounded-lg bg-primary px-4 py-1.5 font-semibold text-white hover:bg-primary-hover disabled:opacity-50">Send reminder</button>
+        <button disabled={busy || !to.size || !message.trim()} className="rounded-lg bg-primary px-4 py-1.5 font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">Send reminder</button>
       </div>
       <p className="text-xs text-dim">They get an email and see it in the app until they dismiss it.</p>
       {note && <p role="status" className="text-muted">{note}</p>}
