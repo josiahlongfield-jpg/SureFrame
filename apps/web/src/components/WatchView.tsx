@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { REACTIONS } from "@/lib/reactions";
@@ -11,10 +10,12 @@ import SecureMedia, { useDecryptedUrl } from "./SecureMedia";
 import TeamKeyGate from "./TeamKeyGate";
 import AiInsight, { type SealedInsight } from "./AiInsight";
 import AiNotice from "./AiNotice";
-import { markLinkSent, personalLink } from "./ClientsManager";
+import { markLinkSent } from "./ClientsManager";
+import SendPanel from "./SendPanel";
 import { recoverInterrupted } from "@/lib/recorder/uploader";
 import { useVideoFrame } from "@/lib/videoFrame";
-import { decryptText, importKey, unwrapKey, wrapKey, fingerprint } from "@/lib/e2e/crypto";
+import { makeThumb } from "@/lib/thumb";
+import { decryptText, importKey, unwrapKey } from "@/lib/e2e/crypto";
 import { clientKeyName, loadClientKey, saveKey } from "@/lib/e2e/keystore";
 
 type Video = {
@@ -32,7 +33,7 @@ type Video = {
   purgeAt: string | null;
 };
 
-type ClientOption = {
+export type ClientOption = {
   id: string;
   name: string;
   link: string;
@@ -55,7 +56,7 @@ type ClientOption = {
 };
 
 /** Members only: what's needed to send this recording to several clients at once. */
-type SendMany = {
+export type SendMany = {
   meId: string;
   /** Set when this page is one client's copy of another video. */
   sourceId: string | null;
@@ -83,6 +84,10 @@ type Props = {
   ai?: { insight: SealedInsight; canMake: boolean; notice: boolean };
   /** Members only: reactions left on this conversation, with the moment in the video if there was one. */
   reactions?: { emoji: string; timestampMs: number | null }[];
+  /** Set when this video is one client's copy of another recording. */
+  sourceId?: string | null;
+  /** Members only: the library already has a still of this recording (lib/thumb.ts). */
+  hasThumb?: boolean;
 };
 
 /**
@@ -168,74 +173,6 @@ function LostKey({ clientId }: { clientId: string }) {
   );
 }
 
-/**
- * Shown when a video goes to a client who hasn't opened their personal link
- * yet. Their key only exists on the team's devices, so we can't email it:
- * the business sends the link once, then new videos are emailed for them.
- */
-function FirstLinkDialog({ clients, videoId, teamKey, onCopied, onClose }: { clients: ClientOption[]; videoId: string; teamKey: CryptoKey; onCopied: (clientId: string) => void; onClose: () => void }) {
-  const [copied, setCopied] = useState<string>();
-  const one = clients.length === 1 ? clients[0] : null;
-  const first = (n: string) => n.split(" ")[0];
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  async function copy(c: ClientOption) {
-    const url = new URL(c.link);
-    url.searchParams.set("v", c.copyId ?? videoId);
-    await navigator.clipboard.writeText(await personalLink(url.toString(), c.teamKeyWrap, teamKey));
-    onCopied(c.id);
-    setCopied(c.id);
-    setTimeout(() => setCopied(undefined), 2000);
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-solid/40 p-4" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="first-link-title"
-        data-testid="first-link-dialog"
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl"
-      >
-        <h2 id="first-link-title" className="text-lg font-semibold text-ink">
-          {one ? `Send ${first(one.name)} their personal link` : "Send these clients their personal links"}
-        </h2>
-        <div className="mt-3 space-y-3 text-sm text-muted">
-          <p>
-            {one ? `${one.name} hasn't opened their personal link yet` : "These clients haven't opened their personal links yet"}, so this first time it&apos;s up to you to send it, by email, text or any message app.
-          </p>
-          <p>
-            Why: your videos are end-to-end encrypted. Each client&apos;s link holds their private key, and only your team&apos;s devices have it, so we can&apos;t email it for you without being able to see their videos.
-          </p>
-          <p>Once they open it, that phone or computer remembers it. From then on you just press Send and we email them each new video, if they have an email address saved.</p>
-        </div>
-        <ul className="mt-4 grid gap-2">
-          {clients.map((c) => (
-            <li key={c.id} className="flex items-center justify-between gap-3">
-              {!one && <span className="text-sm text-ink">{c.name}</span>}
-              <button
-                onClick={() => copy(c)}
-                className={`${one ? "w-full" : ""} rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover`}
-              >
-                {copied === c.id ? "Link copied" : `Copy ${first(c.name)}'s link`}
-              </button>
-            </li>
-          ))}
-        </ul>
-        <button onClick={onClose} className="mt-3 w-full rounded-xl border border-line-strong px-4 py-2 text-sm font-medium text-muted hover:bg-hover">
-          Done
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /** Lets the business know this client has their personal link working (see api/clients/[id]/opened). */
 function markLinkOpened(clientId: string) {
   return fetch(`/api/clients/${clientId}/opened`, { method: "POST" }).catch(() => {});
@@ -265,6 +202,8 @@ function WatchBody({
   sendMany,
   ai,
   reactions: initialReactions,
+  hasThumb = true,
+  sourceId = null,
   rootKey,
   teamKey,
 }: Props & { canEdit: boolean; rootKey: CryptoKey; teamKey?: CryptoKey }) {
@@ -402,7 +341,6 @@ function WatchBody({
   }, [showing, replies.length, seenKey]);
   const unread = Math.max(0, replies.length - seen);
 
-  const [copied, setCopied] = useState(false);
   const [burst, setBurst] = useState<{ id: number; emoji: string }[]>([]);
   const viewed = useRef(false);
 
@@ -414,6 +352,13 @@ function WatchBody({
     video.mimeType,
   );
   const playable = video.encrypted ? src : video.rawUrl;
+  // The first time the team opens a recording, its library still is made here (the server can't see the video).
+  const thumbTried = useRef(false);
+  useEffect(() => {
+    if (!canEdit || hasThumb || !video.encrypted || !src || thumbTried.current) return;
+    thumbTried.current = true;
+    void makeThumb(video.id, src, rootKey).catch(() => {});
+  }, [canEdit, hasThumb, video.encrypted, video.id, src, rootKey]);
   // The recording downloaded fine but this device can't decode its format.
   const [unplayable, setUnplayable] = useState(false);
   useEffect(() => {
@@ -501,51 +446,7 @@ function WatchBody({
     router.push("/library");
   }
 
-  const [sentTo, setSentTo] = useState(sentToId);
-  const recipient = clients.find((c) => c.id === sentTo);
-  const [emailed, setEmailed] = useState<"sent" | "when-ready" | null>(null);
-  const [firstLink, setFirstLink] = useState<ClientOption[] | null>(null);
-
-  async function sendTo(clientId: string | null) {
-    if (!teamKey) return;
-    const client = clients.find((c) => c.id === clientId);
-    // Give the client this video's key, locked with their own key, so only they (and the team) can open it.
-    const clientKeyWrap = client?.teamKeyWrap ? await wrapKey(rootKey, await unwrapKey(client.teamKeyWrap, teamKey)) : undefined;
-    setSentTo(clientId);
-    setEmailed(null);
-    setSendError(undefined);
-    // First video for a client who hasn't opened their personal link yet: explain why it's on them to send it.
-    if (client && !client.hasLink) setFirstLink([client]);
-    const res = await fetch(`/api/videos/${video.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId, clientKeyWrap, keyFingerprint: await fingerprint(teamKey) }),
-    });
-    if (!res.ok) setSendError((await res.json().catch(() => ({}))).error ?? "Couldn't choose that client");
-  }
-
-  // Send: email the chosen client that the video is waiting (it opens from their personal link).
-  const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState<string>();
-  async function send() {
-    if (!recipient) return;
-    setSending(true);
-    setSendError(undefined);
-    const res = await fetch(`/api/videos/${video.id}/notify`, { method: "POST" });
-    const data = await res.json().catch(() => ({}));
-    setSending(false);
-    if (!res.ok) return setSendError(data.error ?? "Couldn't send it. Try again.");
-    setEmailed(data.emailed ?? null);
-  }
-
-  async function copyLink() {
-    if (!recipient || !teamKey) return;
-    const link = await personalLink(recipient.link, recipient.teamKeyWrap, teamKey);
-    await navigator.clipboard.writeText(link);
-    linkCopied(recipient.id);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
+  const recipient = clients.find((c) => c.id === sentToId);
 
   const showPlayer = video.status !== "RECORDING" && !expired && !playError && !unplayable;
 
@@ -606,25 +507,6 @@ function WatchBody({
             </p>
           </div>
           <div className="flex flex-wrap gap-2 sm:shrink-0">
-            {canEdit && !expired && recipient?.link && (recipient.hasLink && recipient.emailable ? (
-              <>
-                <button
-                  onClick={send}
-                  disabled={sending || !!emailed}
-                  data-testid="send-button"
-                  className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
-                >
-                  {emailed ? "Sent" : sending ? "Sending…" : `Send to ${recipient.name.split(" ")[0]}`}
-                </button>
-                <button onClick={copyLink} className="rounded-xl border border-line-strong px-4 py-2 text-sm text-muted hover:bg-hover">
-                  {copied ? "Link copied" : "Copy link"}
-                </button>
-              </>
-            ) : (
-              <button onClick={copyLink} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">
-                {copied ? "Link copied" : `Copy ${recipient.name.split(" ")[0]}'s link`}
-              </button>
-            ))}
             {playable && (
               <a
                 href={playable}
@@ -659,66 +541,17 @@ function WatchBody({
                   : ` This conversation and recording will be deleted on ${recipient.removed.until} unless ${recipient.name} is restored on the Clients page.`)}
           </p>
         )}
-        {canEdit && sendMany?.sourceId && (
-          <p className="mt-5 rounded-2xl border border-line bg-surface p-4 text-sm text-muted">
-            This is {recipient?.name ?? "a client"}&apos;s own conversation about this recording.{" "}
-            <Link href={`/v/${sendMany.sourceId}`} className="font-medium text-accent hover:underline">See the original</Link>
-          </p>
-        )}
-        {canEdit && !sendMany?.sourceId && !expired && (
-          <div className="mt-5 rounded-2xl border border-line bg-surface p-4">
-            <label className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="font-medium text-ink">Send to</span>
-              <select
-                value={sentTo ?? ""}
-                onChange={(e) => sendTo(e.target.value || null)}
-                // Once there are replies, the conversation belongs to this client.
-                disabled={!!sentTo && replies.length > 0}
-                title={sentTo && replies.length > 0 ? "This client has replied, so the video stays with them. Use Send to more clients to share it." : undefined}
-                className="min-w-48 rounded-lg border border-line-strong bg-surface px-3 py-2"
-              >
-                <option value="">Only my team (private)</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              {clients.length === 0 && (
-                <Link href="/clients" className="text-accent hover:underline">Add a client first</Link>
-              )}
-            </label>
-            <p className="mt-2 text-xs text-dim" data-testid="send-status">
-              {!recipient
-                ? "Nobody outside your team can watch this until you send it to a client."
-                : sendError
-                  ? sendError
-                : recipient.removed
-                  ? `${recipient.name} was removed from your clients, so only your team can watch this.`
-                : recipient.linkOff
-                  ? `${recipient.name}'s link has been turned off by SureFrame support, so only your team can watch this. Contact support@sureframe.app.`
-                : recipient.paused
-                  ? `${recipient.name} is paused because your plan covers fewer clients, so only your team can watch this until they're restored.`
-                : !recipient.link
-                  ? `Only your team and ${recipient.name} can watch this.`
-                : !recipient.hasLink
-                  ? <>Only your team and {recipient.name} can watch this. {recipient.name} hasn&apos;t had their personal link yet, so send it to them yourself this first time.{" "}
-                      <button type="button" onClick={() => setFirstLink([recipient])} className="font-medium text-accent hover:underline">Why?</button></>
-                  : emailed === "sent"
-                    ? `Only your team and ${recipient.name} can watch this. We've emailed ${recipient.name} to say it's waiting.`
-                    : emailed === "when-ready"
-                      ? `Only your team and ${recipient.name} can watch this. We'll email ${recipient.name} as soon as the upload finishes.`
-                      : recipient.emailable
-                        ? `Only your team and ${recipient.name} can watch this. Press Send to email ${recipient.name} that it's waiting.`
-                        : recipient.emailsOff
-                          ? `Only your team and ${recipient.name} can watch this. ${recipient.name} has turned off emails from you, so send them the link yourself.`
-                          : `Only your team and ${recipient.name} can watch this. ${recipient.name} has no email address saved, so send them the link yourself.`}
-            </p>
-            {sendMany && teamKey && video.encrypted && video.status !== "RECORDING" && (
-              <SendToMany videoId={video.id} clients={clients} primaryId={sentTo} sendMany={sendMany} rootKey={rootKey} teamKey={teamKey} onFirstLink={setFirstLink} onLinkCopied={linkCopied} />
-            )}
-          </div>
-        )}
-        {firstLink && teamKey && (
-          <FirstLinkDialog clients={firstLink} videoId={video.id} teamKey={teamKey} onCopied={linkCopied} onClose={() => setFirstLink(null)} />
+        {canEdit && teamKey && !expired && (
+          <SendPanel
+            video={{ id: video.id, title, status: video.status, encrypted: video.encrypted, sourceId }}
+            clients={clients}
+            sentToId={sentToId}
+            sendMany={sendMany}
+            hasReplies={replies.length > 0}
+            rootKey={rootKey}
+            teamKey={teamKey}
+            onLinkCopied={linkCopied}
+          />
         )}
 
         <div ref={reactionsRow} className="mt-4 flex gap-2">
@@ -887,141 +720,6 @@ function ReplyMedia({ reply, conversationKey }: { reply: ReplyDTO; conversationK
     return <p className="rounded-lg bg-surface-2 px-3 py-3 text-xs text-dim">This reply has expired from our servers.</p>;
   }
   return <SecureMedia url={media.url} mediaKey={key} mimeType={media.mimeType} kind={reply.kind === "AUDIO" ? "AUDIO" : "VIDEO"} />;
-}
-
-/**
- * Send this recording to several clients at once. Each gets their own copy
- * and a private conversation; quick picks select everyone, your own clients,
- * or the clients a staff member looks after.
- */
-function SendToMany({
-  videoId,
-  clients,
-  primaryId,
-  sendMany,
-  rootKey,
-  teamKey,
-  onFirstLink,
-  onLinkCopied,
-}: {
-  videoId: string;
-  clients: ClientOption[];
-  primaryId: string | null;
-  sendMany: SendMany;
-  rootKey: CryptoKey;
-  teamKey: CryptoKey;
-  onFirstLink: (clients: ClientOption[]) => void;
-  onLinkCopied: (clientId: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [copies, setCopies] = useState(sendMany.copies);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [notify, setNotify] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string>();
-  const [copied, setCopied] = useState<string>();
-  const has = new Set([primaryId, ...copies.map((c) => c.clientId)].filter(Boolean));
-  const available = clients.filter((c) => !has.has(c.id));
-  const team = sendMany.staff.length > 1;
-  const name = (id: string) => clients.find((c) => c.id === id)?.name ?? "Client";
-  const pick = (ids: string[]) => setPicked(new Set(ids.filter((id) => !has.has(id))));
-  const toggle = (id: string) => setPicked((cur) => { const next = new Set(cur); if (next.has(id)) next.delete(id); else next.add(id); return next; });
-
-  async function send() {
-    setBusy(true);
-    setNote(undefined);
-    try {
-      // Each client's copy of this video's key, wrapped with their own key here on this device.
-      const recipients = await Promise.all(
-        clients.filter((c) => picked.has(c.id) && c.teamKeyWrap).map(async (c) => ({ clientId: c.id, clientKeyWrap: await wrapKey(rootKey, await unwrapKey(c.teamKeyWrap!, teamKey)) })),
-      );
-      const res = await fetch(`/api/videos/${videoId}/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipients, notify, keyFingerprint: await fingerprint(teamKey) }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Could not send");
-      setCopies((cur) => [...cur, ...data.sent]);
-      setPicked(new Set());
-      // Clients who haven't opened their personal link yet need it from you first.
-      const sent = data.sent as { id: string; clientId: string }[];
-      const firstTimers = clients.filter((c) => !c.hasLink && sent.some((x) => x.clientId === c.id)).map((c) => ({ ...c, copyId: sent.find((x) => x.clientId === c.id)!.id }));
-      if (firstTimers.length) onFirstLink(firstTimers);
-      setNote(`Sent to ${data.sent.length} ${data.sent.length === 1 ? "client" : "clients"}${data.emailed ? `, ${data.emailed} emailed` : ""}.`);
-    } catch (err) {
-      setNote((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function copyLink(copy: { id: string; clientId: string }) {
-    const c = clients.find((x) => x.id === copy.clientId);
-    if (!c) return;
-    const url = new URL(c.link);
-    url.searchParams.set("v", copy.id);
-    await navigator.clipboard.writeText(await personalLink(url.toString(), c.teamKeyWrap, teamKey));
-    onLinkCopied(c.id);
-    setCopied(copy.id);
-    setTimeout(() => setCopied(undefined), 2000);
-  }
-
-  return (
-    <div className="mt-4 border-t border-line pt-4 text-sm">
-      {copies.length > 0 && (
-        <div className="mb-3">
-          <p className="font-medium text-ink">Also sent to</p>
-          <ul className="mt-2 grid gap-1.5" data-testid="sent-copies">
-            {copies.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center justify-between gap-2">
-                <Link href={`/v/${c.id}`} className="text-ink hover:text-accent hover:underline">{name(c.clientId)}</Link>
-                <button onClick={() => copyLink(c)} className="rounded-lg border border-line-strong px-2.5 py-1 text-xs hover:bg-hover">{copied === c.id ? "Copied" : "Copy their link"}</button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {!open ? (
-        available.length > 0 && (
-          <button onClick={() => setOpen(true)} className="rounded-lg border border-line-strong px-3 py-1.5 font-medium hover:bg-hover">Send to more clients</button>
-        )
-      ) : (
-        <div className="grid gap-3">
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quick picks">
-            <button onClick={() => pick(available.map((c) => c.id))} className="rounded-full border border-line-strong px-3 py-1 hover:bg-hover">All clients</button>
-            {team && <button onClick={() => pick(available.filter((c) => c.assignedToId === sendMany.meId).map((c) => c.id))} className="rounded-full border border-line-strong px-3 py-1 hover:bg-hover">My clients</button>}
-            {team && sendMany.staff.filter((s) => s.id !== sendMany.meId).map((s) => (
-              <button key={s.id} onClick={() => pick(available.filter((c) => c.assignedToId === s.id).map((c) => c.id))} className="rounded-full border border-line-strong px-3 py-1 hover:bg-hover">{s.name}&apos;s clients</button>
-            ))}
-            {picked.size > 0 && <button onClick={() => setPicked(new Set())} className="rounded-full px-3 py-1 text-dim hover:text-ink">Clear</button>}
-          </div>
-          <ul className="grid max-h-64 gap-1 overflow-y-auto rounded-lg border border-line p-2 sm:grid-cols-2">
-            {available.map((c) => (
-              <li key={c.id}>
-                <label className="flex items-center gap-2 rounded px-2 py-1 hover:bg-hover">
-                  <input type="checkbox" checked={picked.has(c.id)} onChange={() => toggle(c.id)} disabled={!c.teamKeyWrap} />
-                  <span>{c.name}</span>
-                </label>
-              </li>
-            ))}
-          </ul>
-          <label className="flex items-center gap-2 text-muted">
-            <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
-            Email clients who have an address on file
-          </label>
-          <div className="flex items-center gap-3">
-            <button onClick={send} disabled={busy || picked.size === 0} className="rounded-lg bg-primary px-4 py-2 font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
-              {busy ? "Sending…" : `Send to ${picked.size} ${picked.size === 1 ? "client" : "clients"}`}
-            </button>
-            <button onClick={() => setOpen(false)} className="text-dim hover:text-ink">Done</button>
-          </div>
-          <p className="text-xs text-dim">Each client gets a private copy. They can reply, but never see each other&apos;s replies.</p>
-        </div>
-      )}
-      {note && <p role="status" className="mt-2 text-muted">{note}</p>}
-    </div>
-  );
 }
 
 /** For the team: how the client reacted, and the moments they reacted to (tap one to jump there). */

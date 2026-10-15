@@ -3,6 +3,7 @@
 import { chromium } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { agreed } from "./agree.mjs";
+import { chooseClients, sendByLink } from "./send.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const prisma = new PrismaClient();
@@ -38,17 +39,14 @@ await owner.waitForTimeout(2500);
 await owner.click("button:has-text('Stop')");
 await owner.waitForURL("**/v/**", { timeout: 30000 });
 const id = owner.url().split("/v/")[1].split("?")[0];
-await owner.waitForSelector("select:near(:text('Send to'))", { timeout: 20000 });
-await owner.selectOption("select:near(:text('Send to'))", lee.id);
-await owner.click("[data-testid=first-link-dialog] >> text=Copy Lee's link");
+await sendByLink(owner, lee.name);
 const link = await owner.evaluate(() => navigator.clipboard.readText());
-await owner.click("[data-testid=first-link-dialog] >> text=Done");
 
 // Another browser: signed out, but it has opened Lee's personal link (as when testing as a client).
 const other = await (await browser.newContext(perms)).newPage();
 await other.goto(link);
 await other.waitForSelector("main video", { timeout: 30000 });
-ok("plain link in that browser shows the client view", !(await other.isVisible("select:near(:text('Send to'))")));
+ok("plain link in that browser shows the client view", !(await other.isVisible("[data-testid=send-panel]")));
 
 await other.goto(`${BASE}/v/${id}?team=1`);
 await other.waitForURL("**/login**", { timeout: 15000 }).catch(() => {});
@@ -63,7 +61,7 @@ if (unlock && recoveryKey) {
   await other.fill("input", recoveryKey);
   await other.keyboard.press("Enter");
 }
-const teamView = await other.waitForSelector("select:near(:text('Send to'))", { timeout: 20000 }).catch(() => null);
+const teamView = await other.waitForSelector("[data-testid=send-panel]", { timeout: 20000 }).catch(() => null);
 ok("opens the team's view (Send to box), not the client's", !!teamView);
 ok("no client AI note on the team view", !(await other.isVisible("text=Your replies aren't included")));
 

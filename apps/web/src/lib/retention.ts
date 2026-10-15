@@ -45,6 +45,8 @@ export async function purgeExpired(now = new Date(), budgetMs = 40_000) {
             if (!inUse) await storage().delete(key);
             await db.video.updateMany({ where: { id: { in: ids } }, data: { status: "EXPIRED", playbackUrl: null, thumbnailUrl: null } });
             await db.videoInsight.deleteMany({ where: { videoId: { in: [...ids, ...rows.flatMap((r) => (r.sourceId ? [r.sourceId] : []))] } } });
+            // The library still, which is a frame of the recording, goes with it.
+            await db.videoThumb.deleteMany({ where: { videoId: { in: ids } } });
             purged += ids.length;
           } catch (err) {
             for (const id of ids) failed.add(id);

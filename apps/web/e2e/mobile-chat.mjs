@@ -14,6 +14,7 @@ import { mkdirSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import { startFakeAnthropic } from "./fake-anthropic.mjs";
 import { agreed } from "./agree.mjs";
+import { chooseClients, sendByLink } from "./send.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const shots = process.argv[2] ?? "/tmp/claude-0/mobile-chat-shots";
@@ -102,9 +103,7 @@ await owner.fill('input[aria-label="Client name"]', "Pia Phone");
 await owner.click("button:has-text('Add client')");
 await owner.waitForSelector("text=Pia Phone");
 await owner.goto(`${BASE}/v/${videoId}`);
-await owner.selectOption("select", { label: "Pia Phone" });
-await owner.click("[data-testid=first-link-dialog] >> text=Copy Pia's link");
-await owner.click("[data-testid=first-link-dialog] >> text=Done");
+await sendByLink(owner, "Pia Phone");
 const link = await owner.evaluate(() => navigator.clipboard.readText());
 // One reply waiting for her.
 await owner.fill('textarea[aria-label="Reply"]', "Have a look when you can");

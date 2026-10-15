@@ -3,11 +3,12 @@ import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import MemberPlanner from "@/components/MemberPlanner";
 import StorageStatus from "@/components/StorageStatus";
+import LibraryThumb from "@/components/LibraryThumb";
 import { db } from "@/lib/db";
 import { PLANS } from "@/lib/plans";
 import { followTeamLink, requirePageUser } from "@/lib/session";
 import { reminderDefaultsFor } from "@/lib/reminders";
-import { accessOf, isManager, libraryWhere, seesAllClients } from "@/lib/permissions";
+import { accessOf, clientScopeWhere, effectivePerms, isManager, libraryWhere, seesAllClients } from "@/lib/permissions";
 import type { Prisma } from "@prisma/client";
 import { zoned } from "@/lib/dates";
 import { videosUsed } from "@/lib/videoAllowance";
@@ -38,12 +39,15 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // "Deleting soon": server copies deleted within a week (no cloud backup), soonest first.
   const soonWhere: Prisma.VideoWhereInput = { ...scope, AND: [{ purgeAt: { not: null, lte: new Date(Date.now() + 7 * 86_400_000) } }, { status: { notIn: ["EXPIRED", "RECORDING"] } }] };
   const soon = filter === "soon";
-  const [videos, soonCount, allowance] = await Promise.all([
+  const [videos, soonCount, allowance, clientCount] = await Promise.all([
     // Copies sent to other clients count their views towards the original.
-    db.video.findMany({ where: soon ? soonWhere : scope, orderBy: soon ? { purgeAt: "asc" } : { createdAt: "desc" }, include: { copies: { select: { viewCount: true } }, client: { select: { removedAt: true, purgeAt: true } } } }),
+    db.video.findMany({ where: soon ? soonWhere : scope, orderBy: soon ? { purgeAt: "asc" } : { createdAt: "desc" }, include: { copies: { select: { viewCount: true } }, client: { select: { removedAt: true, purgeAt: true } }, thumb: { select: { videoId: true } }, source: { select: { thumb: { select: { videoId: true } } } } } }),
     db.video.count({ where: soonWhere }),
     plan.maxVideos !== null ? videosUsed(workspace.id) : null,
+    db.client.count({ where: { ...clientScopeWhere(access), removedAt: null } }),
   ]);
+  // A new business starts on its clients: once they're in, sending a video is picking them from a list.
+  const startHere = clientCount === 0 && videos.length === 0 && !soon && effectivePerms(access).addClients;
   // Free: videos in total for the life of the workspace, deleted ones included.
   const freeLeft = allowance && plan.maxVideos !== null ? Math.max(0, plan.maxVideos - allowance.used) : null;
   const withParams = (p: Record<string, string | undefined>) => {
@@ -140,6 +144,26 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             <h2 className="font-semibold text-ink">Nothing deleting soon</h2>
             <p className="mt-1 text-sm text-dim">No recordings are due to be deleted from our servers in the next 7 days.</p>
           </div>
+        ) : startHere ? (
+          <div className="rounded-2xl border border-line bg-surface p-8 sm:p-10" data-testid="start-here">
+            <p className="font-mono text-xs uppercase tracking-widest text-accent">Start here</p>
+            <h2 className="mt-2 text-xl font-semibold text-ink">Add your clients first</h2>
+            <p className="mt-2 max-w-xl text-sm text-muted">
+              Put in the clients you&apos;ll send videos to, with their email addresses. You can paste a whole list at once.
+              Then, when a video is ready, you just pick them from a list and press Send.
+            </p>
+            <ol className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
+              {["Add your clients", "Record a video", "Pick clients and send"].map((step, i) => (
+                <li key={step} className={`rounded-xl border px-4 py-3 ${i === 0 ? "border-primary text-ink" : "border-line text-dim"}`}>
+                  <span className="mr-2 font-mono text-xs">{i + 1}</span>{step}
+                </li>
+              ))}
+            </ol>
+            <div className="mt-6 flex flex-wrap items-center gap-4">
+              <Link href="/clients" className="rounded-xl bg-primary px-5 py-2.5 font-semibold text-white hover:bg-primary-hover">Add your clients</Link>
+              <Link href="/record" className="text-sm text-dim hover:text-ink">Record first instead</Link>
+            </div>
+          </div>
         ) : videos.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-line-strong p-16 text-center">
             <h2 className="font-semibold text-ink">No videos yet</h2>
@@ -156,9 +180,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={v.thumbnailUrl} alt="" className="h-full w-full object-cover transition group-hover:scale-105" />
                     ) : v.encrypted ? (
-                      <span className="absolute inset-0 grid place-items-center text-dim">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" role="img" aria-label="Encrypted"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
-                      </span>
+                      // Staff who look after a client see that client's copy here; it uses the original's still.
+                      <LibraryThumb videoId={v.id} teamKeyWrap={v.teamKeyWrap} workspaceId={workspace.id} fingerprint={workspace.keyFingerprint} has={v.status !== "EXPIRED" && !!(v.thumb ?? v.source?.thumb)} />
                     ) : v.status !== "RECORDING" ? (
                       <video src={`/api/videos/${v.id}/stream#t=0.5`} preload="metadata" muted className="h-full w-full object-cover" />
                     ) : null}

@@ -9,6 +9,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 import { agreed } from "./agree.mjs";
+import { chooseClients, sendByLink } from "./send.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const shots = process.argv[2] ?? "/tmp";
@@ -68,11 +69,8 @@ await coach.fill('input[aria-label="Client name"]', "Sam Client");
 await coach.click("button:has-text('Add client')");
 await coach.waitForSelector("text=Sam Client");
 await coach.goto(link);
-await coach.selectOption("select", { label: "Sam Client" });
-await coach.waitForTimeout(500);
-// First video for Sam: the pop-up offers the link (it holds Sam's key).
-await coach.click("[data-testid=first-link-dialog] >> text=Copy Sam's link");
-await coach.click("[data-testid=first-link-dialog] >> text=Done");
+// First video for Sam: the link is copied to send him (it holds Sam's key).
+await sendByLink(coach, "Sam Client");
 const personal = await coach.evaluate(() => navigator.clipboard.readText());
 console.log("personal link carries key in fragment:", /\?v=\w+#k=[\w-]{43}$/.test(personal));
 await coach.screenshot({ path: `${shots}/send-to-client.png` });

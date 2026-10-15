@@ -5,12 +5,17 @@ import RecordScreen from "@/components/RecordScreen";
 import RecoverUploads from "@/components/RecoverUploads";
 import { PLANS } from "@/lib/plans";
 import { requirePageUser } from "@/lib/session";
+import { db } from "@/lib/db";
+import { accessOf, clientScopeWhere, effectivePerms } from "@/lib/permissions";
 import { uploadingHint, videosUsed } from "@/lib/videoAllowance";
 
 export const metadata: Metadata = { title: "New recording" };
 
 export default async function RecordPage() {
-  const { user, workspace } = await requirePageUser("/record");
+  const me = await requirePageUser("/record");
+  const { user, workspace } = me;
+  const access = accessOf(me);
+  const noClients = effectivePerms(access).addClients && (await db.client.count({ where: { ...clientScopeWhere(access), removedAt: null } })) === 0;
   const plan = PLANS[workspace.plan];
   // Free: videos in total for the life of the workspace. The server checks again when a recording starts.
   const limit = plan.maxVideos;
@@ -21,6 +26,12 @@ export default async function RecordPage() {
       <AppHeader email={user.email} plan={plan.name} />
       <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <h1 className="mb-6 text-2xl font-semibold tracking-tight text-ink">New recording</h1>
+        {noClients && (
+          <p className="mb-6 max-w-2xl rounded-xl border border-line bg-surface p-3 text-sm text-muted" data-testid="no-clients-note">
+            You haven&apos;t added any clients yet. Add them first and you can send this video the moment it&apos;s done.{" "}
+            <Link href="/clients" className="font-medium text-accent hover:underline">Add your clients</Link>
+          </p>
+        )}
         {allowance && left === 0 ? (
           <>
             {/* The recorder isn't shown, so recordings left in this browser finish here (the header leaves this page to the recorder). */}

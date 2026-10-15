@@ -11,9 +11,10 @@ import NavLinks from "./NavLinks";
 import RecoverUploads from "./RecoverUploads";
 import SupportWidget from "./SupportChat";
 
+// Clients come first: a business adds them before sending anything.
 const LINKS = [
-  ["/library", "Library"],
   ["/clients", "Clients"],
+  ["/library", "Library"],
   ["/settings/team", "Team"],
   ["/settings/reminders", "Reminders"],
   ["/settings/branding", "Branding"],

@@ -148,8 +148,8 @@ ok("send to several including Bea: 409, nothing sent", res.status() === 409 && (
 res = await owner.request.post(`${BASE}/api/videos/${teamVideo.id}/send`, { data: { recipients: [{ clientId: cy.id, clientKeyWrap: "k".repeat(44) }], keyFingerprint: FP, notify: true } });
 ok("sending to Cy alone still works", res.status() === 201 && (await prisma.video.count({ where: { sourceId: teamVideo.id, clientId: cy.id } })) === 1, `${res.status()} ${await res.text()}`);
 await owner.goto(`${BASE}/v/${beaVideo.id}`);
-const sendStatus = await owner.waitForSelector("[data-testid=send-status]", { timeout: 20000 }).then((e) => e.textContent()).catch(() => "");
-ok("the team can still open Bea's video, and is told she can't watch it", norm(sendStatus) === `${bea.name}'s link has been turned off by SureFrame support, so only your team can watch this. Contact support@sureframe.app.`, sendStatus);
+const sendStatus = await owner.waitForSelector("[data-testid=sent-row]", { timeout: 20000 }).then((e) => e.textContent()).catch(() => "");
+ok("the team can still open Bea's video, and is told she can't watch it", norm(sendStatus).includes(`SureFrame support turned off ${bea.name.split(" ")[0]}'s link, so they can't open this. Contact support@sureframe.app.`) && !/Copy link/.test(sendStatus), sendStatus);
 
 // ---- Nothing goes to Bea ----
 const item = await prisma.item.create({ data: { kind: "TASK", body: "t".repeat(40), dueAt: new Date(Date.now() + 30 * 60000), authorName: "Owner", workspaceId: ws, clientId: bea.id, shared: true, remindClient: true } });

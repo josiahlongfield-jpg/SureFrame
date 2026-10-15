@@ -8,6 +8,7 @@ import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 import { start, state, createSubscription } from "./fake-stripe.mjs";
 import { agreed } from "./agree.mjs";
+import { chooseClients, sendByLink } from "./send.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const shots = process.argv[2] ?? "/tmp";
@@ -69,9 +70,10 @@ await owner.click("button:has-text('Stop')");
 await owner.waitForURL("**/v/**", { timeout: 30000 });
 const videoUrl = owner.url().split("?")[0];
 // Wait for the choice to be saved before leaving the page.
+await chooseClients(owner, avery.name);
 await Promise.all([
   owner.waitForResponse((r) => r.request().method() === "PATCH" && r.url().includes("/api/videos/"), { timeout: 30000 }),
-  owner.selectOption("select:near(:text('Send to'))", avery.id),
+  owner.click("[data-testid=send-link]"),
 ]);
 
 await owner.goto(`${BASE}/clients/${avery.id}`);

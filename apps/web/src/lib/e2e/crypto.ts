@@ -84,6 +84,14 @@ export async function decryptText(sealed: string, key: CryptoKey) {
   return new TextDecoder().decode(await open(fromB64url(sealed), key));
 }
 
+export async function encryptBytes(bytes: Uint8Array, key: CryptoKey) {
+  return b64url(await seal(bytes, key));
+}
+
+export async function decryptBytes(sealed: string, key: CryptoKey) {
+  return open(fromB64url(sealed), key);
+}
+
 /**
  * Encrypt one recorder chunk into a self-delimiting frame:
  *   [4-byte big-endian length][12-byte IV][ciphertext + 16-byte tag]

@@ -66,6 +66,35 @@ type Props = {
   cloudBackup?: boolean;
 };
 
+const EMAIL = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
+
+/** "jane.doe@x.com" -> "Jane Doe" */
+function nameFromEmail(email: string) {
+  return email.split("@")[0].split(/[._\-+]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(" ") || email;
+}
+
+/**
+ * A pasted list of clients, one per line: "Name, email", "Name <email>", a
+ * spreadsheet row (name, tab, email), just an email, or just a name.
+ */
+export function parseClientList(text: string) {
+  const out: { name: string; email?: string }[] = [];
+  const bad: string[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const angle = line.match(/^(.*?)<([^>]+)>\s*$/);
+    const parts = angle ? [angle[1], angle[2]] : line.split(/\t|,|;/);
+    const cells = parts.map((p) => p.trim().replace(/^"|"$/g, "")).filter(Boolean);
+    const email = cells.find((c) => c.includes("@"));
+    const name = cells.find((c) => !c.includes("@"));
+    if (email && !EMAIL.test(email)) bad.push(line);
+    else if (!name && !email) bad.push(line);
+    else out.push({ name: (name ?? nameFromEmail(email!)).slice(0, 80), email: email?.toLowerCase() });
+  }
+  return { clients: out, bad };
+}
+
 export default function ClientsManager({ workspaceId, fingerprint, ...rest }: Props) {
   return (
     <TeamKeyGate workspaceId={workspaceId} fingerprint={fingerprint}>
@@ -101,6 +130,7 @@ function Manager({
   const [seats, setSeats] = useState(initialSeats);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [bulk, setBulk] = useState<string | null>(null);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string>();
@@ -149,6 +179,30 @@ function Manager({
     setSeats((s) => ({ ...s, used: s.used + 1 }));
     setName("");
     setEmail("");
+  }
+
+  // Pasting a whole list: everyone not already on the list, added in one go.
+  const known = new Set(clients.flatMap((c) => (c.email ? [c.email.toLowerCase()] : [])));
+  const parsed = bulk ? parseClientList(bulk) : null;
+  const fresh = parsed ? parsed.clients.filter((c, i, all) => !c.email || (!known.has(c.email) && all.findIndex((x) => x.email === c.email) === i)) : [];
+  const dupes = parsed ? parsed.clients.length - fresh.length : 0;
+  async function addMany() {
+    if (!fresh.length) return;
+    setBusy(true);
+    setError(undefined);
+    const list = await Promise.all(fresh.map(async (c) => ({ ...c, teamKeyWrap: await wrapKey(await generateKey(), teamKey) })));
+    const res = await fetch("/api/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clients: list, keyFingerprint: await fingerprint(teamKey) }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) return setError(data.error ?? "Could not add those clients");
+    setClients((c) => [...c, ...data.clients].sort((a, b) => a.name.localeCompare(b.name)));
+    setSeats((s) => ({ ...s, used: s.used + data.clients.length }));
+    setBulk(null);
+    setNotice(`Added ${data.clients.length} ${data.clients.length === 1 ? "client" : "clients"}. You can now pick them when you send a video.`);
   }
 
   function askRemove(c: Client) {
@@ -299,6 +353,38 @@ function Manager({
             Add client
           </button>
         </form>
+        {bulk === null ? (
+          <button type="button" onClick={() => setBulk("")} className="mt-3 text-sm font-medium text-accent hover:underline" data-testid="bulk-open">
+            Add several at once
+          </button>
+        ) : (
+          <div className="mt-4 grid gap-2 border-t border-line pt-4" data-testid="bulk-add">
+            <label htmlFor="bulk-list" className="text-sm font-medium text-ink">Paste your client list</label>
+            <p className="text-xs text-dim">One client per line: a name and email (&ldquo;Jane Smith, jane@example.com&rdquo;), just an email, or copy the name and email columns straight from a spreadsheet.</p>
+            <textarea
+              id="bulk-list"
+              value={bulk}
+              onChange={(e) => setBulk(e.target.value)}
+              rows={6}
+              placeholder={"Jane Smith, jane@example.com\nsam@example.com"}
+              className="rounded-lg border border-line-strong px-3 py-2 font-mono text-sm"
+            />
+            {parsed && (parsed.clients.length > 0 || parsed.bad.length > 0) && (
+              <p className="text-sm text-muted" data-testid="bulk-summary">
+                {fresh.length} {fresh.length === 1 ? "client" : "clients"} ready to add
+                {fresh.length > seats.limit - seats.used && ` (only ${Math.max(0, seats.limit - seats.used)} seats left)`}
+                {dupes > 0 && `, ${dupes} already on your list`}
+                {parsed.bad.length > 0 && `. Check ${parsed.bad.length === 1 ? "this line" : "these lines"}: ${parsed.bad.slice(0, 3).join("; ")}${parsed.bad.length > 3 ? "…" : ""}`}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button type="button" onClick={addMany} disabled={busy || !fresh.length || fresh.length > seats.limit - seats.used} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50">
+                {busy ? "Adding…" : `Add ${fresh.length || ""} ${fresh.length === 1 ? "client" : "clients"}`}
+              </button>
+              <button type="button" onClick={() => setBulk(null)} className="rounded-lg px-3 py-2 text-sm text-dim hover:text-ink">Cancel</button>
+            </div>
+          </div>
+        )}
         {removedMatch && (
           <p className="mt-2 text-sm text-muted" data-testid="removed-match">
             {removedMatch.name} was removed on {dates.day(new Date(removedMatch.removedAt))}. Restore them instead to keep their history.{" "}

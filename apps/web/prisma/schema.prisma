@@ -323,6 +323,7 @@ model Video {
   asReply              Reply?        @relation("ReplyMedia")
   reactions            Reaction[]
   insight              VideoInsight?
+  thumb                VideoThumb?
 
   @@index([workspaceId, createdAt])
   @@index([replyToId])
@@ -746,4 +747,16 @@ model TermsNotice {
 
   @@unique([userId, termsVersion, privacyVersion])
   @@index([sentAt])
+}
+
+/// A still from the recording for the library, made on a team member's
+/// device and end-to-end encrypted with the video's key: the server can't
+/// see it. Copies sent to other clients use the original's. Deleted with the
+/// recording's server copy.
+model VideoThumb {
+  videoId   String   @id
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  /// The sealed JPEG, base64url.
+  data      String
+  createdAt DateTime @default(now())
 }

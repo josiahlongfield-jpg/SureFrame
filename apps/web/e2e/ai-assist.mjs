@@ -19,6 +19,7 @@ import { PrismaClient } from "@prisma/client";
 import { start, state, createSubscription } from "./fake-stripe.mjs";
 import { requests, startFakeAnthropic } from "./fake-anthropic.mjs";
 import { agreed } from "./agree.mjs";
+import { chooseClients, sendByLink } from "./send.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const shots = process.argv[2] ?? "/tmp";
@@ -270,12 +271,9 @@ await openAi(owner);
 await owner.waitForSelector("[data-testid=ai-summary]", { timeout: 30000 });
 
 // ---------- 4. The client reads it, sees the note, and can't trigger AI ----------
-await owner.selectOption("select:near(:text('Send to'))", ana.id);
-await owner.waitForSelector("text=Only your team and Ana can watch this");
+// First video for Ana: her personal link is copied to send her.
+await sendByLink(owner, ana.name);
 for (let i = 0; i < 30 && (await prisma.video.findUnique({ where: { id: videoId } })).clientId !== ana.id; i++) await owner.waitForTimeout(100);
-// First video for Ana: the pop-up offers her personal link.
-await owner.click("[data-testid=first-link-dialog] >> text=/Copy Ana's link/");
-await owner.click("[data-testid=first-link-dialog] >> text=Done");
 const link = await owner.evaluate(() => navigator.clipboard.readText());
 const clientCtx = await browser.newContext(perms);
 await clientCtx.addInitScript(stubTranscriber());

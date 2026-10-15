@@ -127,6 +127,7 @@ export default async function Watch({ params, searchParams }: Props) {
   const brand = isMember ? null : brandOf(workspace);
   const memberEmail = viewer.kind === "member" ? (await db.user.findUnique({ where: { id: viewer.userId }, select: { email: true } }))?.email : null;
   // The team sees reactions, and on an original sent to several clients, everyone's views.
+  const hasThumb = isMember && video.encrypted ? (await db.videoThumb.count({ where: { videoId: video.sourceId ?? video.id } })) > 0 : true;
   const [reactions, copyViews] = isMember
     ? await Promise.all([
         db.reaction.findMany({ where: { videoId: id }, orderBy: { createdAt: "asc" }, take: 500, select: { emoji: true, timestampMs: true } }),
@@ -180,6 +181,8 @@ export default async function Watch({ params, searchParams }: Props) {
             ai={aiOn || insight ? { insight, canMake: isMember && aiOn, notice: !isMember } : undefined}
             initialReplies={replies.map((r) => replyDTO(r, video.ownerId))}
             reactions={reactions}
+            hasThumb={hasThumb}
+            sourceId={video.sourceId}
           />
           </>
         )}
