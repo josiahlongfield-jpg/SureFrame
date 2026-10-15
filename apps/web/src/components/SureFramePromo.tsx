@@ -41,9 +41,9 @@ export default function SureFramePromo({ videoId }: { videoId: string }) {
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="promo-title" data-testid="sureframe-promo" className="fixed inset-0 z-50 grid place-items-center bg-solid/70 px-4">
       <style>{PROMO_CSS}</style>
-      <div className="w-full max-w-md overflow-hidden rounded-2xl bg-surface text-center shadow-2xl">
+      <div data-theme="navy" className="w-full max-w-md overflow-hidden rounded-2xl border border-line bg-surface text-center text-ink shadow-2xl">
         {/* A 10-second animated promo, drawn on the page: no video file, nothing loaded from elsewhere. */}
-        <div className="sf-promo relative aspect-video overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-brand-900" aria-hidden="true">
+        <div className="sf-promo relative aspect-video overflow-hidden bg-gradient-to-br from-[#0c1428] via-[#0c1428] to-brand-900" aria-hidden="true">
           <div className="sf-s1 absolute inset-0 grid place-items-center">
             <div className="flex items-center gap-3 text-2xl text-white">
               <LogoMark size={44} tone="dark" />
@@ -60,8 +60,8 @@ export default function SureFramePromo({ videoId }: { videoId: string }) {
               </span>
             </div>
             <div className="grid gap-2 text-left">
-              <span className="sf-b1 rounded-2xl rounded-bl-sm bg-surface/15 px-3 py-1.5 text-xs text-white">Here&apos;s your update</span>
-              <span className="sf-b2 rounded-2xl rounded-br-sm bg-brand-500 px-3 py-1.5 text-xs text-white">Thanks, looks great!</span>
+              <span className="sf-b1 rounded-2xl rounded-bl-sm bg-white/15 px-3 py-1.5 text-xs text-white">Here&apos;s your update</span>
+              <span className="sf-b2 rounded-2xl rounded-br-sm bg-[#4a68f2] px-3 py-1.5 text-xs text-white">Thanks, looks great!</span>
             </div>
           </div>
           <div className="sf-s3 absolute inset-0 grid place-items-center px-8">

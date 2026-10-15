@@ -133,7 +133,7 @@ export default function BrandingForm(props: { workspaceId: string; name: string;
                 aria-label={`Use ${s}`}
                 aria-pressed={color === s}
                 onClick={() => setColor(s)}
-                className={`h-8 w-8 rounded-full ring-offset-2 ${color === s ? "ring-2 ring-slate-900" : ""}`}
+                className={`h-8 w-8 rounded-full border border-line-strong ring-offset-2 ${color === s ? "ring-2 ring-ink ring-offset-surface" : ""}`}
                 style={{ background: s }}
               />
             ))}

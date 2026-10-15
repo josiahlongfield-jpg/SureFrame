@@ -34,8 +34,9 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
       <button className="whitespace-nowrap text-dim hover:text-ink">Sign out</button>
     </form>
   );
+  // No backdrop-blur on the header: it would pin the fixed Help button, prompts and dialogs inside it.
   return (
-    <header className="relative border-b border-line bg-canvas/80 backdrop-blur">
+    <header className="relative border-b border-line bg-canvas/80">
       <div className="mx-auto flex h-16 max-w-6xl sm:h-[72px] items-center justify-between gap-4 px-4 sm:px-6">
         <div className="flex items-center gap-6">
           <Logo href="/library" tone="dark" />

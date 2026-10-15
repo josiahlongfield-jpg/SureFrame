@@ -55,7 +55,7 @@ await pro.uncheck("text=Share with Riley");
 await pro.fill('textarea[aria-label="New note"]', "Prefers morning calls");
 await pro.click("form >> button:has-text('Add')");
 await pro.waitForSelector('li:has-text("Prefers morning calls")');
-ok("overdue due date shown in red", (await pro.getAttribute("text=/^Due .*Jan 5/", "class"))?.includes("text-red-600"));
+ok("overdue due date shown in red", (await pro.getAttribute("text=/^Due .*Jan 5/", "class"))?.includes("text-danger-fg"));
 await pro.screenshot({ path: `${shots}/client-space.png`, fullPage: true });
 
 // The list updates before the save finishes, so wait for all three rows.
