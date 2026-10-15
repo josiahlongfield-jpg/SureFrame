@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ACTIVITY_COOKIE as MARKER, activityCookie } from "@/lib/activity";
+import { OWNER_COOKIE, OWNER_PARAM, maintenanceOn, ownerPass, sameText } from "@/lib/maintenance";
 
 /**
  * Sign-ins last only as long as the browser is open, and end after a long
@@ -40,7 +41,44 @@ function withoutSession(req: NextRequest, names: Set<string>) {
   return headers;
 }
 
-export function middleware(req: NextRequest) {
+const MAINTENANCE_HEADERS = { "Retry-After": "3600", "Cache-Control": "no-store" };
+
+/**
+ * While maintenance mode is on, anyone without the owner cookie gets the maintenance page (a 503, so
+ * search engines treat it as temporary) and API calls get a 503. The Stripe webhook still gets through.
+ * Returns null when the request should carry on as normal.
+ */
+async function maintenance(req: NextRequest) {
+  if (!maintenanceOn()) return null;
+  const { pathname, searchParams } = req.nextUrl;
+  if (pathname.startsWith("/api/webhooks/")) return null;
+  const key = process.env.MAINTENANCE_KEY ?? "";
+  if (key.length >= 16) {
+    const pass = await ownerPass(key);
+    // The owner link: remember this browser, then show the same page without the key in the address.
+    const given = searchParams.get(OWNER_PARAM);
+    if (given !== null && sameText(given, key)) {
+      const url = req.nextUrl.clone();
+      url.searchParams.delete(OWNER_PARAM);
+      const res = NextResponse.redirect(url);
+      res.cookies.set(OWNER_COOKIE, pass, { path: "/", maxAge: 365 * 86_400, httpOnly: true, secure: req.nextUrl.protocol === "https:", sameSite: "lax" });
+      res.headers.set("Cache-Control", "no-store");
+      return res;
+    }
+    if (sameText(req.cookies.get(OWNER_COOKIE)?.value ?? "", pass)) return null;
+  }
+  if (pathname.startsWith("/api/")) return NextResponse.json({ error: "SureFrame is under maintenance. Please try again later." }, { status: 503, headers: MAINTENANCE_HEADERS });
+  const url = req.nextUrl.clone();
+  url.pathname = "/maintenance";
+  url.search = "";
+  return NextResponse.rewrite(url, { status: 503, headers: MAINTENANCE_HEADERS });
+}
+
+export async function middleware(req: NextRequest) {
+  return (await maintenance(req)) ?? sessionActivity(req);
+}
+
+function sessionActivity(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const session = sessionCookies(req);
   // Completing a sign-in from signed out (email link, Google, dev login) starts the browser session.

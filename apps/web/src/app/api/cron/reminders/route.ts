@@ -2,6 +2,7 @@ import { runReminders } from "@/lib/reminders";
 import { purgeExpired } from "@/lib/retention";
 import { flushTeamNotifications } from "@/lib/teamNotify";
 import { cronAuthorized } from "@/lib/secrets";
+import { unlessPaused } from "@/lib/maintenance";
 import { warnExpiring } from "@/lib/expiryWarning";
 import { purgeRemovedClients, warnClientPurge } from "@/lib/clientRemoval";
 import { purgeScheduledAccounts, warnScheduledDeletions } from "@/lib/accountDeletion";
@@ -14,20 +15,21 @@ const JOBS = ["reminders", "digests", "expiryWarnings", "purged", "clientWarning
 export async function GET(req: Request) {
   if (!cronAuthorized(req)) return new Response("Unauthorized", { status: 401 });
   // Each job runs even if another fails, so one bad row can't hold up the rest.
+  // While maintenance mode is on, emails and deletions wait (lib/maintenance.ts).
   const results = await Promise.allSettled([
-    runReminders(),
+    unlessPaused(() => runReminders()),
     // Team emails held back by the 15-minute limit go out as a digest.
-    flushTeamNotifications(),
+    unlessPaused(() => flushTeamNotifications()),
     // Recorders hear ~24 hours before a relay copy is deleted (lib/expiryWarning.ts).
-    warnExpiring(),
+    unlessPaused(() => warnExpiring()),
     // Copies are deleted close to the time shown, not just once a day.
-    purgeExpired(new Date(), 20_000),
+    unlessPaused(() => purgeExpired(new Date(), 20_000)),
     // Removed clients: the business hears ~3 days ahead, and they're deleted close to the date shown.
-    warnClientPurge(),
-    purgeRemovedClients(new Date(), 20_000),
+    unlessPaused(() => warnClientPurge()),
+    unlessPaused(() => purgeRemovedClients(new Date(), 20_000)),
     // Closed accounts: reminded ~3 days ahead, and deleted close to the date shown.
-    warnScheduledDeletions(),
-    purgeScheduledAccounts(new Date(), 20_000),
+    unlessPaused(() => warnScheduledDeletions()),
+    unlessPaused(() => purgeScheduledAccounts(new Date(), 20_000)),
   ]);
   const out: Record<string, unknown> = {};
   results.forEach((r, i) => {

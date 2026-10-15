@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { abortStaleUploads, pruneLeftovers, purgeExpired } from "@/lib/retention";
 import { pruneRateLimits } from "@/lib/rateLimit";
 import { cronAuthorized } from "@/lib/secrets";
+import { unlessPaused } from "@/lib/maintenance";
 import { pruneTeamNotifications } from "@/lib/teamNotify";
 import { warnExpiring } from "@/lib/expiryWarning";
 import { reconcileSubscriptions } from "@/lib/subscription";
@@ -21,26 +22,27 @@ export async function GET(req: Request) {
   // Each job runs even if another fails, so one storage hiccup doesn't skip the rest.
   // Checked after the response, so a slow Stripe doesn't hold up the clean-up.
   after(() => reconcileSubscriptions().catch((err) => console.error(JSON.stringify({ level: "error", message: "[cron/purge] subscription check failed", error: String(err) }))));
+  // While maintenance mode is on, emails and deletions wait (lib/maintenance.ts).
   const results = await Promise.allSettled([
     // Mostly done by the 5-minute job by now; this works through any backlog.
-    purgeExpired(new Date(), 120_000),
+    unlessPaused(() => purgeExpired(new Date(), 120_000)),
     pruneRateLimits(),
     abortStaleUploads(),
     pruneTeamNotifications(),
     pruneLeftovers(),
     // Normally sent by the 5-minute reminders job; this catches anything it missed.
-    warnExpiring(),
+    unlessPaused(() => warnExpiring()),
     // Removed clients whose 30 days are up, and the business's warning 3 days before (also every 5 minutes).
-    purgeRemovedClients(new Date(), 120_000),
-    warnClientPurge(),
+    unlessPaused(() => purgeRemovedClients(new Date(), 120_000)),
+    unlessPaused(() => warnClientPurge()),
     // Closed accounts: the reminder 3 days before, and deletion once the date comes (also every 5 minutes).
-    warnScheduledDeletions(),
-    purgeScheduledAccounts(new Date(), 120_000),
+    unlessPaused(() => warnScheduledDeletions()),
+    unlessPaused(() => purgeScheduledAccounts(new Date(), 120_000)),
     // Support records and records of agreeing to the terms, older than 7 years.
     pruneAdminActions(),
     pruneTermsAcceptances(),
     // Existing account holders told about new Terms and Privacy versions, 30 days before they take effect for them.
-    sendTermsNotices(),
+    unlessPaused(() => sendTermsNotices()),
   ]);
   const out: Partial<Record<(typeof JOBS)[number], unknown>> = {};
   results.forEach((r, i) => {
