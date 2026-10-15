@@ -72,6 +72,8 @@ async function signIn(email, next = "/library", lands = next.split("?")[0]) {
     await page.reload();
     await page.waitForURL((u) => u.pathname === lands, { timeout: 60000 });
   });
+  // The address bar can change before the server has rendered the page (and made a new account's workspace): wait for it.
+  await page.waitForSelector("main", { timeout: 60000 });
   return page;
 }
 const admin = await signIn(ADMIN, "/library");
