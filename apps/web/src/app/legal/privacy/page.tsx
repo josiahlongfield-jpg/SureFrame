@@ -438,7 +438,7 @@ export default function Page() {
 
       <h3>Contacting us</h3>
       <p>
-        We haven&rsquo;t appointed a representative in the EU or UK, or a data protection officer. Please contact {LEGAL.operator} directly at {mail} about anything
+        We haven&rsquo;t appointed a representative in the EU or UK, or a data protection officer. Please contact us directly at {mail} about anything
         in this policy. We handle requests from the EU and UK the same way as any other.
       </p>
 

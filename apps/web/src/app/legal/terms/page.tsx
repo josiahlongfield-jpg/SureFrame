@@ -209,7 +209,7 @@ export default function Page() {
       <h3>Suspension and closure</h3>
       <p>
         To protect people and {LEGAL.product}, we can suspend an account, turn off a client&rsquo;s link, or permanently close an account. {LEGAL.product}&rsquo;s
-        operator, {LEGAL.operator}, and anyone he authorises can take these steps through {LEGAL.product}&rsquo;s support tools. We may take any of them straight
+        owner and anyone they authorise can take these steps through {LEGAL.product}&rsquo;s support tools. We may take any of them straight
         away and without warning if we reasonably believe that:
       </p>
       <ul>

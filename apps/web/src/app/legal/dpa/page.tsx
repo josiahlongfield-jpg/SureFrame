@@ -112,8 +112,8 @@ export default function Page() {
 
       <h2>6. Confidentiality</h2>
       <p>
-        Everyone we allow to access Customer Personal Data is bound by confidentiality and accesses only what they need. Today that&rsquo;s {LEGAL.operator} and
-        anyone he authorises to help run {LEGAL.product}.
+        Everyone we allow to access Customer Personal Data is bound by confidentiality and accesses only what they need. Today that&rsquo;s {LEGAL.product}&rsquo;s owner
+        and anyone they authorise to help run {LEGAL.product}.
       </p>
 
       <h2>7. Security</h2>
@@ -245,7 +245,7 @@ export default function Page() {
 
       <h2>16. Contact</h2>
       <p>
-        {LEGAL.operator}, {mail}
+        {LEGAL.product}, {mail}
         {LEGAL.postalAddress && <>, {LEGAL.postalAddress}</>}. We haven&rsquo;t appointed a data protection officer or a representative in the EU or UK.
       </p>
 
@@ -256,7 +256,7 @@ export default function Page() {
           {LEGAL.product} as described in section 3. Role: controller (or processor).
         </li>
         <li>
-          <strong>Data importer:</strong> {LEGAL.operator}, a sole trader trading as {LEGAL.product}
+          <strong>Data importer:</strong> {LEGAL.product}, the registered business name of a sole trader
           {LEGAL.abn && <>, ABN {LEGAL.abn}</>}
           {LEGAL.postalAddress && <>, {LEGAL.postalAddress}</>}, {mail}. Activities: providing {LEGAL.product} as described in section 3. Role: processor.
         </li>
