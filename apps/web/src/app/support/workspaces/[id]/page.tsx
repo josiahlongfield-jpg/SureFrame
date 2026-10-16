@@ -6,7 +6,7 @@ import { CLIENT_KEEP_DAYS } from "@/lib/clientRemoval";
 import { seatUsage } from "@/lib/clients";
 import { db } from "@/lib/db";
 import { PLANS, staffSeatLimit } from "@/lib/plans";
-import { renewalStoppedBySuspension } from "@/lib/support/admin";
+import { isFounder, renewalStoppedBySuspension } from "@/lib/support/admin";
 import { clientDeleteConfirmation } from "@/lib/support/console";
 import { videosUsed } from "@/lib/videoAllowance";
 import PowerForm, { Check } from "../../_console/PowerForm";
@@ -125,6 +125,16 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                   "None"
                 ),
               ],
+              ...(isFounder(admin.email) && ownerEmail
+                ? [
+                    [
+                      "Discount code",
+                      <Link key="d" href={`/support/offers?email=${encodeURIComponent(ownerEmail)}`} className="text-accent hover:underline" data-testid="give-discount">
+                        Give this business a discount code
+                      </Link>,
+                    ] as [string, React.ReactNode],
+                  ]
+                : []),
               ["Subscription", w.subscriptionStatus ?? "None"],
               [
                 "Stripe",

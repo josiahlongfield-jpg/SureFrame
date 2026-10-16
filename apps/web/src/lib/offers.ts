@@ -77,6 +77,8 @@ export type Offer = {
   maxUses: number | null;
   expiresAt: Date | null;
   newCustomersOnly: boolean;
+  /** The one Stripe customer (business) it was given to, or null for a code anyone could use (made before 16 October 2026). */
+  customer: string | null;
   /** Active, not expired, uses left and the coupon still valid. Stripe makes the final check. */
   usable: boolean;
   created: Date;
@@ -128,6 +130,18 @@ function usable(pc: Stripe.PromotionCode, now = Date.now()) {
   );
 }
 
+const customerOf = (pc: Stripe.PromotionCode) => (pc.customer ? (typeof pc.customer === "string" ? pc.customer : pc.customer.id) : null);
+
+/**
+ * Whether a business can use an offer: a code given to one business (Stripe
+ * customer) works for that business only. Stripe refuses it for anyone else
+ * too; this says so before they get that far.
+ */
+export const offerIsFor = (offer: Pick<Offer, "customer">, customer: string | null | undefined) => !offer.customer || offer.customer === customer;
+
+/** Why a code given to another business is refused. */
+export const NOT_YOURS = "That code was given to another business, so it can't be used here.";
+
 export async function toOffer(pc: Stripe.PromotionCode): Promise<Offer | null> {
   const coupon = couponOf(pc);
   if (!coupon) return null;
@@ -142,6 +156,7 @@ export async function toOffer(pc: Stripe.PromotionCode): Promise<Offer | null> {
     maxUses: pc.max_redemptions,
     expiresAt: pc.expires_at ? new Date(pc.expires_at * 1000) : null,
     newCustomersOnly: !!pc.restrictions?.first_time_transaction,
+    customer: customerOf(pc),
     usable: usable(pc),
     created: new Date(pc.created * 1000),
   };
@@ -171,7 +186,8 @@ export async function automaticOffer(): Promise<Offer | null> {
   const hit = cache.sureframeAutomaticOffer;
   if (hit && Date.now() - hit.at < FRESH_MS) return hit.offer;
   const list = await stripe().promotionCodes.list({ active: true, limit: 100, expand: PROMO_LIST_EXPAND });
-  const pc = list.data.filter((p) => p.metadata?.sureframe_auto === "yes" && usable(p)).sort((a, b) => b.created - a.created)[0];
+  // A code given to one business is never applied to everyone.
+  const pc = list.data.filter((p) => p.metadata?.sureframe_auto === "yes" && !p.customer && usable(p)).sort((a, b) => b.created - a.created)[0];
   const offer = pc ? await toOffer(pc) : null;
   cache.sureframeAutomaticOffer = { at: Date.now(), offer };
   return offer;
@@ -226,9 +242,9 @@ export const quietly = <T,>(p: Promise<T>, ms = 3000): Promise<T | null> => {
  * new customers and this one has paid before). Given longer than the pricing
  * page, as the visitor is waiting on checkout anyway.
  */
-export async function checkoutOffers(code: string | null): Promise<Offer[]> {
+export async function checkoutOffers(code: string | null, customer: string | null): Promise<Offer[]> {
   const [linked, auto] = await Promise.all([code ? quietly(cachedOfferForCode(code), 8000) : null, quietly(automaticOffer(), 8000)]);
-  return [linked, auto].filter((o, i, all): o is Offer => !!o && all.findIndex((x) => x?.id === o.id) === i);
+  return [linked, auto].filter((o, i, all): o is Offer => !!o && offerIsFor(o, customer) && all.findIndex((x) => x?.id === o.id) === i);
 }
 
 /**
@@ -291,6 +307,7 @@ const perMonth = (cents: number, interval: string | undefined) => (interval === 
 export async function upgradeOffer(sub: Stripe.Subscription, newPlanKey: CatalogKey, code: string): Promise<Offer> {
   const offer = await offerForCode(code);
   if (!offer) throw new HttpError(400, "That code isn't valid or has ended.");
+  if (!offerIsFor(offer, typeof sub.customer === "string" ? sub.customer : sub.customer.id)) throw new HttpError(400, NOT_YOURS);
   if (offer.newCustomersOnly) throw new HttpError(400, NEW_CUSTOMERS_ONLY);
   if ((sub.discounts ?? []).some((d) => typeof d === "string" || (!d.deleted && !(d.end && d.end * 1000 <= Date.now())))) {
     throw new HttpError(400, "Your subscription already has a discount, and codes can't be combined.");

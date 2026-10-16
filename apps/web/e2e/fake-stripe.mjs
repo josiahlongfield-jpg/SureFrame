@@ -74,6 +74,7 @@ function discountFromCoupon(couponId, subId) {
 function promoRefusal(promoId, customer) {
   const promo = state.promos.find((x) => x.id === promoId);
   if (!promo || !promo.active) return "This promotion code is not active.";
+  if (promo.customer && promo.customer !== customer) return "This promotion code cannot be redeemed by this customer.";
   if (promo.max_redemptions !== null && promo.times_redeemed >= promo.max_redemptions) return "This promotion code has been fully redeemed.";
   if (promo.restrictions.first_time_transaction && state.subs.some((x) => x.customer === customer)) return "This promotion code cannot be redeemed because the associated customer has prior transactions.";
   return null;
@@ -225,7 +226,7 @@ export function start(port = Number(process.env.FAKE_STRIPE_PORT ?? 12111)) {
         active: form.active !== "false",
         code: form.code,
         created: Math.floor(Date.now() / 1000) + state.promos.length,
-        customer: null,
+        customer: form.customer ?? null,
         expires_at: form.expires_at ? Number(form.expires_at) : null,
         max_redemptions: form.max_redemptions ? Number(form.max_redemptions) : null,
         metadata: form.metadata ?? {},

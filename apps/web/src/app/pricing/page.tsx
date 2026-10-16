@@ -6,7 +6,8 @@ import PricingTable from "@/components/PricingTable";
 import { RETENTION_DAYS } from "@/lib/retention";
 import { AI_ASSIST_PRICES, AI_SUMMARIES_PER_MONTH, CLOUD_BACKUP_PRICE, CLOUD_BACKUP_PRICE_YEARLY, PLANS } from "@/lib/plans";
 import { foundingLastDay, foundingOpen } from "@/lib/founding";
-import { automaticOffer, cachedOfferForCode, codeFromCookie, isCodeShaped, OFFER_COOKIE, quietly, type Offer } from "@/lib/offers";
+import { automaticOffer, cachedOfferForCode, codeFromCookie, isCodeShaped, OFFER_COOKIE, offerIsFor, quietly, type Offer } from "@/lib/offers";
+import { currentUser } from "@/lib/session";
 import { isReferralCode, referralOffer } from "@/lib/referrals";
 
 export const metadata: Metadata = {
@@ -87,11 +88,14 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
     quietly(automaticOffer()),
     code && referralCode ? quietly(referralOffer(code).then((offer) => ({ offer }))) : null,
   ]);
-  const linked = lookup?.offer ?? null;
+  // A code given to one business only shows for that business.
+  const given = lookup?.offer?.customer ? await currentUser() : null;
+  const mine = !lookup?.offer?.customer || (!!given && offerIsFor(lookup.offer, given.workspace.stripeCustomerId));
+  const linked = mine ? (lookup?.offer ?? null) : null;
   const referral = referred?.offer ?? null;
   // A share link to a code Stripe doesn't know (/offer/CODE sends ?ended=CODE), else the remembered code if it has since ended.
   const endedLink = typeof query.ended === "string" && isCodeShaped(query.ended) ? query.ended.toUpperCase() : null;
-  const ended = endedLink ?? (code && ((lookup && !lookup.offer) || (referred && !referred.offer)) ? code : null);
+  const ended = endedLink ?? (code && ((lookup && (!lookup.offer || !mine)) || (referred && !referred.offer)) ? code : null);
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
       <SiteHeader navy />

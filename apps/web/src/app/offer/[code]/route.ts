@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { cachedOfferForCode, isCodeShaped, OFFER_COOKIE, OFFER_COOKIE_OPTIONS, offerCookieValue, quietly } from "@/lib/offers";
+import { cachedOfferForCode, isCodeShaped, offerIsFor, OFFER_COOKIE, OFFER_COOKIE_OPTIONS, offerCookieValue, quietly } from "@/lib/offers";
 import { clientIp, isLimited, limitByIp, rateLimit } from "@/lib/rateLimit";
 import { isReferralCode, referralOffer } from "@/lib/referrals";
+import { currentUser } from "@/lib/session";
 
 /**
  * A share link for a discount code (sureframe.app/offer/SPRING20) or a
@@ -36,6 +37,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   const lookup = await quietly(isReferralCode(code) ? referralOffer(code).then((offer) => ({ offer })) : cachedOfferForCode(code).then((offer) => ({ offer })));
   if (!lookup) return to("?code=busy");
   if (!lookup.offer) return to(`?ended=${encodeURIComponent(code)}`);
+  // A code given to one business works only when signed in to it: sign in first, then come back here.
+  const givenTo = "customer" in lookup.offer ? (lookup.offer.customer as string | null) : null;
+  if (givenTo) {
+    const me = await currentUser();
+    if (!me) return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(`/offer/${code}`)}`, req.url), 303);
+    if (!offerIsFor({ customer: givenTo }, me.workspace.stripeCustomerId)) return to(`?ended=${encodeURIComponent(code)}`);
+  }
   const res = to();
   res.cookies.set(OFFER_COOKIE, offerCookieValue(lookup.offer.code), OFFER_COOKIE_OPTIONS);
   return res;

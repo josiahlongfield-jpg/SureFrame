@@ -1,30 +1,44 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import CopyText from "@/components/CopyText";
 import { foundingLastDay, foundingOpen } from "@/lib/founding";
 import type { Offer } from "@/lib/offers";
 import { appUrl } from "@/lib/stripe";
-import { listOffers, MAX_OFFER_MONTHS } from "@/lib/support/offers";
-import PowerForm, { Check } from "../_console/PowerForm";
+import { isFounder } from "@/lib/support/admin";
+import { listOffers, MAX_OFFER_MONTHS, type GivenOffer } from "@/lib/support/offers";
+import PowerForm from "../_console/PowerForm";
 import { Badge, ConsoleNav, consoleAdmin, Done, Facts, Section } from "../_console/ui";
 
-export const metadata: Metadata = { title: "Offers", robots: { index: false } };
+export const metadata: Metadata = { title: "Discounts", robots: { index: false } };
 
 const field = "w-full rounded-xl border border-line-strong px-3 py-2 text-sm";
 const qldDay = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "Australia/Brisbane" });
 
 function status(o: Offer) {
   if (!o.active) return <Badge>Ended</Badge>;
-  if (o.maxUses !== null && o.uses >= o.maxUses) return <Badge tone="amber">Used up</Badge>;
+  if (o.maxUses !== null && o.uses >= o.maxUses) return <Badge tone="green">{o.maxUses === 1 ? "Used" : "Used up"}</Badge>;
   if (o.expiresAt && o.expiresAt.getTime() <= Date.now()) return <Badge tone="amber">Expired</Badge>;
   return <Badge tone="green">Active</Badge>;
 }
 
 /** Who can use an offer (lib/offers.ts: a new subscription, or moving up a plan; Stripe's new-customer rule is "never billed"). */
-function whoCanUse(o: Offer) {
-  if (o.newCustomersOnly) return "Businesses we've never billed before, when they start a subscription";
-  return "Businesses starting a subscription, or moving up to a bigger plan when the code doesn't make it cheaper than their current one";
+function whoCanUse(o: GivenOffer) {
+  if (o.customer) {
+    return o.business ? (
+      <Link key="b" href={`/support/workspaces/${o.business.id}`} className="text-accent hover:underline">
+        {o.business.name}
+        {o.business.ownerEmail ? ` (${o.business.ownerEmail})` : ""} only
+      </Link>
+    ) : (
+      "One business only (no longer found)"
+    );
+  }
+  if (o.newCustomersOnly) return "Anyone we've never billed before (an older code, made before codes were tied to one business)";
+  return "Anyone (an older code, made before codes were tied to one business)";
 }
 
-function OfferCard({ o }: { o: Offer }) {
+function OfferCard({ o }: { o: GivenOffer }) {
   const link = appUrl(`/offer/${o.code}`);
   return (
     <div className="rounded-2xl border border-line bg-surface p-4" data-testid={`offer-${o.code}`}>
@@ -38,31 +52,28 @@ function OfferCard({ o }: { o: Offer }) {
         <Facts
           rows={[
             ["Used", `${o.uses}${o.maxUses !== null ? ` of ${o.maxUses}` : ""} time${o.uses === 1 && o.maxUses === null ? "" : "s"}`],
+            ["For", whoCanUse(o)],
             ["Last day to use it", o.expiresAt ? qldDay(o.expiresAt) : "No end date"],
-            ["Who can use it", whoCanUse(o)],
-            ["Share link", <span key="l" className="break-all font-mono text-xs">{link}</span>],
+            ["Link for them", <span key="l" className="break-all font-mono text-xs">{link}</span>],
             ["Created", qldDay(o.created)],
           ]}
         />
       </div>
+      {o.active && o.usable && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <CopyText text={o.code} label="Copy code" testId={`copy-code-${o.code}`} />
+          <CopyText text={link} label="Copy link" testId={`copy-link-${o.code}`} />
+        </div>
+      )}
       {o.active && (
         <div className="mt-3 grid gap-2">
-          {o.usable &&
-            (o.automatic ? (
-              <PowerForm power="autoOfferOff" hidden={{ promotionCodeId: o.id }} title="Stop applying it automatically" submit="Stop applying automatically" testId={`auto-off-${o.code}`}>
-                <p className="text-sm text-muted">The code and its share link keep working; new subscriptions just don&rsquo;t get it without them.</p>
-              </PowerForm>
-            ) : (
-              <PowerForm power="autoOfferOn" hidden={{ promotionCodeId: o.id }} title="Apply it to every new subscription" submit="Apply automatically" testId={`auto-on-${o.code}`}>
-                <p className="text-sm text-muted">
-                  Every new subscription gets it at checkout without a code, and the pricing page says so. Only one offer can be applied automatically.
-                </p>
-              </PowerForm>
-            ))}
-          <PowerForm power="endOffer" hidden={{ promotionCodeId: o.id }} title="End this offer" submit="End offer" danger testId={`end-${o.code}`}>
-            <p className="text-sm text-muted">
-              Nobody new can use the code or its link from now on. Anyone who already has the discount keeps it for the time it was offered.
-            </p>
+          {o.automatic && (
+            <PowerForm power="autoOfferOff" hidden={{ promotionCodeId: o.id }} title="Stop applying it automatically" submit="Stop applying automatically" testId={`auto-off-${o.code}`}>
+              <p className="text-sm text-muted">An older code applied to every new subscription. It stops being applied without the code; the code itself keeps working.</p>
+            </PowerForm>
+          )}
+          <PowerForm power="endOffer" hidden={{ promotionCodeId: o.id }} title="Cancel this code" submit="Cancel code" danger testId={`end-${o.code}`}>
+            <p className="text-sm text-muted">The code can&rsquo;t be used from now on. A discount already taken with it keeps running for the time it was given.</p>
           </PowerForm>
         </div>
       )}
@@ -70,27 +81,30 @@ function OfferCard({ o }: { o: Offer }) {
   );
 }
 
-/** Support admins: discount codes and offers, made and ended here (lib/support/offers.ts). */
-export default async function Offers({ searchParams }: { searchParams: Promise<{ done?: string }> }) {
-  await consoleAdmin("/support/offers");
-  const { done } = await searchParams;
-  let offers: Offer[] = [];
+/** The founder only: discount codes, each given to one business and used once (lib/support/offers.ts). */
+export default async function Discounts({ searchParams }: { searchParams: Promise<{ done?: string; email?: string }> }) {
+  const admin = await consoleAdmin("/support/offers");
+  if (!isFounder(admin.email)) notFound();
+  const { done, email: prefill } = await searchParams;
+  let offers: GivenOffer[] = [];
   let error: string | null = null;
   try {
     offers = await listOffers();
   } catch (err) {
     error = String((err as Error)?.message ?? err).slice(0, 200);
   }
-  const live = offers.filter((o) => o.active);
-  const ended = offers.filter((o) => !o.active);
+  const live = offers.filter((o) => o.active && o.usable);
+  const ended = offers.filter((o) => !(o.active && o.usable));
   const founding = foundingOpen() ? foundingLastDay() : null;
   return (
     <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <ConsoleNav />
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">Offers</h1>
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">Discounts</h1>
       <p className="mt-2 text-sm text-muted">
-        Discount codes for SureFrame plans, kept in Stripe. People use a code at checkout, through its share link (which applies it for them), or on Settings
-        &gt; Billing if they already subscribe. One offer can also be applied automatically to every new subscription. One discount per subscription.
+        Discount codes you give to one business at a time. Each code works once and only for the business it&rsquo;s given to: Stripe refuses it for anyone
+        else, so passing it on does nothing. Only you can give or cancel codes. Send the business its code or link yourself; they use it when they start a
+        paid plan, or when they move up to a bigger plan as long as it doesn&rsquo;t bring the new plan below what they pay now. Referral codes (REF-) are
+        separate and work by themselves.
       </p>
       <p className="mt-2 text-sm text-muted" data-testid="founding-status">
         Founding prices: {founding ? `running, for subscriptions started by ${founding}.` : "not running. Ask Claude to start them with an end date."}
@@ -102,11 +116,15 @@ export default async function Offers({ searchParams }: { searchParams: Promise<{
         </p>
       )}
 
-      <Section title="New offer">
-        <PowerForm power="createOffer" hidden={{}} title="Create a discount code" submit="Create offer" testId="create-offer">
+      <Section title="Give a discount">
+        <PowerForm power="createOffer" hidden={{}} title="Give a business a discount code" submit="Make code" testId="create-offer">
           <label className="grid gap-1 text-sm text-muted">
-            Code (letters, numbers and dashes; customers can type it in any case)
-            <input name="code" required maxLength={40} pattern="[A-Za-z0-9-]{3,40}" autoCapitalize="characters" autoComplete="off" spellCheck={false} className={`${field} uppercase`} />
+            The business owner&rsquo;s email (the account the code is for)
+            <input name="email" type="email" required maxLength={320} defaultValue={prefill ?? ""} autoComplete="off" spellCheck={false} className={field} />
+          </label>
+          <label className="grid gap-1 text-sm text-muted">
+            Code (optional: leave empty and one is made up, like SF-7KQ2MX4P)
+            <input name="code" maxLength={40} pattern="[A-Za-z0-9-]{3,40}" autoCapitalize="characters" autoComplete="off" spellCheck={false} className={`${field} uppercase`} />
           </label>
           <label className="grid gap-1 text-sm text-muted">
             Percentage off
@@ -137,31 +155,20 @@ export default async function Offers({ searchParams }: { searchParams: Promise<{
             </span>
           </label>
           <label className="grid gap-1 text-sm text-muted">
-            How many times it can be used (empty for no limit)
-            <input name="maxUses" type="number" min={1} step={1} inputMode="numeric" className={field} />
-          </label>
-          <label className="grid gap-1 text-sm text-muted">
             Last day it can be used, Queensland time (empty for no end date)
             <input name="lastDay" type="date" className={field} />
           </label>
-          <Check
-            name="newCustomersOnly"
-            label="New customers only"
-            hint="Only for businesses we've never billed before, paid or not (Stripe's rule), so not for anyone who subscribed or tried to before."
-          />
-          <Check name="automatic" label="Apply it to every new subscription without a code" hint="The pricing page says so. Only one offer can be applied automatically." />
           <p className="text-xs text-dim">
-            Say exactly what the offer is wherever you share it, including any end date or limit on uses, and don&rsquo;t end an offer early that you promised
-            would run to a date.
+            Tell them exactly what the discount is, including any last day, and don&rsquo;t cancel a code early that you promised would last to a date.
           </p>
         </PowerForm>
       </Section>
 
-      <Section title={`Current offers (${live.length})`}>
-        {live.length ? <div className="grid gap-3">{live.map((o) => <OfferCard key={o.id} o={o} />)}</div> : <p className="text-sm text-muted">No offers running.</p>}
+      <Section title={`Current codes (${live.length})`}>
+        {live.length ? <div className="grid gap-3">{live.map((o) => <OfferCard key={o.id} o={o} />)}</div> : <p className="text-sm text-muted">No codes waiting to be used.</p>}
       </Section>
       {ended.length > 0 && (
-        <Section title={`Ended (${ended.length})`}>
+        <Section title={`Used or cancelled (${ended.length})`}>
           <div className="grid gap-3">
             {ended.map((o) => (
               <OfferCard key={o.id} o={o} />

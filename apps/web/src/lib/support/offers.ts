@@ -1,21 +1,35 @@
+import crypto from "node:crypto";
 import type Stripe from "stripe";
 import { productIds } from "@/lib/billing";
-import { db } from "@/lib/db";
+import { db, type Workspace } from "@/lib/db";
 import { forgetOffers, isCodeShaped, PROMO_EXPAND, PROMO_LIST_EXPAND, SCOPES, toOffer, type Offer, type OfferScope } from "@/lib/offers";
 import { HttpError } from "@/lib/session";
 import { stripe } from "@/lib/stripe";
-import { logAdmin, reasonOf, type SupportAdmin } from "@/lib/support/admin";
+import { isFounder, logAdmin, reasonOf, type SupportAdmin } from "@/lib/support/admin";
+import { currentCustomer } from "@/lib/subscription";
 
-/** Every offer, newest first, ended ones included (the console's Offers page). */
-export async function listOffers(): Promise<Offer[]> {
-  const list = await stripe().promotionCodes.list({ limit: 100, expand: PROMO_LIST_EXPAND });
-  const offers = await Promise.all(list.data.map(toOffer));
-  return offers.filter((o): o is Offer => !!o).sort((a, b) => b.created.getTime() - a.created.getTime());
+/** Only the founder gives or ends discount codes (lib/support/admin.ts). */
+export function requireFounder(actor: SupportAdmin) {
+  if (!isFounder(actor.email)) throw new HttpError(403, "Only the founder can give or end discount codes.");
 }
 
-async function currentAutomatic(exceptId?: string) {
-  const list = await stripe().promotionCodes.list({ active: true, limit: 100 });
-  return list.data.find((p) => p.metadata?.sureframe_auto === "yes" && p.id !== exceptId) ?? null;
+export type GivenOffer = Offer & { business: { id: string; name: string; ownerEmail: string | null } | null };
+
+/** Every offer, newest first, ended ones included, with the business each was given to (the console's Discounts page). */
+export async function listOffers(): Promise<GivenOffer[]> {
+  const list = await stripe().promotionCodes.list({ limit: 100, expand: PROMO_LIST_EXPAND });
+  const offers = (await Promise.all(list.data.map(toOffer))).filter((o): o is Offer => !!o);
+  const customers = [...new Set(offers.flatMap((o) => (o.customer ? [o.customer] : [])))];
+  const workspaces = await db.workspace.findMany({
+    where: { stripeCustomerId: { in: customers } },
+    select: { id: true, name: true, stripeCustomerId: true, members: { where: { role: "OWNER" }, select: { user: { select: { email: true } } }, take: 1 } },
+  });
+  return offers
+    .map((o) => {
+      const w = o.customer ? workspaces.find((x) => x.stripeCustomerId === o.customer) : null;
+      return { ...o, business: w ? { id: w.id, name: w.name, ownerEmail: w.members[0]?.user.email ?? null } : null };
+    })
+    .sort((a, b) => b.created.getTime() - a.created.getTime());
 }
 
 /**
@@ -26,7 +40,10 @@ async function currentAutomatic(exceptId?: string) {
 export const MAX_OFFER_MONTHS = 12;
 
 export type NewOffer = {
-  code: string;
+  /** The business it's for: its owner's email. */
+  email: string;
+  /** Empty for one made up (SF- and eight letters or digits). */
+  code?: string;
   percentOff: number;
   duration: "once" | "repeating" | "forever";
   months?: number;
@@ -34,15 +51,43 @@ export type NewOffer = {
   maxUses?: number;
   /** Last day it can be used, YYYY-MM-DD, Queensland time. */
   lastDay?: string;
-  newCustomersOnly: boolean;
-  automatic: boolean;
   reason: string;
 };
 
-/** Makes a coupon and its promotion code in Stripe, and records it in the support log. */
+const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const madeUpCode = () => `SF-${Array.from({ length: 8 }, () => ALPHABET[crypto.randomInt(ALPHABET.length)]).join("")}`;
+
+/** The business an owner's email names. */
+async function businessOf(email: string): Promise<{ workspace: Workspace; ownerEmail: string }> {
+  const owned = await db.membership.findMany({ where: { role: "OWNER", user: { email: { equals: email.trim(), mode: "insensitive" } } }, include: { workspace: true, user: true } });
+  if (!owned.length) throw new HttpError(400, "No business has an owner with that email. Check it on Look up.");
+  if (owned.length > 1) throw new HttpError(400, "That person owns more than one business. Ask Claude to add a way to choose one.");
+  const { workspace, user } = owned[0];
+  if (workspace.closedAt || workspace.deleteAt) throw new HttpError(400, `${workspace.name} is closed or being deleted.`);
+  return { workspace, ownerEmail: user.email };
+}
+
+/** The business's Stripe customer, made now if it has none, so the code can be tied to it. */
+async function customerFor(workspace: Workspace, ownerEmail: string) {
+  const existing = await currentCustomer(workspace);
+  if (existing) return existing;
+  const c = await stripe().customers.create({ email: ownerEmail, name: workspace.name, metadata: { workspaceId: workspace.id } });
+  // Unless a checkout made one at the same moment: then that one.
+  const set = await db.workspace.updateMany({ where: { id: workspace.id, stripeCustomerId: null }, data: { stripeCustomerId: c.id } });
+  if (set.count) return c.id;
+  await stripe().customers.del(c.id).catch(() => null);
+  return (await db.workspace.findUniqueOrThrow({ where: { id: workspace.id } })).stripeCustomerId!;
+}
+
+/**
+ * Gives one business a discount code (Josiah, 16 October 2026): it works once,
+ * and only for that business, as Stripe ties it to the business's customer.
+ * Records it in the support log.
+ */
 export async function createOffer(actor: SupportAdmin, o: NewOffer): Promise<{ actionId: string }> {
+  requireFounder(actor);
   const reason = reasonOf(o.reason);
-  const code = o.code.trim().toUpperCase();
+  const code = (o.code?.trim() || madeUpCode()).toUpperCase();
   if (!isCodeShaped(code)) throw new HttpError(400, "Codes are 3 to 40 letters, digits or dashes.");
   // REF- codes are businesses' referral codes (lib/referrals.ts).
   if (code.startsWith("REF-")) throw new HttpError(400, "Codes starting with REF- are kept for referral codes. Choose another code.");
@@ -54,10 +99,7 @@ export async function createOffer(actor: SupportAdmin, o: NewOffer): Promise<{ a
     expiresAt = Math.floor(new Date(`${o.lastDay}T23:59:59+10:00`).getTime() / 1000);
     if (expiresAt * 1000 <= Date.now()) throw new HttpError(400, "The last day has already passed.");
   }
-  if (o.automatic) {
-    const other = await currentAutomatic();
-    if (other) throw new HttpError(400, `${other.code} is already applied automatically. Only one offer can be; switch that one off first.`);
-  }
+  const { workspace, ownerEmail } = await businessOf(o.email);
   const existing = await stripe().promotionCodes.list({ code, active: true, limit: 1 });
   if (existing.data.length) throw new HttpError(400, `${code} is already in use. End that offer first or choose another code.`);
 
@@ -68,17 +110,18 @@ export async function createOffer(actor: SupportAdmin, o: NewOffer): Promise<{ a
     duration: o.duration,
     ...(o.duration === "repeating" ? { duration_in_months: o.months } : {}),
     ...(items ? { applies_to: { products: await productIds([...items]) } } : {}),
-    metadata: { sureframe_scope: o.scope },
+    metadata: { sureframe_scope: o.scope, sureframe_workspace: workspace.id },
   });
   let pc: Stripe.PromotionCode;
   try {
     pc = await stripe().promotionCodes.create({
       promotion: { type: "coupon", coupon: coupon.id },
       code,
-      ...(o.maxUses ? { max_redemptions: o.maxUses } : {}),
+      // This business only, once.
+      customer: await customerFor(workspace, ownerEmail),
+      max_redemptions: 1,
       ...(expiresAt ? { expires_at: expiresAt } : {}),
-      restrictions: { first_time_transaction: o.newCustomersOnly },
-      metadata: { sureframe_auto: o.automatic ? "yes" : "no" },
+      metadata: { sureframe_auto: "no", sureframe_workspace: workspace.id },
       expand: PROMO_EXPAND,
     });
   } catch (err) {
@@ -92,14 +135,13 @@ export async function createOffer(actor: SupportAdmin, o: NewOffer): Promise<{ a
   const row = await logAdmin(db, actor, {
     action: "offer.create",
     target: code,
+    workspaceId: workspace.id,
     reason,
     details: {
       code,
       summary: offer?.summary ?? null,
-      maxUses: o.maxUses ?? null,
+      business: workspace.name,
       lastDay: o.lastDay ?? null,
-      newCustomersOnly: o.newCustomersOnly,
-      automatic: o.automatic,
       promotionCode: pc.id,
       coupon: coupon.id,
     },
@@ -116,6 +158,7 @@ async function loadOffer(promotionCodeId: string) {
 
 /** Stops a code being used. Discounts people already have keep running for the time they were offered. */
 export async function endOffer(actor: SupportAdmin, o: { promotionCodeId: string; reason: string }): Promise<{ actionId: string }> {
+  requireFounder(actor);
   const reason = reasonOf(o.reason);
   const offer = await loadOffer(o.promotionCodeId);
   if (!offer.active) throw new HttpError(400, `${offer.code} has already ended.`);
@@ -130,22 +173,21 @@ export async function endOffer(actor: SupportAdmin, o: { promotionCodeId: string
   return { actionId: row.id };
 }
 
-/** Applies an offer to every new subscription without a code, or stops doing so. One at a time. */
-export async function setAutomaticOffer(actor: SupportAdmin, o: { promotionCodeId: string; on: boolean; reason: string }): Promise<{ actionId: string }> {
+/**
+ * Stops an older code being applied to every new subscription. Codes are only
+ * given to one business now, so none can be switched on.
+ */
+export async function stopAutomaticOffer(actor: SupportAdmin, o: { promotionCodeId: string; reason: string }): Promise<{ actionId: string }> {
+  requireFounder(actor);
   const reason = reasonOf(o.reason);
   const offer = await loadOffer(o.promotionCodeId);
-  if (o.on) {
-    if (!offer.usable) throw new HttpError(400, `${offer.code} can't be used any more, so it can't be applied automatically.`);
-    const other = await currentAutomatic(offer.id);
-    if (other) throw new HttpError(400, `${other.code} is already applied automatically. Switch that one off first.`);
-  }
-  await stripe().promotionCodes.update(offer.id, { metadata: { sureframe_auto: o.on ? "yes" : "no" } });
+  await stripe().promotionCodes.update(offer.id, { metadata: { sureframe_auto: "no" } });
   forgetOffers();
   const row = await logAdmin(db, actor, {
     action: "offer.automatic",
     target: offer.code,
     reason,
-    details: { code: offer.code, summary: offer.summary, automatic: o.on, promotionCode: offer.id },
+    details: { code: offer.code, summary: offer.summary, automatic: false, promotionCode: offer.id },
   });
   return { actionId: row.id };
 }

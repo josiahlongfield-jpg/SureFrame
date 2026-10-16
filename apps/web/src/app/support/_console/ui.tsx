@@ -59,7 +59,7 @@ export function ConsoleNav() {
         Free plans
       </Link>
       <Link href="/support/offers" className={link}>
-        Offers
+        Discounts
       </Link>
     </nav>
   );
@@ -114,8 +114,8 @@ const LABELS: Record<string, string> = {
   "plan.complimentary": "Complimentary plan changed",
   "plan.complimentary_ai": "Complimentary AI summaries changed",
   "account.export": "Account data downloaded",
-  "offer.create": "Offer created",
-  "offer.end": "Offer ended",
+  "offer.create": "Discount code given",
+  "offer.end": "Discount code cancelled",
   "offer.automatic": "Automatic offer changed",
 };
 export const actionLabel = (action: string) => LABELS[action] ?? action;
@@ -168,6 +168,7 @@ export function actionFacts(row: Pick<AdminAction, "action" | "details">): strin
     case "offer.end":
     case "offer.automatic":
       if (typeof d.summary === "string") out.push(d.summary);
+      if (row.action === "offer.create" && typeof d.business === "string") out.push(`For ${d.business} only, once`);
       if (row.action === "offer.create" && d.automatic) out.push("Applied automatically");
       if (row.action === "offer.automatic") out.push(d.automatic ? "Now applied automatically" : "No longer applied automatically");
       if (row.action === "offer.end" && typeof d.uses === "number") out.push(`Used ${d.uses} time${d.uses === 1 ? "" : "s"}`);

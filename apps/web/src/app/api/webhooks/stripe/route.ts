@@ -5,7 +5,7 @@ import { recordReferral, referredBusinessLeft } from "@/lib/referrals";
 import { stripe } from "@/lib/stripe";
 import { alertFounder } from "@/lib/founderAlert";
 import { rateLimit } from "@/lib/rateLimit";
-import { DISCOUNT_EXPAND } from "@/lib/offers";
+import { DISCOUNT_EXPAND, forgetOffers } from "@/lib/offers";
 import { forgetSubscription, syncSubscription } from "@/lib/subscription";
 
 const money = (cents: number, currency: string) => `${currency.toUpperCase()} ${(cents / 100).toFixed(2)}`;
@@ -36,6 +36,8 @@ async function syncWithFounding(id: string) {
     }
   }
   await syncSubscription(sub);
+  // A code just used may now be used up (codes given to one business work once): read codes afresh on this server.
+  if (sub.discounts?.length) forgetOffers();
   // Started with a referral code and paid: the code is used up and the sharer's reward booked (lib/referrals.ts).
   await recordReferral(sub);
   if (failed) throw failed;

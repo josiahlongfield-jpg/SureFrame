@@ -127,7 +127,8 @@ export default function Page() {
           new subscription pays our prices at the time.
         </li>
         <li id="discounts">
-          Discount codes and offers work as described when you use them: how much comes off, what it comes off and for how long. A discount that lasts a
+          Discount codes and offers work as described when you use them: how much comes off, what it comes off and for how long. A discount code we give
+          your business works once and only for your business: it can&rsquo;t be passed on, sold or used by anyone else. A discount that lasts a
           number of months comes off every bill that starts within those months, so on yearly billing it comes off your first yearly bill in full. Codes can
           only be used when you start a paid subscription or move up to a bigger plan, and when moving up a code can&rsquo;t bring the new plan below what
           your current plan costs. When a discount ends, the normal price applies from your next bill. Apart from a referral discount

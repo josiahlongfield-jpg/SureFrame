@@ -71,7 +71,7 @@ export const POST = handle(async (req: Request) => {
         .then(async (r) => ({ code: r.code, coupon: await referralCoupon() }))
         .catch((err) => (err instanceof HttpError ? null : (console.error("[billing] referral at checkout failed", String(err)), null)))
     : null;
-  const offers = await checkoutOffers(isReferralCode(saved) ? null : saved);
+  const offers = await checkoutOffers(isReferralCode(saved) ? null : saved, fresh.stripeCustomerId);
   // A founding checkout can't be paid long after the offer ends: open no later than its close (Stripe's minimum is 30 minutes).
   const ends = founding ? foundingEnds() : null;
   const expiresAt = ends ? Math.floor(Math.max(Date.now() + 31 * 60_000, Math.min(ends.getTime(), Date.now() + 23 * 3600_000)) / 1000) : undefined;

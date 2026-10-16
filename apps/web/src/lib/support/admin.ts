@@ -49,6 +49,15 @@ export function isSupportAdmin(email: string | null | undefined) {
   return admins.includes(email.toLowerCase());
 }
 
+/**
+ * The founder: SUPPORT_EMAIL alone, whoever else is a support admin. Only the
+ * founder gives discount codes (Josiah, 16 October 2026, "until further notice").
+ */
+export function isFounder(email: string | null | undefined) {
+  const founder = process.env.SUPPORT_EMAIL?.trim().toLowerCase();
+  return !!email && !!founder && email.toLowerCase() === founder;
+}
+
 export type SupportAdmin = { userId: string; email: string; workspaceIds: string[] };
 
 /**

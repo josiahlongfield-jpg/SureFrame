@@ -107,6 +107,16 @@ async function power(testId, { category, reason, confirm, fields = {}, checks = 
   return { done: false, message: norm(await box.locator('[role="alert"]').textContent({ timeout: 5000 }).catch(() => "")) };
 }
 
+// The workspace is made as the first page renders, so it can arrive a moment after the page's address.
+async function ownWorkspace(userId) {
+  for (let i = 0; i < 40; i++) {
+    const m = await prisma.membership.findFirst({ where: { userId, role: "OWNER" } });
+    if (m) return m.workspaceId;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error(`no workspace for ${userId}`);
+}
+
 // =====================================================================================================
 // The businesses
 // =====================================================================================================
@@ -114,7 +124,7 @@ async function power(testId, { category, reason, confirm, fields = {}, checks = 
 const aEmail = `con-a${stamp}@example.com`;
 const aOwner = await signIn(aEmail);
 const aUser = await prisma.user.findUnique({ where: { email: aEmail } });
-const wsA = (await prisma.membership.findFirst({ where: { userId: aUser.id, role: "OWNER" } })).workspaceId;
+const wsA = await ownWorkspace(aUser.id);
 const aName = `Console A ${stamp}`;
 const aCustomer = `cus_cona${stamp}`;
 const aSub = createSubscription(aCustomer, wsA, "sureframe_solo_monthly");
@@ -136,7 +146,7 @@ putFile(aVideo.storageKey);
 const bEmail = `con-b${stamp}@example.com`;
 const bOwner = await signIn(bEmail);
 const bUser = await prisma.user.findUnique({ where: { email: bEmail } });
-const wsB = (await prisma.membership.findFirst({ where: { userId: bUser.id, role: "OWNER" } })).workspaceId;
+const wsB = await ownWorkspace(bUser.id);
 const bName = `Console B ${stamp}`;
 await prisma.workspace.update({ where: { id: wsB }, data: { name: bName, videosRecorded: 7 } });
 const removedAt = new Date(Date.now() - 2 * D);
@@ -157,7 +167,7 @@ const cUser = await prisma.user.findUnique({ where: { email: cEmail } });
 const dEmail = `con-d${stamp}@example.com`;
 await signIn(dEmail);
 const dUser = await prisma.user.findUnique({ where: { email: dEmail } });
-const wsD = (await prisma.membership.findFirst({ where: { userId: dUser.id, role: "OWNER" } })).workspaceId;
+const wsD = await ownWorkspace(dUser.id);
 const dCustomer = `cus_cond${stamp}`;
 const dSub = createSubscription(dCustomer, wsD, "sureframe_solo_monthly");
 await prisma.workspace.update({ where: { id: wsD }, data: { name: `Console D ${stamp}`, plan: "SOLO", stripeCustomerId: dCustomer, stripeSubscriptionId: dSub.id, subscriptionStatus: "active" } });
@@ -166,7 +176,7 @@ putFile(dVideo.storageKey);
 const eEmail = `con-e${stamp}@example.com`;
 await signIn(eEmail);
 const eUser = await prisma.user.findUnique({ where: { email: eEmail } });
-const wsE = (await prisma.membership.findFirst({ where: { userId: eUser.id, role: "OWNER" } })).workspaceId;
+const wsE = await ownWorkspace(eUser.id);
 const eCustomer = `cus_cone${stamp}`;
 const eSub = createSubscription(eCustomer, wsE, "sureframe_studio_monthly");
 const eName = `Console E ${stamp}`;
