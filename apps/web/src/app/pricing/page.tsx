@@ -7,6 +7,7 @@ import { RETENTION_DAYS } from "@/lib/retention";
 import { AI_ASSIST_PRICES, AI_SUMMARIES_PER_MONTH, CLOUD_BACKUP_PRICE, CLOUD_BACKUP_PRICE_YEARLY, PLANS } from "@/lib/plans";
 import { foundingLastDay, foundingOpen } from "@/lib/founding";
 import { automaticOffer, cachedOfferForCode, codeFromCookie, isCodeShaped, OFFER_COOKIE, quietly, type Offer } from "@/lib/offers";
+import { isReferralCode, referralOffer } from "@/lib/referrals";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -21,9 +22,24 @@ const qldDay = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", mont
  * starts (a code typed in the switch box can come off a move up, never an
  * offer on its own), so that's what the banner says.
  */
-function Offers({ founding, ended, busy, linked, auto }: { founding: string | null; ended: string | null; busy: boolean; linked: Offer | null; auto: Offer | null }) {
+function Offers({
+  founding,
+  ended,
+  busy,
+  linked,
+  auto,
+  referral,
+}: {
+  founding: string | null;
+  ended: string | null;
+  busy: boolean;
+  linked: Offer | null;
+  auto: Offer | null;
+  referral: { code: string; summary: string } | null;
+}) {
   const box = "mx-auto mt-6 max-w-3xl rounded-2xl border p-4 text-center text-sm";
-  const offer = linked ?? auto;
+  // A referral code comes off instead of any other offer (lib/referrals.ts).
+  const offer = referral ? null : (linked ?? auto);
   const who = offer?.newCustomersOnly ? ", for businesses we've never billed before" : offer && offer !== linked ? ", for new subscriptions" : "";
   return (
     <>
@@ -43,6 +59,12 @@ function Offers({ founding, ended, busy, linked, auto }: { founding: string | nu
           We couldn&rsquo;t check that code just now. Open the link again in a few minutes.
         </p>
       )}
+      {referral && (
+        <p className={`${box} border-ok-line bg-ok-bg text-ok-fg`} data-testid="referral-banner">
+          <span className="font-semibold">Referral code {referral.code}:</span> {referral.summary}, for businesses we&rsquo;ve never billed before. It
+          comes off at checkout when you start a subscription.
+        </p>
+      )}
       {offer && (
         <p className={`${box} border-ok-line bg-ok-bg text-ok-fg`} data-testid="offer-banner">
           <span className="font-semibold">{offer === linked ? `Code ${offer.code}:` : "Offer:"}</span> {offer.summary}
@@ -59,11 +81,17 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
   const query = await searchParams;
   const code = codeFromCookie((await cookies()).get(OFFER_COOKIE)?.value);
   // Wrapped, so a code Stripe says has ended (null offer) differs from Stripe not answering in time (null lookup).
-  const [lookup, auto] = await Promise.all([code ? quietly(cachedOfferForCode(code).then((offer) => ({ offer }))) : null, quietly(automaticOffer())]);
+  const referralCode = isReferralCode(code);
+  const [lookup, auto, referred] = await Promise.all([
+    code && !referralCode ? quietly(cachedOfferForCode(code).then((offer) => ({ offer }))) : null,
+    quietly(automaticOffer()),
+    code && referralCode ? quietly(referralOffer(code).then((offer) => ({ offer }))) : null,
+  ]);
   const linked = lookup?.offer ?? null;
+  const referral = referred?.offer ?? null;
   // A share link to a code Stripe doesn't know (/offer/CODE sends ?ended=CODE), else the remembered code if it has since ended.
   const endedLink = typeof query.ended === "string" && isCodeShaped(query.ended) ? query.ended.toUpperCase() : null;
-  const ended = endedLink ?? (code && lookup && !lookup.offer ? code : null);
+  const ended = endedLink ?? (code && ((lookup && !lookup.offer) || (referred && !referred.offer)) ? code : null);
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
       <SiteHeader navy />
@@ -73,7 +101,7 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
           <h1 className="display mt-3 text-4xl   text-ink">Simple pricing. Clients always free.</h1>
           <p className="mt-4 text-muted">Pick a plan by how many clients you work with.</p>
         </div>
-        <Offers founding={foundingOpen() ? foundingLastDay() : null} ended={ended} busy={query.code === "busy"} linked={linked} auto={auto} />
+        <Offers founding={foundingOpen() ? foundingLastDay() : null} ended={ended} busy={query.code === "busy"} linked={linked} auto={auto} referral={referral} />
         <PricingTable />
         <p className="mt-10 text-center text-sm text-dim">More than 100 clients? Add extra clients for US$1.50 a month each.</p>
         <p className="mt-2 text-center text-sm text-dim" data-testid="free-videos-note">

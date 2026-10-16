@@ -262,13 +262,20 @@ export async function discountOf(sub: Stripe.Subscription): Promise<DiscountNow 
   if (discounts.some((d) => typeof d === "string" || typeof d.source?.coupon === "string")) {
     discounts = (await stripe().subscriptions.retrieve(sub.id, { expand: DISCOUNT_EXPAND })).discounts ?? [];
   }
-  const d = discounts.find((x): x is Stripe.Discount => typeof x !== "string" && !!x.source?.coupon && typeof x.source.coupon !== "string");
-  if (!d) return null;
-  const coupon = d.source.coupon as Stripe.Coupon;
+  const found = discounts.filter((x): x is Stripe.Discount => typeof x !== "string" && !!x.source?.coupon && typeof x.source.coupon !== "string");
+  if (!found.length) return null;
   await loadCatalog().catch(() => {});
-  const code = d.promotion_code && typeof d.promotion_code !== "string" ? d.promotion_code.code : null;
-  const what = `${amountOff(coupon)} ${scopeLabel(coupon)}${coupon.duration === "once" ? " on your next bill" : coupon.duration === "forever" ? " for as long as you stay subscribed" : ""}`;
-  return { label: code ? `${code}: ${what}` : what, endsAt: coupon.duration === "repeating" && d.end ? new Date(d.end * 1000) : null };
+  const labels = found.map((d) => {
+    const coupon = d.source.coupon as Stripe.Coupon;
+    // A referral (lib/referrals.ts): how long it lasts is explained beside it on Settings > Billing.
+    if (coupon.metadata?.sureframe_kind === "referral") return `Referral: ${amountOff(coupon)} ${scopeLabel(coupon)}`;
+    const code = d.promotion_code && typeof d.promotion_code !== "string" ? d.promotion_code.code : null;
+    const what = `${amountOff(coupon)} ${scopeLabel(coupon)}${coupon.duration === "once" ? " on your next bill" : coupon.duration === "forever" ? " for as long as you stay subscribed" : ""}`;
+    return code ? `${code}: ${what}` : what;
+  });
+  // An end date only when every one of them ends; the label is redone when one does.
+  const ends = found.map((d) => ((d.source.coupon as Stripe.Coupon).duration === "repeating" && d.end ? d.end * 1000 : null));
+  return { label: labels.join("; "), endsAt: ends.every((e) => e !== null) ? new Date(Math.max(...(ends as number[]))) : null };
 }
 
 const perMonth = (cents: number, interval: string | undefined) => (interval === "year" ? cents / 12 : cents);

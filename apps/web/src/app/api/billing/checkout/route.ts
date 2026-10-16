@@ -11,6 +11,7 @@ import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
 import { appUrl, stripe } from "@/lib/stripe";
 import { limitByIp } from "@/lib/rateLimit";
 import { currentCustomer, syncSubscription } from "@/lib/subscription";
+import { isReferralCode, referralCoupon, usableReferral } from "@/lib/referrals";
 
 const Body = z.object({ plan: z.enum(PAID_PLANS), interval: z.enum(["month", "year"]).default("month"), code: z.string().trim().max(40).optional() });
 
@@ -63,7 +64,14 @@ export const POST = handle(async (req: Request) => {
   const founding = foundingOpen();
   const price = await priceId(keyFor(PLAN_ITEM[plan], interval, founding));
   // A share link's or the code box's code, then the automatic offer (lib/offers.ts); without either, Checkout asks for a code.
-  const offers = await checkoutOffers(codeFromCookie((await cookies()).get(OFFER_COOKIE)?.value));
+  const saved = codeFromCookie((await cookies()).get(OFFER_COOKIE)?.value);
+  // A referral code (lib/referrals.ts) that still works for this business; if it doesn't, the automatic offer instead.
+  const referral = isReferralCode(saved)
+    ? await usableReferral(saved!, { userId: user.id, workspace: fresh })
+        .then(async (r) => ({ code: r.code, coupon: await referralCoupon() }))
+        .catch((err) => (err instanceof HttpError ? null : (console.error("[billing] referral at checkout failed", String(err)), null)))
+    : null;
+  const offers = await checkoutOffers(isReferralCode(saved) ? null : saved);
   // A founding checkout can't be paid long after the offer ends: open no later than its close (Stripe's minimum is 30 minutes).
   const ends = founding ? foundingEnds() : null;
   const expiresAt = ends ? Math.floor(Math.max(Date.now() + 31 * 60_000, Math.min(ends.getTime(), Date.now() + 23 * 3600_000)) / 1000) : undefined;
@@ -104,7 +112,21 @@ export const POST = handle(async (req: Request) => {
         cancel_url: appUrl("/pricing"),
       };
       let session: Stripe.Checkout.Session | null = null;
-      for (const offer of offers) {
+      if (referral) {
+        // The code rides on the subscription, so the webhook can thank the business that shared it once this is paid.
+        session = await stripe()
+          .checkout.sessions.create({
+            ...params,
+            discounts: [{ coupon: referral.coupon }],
+            subscription_data: { ...params.subscription_data, metadata: { ...params.subscription_data!.metadata, referralCode: referral.code } },
+          })
+          .catch((err) => {
+            if ((err as { type?: string })?.type !== "StripeInvalidRequestError") throw err;
+            console.error("[billing] referral not applied at checkout", JSON.stringify({ code: referral.code, error: String((err as Error).message).slice(0, 300) }));
+            return null;
+          });
+      }
+      for (const offer of session ? [] : offers) {
         // Stripe has the last word (say a code for new customers, and this one has paid before): then the next offer, else an ordinary checkout.
         session = await stripe()
           .checkout.sessions.create({ ...params, discounts: [{ promotion_code: offer.id }] })

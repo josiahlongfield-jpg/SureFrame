@@ -62,6 +62,14 @@ function discountFrom(promo, subId) {
   };
 }
 
+/** A discount straight from a coupon (a referral), with no promotion code. */
+function discountFromCoupon(couponId, subId) {
+  const c = state.coupons.find((x) => x.id === couponId);
+  if (!c) return null;
+  c.times_redeemed += 1;
+  return { id: id("di"), object: "discount", source: { type: "coupon", coupon: c }, promotion_code: null, start: Math.floor(Date.now() / 1000), end: null, subscription: subId };
+}
+
 /** Why Stripe would refuse a promotion code, or null. */
 function promoRefusal(promoId, customer) {
   const promo = state.promos.find((x) => x.id === promoId);
@@ -71,7 +79,7 @@ function promoRefusal(promoId, customer) {
   return null;
 }
 
-export function createSubscription(customer, workspaceId, lookupKey, status = "active", { metadata = {}, promotionCode } = {}) {
+export function createSubscription(customer, workspaceId, lookupKey, status = "active", { metadata = {}, promotionCode, coupon } = {}) {
   const price = state.prices.find((p) => p.lookup_key === lookupKey);
   const now = Math.floor(Date.now() / 1000);
   const end = now + (price?.recurring?.interval === "year" ? 365 : 30) * 86400;
@@ -79,6 +87,7 @@ export function createSubscription(customer, workspaceId, lookupKey, status = "a
   const sub = { id: id("sub"), object: "subscription", created: now, customer, status, metadata: { workspaceId, ...metadata }, default_payment_method: card, items: list([subItem(price, 1, end)]), discounts: [] };
   const promo = promotionCode && state.promos.find((x) => x.id === promotionCode);
   if (promo) sub.discounts = [discountFrom(promo, sub.id)];
+  if (coupon) sub.discounts = [discountFromCoupon(coupon, sub.id)].filter(Boolean);
   state.subs.push(sub);
   return sub;
 }
@@ -167,8 +176,11 @@ export function start(port = Number(process.env.FAKE_STRIPE_PORT ?? 12111)) {
       return send(200, s ?? {});
     }
     if (p === "/v1/coupons" && req.method === "POST") {
+      // A coupon made with its own id is made once (the app sends an idempotency key too).
+      const same = form.id && state.coupons.find((c) => c.id === form.id);
+      if (same) return send(200, same);
       const c = {
-        id: id("co"),
+        id: form.id ?? id("co"),
         object: "coupon",
         name: form.name ?? null,
         percent_off: form.percent_off ? Number(form.percent_off) : null,
@@ -186,6 +198,10 @@ export function start(port = Number(process.env.FAKE_STRIPE_PORT ?? 12111)) {
       };
       state.coupons.push(c);
       return send(200, c);
+    }
+    if ((m = p.match(/^\/v1\/coupons\/([^/]+)$/)) && req.method === "GET") {
+      const c = state.coupons.find((x) => x.id === m[1]);
+      return c ? send(200, c) : send(404, { error: { type: "invalid_request_error", code: "resource_missing", message: "No such coupon" } });
     }
     if ((m = p.match(/^\/v1\/coupons\/([^/]+)$/)) && req.method === "DELETE") {
       state.coupons = state.coupons.filter((c) => c.id !== m[1]);
@@ -230,6 +246,8 @@ export function start(port = Number(process.env.FAKE_STRIPE_PORT ?? 12111)) {
       return send(200, promo);
     }
     if (p === "/v1/checkout/sessions" && req.method === "POST") {
+      const couponId = form.discounts?.[0]?.coupon;
+      if (couponId && !state.coupons.some((c) => c.id === couponId)) return send(400, { error: { type: "invalid_request_error", message: "No such coupon" } });
       const promoId = form.discounts?.[0]?.promotion_code;
       if (promoId) {
         const refusal = promoRefusal(promoId, form.customer);
@@ -261,13 +279,25 @@ export function start(port = Number(process.env.FAKE_STRIPE_PORT ?? 12111)) {
           return send(402, { error: { type: "card_error", code: "card_declined", message: "Your card was declined." } });
         }
         if ("discounts" in form) {
-          const promoId = [].concat(form.discounts || [])[0]?.promotion_code;
-          if (promoId) {
-            // A subscriber has always paid before, so a code for first-time customers is refused.
-            const refusal = promoRefusal(promoId, sub.customer);
-            if (refusal) return send(400, { error: { type: "invalid_request_error", message: refusal } });
-            sub.discounts = [discountFrom(state.promos.find((x) => x.id === promoId), sub.id)];
-          } else sub.discounts = [];
+          // Each entry is a promotion code, a coupon, or an existing discount to keep; none clears them.
+          const next = [];
+          for (const d of [].concat(form.discounts || [])) {
+            if (d.promotion_code) {
+              // A subscriber has always paid before, so a code for first-time customers is refused.
+              const refusal = promoRefusal(d.promotion_code, sub.customer);
+              if (refusal) return send(400, { error: { type: "invalid_request_error", message: refusal } });
+              next.push(discountFrom(state.promos.find((x) => x.id === d.promotion_code), sub.id));
+            } else if (d.coupon) {
+              const made = discountFromCoupon(d.coupon, sub.id);
+              if (!made) return send(400, { error: { type: "invalid_request_error", message: "No such coupon" } });
+              next.push(made);
+            } else if (d.discount) {
+              const kept = sub.discounts.find((x) => x.id === d.discount);
+              if (!kept) return send(400, { error: { type: "invalid_request_error", message: "No such discount" } });
+              next.push(kept);
+            }
+          }
+          sub.discounts = next;
         }
         for (const it of [].concat(form.items ?? [])) {
           const existing = sub.items.data.find((i) => i.id === it.id);

@@ -157,6 +157,8 @@ model Workspace {
   /// We stopped the subscription because of that (renewal off, or cancelled if a payment was outstanding).
   /// Keeping the account turns renewal back on while the plan is still running.
   renewalStoppedAt      DateTime?
+  /// This business's referral codes, one per paid plan it has been on (lib/referrals.ts).
+  referralCodes         ReferralCode[]
   /// Suspended by SureFrame support (lib/support/admin.ts): members can't use it, clients' links show it as
   /// unavailable and nothing is emailed in its name. Nothing is deleted because of it.
   suspendedAt           DateTime?
@@ -759,4 +761,26 @@ model VideoThumb {
   /// The sealed JPEG, base64url.
   data      String
   createdAt DateTime @default(now())
+}
+
+/// A paying business's code for referring another business (lib/referrals.ts). One per business, and it works once:
+/// the business that subscribes with it gets 10% off its plan on every bill, and this one the same from its next
+/// bill on, for as long as the business it brought stays subscribed.
+model ReferralCode {
+  code              String    @id
+  workspaceId       String    @unique
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt         DateTime  @default(now())
+  /// When a business subscribed with it (its first payment went through).
+  usedAt            DateTime?
+  usedByWorkspaceId String?   @unique
+  /// When the sharer's 10% goes on their subscription: just before their next bill.
+  rewardDueAt       DateTime?
+  rewardAppliedAt   DateTime?
+  /// Never given: the sharer's subscription ended or was set to end, or the referred business left, first.
+  rewardLapsedAt    DateTime?
+  /// Taken off again because the referred business's subscription ended.
+  rewardEndedAt     DateTime?
+
+  @@index([rewardDueAt])
 }

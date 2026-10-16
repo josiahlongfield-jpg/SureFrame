@@ -6,10 +6,11 @@ import { unlessPaused } from "@/lib/maintenance";
 import { warnExpiring } from "@/lib/expiryWarning";
 import { purgeRemovedClients, warnClientPurge } from "@/lib/clientRemoval";
 import { purgeScheduledAccounts, warnScheduledDeletions } from "@/lib/accountDeletion";
+import { applyReferralRewards } from "@/lib/referrals";
 
 export const maxDuration = 300;
 
-const JOBS = ["reminders", "digests", "expiryWarnings", "purged", "clientWarnings", "clientsPurged", "accountWarnings", "accountsPurged"] as const;
+const JOBS = ["reminders", "digests", "expiryWarnings", "purged", "clientWarnings", "clientsPurged", "accountWarnings", "accountsPurged", "referralRewards"] as const;
 
 /** Run every few minutes (e.g. Vercel Cron) with Authorization: Bearer $CRON_SECRET. */
 export async function GET(req: Request) {
@@ -30,6 +31,8 @@ export async function GET(req: Request) {
     // Closed accounts: reminded ~3 days ahead, and deleted close to the date shown.
     unlessPaused(() => warnScheduledDeletions()),
     unlessPaused(() => purgeScheduledAccounts(new Date(), 20_000)),
+    // Referral thank-yous go on just before the sharer's next bill (lib/referrals.ts). Billing, so not paused.
+    applyReferralRewards(),
   ]);
   const out: Record<string, unknown> = {};
   results.forEach((r, i) => {
@@ -40,5 +43,5 @@ export async function GET(req: Request) {
     }
   });
   const reminders = out.reminders;
-  return Response.json({ ...(typeof reminders === "object" && reminders ? reminders : { reminders }), digests: out.digests, expiryWarnings: out.expiryWarnings, purged: out.purged, clientWarnings: out.clientWarnings, clientsPurged: out.clientsPurged, accountWarnings: out.accountWarnings, accountsPurged: out.accountsPurged });
+  return Response.json({ ...(typeof reminders === "object" && reminders ? reminders : { reminders }), digests: out.digests, expiryWarnings: out.expiryWarnings, purged: out.purged, clientWarnings: out.clientWarnings, clientsPurged: out.clientsPurged, accountWarnings: out.accountWarnings, accountsPurged: out.accountsPurged, referralRewards: out.referralRewards });
 }

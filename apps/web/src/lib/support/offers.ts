@@ -44,6 +44,8 @@ export async function createOffer(actor: SupportAdmin, o: NewOffer): Promise<{ a
   const reason = reasonOf(o.reason);
   const code = o.code.trim().toUpperCase();
   if (!isCodeShaped(code)) throw new HttpError(400, "Codes are 3 to 40 letters, digits or dashes.");
+  // REF- codes are businesses' referral codes (lib/referrals.ts).
+  if (code.startsWith("REF-")) throw new HttpError(400, "Codes starting with REF- are kept for referral codes. Choose another code.");
   if (!(o.percentOff > 0 && o.percentOff <= 100)) throw new HttpError(400, "Enter a percentage from 1 to 100.");
   if (o.duration === "repeating" && !(o.months && o.months >= 1 && o.months <= MAX_OFFER_MONTHS)) throw new HttpError(400, `Enter how many months, 1 to ${MAX_OFFER_MONTHS}.`);
   let expiresAt: number | undefined;

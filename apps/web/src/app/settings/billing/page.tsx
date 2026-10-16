@@ -5,6 +5,7 @@ import ManageBillingButton from "@/components/ManageBillingButton";
 import CloudBackupToggle from "@/components/CloudBackupToggle";
 import AiAssistToggle from "@/components/AiAssistToggle";
 import RedeemCode from "@/components/RedeemCode";
+import CopyText from "@/components/CopyText";
 import { summaryUsage } from "@/lib/ai/summary";
 import { readManifest } from "@/lib/ai/speechModel";
 import { RETENTION_DAYS } from "@/lib/retention";
@@ -14,6 +15,8 @@ import { followTeamLink, requirePageUser } from "@/lib/session";
 import { BRAND } from "@/lib/brand";
 import { zoned } from "@/lib/dates";
 import { videosUsed } from "@/lib/videoAllowance";
+import { paying, REFERRAL_PERCENT, referralCodeFor, referredBy } from "@/lib/referrals";
+import { appUrl } from "@/lib/stripe";
 
 export const metadata: Metadata = { title: "Billing" };
 
@@ -44,6 +47,87 @@ async function FreeVideosUsed({ workspaceId, limit }: { workspaceId: string; lim
 
 /** A date as the workspace's owner would read it, in their own time zone. */
 const day = (d: Date, timeZone: string | null) => zoned(timeZone).longDay(d);
+
+/**
+ * Refer a business (lib/referrals.ts): a paying business's own code and how
+ * it works, or where its reward is up to once the code has been used.
+ */
+async function Referrals({ workspace }: { workspace: Workspace }) {
+  const pct = `${REFERRAL_PERCENT}%`;
+  const card = (body: React.ReactNode) => (
+    <div className="mt-6 rounded-2xl border border-line bg-surface p-6" data-testid="referrals">
+      <p className="font-semibold text-ink">Refer a business</p>
+      {body}
+    </div>
+  );
+  if (workspace.discountLabel?.startsWith("Referral:") || (await referredBy(workspace.id))) {
+    if (!workspace.stripeSubscriptionId) return null;
+    return card(
+      <p className="mt-1 text-sm text-muted" data-testid="referral-joined">
+        Your business started its subscription with another business&apos;s referral code, so it has {pct} off its plan for as long as you stay
+        subscribed. Each business can take part in referrals once, so there&apos;s no code for you to share.
+      </p>,
+    );
+  }
+  const row = await referralCodeFor(workspace);
+  if (!row) return null;
+  const tz = workspace.timezone;
+  if (!row.usedAt) {
+    if (!paying(workspace)) return null;
+    const link = appUrl(`/offer/${row.code}`);
+    return card(
+      <>
+        <p className="mt-1 text-sm text-muted">
+          Know another business that could use {BRAND.name}? Share your code with them. If a business we&apos;ve never billed before starts a paid plan
+          with it, they get {pct} off their plan on every bill for as long as they stay subscribed.
+        </p>
+        <p className="mt-2 text-sm text-muted" data-testid="referral-reward-terms">
+          Once their first payment goes through, you get {pct} off your plan too. <span className="font-medium text-ink">It starts from your next bill</span>,
+          not the one you&apos;ve already paid, and then comes off every bill after that for as long as they stay subscribed.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <code className="rounded-lg bg-canvas px-3 py-1.5 font-mono text-base font-semibold tracking-wider text-ink" data-testid="referral-code">
+            {row.code}
+          </code>
+          <CopyText text={row.code} label="Copy code" testId="referral-copy-code" />
+          <CopyText text={link} label="Copy link" testId="referral-copy-link" />
+        </div>
+        <p className="mt-2 break-all text-xs text-dim" data-testid="referral-link">
+          {link}
+        </p>
+        <p className="mt-3 text-xs text-dim">
+          Your code works for one business. The {pct} comes off the plan itself, not extra clients, extra staff or add-ons, and stays with you if you move to
+          a bigger plan. A business can&apos;t use its own code, and a business that joins with a code doesn&apos;t get one to share.
+        </p>
+      </>,
+    );
+  }
+  const status = row.rewardEndedAt ? (
+    <>
+      Your {pct} referral discount ended on {day(row.rewardEndedAt, tz)} because the business you referred stopped subscribing.
+    </>
+  ) : row.rewardLapsedAt ? (
+    <>
+      Your code {row.code} was used, but the {pct} wasn&apos;t given because your subscription had ended, or the business you referred stopped subscribing,
+      before your next bill.
+    </>
+  ) : row.rewardAppliedAt ? (
+    <>
+      Your {pct} referral discount is active. It comes off your plan on every bill for as long as the business you referred stays subscribed.
+    </>
+  ) : (
+    <>
+      Your code {row.code} was used on {day(row.usedAt, tz)}. Your {pct} off starts with your next bill
+      {workspace.currentPeriodEnd ? <>, on {day(workspace.currentPeriodEnd, tz)},</> : ""} and then comes off every bill after that for as long as the
+      business you referred stays subscribed.
+    </>
+  );
+  return card(
+    <p className="mt-1 text-sm text-muted" data-testid="referral-status">
+      {status}
+    </p>,
+  );
+}
 
 export default async function Billing({ searchParams }: { searchParams: Promise<{ upgraded?: string; ws?: string }> }) {
   const { upgraded, ws } = await searchParams;
@@ -150,6 +234,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
           {/* Codes are for starting a subscription (Free or a plan we gave to paid), never for one that's running. */}
           {!workspace.stripeSubscriptionId && <RedeemCode />}
         </div>
+        <Referrals workspace={workspace} />
         <CloudBackupToggle
           enabled={workspace.cloudBackup}
           canEnable={workspace.plan !== "FREE" && !!workspace.stripeSubscriptionId}

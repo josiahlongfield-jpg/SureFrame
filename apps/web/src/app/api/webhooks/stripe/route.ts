@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
 import { adoptFoundingPrices } from "@/lib/billing";
 import { db } from "@/lib/db";
+import { recordReferral, referredBusinessLeft } from "@/lib/referrals";
 import { stripe } from "@/lib/stripe";
 import { alertFounder } from "@/lib/founderAlert";
 import { rateLimit } from "@/lib/rateLimit";
@@ -35,6 +36,8 @@ async function syncWithFounding(id: string) {
     }
   }
   await syncSubscription(sub);
+  // Started with a referral code and paid: the code is used up and the sharer's reward booked (lib/referrals.ts).
+  await recordReferral(sub);
   if (failed) throw failed;
 }
 
@@ -105,10 +108,15 @@ export async function POST(req: Request) {
     case "customer.subscription.updated":
       await syncWithFounding(event.data.object.id);
       break;
-    case "customer.subscription.deleted":
+    case "customer.subscription.deleted": {
       // Re-read so out-of-order deliveries always apply the latest state.
-      await syncSubscription(await stripe().subscriptions.retrieve(event.data.object.id, { expand: DISCOUNT_EXPAND }));
+      const sub = await stripe().subscriptions.retrieve(event.data.object.id, { expand: DISCOUNT_EXPAND });
+      await syncSubscription(sub);
+      // A business that subscribed with a referral code left: the 10% it gave its sharer stops (lib/referrals.ts).
+      const left = sub.metadata?.workspaceId ?? (await workspaceForCustomer(sub.customer))?.id;
+      if (left) await referredBusinessLeft(left);
       break;
+    }
     case "customer.deleted":
       await customerDeleted(event.data.object.id);
       break;

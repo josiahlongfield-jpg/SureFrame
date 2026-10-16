@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { cachedOfferForCode, isCodeShaped, OFFER_COOKIE, OFFER_COOKIE_OPTIONS, offerCookieValue, quietly } from "@/lib/offers";
 import { clientIp, isLimited, limitByIp, rateLimit } from "@/lib/rateLimit";
+import { isReferralCode, referralOffer } from "@/lib/referrals";
 
 /**
- * A share link for a discount code (sureframe.app/offer/SPRING20): checks the
- * code with Stripe, remembers it for checkout in a signed cookie and opens
+ * A share link for a discount code (sureframe.app/offer/SPRING20) or a
+ * business's referral code (sureframe.app/offer/REF-AB12CD): checks the code, remembers it for checkout in a signed cookie and opens
  * the pricing page. Only real codes are signed, so the pricing page only ever
  * looks up codes made on the console. Each IP can try 30 different codes in
  * 10 minutes; opening the same link again doesn't count, so a room sharing
@@ -31,7 +32,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     return to("?code=busy");
   }
   // Wrapped, so a code Stripe says has ended (null offer) differs from Stripe not answering in time (null lookup).
-  const lookup = await quietly(cachedOfferForCode(code).then((offer) => ({ offer })));
+  // A business's referral code (lib/referrals.ts) is checked in our database, not Stripe.
+  const lookup = await quietly(isReferralCode(code) ? referralOffer(code).then((offer) => ({ offer })) : cachedOfferForCode(code).then((offer) => ({ offer })));
   if (!lookup) return to("?code=busy");
   if (!lookup.offer) return to(`?ended=${encodeURIComponent(code)}`);
   const res = to();

@@ -130,9 +130,18 @@ export default function Page() {
           Discount codes and offers work as described when you use them: how much comes off, what it comes off and for how long. A discount that lasts a
           number of months comes off every bill that starts within those months, so on yearly billing it comes off your first yearly bill in full. Codes can
           only be used when you start a paid subscription or move up to a bigger plan, and when moving up a code can&rsquo;t bring the new plan below what
-          your current plan costs. When a discount ends, the normal price applies from your next bill. Only one discount applies to
-          a subscription at a time, discounts can&rsquo;t be exchanged for cash, and some are only for businesses we&rsquo;ve never billed before. An offer
+          your current plan costs. When a discount ends, the normal price applies from your next bill. Apart from a referral discount
+          (below), only one discount applies to a subscription at a time. Discounts can&rsquo;t be exchanged for cash, and some are only for businesses we&rsquo;ve never billed before. An offer
           closes when its last day or number of uses is reached, but a discount you already have keeps running for the time it was offered.
+        </li>
+        <li id="referrals">
+          Referrals: a business on a paid plan can share its referral code from Settings &gt; Billing. A business we&rsquo;ve never billed before that starts a
+          paid plan with it gets 10% off its plan (not extra clients, extra staff or add-ons) on every bill for as long as that subscription lasts. Once its
+          first payment goes through, the business that shared the code gets 10% off its own plan from its next bill on, for as long as the business it
+          referred stays subscribed and its own subscription continues. Nothing is given if the sharer&rsquo;s subscription ends first. Each code works
+          once, each business can take part once (a business that joined with a code has no code to share), and a business can&rsquo;t use its own or its
+          team&rsquo;s code. We may refuse or remove a referral discount gained by misuse, such as a business set up only to get one. We may end the referral
+          programme for new referrals at any time; referral discounts already given keep running as described here.
         </li>
         <li>If a payment fails, we may limit paid features until it&rsquo;s resolved.</li>
       </ul>

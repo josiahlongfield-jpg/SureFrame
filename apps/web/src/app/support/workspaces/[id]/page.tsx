@@ -40,6 +40,29 @@ export default async function SupportWorkspace({ params, searchParams }: { param
     db.supportTicket.findMany({ where: { workspaceId: id }, orderBy: { updatedAt: "desc" }, take: 10, select: { id: true, status: true, summary: true, updatedAt: true } }),
     w.suspendedAt ? renewalStoppedBySuspension(id) : Promise.resolve(false),
   ]);
+  // Referrals (lib/referrals.ts): its own code, and the code it joined with.
+  const [ownCode, joinedWith] = await Promise.all([
+    db.referralCode.findUnique({ where: { workspaceId: id }, select: { code: true, usedAt: true, usedByWorkspaceId: true, rewardDueAt: true, rewardAppliedAt: true, rewardLapsedAt: true, rewardEndedAt: true } }),
+    db.referralCode.findUnique({ where: { usedByWorkspaceId: id }, select: { code: true, workspaceId: true } }),
+  ]);
+  const referralFacts = [
+    ownCode
+      ? `Own code ${ownCode.code}: ${
+          !ownCode.usedAt
+            ? "not used yet"
+            : `used ${day(ownCode.usedAt)}; reward ${
+                ownCode.rewardEndedAt
+                  ? `ended ${day(ownCode.rewardEndedAt)}`
+                  : ownCode.rewardLapsedAt
+                    ? `not given (${day(ownCode.rewardLapsedAt)})`
+                    : ownCode.rewardAppliedAt
+                      ? `active since ${day(ownCode.rewardAppliedAt)}`
+                      : `due ${ownCode.rewardDueAt ? day(ownCode.rewardDueAt) : "soon"}`
+              }`
+        }`
+      : null,
+    joinedWith ? `Joined with ${joinedWith.code}` : null,
+  ].filter(Boolean);
   const owner = w.members.find((m) => m.role === "OWNER");
   const ownerEmail = owner?.user.email;
   const ownerBlocked = await isEmailBlocked(ownerEmail);
@@ -82,6 +105,26 @@ export default async function SupportWorkspace({ params, searchParams }: { param
               ["Plan", `${planName(w.plan)}${w.billingInterval ? `, billed every ${w.billingInterval}` : ""}`],
               ["Complimentary plan", w.complimentaryPlan ? `${planName(w.complimentaryPlan)}${w.stripeSubscriptionId ? " (replaced while they pay)" : " (free of charge)"}` : "No"],
               ["Pricing", `${w.foundingPrices ? "Founding prices" : "Standard prices"}${w.discountLabel ? `; discount ${w.discountLabel}${w.discountEndsAt ? ` until ${day(w.discountEndsAt)}` : ""}` : ""}`],
+              [
+                "Referrals",
+                referralFacts.length ? (
+                  <span className="flex flex-col gap-1" data-testid="ws-referrals">
+                    {referralFacts.map((f) => <span key={f}>{f}</span>)}
+                    {ownCode?.usedByWorkspaceId && (
+                      <Link href={`/support/workspaces/${ownCode.usedByWorkspaceId}`} className="text-accent hover:underline">
+                        Business it referred
+                      </Link>
+                    )}
+                    {joinedWith && (
+                      <Link href={`/support/workspaces/${joinedWith.workspaceId}`} className="text-accent hover:underline">
+                        Business that referred it
+                      </Link>
+                    )}
+                  </span>
+                ) : (
+                  "None"
+                ),
+              ],
               ["Subscription", w.subscriptionStatus ?? "None"],
               [
                 "Stripe",

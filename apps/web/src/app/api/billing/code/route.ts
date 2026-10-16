@@ -5,6 +5,7 @@ import { billedBefore, isCodeShaped, NEW_CUSTOMERS_ONLY, offerCookieValue, offer
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
 import { currentSubscription } from "@/lib/subscription";
 import { limitByIp } from "@/lib/rateLimit";
+import { isReferralCode, REFERRAL_SUMMARY, usableReferral } from "@/lib/referrals";
 
 const SUBSCRIBED = "Discount codes can only be used when you start a paid plan or move up to a bigger one. To move up, choose the plan on the Pricing page and enter the code there.";
 
@@ -25,6 +26,12 @@ export const POST = handle(async (req: Request) => {
   const { code } = body.data;
   const sub = me.workspace.stripeSubscriptionId ? await currentSubscription(me.workspace) : null;
   if (sub && ACTIVE_STATUSES.has(sub.status)) throw new HttpError(400, SUBSCRIBED);
+  if (isReferralCode(code)) {
+    // A business's referral code (lib/referrals.ts): checked for this business now, and again at checkout.
+    const row = await usableReferral(code, { userId: me.user.id, workspace: me.workspace });
+    (await cookies()).set(OFFER_COOKIE, offerCookieValue(row.code), OFFER_COOKIE_OPTIONS);
+    return Response.json({ applied: false, code: row.code, summary: REFERRAL_SUMMARY });
+  }
   const offer = await offerForCode(code);
   if (!offer) throw new HttpError(400, "That code isn't valid or has ended.");
   // Stripe would drop it at checkout: say so now rather than promise it. (If Stripe can't say, checkout decides.)
