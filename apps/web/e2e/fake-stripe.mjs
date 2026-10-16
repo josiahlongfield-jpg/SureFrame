@@ -138,8 +138,12 @@ export function start(port = Number(process.env.FAKE_STRIPE_PORT ?? 12111)) {
         ...after.map((i) => ({ amount: (i.price?.unit_amount ?? 0) * (i.quantity ?? 1), pricing: { type: "price_details", price_details: { price: i.price?.id } } })),
         { amount: credit, pricing: null },
       ]);
-      const total = full + credit + tax;
-      return send(200, { object: "invoice", amount_due: Math.max(0, total), total, starting_balance: 0, currency: "usd", lines, total_taxes: tax ? [{ amount: tax }] : [], total_discount_amounts: [] });
+      // A code's percentage off the new items (the whole invoice, for simplicity), before tax.
+      const promoId = [].concat(form.discounts || [])[0]?.promotion_code;
+      const pct = promoId ? Number(state.promos.find((x) => x.id === promoId)?.promotion.coupon.percent_off ?? 0) : 0;
+      const discount = Math.round((full * pct) / 100);
+      const total = full + credit - discount + tax;
+      return send(200, { object: "invoice", amount_due: Math.max(0, total), total, starting_balance: 0, currency: "usd", lines, total_taxes: tax ? [{ amount: tax }] : [], total_discount_amounts: discount ? [{ amount: discount }] : [] });
     }
     if ((m = p.match(/^\/v1\/customers\/([^/]+)$/)) && req.method === "DELETE") {
       state.deletedCustomers.push(m[1]);
@@ -247,15 +251,6 @@ export function start(port = Number(process.env.FAKE_STRIPE_PORT ?? 12111)) {
         sub.lastUpdate = form;
         if ("cancel_at_period_end" in form) sub.cancel_at_period_end = form.cancel_at_period_end === "true";
         if (form.metadata) sub.metadata = { ...sub.metadata, ...form.metadata };
-        if ("discounts" in form) {
-          const promoId = [].concat(form.discounts || [])[0]?.promotion_code;
-          if (promoId) {
-            // A subscriber has always paid before, so a code for first-time customers is refused.
-            const refusal = promoRefusal(promoId, sub.customer);
-            if (refusal) return send(400, { error: { type: "invalid_request_error", message: refusal } });
-            sub.discounts = [discountFrom(state.promos.find((x) => x.id === promoId), sub.id)];
-          } else sub.discounts = [];
-        }
         if (control.declineNext && form.payment_behavior === "pending_if_incomplete") {
           control.declineNext = false;
           return send(200, { ...sub, pending_update: { expires_at: 0 }, latest_invoice: { id: id("in"), hosted_invoice_url: "https://invoice.stripe.test/pay" } });
@@ -264,6 +259,15 @@ export function start(port = Number(process.env.FAKE_STRIPE_PORT ?? 12111)) {
         if (control.declineNext && form.payment_behavior === "error_if_incomplete") {
           control.declineNext = false;
           return send(402, { error: { type: "card_error", code: "card_declined", message: "Your card was declined." } });
+        }
+        if ("discounts" in form) {
+          const promoId = [].concat(form.discounts || [])[0]?.promotion_code;
+          if (promoId) {
+            // A subscriber has always paid before, so a code for first-time customers is refused.
+            const refusal = promoRefusal(promoId, sub.customer);
+            if (refusal) return send(400, { error: { type: "invalid_request_error", message: refusal } });
+            sub.discounts = [discountFrom(state.promos.find((x) => x.id === promoId), sub.id)];
+          } else sub.discounts = [];
         }
         for (const it of [].concat(form.items ?? [])) {
           const existing = sub.items.data.find((i) => i.id === it.id);

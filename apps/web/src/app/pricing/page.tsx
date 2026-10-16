@@ -18,8 +18,8 @@ const qldDay = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", mont
 /**
  * The founding offer, a share link's code (or that it has ended) and the
  * automatic offer, above the plans. Offers only come off when a subscription
- * starts (a plan switch never adds one, nor does a subscription that's
- * running), so that's what the banner says.
+ * starts (a code typed in the switch box can come off a move up, never an
+ * offer on its own), so that's what the banner says.
  */
 function Offers({ founding, ended, busy, linked, auto }: { founding: string | null; ended: string | null; busy: boolean; linked: Offer | null; auto: Offer | null }) {
   const box = "mx-auto mt-6 max-w-3xl rounded-2xl border p-4 text-center text-sm";

@@ -3,16 +3,18 @@ import { hasFoundingPrices, keyFor, PLAN_ITEM, priceId } from "@/lib/billing";
 import { PAID_PLANS } from "@/lib/plans";
 import { paymentMethodLabel, planChange } from "@/lib/planChange";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
+import { isCodeShaped, upgradeOffer } from "@/lib/offers";
 import { stripe } from "@/lib/stripe";
 import { limitByIp } from "@/lib/rateLimit";
 
-const Body = z.object({ plan: z.enum(PAID_PLANS), interval: z.enum(["month", "year"]).default("month") });
+const Body = z.object({ plan: z.enum(PAID_PLANS), interval: z.enum(["month", "year"]).default("month"), code: z.string().trim().max(40).optional() });
 
 /**
  * What switching plans would do, shown to the owner before they confirm:
  * the new plan and the add-ons that carry over, the credit for unused time on
  * the old plan, tax, what's charged today and the payment method it goes on.
- * The rows add up to the amount due. Without a
+ * The rows add up to the amount due. With a code, it's checked (only for
+ * moving up, lib/offers.ts upgradeOffer) and taken off. Without a
  * subscription the switch is a normal Checkout, so there is nothing to preview.
  */
 export const POST = handle(async (req: Request) => {
@@ -21,16 +23,20 @@ export const POST = handle(async (req: Request) => {
   const body = Body.safeParse(await req.json());
   await limitByIp("billing", 20, 600);
   if (!body.success) throw new HttpError(400, "Invalid plan");
-  const { plan, interval } = body.data;
+  const { plan, interval, code } = body.data;
   const change = await planChange(me.workspace, plan, interval);
   if (!change) return Response.json({ mode: "checkout" });
   if (change.same) return Response.json({ mode: "current" });
+  const planKey = keyFor(PLAN_ITEM[plan], interval, hasFoundingPrices(change.sub));
+  if (code !== undefined && !isCodeShaped(code)) throw new HttpError(400, "Enter the code as written: letters, numbers and dashes.");
+  const offer = code ? await upgradeOffer(change.sub, planKey, code) : null;
   const preview = await stripe().invoices.createPreview({
     customer: typeof change.sub.customer === "string" ? change.sub.customer : change.sub.customer.id,
     subscription: change.sub.id,
     subscription_details: { items: change.items, billing_cycle_anchor: { type: "now" }, proration_behavior: "always_invoice" },
+    ...(offer ? { discounts: [{ promotion_code: offer.id }] } : {}),
   });
-  const planPrice = await priceId(keyFor(PLAN_ITEM[plan], interval, hasFoundingPrices(change.sub)));
+  const planPrice = await priceId(planKey);
   const priceOf = (l: (typeof preview.lines.data)[number]) => {
     const p = l.pricing?.price_details?.price;
     return typeof p === "string" ? p : p?.id;
@@ -45,6 +51,7 @@ export const POST = handle(async (req: Request) => {
   const dueToday = Math.max(0, preview.amount_due);
   return Response.json({
     mode: "change",
+    offer: offer ? { code: offer.code, summary: offer.summary } : null,
     dueToday,
     plan: planAmount,
     addOns,

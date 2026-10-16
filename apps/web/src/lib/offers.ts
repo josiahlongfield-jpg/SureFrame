@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type Stripe from "stripe";
-import { itemOfProduct, loadCatalog, type CatalogItem } from "@/lib/billing";
+import { catalogOf, itemOfProduct, loadCatalog, planOf, type CatalogItem, type CatalogKey, CATALOG } from "@/lib/billing";
 import { appSecret, safeEqual } from "@/lib/secrets";
 import { HttpError } from "@/lib/session";
 import { stripe } from "@/lib/stripe";
@@ -11,8 +11,9 @@ import { stripe } from "@/lib/stripe";
  * subscription in one of four ways: typed at Stripe Checkout, brought by a
  * share link (/offer/CODE, which leaves the code in a cookie for checkout),
  * the one automatic offer applied to every new subscription, or typed on
- * Settings > Billing before choosing a plan (kept in the same cookie). Only a
- * new subscription takes a discount: one that's running never does.
+ * Settings > Billing before choosing a plan (kept in the same cookie), or
+ * typed when moving up to a bigger plan (upgradeOffer). A subscription that's
+ * running never takes one otherwise.
  */
 
 /** The cookie a share link leaves, so checkout applies its code. */
@@ -268,4 +269,41 @@ export async function discountOf(sub: Stripe.Subscription): Promise<DiscountNow 
   const code = d.promotion_code && typeof d.promotion_code !== "string" ? d.promotion_code.code : null;
   const what = `${amountOff(coupon)} ${scopeLabel(coupon)}${coupon.duration === "once" ? " on your next bill" : coupon.duration === "forever" ? " for as long as you stay subscribed" : ""}`;
   return { label: code ? `${code}: ${what}` : what, endsAt: coupon.duration === "repeating" && d.end ? new Date(d.end * 1000) : null };
+}
+
+const perMonth = (cents: number, interval: string | undefined) => (interval === "year" ? cents / 12 : cents);
+
+/**
+ * A code typed when switching to a bigger plan. It's only for moving up: the
+ * new plan, with the code taken off, must still cost at least what the
+ * current plan does (each counted per month, so monthly and yearly compare),
+ * so a code never makes a switch cheaper than staying put. It can't be added
+ * on top of a discount the subscription already has, and codes for new
+ * customers aren't for subscribers.
+ */
+export async function upgradeOffer(sub: Stripe.Subscription, newPlanKey: CatalogKey, code: string): Promise<Offer> {
+  const offer = await offerForCode(code);
+  if (!offer) throw new HttpError(400, "That code isn't valid or has ended.");
+  if (offer.newCustomersOnly) throw new HttpError(400, NEW_CUSTOMERS_ONLY);
+  if ((sub.discounts ?? []).some((d) => typeof d === "string" || (!d.deleted && !(d.end && d.end * 1000 <= Date.now())))) {
+    throw new HttpError(400, "Your subscription already has a discount, and codes can't be combined.");
+  }
+  const current = sub.items.data.find((i) => planOf(i.price));
+  if (!current?.price.unit_amount) throw new HttpError(400, "Codes can only be used when moving up to a bigger plan.");
+  const was = perMonth(current.price.unit_amount * (current.quantity ?? 1), current.price.recurring?.interval);
+  const next = CATALOG[newPlanKey];
+  const full = perMonth(Math.round(next.amount * 100), next.interval);
+  if (full <= was) throw new HttpError(400, "Codes can only be used when moving up to a bigger plan.");
+  // What the code takes off the new plan. A code limited to other items leaves the plan's price as it is.
+  const c = offer.coupon;
+  await loadCatalog().catch(() => {});
+  const products = c.applies_to?.products;
+  const onPlan = !products?.length || products.some((p) => itemOfProduct(p) === next.item);
+  const off = !onPlan ? 0 : c.percent_off ? (full * c.percent_off) / 100 : c.amount_off ? perMonth(c.amount_off, next.interval) : 0;
+  if (full - off < was) {
+    const name = (k: string) => k.charAt(0).toUpperCase() + k.slice(1);
+    const from = catalogOf(current.price)?.item ?? "current";
+    throw new HttpError(400, `That code would make ${name(next.item)} cost less than your ${name(from)} plan, so it can't be used for this switch.`);
+  }
+  return offer;
 }

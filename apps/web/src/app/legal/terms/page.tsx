@@ -129,7 +129,8 @@ export default function Page() {
         <li id="discounts">
           Discount codes and offers work as described when you use them: how much comes off, what it comes off and for how long. A discount that lasts a
           number of months comes off every bill that starts within those months, so on yearly billing it comes off your first yearly bill in full. Codes can
-          only be used when you start a paid subscription, not on one that&rsquo;s already running or when you switch plans. When a discount ends, the normal price applies from your next bill. Only one discount applies to
+          only be used when you start a paid subscription or move up to a bigger plan, and when moving up a code can&rsquo;t bring the new plan below what
+          your current plan costs. When a discount ends, the normal price applies from your next bill. Only one discount applies to
           a subscription at a time, discounts can&rsquo;t be exchanged for cash, and some are only for businesses we&rsquo;ve never billed before. An offer
           closes when its last day or number of uses is reached, but a discount you already have keeps running for the time it was offered.
         </li>

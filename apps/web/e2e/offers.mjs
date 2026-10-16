@@ -47,7 +47,15 @@ const text = async (page, path) => {
   await page.goto(BASE + path);
   return (await page.textContent("main")).replace(/\s+/g, " ");
 };
-const workspaceOf = async (email) => (await prisma.membership.findFirst({ where: { user: { email }, role: "OWNER" }, include: { workspace: true } })).workspace;
+// The workspace is made as the first page renders, so it can arrive a moment after the page's address.
+const workspaceOf = async (email) => {
+  for (let i = 0; i < 40; i++) {
+    const m = await prisma.membership.findFirst({ where: { user: { email }, role: "OWNER" }, include: { workspace: true } });
+    if (m) return m.workspace;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error(`no workspace for ${email}`);
+};
 const fits = async (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 
 // 1) Founding prices: offered on the pricing page, taken at checkout, kept through changes, lost when the subscription ends.
@@ -241,6 +249,48 @@ await webhook(yearly, "customer.subscription.created", subY);
 res = await api(yearly, "/api/billing/code", { code: CODE });
 body = await res.json();
 ok("a yearly subscriber's code is refused", res.status() === 400 && /only be used when you start a paid plan/.test(body.error) && !subY.discounts.length, body.error);
+
+// Moving up a plan can take a code, typed in the switch box, as long as the bigger plan still costs at least the current one.
+// (Billing calls share a limit of 20 per IP per 10 minutes, which this run's earlier checkouts have used up.)
+await prisma.rateLimit.deleteMany({ where: { key: { contains: "billing" } } });
+const big = await fake.coupons.create({ name: "BIG", percent_off: 75, duration: "forever", metadata: { sureframe_scope: "plan" } });
+const BIGCODE = `BIG-${String(stamp).slice(-6)}`;
+await fake.promotionCodes.create({ promotion: { type: "coupon", coupon: big.id }, code: BIGCODE });
+res = await api(third, "/api/billing/preview", { plan: "STUDIO", code: BIGCODE });
+body = await res.json();
+ok("upgrade: a code making Studio cheaper than Solo is refused", res.status() === 400 && /would make Studio cost less than your Solo plan/.test(body.error), body.error);
+res = await api(third, "/api/billing/preview", { plan: "SOLO", interval: "year", code: CODE });
+body = await res.json();
+ok("upgrade: no code for a switch that isn't a move up", res.status() === 400 && /only be used when moving up to a bigger plan/.test(body.error), body.error);
+res = await api(third, "/api/billing/preview", { plan: "STUDIO", code: NEWCODE });
+ok("upgrade: a new-customers code is refused", res.status() === 400 && /never billed before/.test((await res.json()).error));
+res = await api(third, "/api/billing/checkout", { plan: "STUDIO", code: BIGCODE });
+ok("upgrade: the switch itself refuses it too, and nothing changes", res.status() === 400 && sub3.items.data.some((i) => /solo/.test(i.price.lookup_key)) && !sub3.discounts.length);
+await third.goto(BASE + "/pricing");
+await third.click("button:has-text('Get Studio')");
+await third.waitForSelector("[data-testid=plan-confirm]");
+const dueBefore = (await third.textContent("[data-testid=due-today]")).replace(/\s+/g, " ");
+await third.click("[data-testid=upgrade-have-code]");
+await third.fill("[data-testid=upgrade-code-form] input", BIGCODE);
+await third.click("[data-testid=upgrade-code-form] button");
+t = (await third.waitForSelector("[data-testid=upgrade-code-form] [role=alert]").then((e) => e.textContent()).catch(() => "")) ?? "";
+ok("switch box explains a refused code", /cost less than your Solo plan/.test(t), t);
+await third.fill("[data-testid=upgrade-code-form] input", CODE.toLowerCase());
+await third.click("[data-testid=upgrade-code-form] button");
+t = ((await third.waitForSelector("[data-testid=upgrade-code-applied]").then((e) => e.textContent()).catch(() => "")) ?? "").replace(/\s+/g, " ");
+const dueAfter = (await third.textContent("[data-testid=due-today]")).replace(/\s+/g, " ");
+ok("switch box applies the code and shows the discount", t.includes(`${CODE}: 20% off your plan for 3 months`) && /Discount/.test(dueAfter) && dueAfter !== dueBefore, `${t} | ${dueAfter} | ${await third.textContent("[data-testid=plan-confirm]")}`);
+await third.screenshot({ path: `${process.argv[2] ?? "/tmp"}/upgrade-code.png` });
+await third.click("button:has-text('and switch')");
+await third.waitForURL((u) => u.pathname === "/settings/billing", { timeout: 20000 });
+ok(
+  "upgrade with a code: Studio with the discount, refused rather than left pending if unpaid",
+  sub3.items.data.some((i) => /studio/.test(i.price.lookup_key)) && sub3.discounts?.[0]?.promotion_code?.id === promo.id && sub3.lastUpdate.payment_behavior === "error_if_incomplete",
+  JSON.stringify(sub3.lastUpdate),
+);
+ok("billing shows the upgrade's discount", ((await third.textContent('[data-testid="discount"]').catch(() => "")) ?? "").includes(`${CODE}: 20% off your plan`));
+res = await api(third, "/api/billing/preview", { plan: "AGENCY", code: ONCECODE });
+ok("upgrade: a second code can't be added to a discount", res.status() === 400 && /already has a discount/.test((await res.json()).error));
 res = await api(fresh, "/api/billing/code", { code: NEWCODE.toLowerCase() });
 body = await res.json();
 ok("a Free owner's code is saved for checkout", res.ok() && body.applied === false && body.summary === "50% off your whole bill on your first bill", JSON.stringify(body));
@@ -281,7 +331,7 @@ ok("a discount past its end isn't shown, and still no code box", (await visitor.
 // 7) The Terms cover both.
 t = await text(late, "/legal/terms");
 ok("terms explain founding prices", /Founding prices are the exception/.test(t) && /16 October 2026/.test(t));
-ok("terms explain discounts", /Discount codes and offers work as described when you use them/.test(t) && /only be used when you start a paid subscription, not on one that.s already running/.test(t));
+ok("terms explain discounts", /Discount codes and offers work as described when you use them/.test(t) && /only be used when you start a paid subscription or move up to a bigger plan, and when moving up a code can.t bring the new plan below what your current plan costs/.test(t));
 
 // 8) Share links can't be used to try codes: 30 different codes per IP in 10 minutes, and retrying a refused one is refused again.
 const linkTo = async (c) => (await late.request.get(`${BASE}/offer/${c}`, { maxRedirects: 0 })).headers().location ?? "";

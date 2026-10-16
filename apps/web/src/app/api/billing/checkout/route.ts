@@ -2,17 +2,17 @@ import { cookies } from "next/headers";
 import type Stripe from "stripe";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { ACTIVE_STATUSES, chargeChange, FOUNDING_METADATA, keyFor, MANAGED_PAYMENTS, PLAN_ITEM, priceId, unpaid } from "@/lib/billing";
+import { ACTIVE_STATUSES, chargeChange, FOUNDING_METADATA, hasFoundingPrices, keyFor, MANAGED_PAYMENTS, PLAN_ITEM, priceId, unpaid } from "@/lib/billing";
 import { foundingEnds, foundingOpen } from "@/lib/founding";
-import { checkoutOffers, codeFromCookie, OFFER_COOKIE } from "@/lib/offers";
+import { checkoutOffers, codeFromCookie, DISCOUNT_EXPAND, isCodeShaped, OFFER_COOKIE, upgradeOffer } from "@/lib/offers";
 import { PAID_PLANS } from "@/lib/plans";
 import { assertFits, planChange } from "@/lib/planChange";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
 import { appUrl, stripe } from "@/lib/stripe";
 import { limitByIp } from "@/lib/rateLimit";
-import { currentCustomer } from "@/lib/subscription";
+import { currentCustomer, syncSubscription } from "@/lib/subscription";
 
-const Body = z.object({ plan: z.enum(PAID_PLANS), interval: z.enum(["month", "year"]).default("month") });
+const Body = z.object({ plan: z.enum(PAID_PLANS), interval: z.enum(["month", "year"]).default("month"), code: z.string().trim().max(40).optional() });
 
 export const POST = handle(async (req: Request) => {
   const me = await requireUser();
@@ -21,21 +21,37 @@ export const POST = handle(async (req: Request) => {
   const body = Body.safeParse(await req.json());
   await limitByIp("billing", 20, 600);
   if (!body.success) throw new HttpError(400, "Invalid plan");
-  const { plan, interval } = body.data;
+  const { plan, interval, code } = body.data;
 
   // Already subscribed: switch plans on the existing subscription instead of starting a second one.
   // It's paid for now, and the switch only applies once that payment succeeds.
   const change = await planChange(workspace, plan, interval);
   if (change) {
     if (change.same) return Response.json({ url: appUrl("/settings/billing") });
+    // A code typed in the switch box: only for moving up, and never below the current plan's price (lib/offers.ts).
+    if (code !== undefined && !isCodeShaped(code)) throw new HttpError(400, "Enter the code as written: letters, numbers and dashes.");
+    const offer = code ? await upgradeOffer(change.sub, keyFor(PLAN_ITEM[plan], interval, hasFoundingPrices(change.sub)), code) : null;
     // The new plan starts today at its full price, less a credit for the unused part of the old one.
-    const charge = await chargeChange(change.sub, { items: change.items, billing_cycle_anchor: { type: "now" } });
+    const charge = await chargeChange(change.sub, {
+      items: change.items,
+      billing_cycle_anchor: { type: "now" },
+      ...(offer ? { discounts: [{ promotion_code: offer.id }] } : {}),
+    }).catch((err) => {
+      // Stripe has the last word on a code; then nothing changed.
+      if (offer && (err as { type?: string })?.type === "StripeInvalidRequestError") {
+        console.log("[billing] code refused on upgrade", JSON.stringify({ code: offer.code, error: String((err as Error).message).slice(0, 300) }));
+        throw new HttpError(400, "That code can't be used on your subscription, so nothing changed.");
+      }
+      throw err;
+    });
     if (!charge.paid) {
       // Declined or needs confirming: pay on Stripe's invoice page (the change then applies), or fix the card.
       if (charge.payUrl) return Response.json({ url: charge.payUrl });
       return unpaid(charge);
     }
     await db.workspace.update({ where: { id: workspace.id }, data: { plan, billingInterval: interval } });
+    // The webhook does this too; now, so Settings > Billing shows the discount straight away.
+    if (offer) await syncSubscription(await stripe().subscriptions.retrieve(change.sub.id, { expand: DISCOUNT_EXPAND }), { notify: false });
     return Response.json({ url: appUrl("/settings/billing?upgraded=1") });
   }
 

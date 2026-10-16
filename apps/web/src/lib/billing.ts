@@ -278,17 +278,18 @@ export const paymentFailed = (err: unknown) => {
 
 /**
  * Applies a subscription change that's charged today, only once it's paid.
- * Pending updates (which keep a link to pay) can't remove items, so a change
- * that also removes something is refused outright when the payment fails.
+ * Pending updates (which keep a link to pay) can't remove items or add a
+ * discount, so a change that does either is refused outright when the payment
+ * fails.
  */
 export async function chargeChange(sub: Stripe.Subscription, params: Stripe.SubscriptionUpdateParams): Promise<Charge> {
-  const removes = (params.items ?? []).some((i) => i.deleted);
+  const pendingNotAllowed = (params.items ?? []).some((i) => i.deleted) || !!params.discounts?.length;
   let updated: Stripe.Subscription;
   try {
     updated = await stripe().subscriptions.update(sub.id, {
       ...params,
       proration_behavior: "always_invoice",
-      payment_behavior: removes ? "error_if_incomplete" : "pending_if_incomplete",
+      payment_behavior: pendingNotAllowed ? "error_if_incomplete" : "pending_if_incomplete",
       expand: ["latest_invoice"],
     });
   } catch (err) {

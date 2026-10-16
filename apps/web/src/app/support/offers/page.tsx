@@ -18,10 +18,10 @@ function status(o: Offer) {
   return <Badge tone="green">Active</Badge>;
 }
 
-/** Who can use an offer (lib/offers.ts: only a new subscription takes one, and Stripe's new-customer rule is "never billed"). */
+/** Who can use an offer (lib/offers.ts: a new subscription, or moving up a plan; Stripe's new-customer rule is "never billed"). */
 function whoCanUse(o: Offer) {
   if (o.newCustomersOnly) return "Businesses we've never billed before, when they start a subscription";
-  return "Businesses starting a subscription (never one that's already running)";
+  return "Businesses starting a subscription, or moving up to a bigger plan when the code doesn't make it cheaper than their current one";
 }
 
 function OfferCard({ o }: { o: Offer }) {

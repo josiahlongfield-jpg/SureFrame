@@ -16,6 +16,8 @@ type Preview = {
   currency: string;
   paymentMethod: string | null;
   cancelling?: boolean;
+  /** A code taken off this switch (lib/offers.ts upgradeOffer). */
+  offer: { code: string; summary: string } | null;
 };
 
 const money = (cents: number, currency: string) => {
@@ -29,6 +31,10 @@ export default function UpgradeButton({ plan, interval = "month", featured = fal
   const [error, setError] = useState<string>();
   const [note, setNote] = useState<string>();
   const [confirm, setConfirm] = useState<Preview>();
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const [codeError, setCodeError] = useState<string>();
+  const [checking, setChecking] = useState(false);
   const name = PLANS[plan].name;
   const price = interval === "year" ? PLANS[plan].priceYearly : PLANS[plan].priceMonthly;
 
@@ -56,8 +62,30 @@ export default function UpgradeButton({ plan, interval = "month", featured = fal
 
   const goToCheckout = () =>
     run(async () => {
-      const data = await post("/api/billing/checkout", { plan, interval });
+      const data = await post("/api/billing/checkout", { plan, interval, ...(confirm?.offer ? { code: confirm.offer.code } : {}) });
       if (data?.url) window.location.href = data.url;
+    });
+
+  // A code for this switch: checked and priced again before anything is charged.
+  async function applyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setChecking(true);
+    setCodeError(undefined);
+    try {
+      const data = await post("/api/billing/preview", { plan, interval, code: code.trim() });
+      if (data?.mode === "change") setConfirm(data);
+    } catch (err) {
+      setCodeError((err as Error).message);
+    }
+    setChecking(false);
+  }
+
+  const removeCode = () =>
+    run(async () => {
+      const data = await post("/api/billing/preview", { plan, interval });
+      if (data?.mode === "change") setConfirm(data);
+      setCode("");
+      setBusy(false);
     });
 
   // Already subscribed? Show what changes and what's charged before doing it.
@@ -142,6 +170,44 @@ export default function UpgradeButton({ plan, interval = "month", featured = fal
                 <dd>{money(confirm.dueToday, confirm.currency)}</dd>
               </div>
             </dl>
+            {confirm.offer ? (
+              <p className="mt-3 text-sm text-ok-fg" data-testid="upgrade-code-applied">
+                {confirm.offer.code}: {confirm.offer.summary}.{" "}
+                <button type="button" onClick={removeCode} disabled={busy} className="font-medium text-muted underline hover:text-ink">
+                  Remove
+                </button>
+              </p>
+            ) : !codeOpen ? (
+              <button type="button" onClick={() => setCodeOpen(true)} className="mt-3 text-sm font-medium text-accent hover:underline" data-testid="upgrade-have-code">
+                Have a discount code?
+              </button>
+            ) : (
+              <form onSubmit={applyCode} className="mt-3 grid gap-2 sm:flex sm:items-start" data-testid="upgrade-code-form">
+                <label className="sr-only" htmlFor={`upgrade-code-${plan}`}>
+                  Discount code
+                </label>
+                <input
+                  id={`upgrade-code-${plan}`}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="Discount code"
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={40}
+                  required
+                  className="w-full rounded-xl border border-line-strong px-3 py-2 text-sm uppercase sm:w-48"
+                />
+                <button disabled={checking || busy || !code.trim()} className="rounded-xl border border-line-strong px-4 py-2 text-sm font-medium text-ink hover:bg-hover disabled:opacity-60">
+                  {checking ? "Checking…" : "Apply"}
+                </button>
+                {codeError && (
+                  <p role="alert" className="text-sm text-danger-fg sm:basis-full">
+                    {codeError}
+                  </p>
+                )}
+              </form>
+            )}
             <p className="mt-3 text-sm text-muted">
               {confirm.dueToday > 0 && <>Charged to {confirm.paymentMethod ? <strong>{confirm.paymentMethod}</strong> : "the card you subscribed with"}. </>}
               {confirm.leftover > 0 && <>The remaining {money(confirm.leftover, confirm.currency)} comes off your next bills. </>}
@@ -159,7 +225,7 @@ export default function UpgradeButton({ plan, interval = "month", featured = fal
                   Use a different card
                 </button>
               )}
-              <button onClick={() => { setConfirm(undefined); setError(undefined); }} disabled={busy} className="rounded-xl px-4 py-2.5 text-sm font-medium text-muted hover:text-ink disabled:opacity-60">
+              <button onClick={() => { setConfirm(undefined); setError(undefined); setCodeOpen(false); setCode(""); setCodeError(undefined); }} disabled={busy} className="rounded-xl px-4 py-2.5 text-sm font-medium text-muted hover:text-ink disabled:opacity-60">
                 Cancel
               </button>
             </div>

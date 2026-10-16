@@ -6,14 +6,14 @@ import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
 import { currentSubscription } from "@/lib/subscription";
 import { limitByIp } from "@/lib/rateLimit";
 
-const SUBSCRIBED = "Discount codes can only be used when you start a paid plan, not on a subscription that's already running.";
+const SUBSCRIBED = "Discount codes can only be used when you start a paid plan or move up to a bigger one. To move up, choose the plan on the Pricing page and enter the code there.";
 
 const Body = z.object({ code: z.string().trim().max(40) });
 
 /**
  * A discount code typed on Settings > Billing, kept for checkout like a share
- * link. Codes are only for starting a subscription: one that's running can't
- * take a code.
+ * link. Codes are only for starting a subscription or moving up a plan (the
+ * Pricing page's switch box): one that's running can't take a code here.
  */
 export const POST = handle(async (req: Request) => {
   const me = await requireUser();
