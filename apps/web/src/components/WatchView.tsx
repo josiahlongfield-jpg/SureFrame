@@ -554,7 +554,7 @@ function WatchBody({
           />
         )}
 
-        <div ref={reactionsRow} className="mt-4 flex gap-2">
+        <div ref={reactionsRow} className="mt-4 flex flex-wrap gap-2">
           {REACTIONS.map((e) => (
             <button key={e} onClick={() => react(e)} aria-label={`React ${e}`} className="rounded-full border border-line bg-surface px-3 py-1.5 text-lg hover:bg-hover">
               {e}

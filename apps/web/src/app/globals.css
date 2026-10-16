@@ -144,6 +144,18 @@ html {
   font-size: clamp(100%, min(100vw / 90, 100vh / 50), 28px);
 }
 
+@layer base {
+  /*
+   * Grid and flex columns may shrink below their longest line, so a long name, title or email
+   * wraps or truncates inside its card instead of stretching the page past a phone's screen.
+   * A min-w-* class still wins where something must keep its size.
+   */
+  .grid > *, .flex-col > * { min-width: 0; }
+  body { overflow-wrap: break-word; }
+  /* A select is as wide as its longest option; long names mustn't push it off the screen. */
+  select, input, textarea { max-width: 100%; }
+}
+
 /* SVG icons sized by width/height attributes grow with it too (any CSS beats those attributes; :where keeps classes winning). */
 :where(svg[width="8"]) { width: 0.5rem; } :where(svg[height="8"]) { height: 0.5rem; }
 :where(svg[width="9"]) { width: 0.5625rem; } :where(svg[height="9"]) { height: 0.5625rem; }

@@ -45,11 +45,11 @@ export default async function Accounts() {
       ) : (
         <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface">
           {comped.map((w) => (
-            <li key={w.id} className="flex justify-between gap-3 p-4 text-sm">
-              <span className="text-ink">
-                {w.name} <span className="text-dim">({w.members[0]?.user.email})</span>
+            <li key={w.id} className="flex flex-col gap-1 p-4 text-sm sm:flex-row sm:justify-between sm:gap-3">
+              <span className="min-w-0 text-ink">
+                {w.name} <span className="break-all text-dim">({w.members[0]?.user.email})</span>
               </span>
-              <span className="text-muted">
+              <span className="text-muted sm:shrink-0">
                 {w.stripeSubscriptionId ? `Paying, ${PLANS[w.plan].name}` : PLANS[w.complimentaryPlan!].name}
                 {w.aiAssistComplimentary && (w.aiAssist ? " + AI summaries" : " + AI summaries (switched off)")}
               </span>

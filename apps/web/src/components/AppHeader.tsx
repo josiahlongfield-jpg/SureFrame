@@ -48,7 +48,7 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
             <NavLinks links={links} className="" />
           </nav>
         </div>
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex items-center gap-2 text-sm min-[24rem]:gap-3">
           <span className="hidden rounded-full border border-line px-2.5 py-1 font-mono text-[0.6875rem] font-medium uppercase tracking-wider text-muted xl:inline">{plan}</span>
           <Link href="/record" className="whitespace-nowrap rounded-[0.625rem] bg-primary px-4 py-2 font-medium text-on-primary hover:bg-primary-hover">
             <span className="sm:hidden">Record</span>

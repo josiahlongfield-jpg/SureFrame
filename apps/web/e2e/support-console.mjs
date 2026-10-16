@@ -58,6 +58,8 @@ async function signIn(email, next = "/library", { phone = false, lands = next.sp
   await page.fill('input[name="email"]', email);
   await page.click("text=Continue");
   await page.waitForURL((u) => u.pathname === lands, { timeout: 60000 });
+  // The address bar can change before the server has rendered the page (and made a new account's workspace): wait for it.
+  await page.waitForSelector("main", { timeout: 60000 });
   return page;
 }
 
