@@ -17,6 +17,9 @@ export const metadata: Metadata = { title: "Team overview" };
  * reminders to staff, and how the whole business is keeping up with clients.
  * Staff never see this page or anyone else's numbers.
  */
+
+/** A number cell: a labelled line on phones (the label comes from data-label), a plain cell from tablets up. */
+const CELL = "flex justify-between gap-3 py-0.5 before:text-dim before:content-[attr(data-label)] md:table-cell md:px-4 md:py-2.5 md:before:content-none";
 export default async function TeamOverviewPage({ searchParams }: { searchParams: Promise<{ days?: string; stale?: string; ws?: string }> }) {
   await followTeamLink((await searchParams).ws, "/team");
   const { user, workspace, role, membership } = await requirePageUser("/team");
@@ -83,9 +86,10 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
               </form>
             </div>
           </div>
-          <div className="mt-3 overflow-x-auto rounded-2xl border border-line bg-surface">
-            <table className="w-full min-w-[40rem] text-sm" data-testid="team-stats">
-              <thead className="text-left text-xs uppercase tracking-wide text-dim">
+          {/* A table from tablets up; on phones each person is a small card with the column names beside the numbers. */}
+          <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-surface md:overflow-x-auto">
+            <table className="block w-full text-sm md:table md:min-w-[40rem]" data-testid="team-stats">
+              <thead className="hidden text-left text-xs uppercase tracking-wide text-dim md:table-header-group">
                 <tr>
                   <th className="px-4 py-3 font-medium">Staff</th>
                   <th className="px-4 py-3 font-medium">Videos sent</th>
@@ -95,15 +99,15 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
                   <th className="px-4 py-3 font-medium">Overdue to-dos</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-line">
+              <tbody className="block divide-y divide-line md:table-row-group">
                 {rows.map(({ id, r }) => (
-                  <tr key={id} data-testid={`stats-${id}`} className={id === "all" ? "bg-canvas font-medium" : ""}>
-                    <td className="px-4 py-2.5 text-ink">{r.name}</td>
-                    <td className="px-4 py-2.5" data-col="sent">{id === "shared" ? "–" : r.videosSent}</td>
-                    <td className="px-4 py-2.5" data-col="stale">{r.staleClients}</td>
-                    <td className="px-4 py-2.5" data-col="unanswered">{r.unanswered}</td>
-                    <td className="px-4 py-2.5" data-col="avg">{r.avgReplyMs === null ? "–" : duration(r.avgReplyMs)}</td>
-                    <td className="px-4 py-2.5" data-col="overdue">{r.overdueTodos}</td>
+                  <tr key={id} data-testid={`stats-${id}`} className={`block px-4 py-3 md:table-row md:p-0 ${id === "all" ? "bg-canvas font-medium" : ""}`}>
+                    <td className="block pb-1 font-medium text-ink md:table-cell md:px-4 md:py-2.5 md:font-normal">{r.name}</td>
+                    <td className={CELL} data-label="Videos sent" data-col="sent">{id === "shared" ? "–" : r.videosSent}</td>
+                    <td className={CELL} data-label={`Clients with no video in ${staleDays}d`} data-col="stale">{r.staleClients}</td>
+                    <td className={CELL} data-label="Unanswered replies" data-col="unanswered">{r.unanswered}</td>
+                    <td className={CELL} data-label="Avg reply time" data-col="avg">{r.avgReplyMs === null ? "–" : duration(r.avgReplyMs)}</td>
+                    <td className={CELL} data-label="Overdue to-dos" data-col="overdue">{r.overdueTodos}</td>
                   </tr>
                 ))}
               </tbody>
@@ -123,9 +127,9 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
                 <ul className="mt-2 divide-y divide-line text-sm" data-testid="unanswered">
                   {stats.unanswered.slice(0, 50).map((u) => (
                     <li key={u.videoId}>
-                      <Link href={`/v/${u.videoId}`} className="flex items-center justify-between gap-3 py-2 hover:text-accent">
-                        <span className="min-w-0 truncate"><span className="font-medium">{u.clientName}</span> · {u.title}</span>
-                        <span className="shrink-0 text-xs text-dim">{nameOf(u.staffId)} · {duration(now.getTime() - u.since.getTime())}</span>
+                      <Link href={`/v/${u.videoId}`} className="flex flex-col gap-0.5 py-2 hover:text-accent sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                        <span className="min-w-0 sm:truncate"><span className="font-medium">{u.clientName}</span> · {u.title}</span>
+                        <span className="text-xs text-dim sm:shrink-0">{nameOf(u.staffId)} · {duration(now.getTime() - u.since.getTime())}</span>
                       </Link>
                     </li>
                   ))}
@@ -140,17 +144,17 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
                 <ul className="mt-2 divide-y divide-line text-sm" data-testid="overdue">
                   {stats.overdue.slice(0, 30).map((t) => (
                     <li key={t.itemId}>
-                      <Link href={`/clients/${t.clientId}`} className="flex items-center justify-between gap-3 py-2 hover:text-accent">
+                      <Link href={`/clients/${t.clientId}`} className="flex flex-col gap-0.5 py-2 hover:text-accent sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                         <span><span className="font-medium">{t.clientName}</span> · to-do overdue</span>
-                        <span className="shrink-0 text-xs text-dim">{nameOf(t.staffId)} · due {dates.shortDay(t.dueAt)}</span>
+                        <span className="text-xs text-dim sm:shrink-0">{nameOf(t.staffId)} · due {dates.shortDay(t.dueAt)}</span>
                       </Link>
                     </li>
                   ))}
                   {stats.stale.slice(0, 30).map((s) => (
                     <li key={s.clientId}>
-                      <Link href={`/clients/${s.clientId}`} className="flex items-center justify-between gap-3 py-2 hover:text-accent">
+                      <Link href={`/clients/${s.clientId}`} className="flex flex-col gap-0.5 py-2 hover:text-accent sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                         <span><span className="font-medium">{s.clientName}</span> · {s.lastVideoAt ? `no video for ${duration(now.getTime() - s.lastVideoAt.getTime())}` : "no video yet"}</span>
-                        <span className="shrink-0 text-xs text-dim">{nameOf(s.staffId)}</span>
+                        <span className="text-xs text-dim sm:shrink-0">{nameOf(s.staffId)}</span>
                       </Link>
                     </li>
                   ))}

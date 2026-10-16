@@ -50,7 +50,7 @@ export default async function SupportInbox({ searchParams }: { searchParams: Pro
           <li key={t.id}>
             <Link href={`/support/${t.id}`} className="block p-4 hover:bg-hover">
               <div className="flex items-center justify-between gap-3">
-                <p className="font-medium text-ink">{t.user?.email ?? t.email ?? "Website visitor"}</p>
+                <p className="min-w-0 truncate font-medium text-ink">{t.user?.email ?? t.email ?? "Website visitor"}</p>
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${t.status === "NEEDS_HUMAN" ? (t.urgent ? "bg-danger-bg text-danger-fg" : "bg-warn-bg text-warn-fg") : "bg-surface-2 text-muted"}`}>
                   {t.urgent && t.status === "NEEDS_HUMAN" ? "Urgent" : LABEL[t.status]}
                 </span>
