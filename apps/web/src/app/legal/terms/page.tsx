@@ -139,7 +139,8 @@ export default function Page() {
           Referrals: a business on a paid plan can share its referral code from Settings &gt; Billing. A business we&rsquo;ve never billed before that starts a
           paid plan with it gets 10% off its plan (not extra clients, extra staff or add-ons) on every bill for as long as that subscription lasts. Once its
           first payment goes through, the business that shared the code gets 10% off its own plan from its next bill on, for as long as the business it
-          referred stays subscribed and its own subscription continues. Nothing is given if the sharer&rsquo;s subscription ends first. Each code works
+          referred stays subscribed and its own subscription continues. Nothing is given if the sharer&rsquo;s subscription ends first, and a code
+          can&rsquo;t be used while the sharer&rsquo;s subscription is set to end. Each code works
           once, each business can take part once (a business that joined with a code has no code to share), and a business can&rsquo;t use its own or its
           team&rsquo;s code. We may refuse or remove a referral discount gained by misuse, such as a business set up only to get one. We may end the referral
           programme for new referrals at any time; referral discounts already given keep running as described here.

@@ -59,9 +59,15 @@ export const LEGAL = {
   /**
    * The Terms page's own "last updated" date. A change that only adds to what customers get (founding prices and
    * discount offers, 13 October 2026) isn't one to agree to again, so it keeps termsVersion and moves only this.
-   * Discount codes limited to starting a subscription or moving up a plan (16 October 2026) keeps it too: the site was closed for maintenance.
+   * Discount codes limited to starting a subscription or moving up a plan, codes given to one business for one use, and the
+   * referral programme (16 October 2026) keep it too: they only add to what customers get, and the site was closed for maintenance.
    */
   termsUpdated: "16 October 2026",
+  /**
+   * The Privacy Policy page's own "last updated" date. Describing discount codes, referrals and the sf_offer cookie
+   * (16 October 2026) only explains more of what we already do, so it keeps privacyVersion.
+   */
+  privacyUpdated: "16 October 2026",
 };
 
 /**

@@ -7,7 +7,7 @@ export const metadata = { title: "Privacy Policy" };
 export default function Page() {
   const mail = <a href={`mailto:${LEGAL.email}`}>{LEGAL.email}</a>;
   return (
-    <LegalPage title="Privacy Policy" version={LEGAL.privacyVersion}>
+    <LegalPage title="Privacy Policy" version={LEGAL.privacyVersion} updated={LEGAL.privacyUpdated}>
       <p>
         {operatorLine()} (&ldquo;we&rdquo;, &ldquo;us&rdquo;). This policy explains what personal information we collect when you use {LEGAL.product}, why, and what
         choices you have. We handle personal information in line with the Australian Privacy Principles in the Privacy Act 1988 (Cth). Where they apply, we also
@@ -48,7 +48,13 @@ export default function Page() {
         <li>
           <strong>Billing:</strong> your plan and subscription status, and the customer and subscription references from our payment provider. Subscriptions are
           sold through Link, Stripe&rsquo;s merchant-of-record service: Link collects your card, billing address and tax details at checkout and handles them under
-          its own privacy policy, and we never see or store your card. We give Stripe your email address and business name to set up your account there.
+          its own privacy policy, and we never see or store your card. We give Stripe your email address and business name to set up your account there,
+          when you first go to checkout or when we give your business a discount code.
+        </li>
+        <li>
+          <strong>Discounts and referrals:</strong> discount codes we give your business (which Stripe ties to your business so only it can use them), and your
+          business&rsquo;s referral code with whether and when it was used, which business used it, and when the referral discount started or ended. The
+          business that shared a code sees only that it was used and when, not which business used it.
         </li>
         <li>
           <strong>Support conversations:</strong> what you type into our help chat, and the email address you give us there.
@@ -58,7 +64,8 @@ export default function Page() {
         </li>
         <li>
           <strong>Support and safety records:</strong> when we act on an account through our support tools (for example a warning, a suspension, turning off a
-          client&rsquo;s link, closing an account, blocking an email address, deleting an account at its holder&rsquo;s request or correcting a plan), we record
+          client&rsquo;s link, closing an account, blocking an email address, deleting an account at its holder&rsquo;s request, correcting a plan or giving a
+          discount code), we record
           what we did, when, why and who did it. The record names who or what it was about as they were at the time, such as the login&rsquo;s email address, the
           workspace&rsquo;s name with its owner&rsquo;s email address, a client&rsquo;s name and email address, or the email address blocked. It also notes the
           changes made (including to billing) and whether we emailed anyone about it. When we delete an account at its holder&rsquo;s request, the record also
@@ -210,6 +217,10 @@ export default function Page() {
           business&rsquo;s request, we can restore a removed client, keep them for longer, or delete them sooner.
         </li>
         <li>
+          Your business&rsquo;s referral code and its record are kept while your account is open, and deleted with it. If your business used another
+          business&rsquo;s code, that business&rsquo;s record keeps a reference to your account, which no longer points to anything once your account is deleted.
+        </li>
+        <li>
           Support chats are kept for as long as we need them to help you, and we delete them if you ask. They aren&rsquo;t deleted automatically when an account is
           deleted.
         </li>
@@ -280,6 +291,10 @@ export default function Page() {
         <li>
           <strong>Client link cookie:</strong> remembers a client&rsquo;s personal link on their device for up to a year, so they can get back to
           their videos without an account.
+        </li>
+        <li>
+          <strong>sf_offer:</strong> remembers a discount or referral code you opened a link for, or entered on Settings &gt; Billing, for up to 30 days, so it
+          comes off at checkout. It holds only the code and a signature that shows we set it.
         </li>
         <li>
           <strong>fc_removed:</strong> set for 10 minutes after opening a client link that no longer opens anything (access ended, the link was turned off, or
