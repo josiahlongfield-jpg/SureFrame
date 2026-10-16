@@ -30,10 +30,10 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   const hasDev = authProviders.some((p) => p.id === "dev");
 
   return (
-    <main data-theme="navy" className="flex min-h-screen items-center justify-center navy-glow text-ink px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-8 shadow-sm">
+    <main data-theme="navy" className="fit-screen navy-glow text-ink px-4 py-4 short:py-2">
+      <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8 short:p-4">
         <Logo tone="dark" />
-        <h1 className="mt-6 text-xl font-semibold text-ink">Sign in to start recording</h1>
+        <h1 className="mt-6 short:mt-3 text-xl font-semibold text-ink">Sign in to start recording</h1>
         {deleted && (
           <p role="status" className="mt-3 rounded-lg bg-ok-bg px-3 py-2 text-sm text-ok-fg" data-testid="deleted-note">
             Your account is closed and will be deleted in {DELETION_GRACE_DAYS} days. We&apos;ve emailed you the date. Changed your mind? Sign in before then to keep it.
@@ -49,7 +49,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
             For your security you were signed out because the browser was closed or the page was left unused. Please sign in again.
           </p>
         )}
-        <div className="mt-6 grid gap-3">
+        <div className="mt-6 grid gap-3 short:mt-3">
           {authProviders.some((p) => p.id === "google") && (
             <form action={async () => { "use server"; await signIn("google", { redirectTo }); }}>
               <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-line-strong px-4 py-3 font-medium hover:bg-hover">
@@ -131,7 +131,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
             <p className="text-sm text-muted">No sign-in method is configured. Set RESEND_API_KEY, AUTH_GOOGLE_ID or AUTH_DEV_LOGIN.</p>
           )}
         </div>
-        <p className="mt-6 text-xs text-dim">
+        <p className="mt-6 text-xs text-dim short:mt-3">
           By continuing you agree to our <Link href="/legal/terms" className="underline">Terms</Link> and{" "}
           <Link href="/legal/privacy" className="underline">Privacy Policy</Link>.
         </p>

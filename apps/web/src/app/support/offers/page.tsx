@@ -18,11 +18,10 @@ function status(o: Offer) {
   return <Badge tone="green">Active</Badge>;
 }
 
-/** Who can use an offer (lib/offers.ts: subscribers can't add a first-bill code, and Stripe's new-customer rule is "never billed"). */
+/** Who can use an offer (lib/offers.ts: only a new subscription takes one, and Stripe's new-customer rule is "never billed"). */
 function whoCanUse(o: Offer) {
   if (o.newCustomersOnly) return "Businesses we've never billed before, when they start a subscription";
-  if (o.coupon.duration === "once") return "New subscriptions (a first-bill code can't be added to a subscription that's running)";
-  return "New subscriptions, and current subscribers on Settings > Billing when it lasts until their next bill";
+  return "Businesses starting a subscription (never one that's already running)";
 }
 
 function OfferCard({ o }: { o: Offer }) {
@@ -134,8 +133,7 @@ export default async function Offers({ searchParams }: { searchParams: Promise<{
             <input name="months" type="number" min={1} max={MAX_OFFER_MONTHS} step={1} inputMode="numeric" className={field} />
             <span className="text-xs text-dim">
               Up to {MAX_OFFER_MONTHS}. It comes off every bill that starts within those months. On yearly billing that&rsquo;s the whole first yearly bill, so 3
-              months at 20% saves 20% of a year, and at 12 months it may come off the second yearly bill too. A current subscriber can only add it if it lasts
-              until their next bill.
+              months at 20% saves 20% of a year, and at 12 months it may come off the second yearly bill too.
             </span>
           </label>
           <label className="grid gap-1 text-sm text-muted">
@@ -149,7 +147,7 @@ export default async function Offers({ searchParams }: { searchParams: Promise<{
           <Check
             name="newCustomersOnly"
             label="New customers only"
-            hint="Only for businesses we've never billed before, paid or not (Stripe's rule), so not for anyone who subscribed or tried to before. Current subscribers can't use it on Settings > Billing."
+            hint="Only for businesses we've never billed before, paid or not (Stripe's rule), so not for anyone who subscribed or tried to before."
           />
           <Check name="automatic" label="Apply it to every new subscription without a code" hint="The pricing page says so. Only one offer can be applied automatically." />
           <p className="text-xs text-dim">

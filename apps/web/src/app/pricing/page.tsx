@@ -18,14 +18,13 @@ const qldDay = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", mont
 /**
  * The founding offer, a share link's code (or that it has ended) and the
  * automatic offer, above the plans. Offers only come off when a subscription
- * starts (a plan switch never adds one), so that's what the banner says, and a
- * code a subscriber can add on Settings > Billing says so too.
+ * starts (a plan switch never adds one, nor does a subscription that's
+ * running), so that's what the banner says.
  */
 function Offers({ founding, ended, busy, linked, auto }: { founding: string | null; ended: string | null; busy: boolean; linked: Offer | null; auto: Offer | null }) {
   const box = "mx-auto mt-6 max-w-3xl rounded-2xl border p-4 text-center text-sm";
   const offer = linked ?? auto;
   const who = offer?.newCustomersOnly ? ", for businesses we've never billed before" : offer && offer !== linked ? ", for new subscriptions" : "";
-  const subscribersToo = !!offer && offer === linked && !offer.newCustomersOnly && offer.coupon.duration !== "once";
   return (
     <>
       {founding && (
@@ -48,7 +47,7 @@ function Offers({ founding, ended, busy, linked, auto }: { founding: string | nu
         <p className={`${box} border-ok-line bg-ok-bg text-ok-fg`} data-testid="offer-banner">
           <span className="font-semibold">{offer === linked ? `Code ${offer.code}:` : "Offer:"}</span> {offer.summary}
           {who}.{offer.expiresAt ? ` Use it by ${qldDay(offer.expiresAt)}.` : ""} It comes off at checkout when you start a subscription
-          {offer === linked ? "" : ", no code needed"}.{subscribersToo ? " Already subscribed? Enter it on Settings > Billing." : ""}
+          {offer === linked ? "" : ", no code needed"}.
           {offer === linked ? "" : " Have a different code? Enter it on Settings > Billing before you choose a plan."}
         </p>
       )}

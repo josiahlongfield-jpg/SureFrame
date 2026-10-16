@@ -147,7 +147,8 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
               <Link href="/pricing" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">{comp ? "Choose a paid plan" : "Upgrade"}</Link>
             )}
           </div>
-          <RedeemCode subscribed={!!workspace.stripeSubscriptionId} hasDiscount={!!discount} />
+          {/* Codes are for starting a subscription (Free or a plan we gave to paid), never for one that's running. */}
+          {!workspace.stripeSubscriptionId && <RedeemCode />}
         </div>
         <CloudBackupToggle
           enabled={workspace.cloudBackup}

@@ -11,7 +11,8 @@ import { stripe } from "@/lib/stripe";
  * subscription in one of four ways: typed at Stripe Checkout, brought by a
  * share link (/offer/CODE, which leaves the code in a cookie for checkout),
  * the one automatic offer applied to every new subscription, or typed on
- * Settings > Billing by a current subscriber. One discount at a time.
+ * Settings > Billing before choosing a plan (kept in the same cookie). Only a
+ * new subscription takes a discount: one that's running never does.
  */
 
 /** The cookie a share link leaves, so checkout applies its code. */
@@ -177,8 +178,7 @@ export async function automaticOffer(): Promise<Offer | null> {
 
 /**
  * offerForCode for the pricing page and checkout, checked with Stripe at most
- * once a minute per code per server. Redeeming a code (applyCodeToSubscription)
- * always asks Stripe.
+ * once a minute per code per server.
  */
 export async function cachedOfferForCode(code: string): Promise<Offer | null> {
   const key = code.toUpperCase();
@@ -268,58 +268,4 @@ export async function discountOf(sub: Stripe.Subscription): Promise<DiscountNow 
   const code = d.promotion_code && typeof d.promotion_code !== "string" ? d.promotion_code.code : null;
   const what = `${amountOff(coupon)} ${scopeLabel(coupon)}${coupon.duration === "once" ? " on your next bill" : coupon.duration === "forever" ? " for as long as you stay subscribed" : ""}`;
   return { label: code ? `${code}: ${what}` : what, endsAt: coupon.duration === "repeating" && d.end ? new Date(d.end * 1000) : null };
-}
-
-/** `n` calendar months after `from`, in UTC, stopping at a shorter month's last day (31 January + 1 month is 28 or 29 February), as Stripe counts them. */
-export function addMonths(from: Date, n: number) {
-  const out = new Date(from);
-  out.setUTCDate(1);
-  out.setUTCMonth(out.getUTCMonth() + n);
-  const lastDay = new Date(Date.UTC(out.getUTCFullYear(), out.getUTCMonth() + 1, 0)).getUTCDate();
-  out.setUTCDate(Math.min(from.getUTCDate(), lastDay));
-  return out;
-}
-
-const qldDay = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "Australia/Brisbane" });
-
-/**
- * A current subscriber's code (Settings > Billing). It replaces nothing: a
- * subscription that already has a discount keeps it and the code is refused.
- * A discount added now counts from today and comes off the next bill Stripe
- * makes, so a code that couldn't reach the next renewal is refused rather
- * than used up for nothing (a few months' code on yearly billing, or any
- * code on a subscription that's ending), and so is a first-bill-only code,
- * which a small charge for something added mid-term would use up.
- */
-export async function applyCodeToSubscription(sub: Stripe.Subscription, code: string): Promise<Offer> {
-  const offer = await offerForCode(code);
-  if (!offer) throw new HttpError(400, "That code isn't valid or has ended.");
-  // A discount past its end that Stripe still lists doesn't count (the update below replaces it); one sent unexpanded does.
-  if ((sub.discounts ?? []).some((d) => typeof d === "string" || (!d.deleted && !(d.end && d.end * 1000 <= Date.now())))) {
-    throw new HttpError(400, "Your subscription already has a discount, and codes can't be combined.");
-  }
-  if (offer.newCustomersOnly) throw new HttpError(400, NEW_CUSTOMERS_ONLY);
-  const c = offer.coupon;
-  if (c.duration === "once") throw new HttpError(400, "That code is for a first bill, so it can only be used when you start a subscription.");
-  const renews = Math.max(0, ...sub.items.data.map((i) => i.current_period_end ?? 0)) * 1000;
-  if (sub.cancel_at_period_end || (sub.cancel_at && sub.cancel_at * 1000 <= renews)) {
-    throw new HttpError(400, "Your subscription is set to end, so a code wouldn't save you anything.");
-  }
-  if (c.duration === "repeating" && c.duration_in_months && renews) {
-    // An hour's margin: Stripe starts the discount a moment after now, and must still have it at the renewal.
-    const until = addMonths(new Date(), c.duration_in_months).getTime() - 3_600_000;
-    if (renews >= until) {
-      throw new HttpError(400, `That code lasts ${months(c.duration_in_months)} from today, which ends before your next bill on ${qldDay(new Date(renews))}, so it wouldn't save you anything.`);
-    }
-  }
-  try {
-    await stripe().subscriptions.update(sub.id, { discounts: [{ promotion_code: offer.id }], proration_behavior: "none" });
-  } catch (err) {
-    if ((err as { type?: string })?.type === "StripeInvalidRequestError") {
-      console.log("[billing] code refused by Stripe", JSON.stringify({ code: offer.code, error: String((err as Error).message).slice(0, 300) }));
-      throw new HttpError(400, "That code can't be used on your subscription.");
-    }
-    throw err;
-  }
-  return offer;
 }

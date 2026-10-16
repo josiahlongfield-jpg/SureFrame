@@ -499,7 +499,7 @@ export default function Recorder({
   const allowedQualities = ([720, 1080, 2160] as Quality[]).filter((q) => q <= maxResolution);
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_21.25rem]">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem]">
       <div
         style={bigCamera ? frame.style : undefined}
         className={`relative mx-auto overflow-hidden rounded-2xl border border-line bg-solid shadow-sm ${bigCamera ? "" : "aspect-video w-full"}`}
@@ -550,7 +550,7 @@ export default function Recorder({
         )}
       </div>
 
-      <aside className="flex flex-col gap-5">
+      <aside className="flex min-w-0 flex-col gap-5">
         {recovered.length > 0 && (
           <div className="rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg">
             {recovered.length === 1 ? "We finished uploading a recording that was interrupted." : `We finished uploading ${recovered.length} recordings that were interrupted.`}{" "}
@@ -592,7 +592,7 @@ export default function Recorder({
               {mode !== "screen" && (
                 <label className="grid gap-1">
                   <span className="font-medium text-muted">Camera</span>
-                  <select className="rounded-lg border border-line-strong bg-surface px-3 py-2" value={camId ?? ""} onChange={(e) => setCamId(e.target.value || undefined)}>
+                  <select className="w-full min-w-0 rounded-lg border border-line-strong bg-surface px-3 py-2" value={camId ?? ""} onChange={(e) => setCamId(e.target.value || undefined)}>
                     <option value="">Default camera</option>
                     {cams.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || "Camera"}</option>)}
                   </select>
@@ -600,7 +600,7 @@ export default function Recorder({
               )}
               <label className="grid gap-1">
                 <span className="font-medium text-muted">Microphone</span>
-                <select className="rounded-lg border border-line-strong bg-surface px-3 py-2" value={micId ?? ""} onChange={(e) => setMicId(e.target.value || undefined)}>
+                <select className="w-full min-w-0 rounded-lg border border-line-strong bg-surface px-3 py-2" value={micId ?? ""} onChange={(e) => setMicId(e.target.value || undefined)}>
                   <option value="">Default microphone</option>
                   {mics.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || "Microphone"}</option>)}
                 </select>
@@ -608,7 +608,7 @@ export default function Recorder({
               {phase === "setup" && <MicLevel deviceId={micId} />}
               <label className="grid gap-1">
                 <span className="font-medium text-muted">Quality</span>
-                <select className="rounded-lg border border-line-strong bg-surface px-3 py-2" value={quality} onChange={(e) => setQuality(Number(e.target.value) as Quality)}>
+                <select className="w-full min-w-0 rounded-lg border border-line-strong bg-surface px-3 py-2" value={quality} onChange={(e) => setQuality(Number(e.target.value) as Quality)}>
                   {allowedQualities.map((q) => <option key={q} value={q}>{q === 2160 ? "4K" : `${q}p`}</option>)}
                 </select>
                 {maxResolution < 1080 && <span className="text-xs text-dim"><a href="/pricing" className="font-medium text-accent hover:underline">Upgrade to a paid plan</a> for 1080p and 4K.</span>}

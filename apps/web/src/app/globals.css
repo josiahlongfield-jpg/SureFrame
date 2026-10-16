@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Screens too short for the usual spacing, such as a phone turned sideways. */
+@custom-variant short (@media (max-height: 30rem));
+
 @theme {
   --color-brand-50: #eef4ff;
   --color-brand-100: #dbe6ff;
@@ -206,6 +209,23 @@ body {
 }
 /* Sign-in and other one-screen pages that are all navy. */
 html:has(body > [data-theme="navy"]) { color-scheme: dark; background: #0b1e38; }
+
+/*
+ * Sign-in pages: exactly the visible screen (phones and tablets included, whatever the browser bars
+ * are doing), with the box centred and the page itself never scrolling. Only a box too tall for the
+ * screen, such as a phone turned sideways, scrolls inside it, and it stays reachable from the top.
+ */
+.fit-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+  overscroll-behavior: none;
+}
+.fit-screen > * { margin-block: auto; }
+html:has(.fit-screen), html:has(.fit-screen) body { overflow: hidden; height: 100%; min-height: 0; }
 
 .navy-glow {
   background:

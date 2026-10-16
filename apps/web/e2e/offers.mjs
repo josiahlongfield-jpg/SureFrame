@@ -150,7 +150,7 @@ await visitor.goto(`${BASE}/offer/${CODE.toLowerCase()}`);
 ok("share link opens the pricing page", new URL(visitor.url()).pathname === "/pricing");
 t = (await visitor.textContent('[data-testid="offer-banner"]').catch(() => "")).replace(/\s+/g, " ");
 ok("pricing page shows the code's offer", t.includes(`Code ${CODE}: 20% off your plan for 3 months`), t);
-ok("and that subscribers can add it on Settings > Billing", t.includes("It comes off at checkout when you start a subscription. Already subscribed? Enter it on Settings > Billing."), t);
+ok("and that it comes off when a subscription starts", t.includes("It comes off at checkout when you start a subscription.") && !t.includes("Already subscribed"), t);
 const cookie = (await visitor.context().cookies()).find((c) => c.name === "sf_offer");
 ok("the share link's cookie is signed", !!cookie && cookie.value.startsWith(`${CODE}.`) && cookie.httpOnly, cookie?.value);
 res = await api(visitor, "/api/billing/checkout", { plan: "STUDIO" });
@@ -197,28 +197,22 @@ err = await power("create-offer", { code: `OTHER-${String(stamp).slice(-6)}`, pe
 ok("only one offer can be automatic", /already applied automatically/.test(err), err);
 ok("the refused offer leaves nothing in Stripe", !state.promos.some((p) => p.code === `OTHER-${String(stamp).slice(-6)}`));
 
-// 5) A current subscriber types a code on Settings > Billing.
+// 5) The linked checkout is paid: the subscription starts with the code's discount.
 let body;
 const linkWs = await workspaceOf(linkEmail);
 const linkCustomer = (await prisma.workspace.findUnique({ where: { id: linkWs.id } })).stripeCustomerId;
-const sub2 = createSubscription(linkCustomer, linkWs.id, "sureframe_founding_solo_monthly", "active", { metadata: { foundingPrices: "yes" } });
+const sub2 = createSubscription(linkCustomer, linkWs.id, "sureframe_founding_solo_monthly", "active", { metadata: { foundingPrices: "yes" }, promotionCode: promo.id });
 await webhook(visitor, "customer.subscription.created", sub2);
-await visitor.goto(BASE + "/settings/billing");
-await visitor.click('[data-testid="have-code"]');
-await visitor.fill("#discount-code", CODE.toLowerCase());
-await visitor.click('[data-testid="code-form"] button');
-await visitor.waitForSelector('[data-testid="code-done"]', { timeout: 15000 }).catch(() => {});
-t = ((await visitor.textContent('[data-testid="code-done"]').catch(() => "")) ?? "").replace(/\s+/g, " ");
-ok("a subscriber's code is applied", t.includes(`${CODE} applied: 20% off your plan for 3 months`) && sub2.discounts?.[0]?.promotion_code?.id === promo.id, t);
 const linkAfter = await prisma.workspace.findUnique({ where: { id: linkWs.id } });
 const days = (linkAfter.discountEndsAt - Date.now()) / 86400000;
 ok("billing records the discount and its end", linkAfter.discountLabel === `${CODE}: 20% off your plan` && days > 88 && days < 91, `${linkAfter.discountLabel} ${days}`);
-await visitor.reload();
+await visitor.goto(BASE + "/settings/billing");
 t = ((await visitor.textContent('[data-testid="discount"]').catch(() => "")) ?? "").replace(/\s+/g, " ");
 ok("billing page shows the discount", t.startsWith(`Discount: ${CODE}: 20% off your plan, until `), t);
-ok("no code box while a discount runs", (await visitor.locator('[data-testid="have-code"]').count()) === 0);
+// Codes are only for starting a subscription: a subscriber has no code box, and the API refuses them.
+ok("no code box for a subscriber", (await visitor.locator('[data-testid="have-code"]').count()) === 0);
 res = await api(visitor, "/api/billing/code", { code: CODE });
-ok("a second code is refused", res.status() === 400 && /already has a discount/.test((await res.json()).error));
+ok("a subscriber's code is refused", res.status() === 400 && /only be used when you start a paid plan/.test((await res.json()).error));
 
 // New-customers-only codes aren't for subscribers; a Free owner's typed code is kept for checkout.
 const newOnly = await fake.coupons.create({ name: "NEWONLY", percent_off: 50, duration: "once", metadata: { sureframe_scope: "all" } });
@@ -230,17 +224,15 @@ const sub3Ws = await workspaceOf(sub3Email);
 await api(third, "/api/billing/checkout", { plan: "SOLO" });
 const sub3 = createSubscription(lastSession().customer, sub3Ws.id, "sureframe_solo_monthly");
 await webhook(third, "customer.subscription.created", sub3);
+await third.goto(BASE + "/settings/billing");
+ok("no code box for a subscriber without a discount either", (await third.locator('[data-testid="have-code"]').count()) === 0 && (await third.locator('[data-testid="renews-on"]').count()) === 1);
 res = await api(third, "/api/billing/code", { code: NEWCODE });
-ok("a new-customers code is refused for a subscriber", res.status() === 400 && /we've never billed before/.test((await res.json()).error));
+ok("a new-customers code is refused for a subscriber", res.status() === 400 && /only be used when you start a paid plan/.test((await res.json()).error));
 const once = await fake.coupons.create({ name: "ONCE", percent_off: 30, duration: "once", metadata: { sureframe_scope: "all" } });
 const ONCECODE = `ONCE-${String(stamp).slice(-6)}`;
 await fake.promotionCodes.create({ promotion: { type: "coupon", coupon: once.id }, code: ONCECODE });
 res = await api(third, "/api/billing/code", { code: ONCECODE });
-ok("a first-bill code is refused for a subscriber", res.status() === 400 && /only be used when you start a subscription/.test((await res.json()).error) && !sub3.discounts.length);
-sub3.cancel_at_period_end = true;
-res = await api(third, "/api/billing/code", { code: CODE });
-ok("a code is refused for a subscription that's ending", res.status() === 400 && /set to end/.test((await res.json()).error) && !sub3.discounts.length);
-sub3.cancel_at_period_end = false;
+ok("a first-bill code is refused for a subscriber", res.status() === 400 && /only be used when you start a paid plan/.test((await res.json()).error) && !sub3.discounts.length);
 const yearlyEmail = `yearly${stamp}@example.com`;
 const yearly = await signIn(yearlyEmail);
 await api(yearly, "/api/billing/checkout", { plan: "SOLO", interval: "year" });
@@ -248,7 +240,7 @@ const subY = createSubscription(lastSession().customer, (await workspaceOf(yearl
 await webhook(yearly, "customer.subscription.created", subY);
 res = await api(yearly, "/api/billing/code", { code: CODE });
 body = await res.json();
-ok("a 3-month code is refused mid-year on yearly billing", res.status() === 400 && /3 months from today, which ends before your next bill on/.test(body.error) && !subY.discounts.length, body.error);
+ok("a yearly subscriber's code is refused", res.status() === 400 && /only be used when you start a paid plan/.test(body.error) && !subY.discounts.length, body.error);
 res = await api(fresh, "/api/billing/code", { code: NEWCODE.toLowerCase() });
 body = await res.json();
 ok("a Free owner's code is saved for checkout", res.ok() && body.applied === false && body.summary === "50% off your whole bill on your first bill", JSON.stringify(body));
@@ -284,12 +276,12 @@ ok("new checkouts no longer get it", res.ok() && session.allow_promotion_codes =
 ok("the subscriber keeps the discount", sub2.discounts?.length === 1);
 await prisma.workspace.update({ where: { id: linkWs.id }, data: { discountEndsAt: new Date(Date.now() - 60_000) } });
 await visitor.goto(BASE + "/settings/billing");
-ok("a discount past its end isn't shown", (await visitor.locator('[data-testid="discount"]').count()) === 0 && (await visitor.locator('[data-testid="have-code"]').count()) === 1);
+ok("a discount past its end isn't shown, and still no code box", (await visitor.locator('[data-testid="discount"]').count()) === 0 && (await visitor.locator('[data-testid="have-code"]').count()) === 0);
 
 // 7) The Terms cover both.
 t = await text(late, "/legal/terms");
-ok("terms explain founding prices", /Founding prices are the exception/.test(t) && /Last updated 13 October 2026|13 October 2026/.test(t));
-ok("terms explain discounts", /Discount codes and offers work as described when you use them/.test(t) && /we only accept one that lasts until your next bill/.test(t));
+ok("terms explain founding prices", /Founding prices are the exception/.test(t) && /16 October 2026/.test(t));
+ok("terms explain discounts", /Discount codes and offers work as described when you use them/.test(t) && /only be used when you start a paid subscription, not on one that.s already running/.test(t));
 
 // 8) Share links can't be used to try codes: 30 different codes per IP in 10 minutes, and retrying a refused one is refused again.
 const linkTo = async (c) => (await late.request.get(`${BASE}/offer/${c}`, { maxRedirects: 0 })).headers().location ?? "";
