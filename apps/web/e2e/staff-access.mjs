@@ -172,7 +172,7 @@ ok("the shared client's page is not found for Amy", await notFound(`/clients/${s
 await amy.goto(`${BASE}/clients/${ana.id}`);
 ok("Ana's client page opens for Amy", !!(await amy.waitForSelector("h1:has-text('Ana')", { timeout: 10000 }).catch(() => null)));
 await amy.goto(`${BASE}/v/${vOwnerBen}`);
-ok("Bob's client's video page is private for Amy", !!(await amy.waitForSelector("text=This video is private", { timeout: 10000 }).catch(() => null)) && !(await amy.textContent("body")).includes("Owner to Ben"));
+ok("Bob's client's video page is private for Amy, and says why", !!(await amy.waitForSelector("text=This video is for a client you don't look after", { timeout: 10000 }).catch(() => null)) && !(await amy.textContent("body")).includes("Owner to Ben") && !(await amy.isVisible("text=Sign in")));
 await amy.goto(BASE + "/library");
 const lib = await amy.textContent("main");
 ok("Amy's library lists only her videos", lib.includes("Amy draft") && lib.includes("Amy to Ana") && !lib.includes("Owner to Ben") && !lib.includes("Bob to Ben") && !lib.includes("Owner to Sha"), lib);

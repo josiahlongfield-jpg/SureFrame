@@ -17,7 +17,7 @@ export type WorkerIn = { channels: Float32Array[]; device: "webgpu" | "wasm"; mo
 export type WorkerOut =
   | { type: "progress"; stage: "download" | "transcribe"; fraction: number; bytes?: number }
   | { type: "done"; transcript: Transcript }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; cause?: "server" | "download" | "device" };
 
 export type Transcriber = (media: Blob, onProgress: (p: Progress) => void) => Promise<Transcript>;
 
@@ -39,8 +39,15 @@ const STALL_MS = 10 * 60_000;
 
 /** Thrown when this browser or device can't run the model. */
 export class UnsupportedDevice extends Error {}
-/** Thrown when the speech model isn't installed on the server yet. */
-export class ModelUnavailable extends Error {}
+/** Thrown when the speech model isn't installed on the server yet, or is incomplete there. */
+export class ModelUnavailable extends Error {
+  /** True when nothing is installed at all, rather than an install that's incomplete. */
+  constructor(message: string, readonly notInstalled = false) {
+    super(message);
+  }
+}
+/** Thrown when the speech model couldn't be fetched intact (usually the connection): worth trying again. */
+export class ModelDownloadFailed extends Error {}
 
 export type DeviceSupport = {
   /** Run on the graphics chip, on the processor only, or not at all. */
@@ -59,9 +66,9 @@ export const modelBase = () => new URL("/models/", window.location.origin).toStr
 /** The installed model's manifest (exact revision and every file's sha256), read fresh each time. */
 async function fetchManifest(): Promise<ModelManifest> {
   const res = await fetch(`${modelBase()}manifest.json`, { cache: "no-store" }).catch(() => null);
-  if (res?.status === 404) throw new ModelUnavailable("The speech model isn't installed on this server yet.");
+  if (res?.status === 404) throw new ModelUnavailable("The speech model isn't installed on this server yet.", true);
   const manifest = res?.ok ? await res.json().catch(() => null) : null;
-  if (!isManifest(manifest)) throw new Error("Couldn't check the transcription model just now.");
+  if (!isManifest(manifest)) throw new ModelDownloadFailed("Couldn't check the transcription model just now.");
   return manifest;
 }
 
@@ -140,6 +147,8 @@ const runModel: Transcriber = async (media, onProgress) => {
         const msg = e.data;
         if (msg.type === "progress") onProgress({ stage: msg.stage, fraction: msg.fraction, bytes: msg.bytes });
         else if (msg.type === "done") resolve(msg.transcript);
+        else if (msg.cause === "server") reject(new ModelUnavailable(msg.message));
+        else if (msg.cause === "download") reject(new ModelDownloadFailed(msg.message));
         else reject(new UnsupportedDevice(msg.message));
       };
       worker.onmessageerror = () => reject(new UnsupportedDevice("The transcription model couldn't start on this device."));

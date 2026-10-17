@@ -114,7 +114,7 @@ await owner.waitForSelector("aside ul >> text=Have a look when you can");
 const phoneCtx = await browser.newContext({ permissions: ["camera", "microphone"], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
 const phone = await phoneCtx.newPage();
 await phone.addLocatorHandler(phone.getByTestId("sureframe-promo"), async () => {
-  await phone.click("text=/^Watch your video$/", { timeout: 15000 });
+  await phone.click("text=/^Watch now$/", { timeout: 15000 });
 });
 await phone.goto(link);
 await phone.waitForURL("**/v/**");
@@ -123,12 +123,29 @@ await phone.waitForSelector(toggle, { timeout: 20000 });
 ok("client: AI bar starts collapsed", (await phone.getAttribute(toggle, "aria-expanded")) === "false" && !(await phone.isVisible("[data-testid=ai-summary]")));
 ok("client: hint says the summary is ready", (await phone.textContent("[data-testid=ai-hint]")) === "Summary ready");
 ok("390px: conversation not stuck at the bottom of the page", !(await phone.isVisible("[data-testid=conversation]")));
+const card = "[data-testid=chat-inline]";
+const open = "[data-testid=chat-open]";
 const bubble = "[data-testid=chat-bubble]";
-ok("390px: chat bubble shown", await phone.isVisible(bubble));
-ok("390px: bubble counts the reply", (await phone.getAttribute(bubble, "aria-label")).includes("1 reply"));
-ok("390px: unread dot for the new reply", await phone.isVisible("[data-testid=chat-unread]"));
+ok("390px: reply card right under the video", await phone.isVisible(card));
+ok("390px: card names the business and counts the message", /Conversation with .+/.test(await phone.textContent(card)) && (await phone.textContent(card)).includes("1 message"));
+ok("390px: unread dot for the business's reply", await phone.isVisible("[data-testid=inline-unread]"));
+ok("390px: no floating button over the reactions or card while they're on screen", !(await phone.isVisible(bubble)));
 
-// Both floating buttons fit and can be tapped at 390px.
+// Scrolled well past the card, the floating Reply button appears; it fits beside Help.
+const scrollPastCard = (p) =>
+  p.evaluate(() => {
+    document.querySelector("main").style.paddingBottom = "2400px";
+    scrollTo(0, document.documentElement.scrollHeight);
+  });
+const scrollBack = (p) =>
+  p.evaluate(() => {
+    document.querySelector("main").style.paddingBottom = "";
+    scrollTo(0, 0);
+  });
+await scrollPastCard(phone);
+ok("390px: floating Reply button once the card is out of sight", !!(await phone.waitForSelector(bubble, { timeout: 5000 }).catch(() => null)));
+ok("390px: bubble counts the reply", (await phone.getAttribute(bubble, "aria-label")).includes("1 reply"));
+ok("390px: and shows it's new", await phone.isVisible("[data-testid=chat-unread]"));
 const help = phone.locator("button:has-text('Help')");
 const helpShown = (await help.count()) > 0 && (await help.isVisible());
 const boxes = await phone.evaluate(() => {
@@ -139,6 +156,9 @@ const boxes = await phone.evaluate(() => {
 const overlap = boxes.help && !(boxes.bubble.right <= boxes.help.left || boxes.help.right <= boxes.bubble.left || boxes.bubble.bottom <= boxes.help.top || boxes.help.bottom <= boxes.bubble.top);
 ok("390px: bubble and Help don't overlap", !overlap, JSON.stringify(boxes));
 ok("390px: bubble is on screen", boxes.bubble.left >= 0 && boxes.bubble.right <= boxes.width, JSON.stringify(boxes));
+await scrollBack(phone);
+await phone.waitForTimeout(300);
+ok("390px: scrolled back, the bubble goes again", !(await phone.isVisible(bubble)));
 ok("390px: no sideways scrolling", await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 await phone.screenshot({ path: `${shots}/phone-390-page.png`, fullPage: true });
 
@@ -154,9 +174,9 @@ if (helpShown) {
   await phone.tap("button[aria-label='Close help']");
 } else console.log("note: no Help button on this page for clients");
 
-await phone.tap(bubble);
+await phone.tap(open);
 await phone.waitForSelector("[data-testid=conversation][data-sheet]", { timeout: 5000 });
-ok("bubble opens the conversation as a sheet", await phone.isVisible("[data-testid=conversation] >> text=Have a look when you can"));
+ok("the card opens the conversation as a sheet", await phone.isVisible("[data-testid=conversation] >> text=Have a look when you can"));
 ok("sheet is a modal dialog", (await phone.getAttribute("[data-testid=conversation]", "role")) === "dialog");
 const sheetBox = await phone.evaluate(() => {
   const r = document.querySelector("[data-testid=conversation]").getBoundingClientRect();
@@ -165,85 +185,103 @@ const sheetBox = await phone.evaluate(() => {
 ok("sheet fills the screen", sheetBox.top === 0 && Math.abs(sheetBox.height - sheetBox.h) <= 1, JSON.stringify(sheetBox));
 ok("page behind doesn't scroll", sheetBox.overflow === "hidden");
 ok("bubble hidden while open", !(await phone.isVisible(bubble)));
-ok("unread cleared once seen", (await phone.locator("[data-testid=chat-unread]").count()) === 0 || !(await phone.isVisible("[data-testid=chat-unread]")));
 await phone.fill('textarea[aria-label="Reply"]', "Looks good from my phone");
 await phone.tap("button:has-text('Send reply')");
 await phone.waitForSelector("[data-testid=conversation] ul >> text=Looks good from my phone", { timeout: 15000 });
 ok("text reply sends from the sheet", true);
+ok("own message on the right", await phone.evaluate(() => {
+  const li = [...document.querySelectorAll("[data-testid=conversation] ul li")].find((l) => l.textContent.includes("Looks good from my phone"));
+  return !!li?.dataset.mine && getComputedStyle(li).alignItems === "flex-end";
+}));
 await phone.screenshot({ path: `${shots}/phone-390-sheet.png` });
 
 await phone.tap("[data-testid=chat-close]");
 await phone.waitForSelector("[data-testid=conversation]:not([data-sheet])", { state: "attached", timeout: 5000 });
-ok("close button shuts the sheet", !(await phone.isVisible("[data-testid=conversation]")) && (await phone.isVisible(bubble)));
+ok("close button shuts the sheet", !(await phone.isVisible("[data-testid=conversation]")) && (await phone.isVisible(card)));
 ok("page scrolls again", (await phone.evaluate(() => getComputedStyle(document.body).overflow)) !== "hidden");
-ok("bubble now counts 2 replies", (await phone.getAttribute(bubble, "aria-label")).includes("2 replies"));
+ok("unread cleared once seen, and their own reply never counts as new", !(await phone.isVisible("[data-testid=inline-unread]")));
+ok("card now counts 2 messages", (await phone.textContent(card)).includes("2 messages"));
 ok("still on the video page", phone.url().includes(`/v/${videoId}`));
 
-await phone.tap(bubble);
+await phone.tap(open);
 await phone.waitForSelector("[data-testid=conversation][data-sheet]");
 await phone.keyboard.press("Escape");
 await phone.waitForSelector("[data-testid=conversation]:not([data-sheet])", { state: "attached", timeout: 5000 });
 ok("Escape closes the sheet", true);
 
-await phone.tap(bubble);
+await phone.tap(open);
 await phone.waitForSelector("[data-testid=conversation][data-sheet]");
 await phone.goBack();
 await phone.waitForSelector("[data-testid=conversation]:not([data-sheet])", { state: "attached", timeout: 5000 });
 ok("Back closes the sheet and stays on the video", phone.url().includes(`/v/${videoId}`) && (await phone.isVisible("main video")));
 
-// A voice reply in progress can't be closed away, and still sends.
-await phone.tap(bubble);
+// Closing mid-recording asks first: keep recording, or discard it and close.
+await phone.tap(open);
 await phone.waitForSelector("[data-testid=conversation][data-sheet]");
 await phone.tap("role=tab[name='Voice']");
 await phone.tap("button:has-text('Record voice reply')");
 await phone.waitForSelector("text=/Recording · \\d/", { timeout: 15000 });
 await phone.tap("[data-testid=chat-close]");
 await phone.waitForTimeout(300);
-ok("can't close while recording", (await phone.getAttribute("[data-testid=conversation]", "data-sheet")) === "true");
-ok("says why", (await phone.textContent("[data-testid=conversation] [role=alert]")).includes("still recording"));
+ok("closing mid-recording asks first", (await phone.getAttribute("[data-testid=conversation]", "data-sheet")) === "true" && (await phone.isVisible("[data-testid=discard-ask]")));
+ok("says why, and offers to discard", (await phone.textContent("[data-testid=discard-ask]")).includes("still recording") && (await phone.isVisible("text=Discard and close")));
+await phone.tap("text=Keep recording");
 await phone.keyboard.press("Escape");
 await phone.goBack();
 await phone.waitForTimeout(500);
-ok("Escape and Back don't close it mid-recording either", (await phone.getAttribute("[data-testid=conversation]", "data-sheet")) === "true" && (await phone.isVisible("text=/Recording · \\d/")));
+ok("Escape and Back ask too, and recording carries on", (await phone.getAttribute("[data-testid=conversation]", "data-sheet")) === "true" && (await phone.isVisible("text=/Recording · \\d/")));
 await phone.waitForTimeout(1500);
-await phone.tap("button:has-text('Stop and send')");
+await phone.tap("button:has-text('Stop recording')");
+await phone.waitForSelector("[data-testid=reply-review] audio", { timeout: 15000 });
+ok("after Stop: played back for review, not sent yet", (await phone.locator("[data-testid=conversation] ul audio").count()) === 0);
+await phone.tap("button:has-text('Send voice reply')");
 await phone.waitForSelector("[data-testid=conversation] ul audio", { timeout: 30000 });
-ok("the voice reply still sends", true);
+ok("the voice reply sends", true);
+ok("a clear Sent confirmation", (await phone.textContent("[data-testid=reply-sent]")).includes("Sent"));
+const repliesBefore = await prisma.reply.count({ where: { videoId } });
+await phone.tap("text=Record another");
+await phone.tap("button:has-text('Record voice reply')");
+await phone.waitForSelector("text=/Recording · \\d/", { timeout: 15000 });
+await phone.waitForTimeout(1200);
 await phone.tap("[data-testid=chat-close]");
-await phone.waitForSelector("[data-testid=conversation]:not([data-sheet])", { state: "attached", timeout: 5000 });
-ok("closes once sent", true);
+await phone.tap("text=Discard and close");
+await phone.waitForSelector("[data-testid=conversation]:not([data-sheet])", { state: "attached", timeout: 10000 });
+ok("Discard and close: closed, and the recording is gone from the server", (await prisma.reply.count({ where: { videoId } })) === repliesBefore);
 
 // Closing with only the camera preview open lets go of the camera; a draft text survives.
-await phone.tap(bubble);
+await phone.tap(open);
 await phone.waitForSelector("[data-testid=conversation][data-sheet]");
 await phone.fill('textarea[aria-label="Reply"]', "half-written thought");
 await phone.tap("[data-testid=chat-close]");
-await phone.tap(bubble);
+await phone.tap(open);
 ok("a text draft survives closing the sheet", (await phone.inputValue('textarea[aria-label="Reply"]')) === "half-written thought");
 await phone.tap("role=tab[name='Video']");
 await phone.waitForSelector("button:has-text('Record video reply'):not([disabled])", { timeout: 15000 });
 await phone.tap("[data-testid=chat-close]");
-await phone.tap(bubble);
+await phone.tap(open);
 ok("closing with the camera preview open goes back to text", (await phone.getAttribute("role=tab[name='Text']", "aria-selected")) === "true");
 await phone.tap("[data-testid=chat-close]");
 
 // ---------- Team member on a phone sees the same ----------
 await owner.setViewportSize({ width: 390, height: 844 });
 await owner.reload();
-await owner.waitForSelector(bubble, { timeout: 20000 });
-ok("team on a phone: bubble shown, conversation tucked away", !(await owner.isVisible("[data-testid=conversation]")));
+await owner.waitForSelector(card, { timeout: 20000 });
+ok("team on a phone: reply card shown, conversation tucked away", !(await owner.isVisible("[data-testid=conversation]")));
+ok("team on a phone: card names the client", (await owner.textContent(card)).includes("Conversation with Pia Phone"));
 ok("team on a phone: AI bar collapsed", (await owner.getAttribute(toggle, "aria-expanded")) === "false");
 await owner.screenshot({ path: `${shots}/phone-390-team.png`, fullPage: true });
 // The team page has the Help button too (bottom-right): both fit and both open.
+await scrollPastCard(owner);
+await owner.waitForSelector(bubble, { timeout: 5000 }).catch(() => null);
 const teamBoxes = await owner.evaluate(() => {
   const r = (el) => el && (({ left, right, top, bottom }) => ({ left, right, top, bottom }))(el.getBoundingClientRect());
   const help = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Help");
-  return { bubble: r(document.querySelector("[data-testid=chat-bubble]")), help: r(help) };
+  return { bubble: r(document.querySelector("[data-testid=chat-bubble]")), help: r(help), card: r(document.querySelector("[data-testid=chat-inline]")), reactions: r(document.querySelector("[data-testid=reactions]")), scrollY, inner: innerHeight };
 });
 ok("team at 390px: Help button shown", !!teamBoxes.help);
 ok(
   "team at 390px: bubble and Help side by side, not overlapping",
-  !!teamBoxes.help && teamBoxes.bubble.right <= teamBoxes.help.left,
+  !!teamBoxes.help && !!teamBoxes.bubble && teamBoxes.bubble.right <= teamBoxes.help.left,
   JSON.stringify(teamBoxes),
 );
 await owner.click("button:has-text('Help')");
@@ -251,9 +289,14 @@ ok("team at 390px: Help opens", await owner.isVisible("[role=dialog][aria-label=
 await owner.click("button[aria-label='Close help']");
 await owner.click("[data-testid=chat-bubble]");
 await owner.waitForSelector("[data-testid=conversation][data-sheet]");
+ok("team at 390px: their own messages on the right", await owner.evaluate(() => {
+  const li = [...document.querySelectorAll("[data-testid=conversation] ul li")].find((l) => l.textContent.includes("Have a look when you can"));
+  return !!li?.dataset.mine && getComputedStyle(li).alignItems === "flex-end";
+}));
 ok("team at 390px: bubble opens the sheet", await owner.isVisible("[data-testid=conversation] >> text=Looks good from my phone").catch(() => false) || !!(await owner.waitForSelector("[data-testid=conversation] >> text=Looks good from my phone", { timeout: 20000 }).catch(() => null)));
 await owner.click("[data-testid=chat-close]");
 await owner.waitForSelector("[data-testid=conversation]:not([data-sheet])", { state: "attached", timeout: 5000 });
+await scrollBack(owner);
 // Widening back to a computer shows the conversation in place, no bubble.
 await owner.setViewportSize({ width: 1360, height: 900 });
 await owner.waitForTimeout(300);

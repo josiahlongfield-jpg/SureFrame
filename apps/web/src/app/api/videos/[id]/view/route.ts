@@ -3,7 +3,10 @@ import { viewableVideo } from "@/lib/access";
 import { handle } from "@/lib/session";
 import { limitByIp } from "@/lib/rateLimit";
 
-/** Count a view, but not the creator's own plays. */
+/**
+ * Counts the client opening the video (once each time their page unlocks it, whether or not they press
+ * play), never the team's own visits. Only the team sees the count.
+ */
 export const POST = handle(async (_req: Request, ctx: { params: Promise<{ id: string }> }) => {
   await limitByIp("views", 120, 60);
   const { id } = await ctx.params;

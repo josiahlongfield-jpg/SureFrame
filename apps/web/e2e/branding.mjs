@@ -152,20 +152,12 @@ sub.status = "canceled";
 const p2 = JSON.stringify({ id: "evt_c", object: "event", type: "customer.subscription.deleted", data: { object: sub } });
 await page.request.post(BASE + "/api/webhooks/stripe", { headers: { "stripe-signature": sig.webhooks.generateTestHeaderString({ payload: p2, secret: "whsec_test" }), "content-type": "application/json" }, data: p2 });
 await cpage.goto(`${BASE}/v/${videoId}`);
-// The intro appears once the page has checked this visit's storage (after hydration).
-ok("Free plan: clients see the SureFrame intro first", await visible(cpage, "[data-testid=sureframe-promo]", 10000));
-ok("intro can't be skipped straight away", await cpage.isDisabled("text=/Watch your video in/"));
-// Frames of the animated intro: the logo, the private video and reply, then the line.
-await cpage.screenshot({ path: `${process.argv[2] ?? "/tmp"}/promo.png` });
-await cpage.waitForTimeout(4800);
-await cpage.screenshot({ path: `${process.argv[2] ?? "/tmp"}/promo-2.png` });
-ok("intro still counting down after 5 seconds", await cpage.isDisabled("text=/Watch your video in/"));
-await cpage.waitForTimeout(3000);
-await cpage.screenshot({ path: `${process.argv[2] ?? "/tmp"}/promo-3.png` });
-await cpage.click("text=/^Watch your video$/", { timeout: 15000 });
-ok("intro closes after the countdown", !(await cpage.isVisible("[data-testid=sureframe-promo]")));
-await cpage.reload();
-ok("intro shown once per video per visit", !(await cpage.isVisible("[data-testid=sureframe-promo]")));
+// This test video has no key for the client, so it can't open on this device: the Free plan's intro never
+// covers a page that can't open (the intro itself is checked with a real video in fx-client.mjs).
+ok("Free plan: page that can't open says why", !!(await cpage.waitForSelector("[data-testid=lost-key]", { timeout: 15000 }).catch(() => null)));
+ok("Free plan: no intro over a page that can't open", !(await visible(cpage, "[data-testid=sureframe-promo]", 2000)));
+ok("can't-open page offers to ask for the link again", await cpage.isVisible("text=Ask for my link again"));
+await cpage.screenshot({ path: `${process.argv[2] ?? "/tmp"}/cant-open-free.png` });
 await cpage.goto(BASE + "/inbox");
 ok("on Free, clients see plain SureFrame again", !(await cpage.getAttribute("div.min-h-screen", "style"))?.includes("#0f766e") && !(await cpage.isVisible("header img")));
 

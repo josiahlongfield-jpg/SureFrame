@@ -96,8 +96,9 @@ async function finish(video: Video, cloudBackup: boolean, durationMs: number, si
   if (video.emailClientWhenReady && updated.clientId) after(() => emailClientVideo(id));
   // A client's video or voice reply has arrived: tell the person looking after them.
   if (updated.replyToId) {
-    const reply = await db.reply.findUnique({ where: { mediaId: id }, select: { authorUserId: true } });
-    if (reply && !reply.authorUserId) after(() => notifyClientReply(updated.replyToId!));
+    const reply = await db.reply.findUnique({ where: { mediaId: id }, select: { authorUserId: true, heldAt: true } });
+    // One held for review is told about when its author sends it (api/videos/[id]/replies/[replyId]).
+    if (reply && !reply.authorUserId && !reply.heldAt) after(() => notifyClientReply(updated.replyToId!));
   }
   return updated;
 }

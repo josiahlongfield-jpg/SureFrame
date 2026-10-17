@@ -1,22 +1,24 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { cookies } from "next/headers";
+import type { ReactNode } from "react";
+import type { Video } from "@prisma/client";
 import { notFound, redirect } from "next/navigation";
-import Logo from "@/components/Logo";
 import AppHeader from "@/components/AppHeader";
 import ClientHeader from "@/components/ClientHeader";
 import MadeWith from "@/components/MadeWith";
-import { brandOf, brandStyle } from "@/lib/branding";
+import { brandOf, brandStyle, type Brand } from "@/lib/branding";
 import WatchView from "@/components/WatchView";
-import SureFramePromo from "@/components/SureFramePromo";
+import CantOpen from "@/components/CantOpen";
+import Logo from "@/components/Logo";
 import { aiAssistActive, PLANS } from "@/lib/plans";
 import { db } from "@/lib/db";
 import { clientBlock, clientCookie, clientGate, viewerFor } from "@/lib/access";
 import { agreePath, currentUser } from "@/lib/session";
+import { reactionsBy } from "@/lib/reactions";
 import { clientLink } from "@/lib/clients";
 import { publicVideo } from "@/lib/videos";
-import { replyDTO, visibleReplies } from "@/lib/replies";
-import { canDeleteVideo, clientScopeWhere, effectivePerms } from "@/lib/permissions";
+import { heldRepliesOf, replyDTO, replyViewer, visibleReplies } from "@/lib/replies";
+import { accessOf, canDeleteVideo, canSeeVideo, clientScopeWhere, effectivePerms } from "@/lib/permissions";
 import { zoned } from "@/lib/dates";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ team?: string }> };
@@ -58,37 +60,7 @@ export default async function Watch({ params, searchParams }: Props) {
     if (me?.suspended && (me.suspended === "user" || me.workspace.id === video.workspaceId)) redirect("/suspended");
     // Their own team's video, before they've agreed to the current terms (lib/terms.ts).
     if (me && !me.agreed && !me.paused && me.workspace.id === video.workspaceId) redirect(agreePath(`/v/${id}`));
-    // The client it was sent to, when support has turned their link off or the business's videos are unavailable.
-    const token = video.clientId ? (await cookies()).get(clientCookie(video.workspaceId))?.value : undefined;
-    const mine = token ? await db.client.findUnique({ where: { token }, include: { workspace: { select: { ...clientGate, name: true } } } }) : null;
-    const block = mine?.id === video.clientId ? clientBlock(mine) : null;
-    if (mine && (block === "unavailable" || block === "off")) {
-      return (
-        <div data-theme="fresh" className="grid min-h-screen place-items-center bg-canvas px-4 text-ink">
-          <div className="max-w-sm rounded-2xl border border-line bg-surface p-8 text-center" data-testid={block === "off" ? "video-link-off" : "video-unavailable"}>
-            <Logo />
-            <h1 className="mt-6 text-lg font-semibold text-ink">{block === "off" ? "This link has been turned off" : "Unavailable right now"}</h1>
-            <p className="mt-2 text-sm text-muted">
-              {block === "off" ? `It no longer opens your videos from ${mine.workspace.name}.` : `Videos from ${mine.workspace.name} are unavailable right now.`}
-            </p>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div data-theme="fresh" className="grid min-h-screen place-items-center bg-canvas px-4 text-ink">
-        <div className="max-w-sm rounded-2xl border border-line bg-surface p-8 text-center">
-          <Logo />
-          <h1 className="mt-6 text-lg font-semibold text-ink">This video is private</h1>
-          <p className="mt-2 text-sm text-muted">
-            Open it from the personal link you were sent, or sign in if it&apos;s yours.
-          </p>
-          <Link href={`/login?next=/v/${id}`} className="mt-6 inline-block text-sm font-medium text-accent hover:underline">
-            Sign in
-          </Link>
-        </div>
-      </div>
-    );
+    return <CantOpenVideo video={video} me={me} />;
   }
 
   const isMember = viewer.kind === "member";
@@ -130,10 +102,16 @@ export default async function Watch({ params, searchParams }: Props) {
   const hasThumb = isMember && video.encrypted ? (await db.videoThumb.count({ where: { videoId: video.sourceId ?? video.id } })) > 0 : true;
   const [reactions, copyViews] = isMember
     ? await Promise.all([
-        db.reaction.findMany({ where: { videoId: id }, orderBy: { createdAt: "asc" }, take: 500, select: { emoji: true, timestampMs: true } }),
+        // The client's (older reactions didn't say who left them, and were all theirs in practice).
+        db.reaction.findMany({ where: { videoId: id, OR: [{ byClient: true }, { authorUserId: null }] }, orderBy: { createdAt: "asc" }, take: 500, select: { emoji: true, timestampMs: true } }),
         video.sourceId ? Promise.resolve(0) : db.video.aggregate({ where: { sourceId: video.id }, _sum: { viewCount: true } }).then((a) => a._sum.viewCount ?? 0),
       ])
     : [undefined, 0];
+
+  // The reactions this viewer left, highlighted so a second tap takes one back.
+  const myReactions = (await db.reaction.findMany({ where: { videoId: id, ...reactionsBy(viewer.kind === "member" ? { kind: "member", userId: viewer.userId } : { kind: "client" }) }, select: { emoji: true } })).map((r) => r.emoji);
+  const who = replyViewer(viewer);
+  const held = await db.reply.findMany({ where: { videoId: id, ...heldRepliesOf(who) }, orderBy: { createdAt: "asc" }, include: { media: true } });
 
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink" style={isMember ? undefined : brandStyle(brand?.color ?? null)}>
@@ -145,10 +123,10 @@ export default async function Watch({ params, searchParams }: Props) {
       )}
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {expired ? (
-          <p className="rounded-2xl border border-line bg-surface p-16 text-center text-muted">This link has expired.</p>
+          <CantOpen title="This link has expired">
+            <p>Ask {workspace.name} to send the video again if you still need it.</p>
+          </CantOpen>
         ) : (
-          <>
-          {!isMember && PLANS[workspace.plan].showsPromo && <SureFramePromo videoId={video.id} />}
           <WatchView
             video={{ ...publicVideo(video), viewCount: video.viewCount + copyViews }}
             ownerName={
@@ -179,15 +157,117 @@ export default async function Watch({ params, searchParams }: Props) {
             }
             sentToId={video.clientId}
             ai={aiOn || insight ? { insight, canMake: isMember && aiOn, notice: !isMember } : undefined}
-            initialReplies={replies.map((r) => replyDTO(r, video.ownerId))}
+            initialReplies={replies.map((r) => replyDTO(r, video.ownerId, who))}
             reactions={reactions}
             hasThumb={hasThumb}
             sourceId={video.sourceId}
+            business={workspace.name}
+            message={video.message}
+            myReactions={myReactions}
+            initialHeld={held.map((r) => replyDTO(r, video.ownerId, who))}
+            // Free plan: the intro, once per device per business, only after the video unlocks.
+            promo={!isMember && PLANS[workspace.plan].showsPromo ? { workspaceId: workspace.id } : undefined}
           />
-          </>
         )}
       </main>
       {!isMember && <MadeWith />}
     </div>
+  );
+}
+
+/** What brandOf needs from a workspace. */
+const brandFields = { id: true, name: true, plan: true, brandColor: true, brandLogoType: true, brandVersion: true } as const;
+
+/** A page around the one "can't open" card, in the business's colours when this device is one of their clients. */
+function CantOpenShell({ brand, team = false, children }: { brand: Brand | null; team?: boolean; children: ReactNode }) {
+  return (
+    <div data-theme="fresh" className="flex min-h-screen flex-col bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
+      {team ? (
+        // Signed in to a team: back to their own Library, not a client's videos.
+        <header className="border-b border-line bg-surface">
+          <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6"><Logo href="/library" /></div>
+        </header>
+      ) : (
+        <ClientHeader brand={brand} allVideosLink />
+      )}
+      <main className="flex-1 px-4 py-10 sm:px-6">{children}</main>
+      <MadeWith />
+    </div>
+  );
+}
+
+/**
+ * Why this device can't open the video, in plain words. Clients have no accounts, so signing in is only a
+ * small link for the business; a signed-in team member is told what's actually in the way.
+ */
+async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnType<typeof currentUser>> }) {
+  const path = `/v/${video.id}`;
+  // A client of this business on this device whose link has stopped working: they're told who and why.
+  const token = video.clientId ? (await cookies()).get(clientCookie(video.workspaceId))?.value : undefined;
+  const mine = token ? await db.client.findUnique({ where: { token }, include: { workspace: { select: { ...clientGate, ...brandFields } } } }) : null;
+  const block = mine?.id === video.clientId ? clientBlock(mine) : null;
+  if (mine && block) {
+    const name = mine.workspace.name;
+    const [title, text, testId] =
+      block === "off"
+        ? ["This link has been turned off", `It no longer opens your videos from ${name}.`, "video-link-off"]
+        : block === "unavailable"
+          ? ["Unavailable right now", `Videos from ${name} are unavailable right now.`, "video-unavailable"]
+          : block === "removed"
+            ? ["Your access has ended", `${name} has ended your access to your videos from them, so this link no longer opens them. If that's a mistake, contact them.`, "video-removed"]
+            : block === "closed"
+              ? ["This link no longer opens your videos", `${name} has closed their SureFrame account. If you need anything, contact them directly.`, "video-closed"]
+              : ["Your access is paused", `${name} changed its SureFrame plan, so your access is paused. Nothing has been deleted; contact them to have it restored.`, "video-paused"];
+    return (
+      <CantOpenShell brand={brandOf(mine.workspace)}>
+        <CantOpen title={title} testId={testId}>
+          <p>{text}</p>
+        </CantOpen>
+      </CantOpenShell>
+    );
+  }
+
+  if (me) {
+    // Signed in to the team: say what's actually in the way rather than "sign in".
+    const membership = me.user.memberships.find((m) => m.workspaceId === video.workspaceId);
+    const ws = membership?.workspace;
+    if (membership && ws && me.workspace.id !== ws.id && !membership.pausedAt) {
+      return (
+        <CantOpenShell brand={null} team>
+          <CantOpen title={`This video is in ${ws.name}`} testId="video-other-workspace" action={<a href={`${path}?team=1`} className="inline-block rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">Switch to {ws.name}</a>}>
+            <p>You&apos;re working in {me.workspace.name} right now.</p>
+          </CantOpen>
+        </CantOpenShell>
+      );
+    }
+    if (membership && ws && me.workspace.id === ws.id) {
+      const access = accessOf(me);
+      const forClient = !!video.clientId && !(await canSeeVideo(access, video));
+      return (
+        <CantOpenShell brand={null} team>
+          <CantOpen title={forClient ? "This video is for a client you don't look after" : "You can't open this video"} testId="video-no-access">
+            <p>
+              {forClient
+                ? "Only the team members who look after that client, and the owner and admins, can open it."
+                : membership.pausedAt
+                  ? `Your access to ${ws.name} is paused.`
+                  : "Your access in this team doesn't include it."}{" "}
+              Ask the owner or an admin if you need it.
+            </p>
+          </CantOpen>
+        </CantOpenShell>
+      );
+    }
+  }
+
+  // Anyone else: a client on a device that hasn't opened their link, a different client, or someone with just the address.
+  return (
+    <CantOpenShell brand={null}>
+      <CantOpen title="This video is private" testId="video-private" signInNext={me ? undefined : path}>
+        <p>To watch it, open the personal link you were sent. It unlocks the video on that device.</p>
+        <p>An address like this one (ending in /v/{video.id}) only opens on a device that has already used that personal link.</p>
+        {me && <p>You&apos;re signed in as {me.user.email}, and this video isn&apos;t in your account.</p>}
+      </CantOpen>
+    </CantOpenShell>
   );
 }

@@ -149,7 +149,7 @@ await fresh.screenshot({ path: `${shots}/account-grace-client.png`, fullPage: tr
 await anaPhone.goto(BASE + "/inbox");
 ok("Ana's phone: inbox shows the closed notice", norm(await anaPhone.textContent("[data-testid=client-closed]").catch(() => "")).includes(`${business} has closed their SureFrame account`) && (await anaPhone.locator("[data-testid=client-paused]").count()) === 0);
 await anaPhone.goto(`${BASE}/v/${anaVideo.id}`);
-ok("Ana's phone: can't open her video", (await anaPhone.textContent("body")).includes("This video is private"));
+ok("Ana's phone: can't open her video, and is told why", norm(await anaPhone.textContent("[data-testid=video-closed]").catch(() => "")).includes(`${business} has closed their SureFrame account`));
 
 // ---- Nothing goes out in the business's name, and seat changes wait ----
 const item = await prisma.item.create({ data: { kind: "TASK", body: "t".repeat(40), dueAt: new Date(Date.now() + 30 * 60000), authorName: "Owner", workspaceId: ws, remindTeam: true } });

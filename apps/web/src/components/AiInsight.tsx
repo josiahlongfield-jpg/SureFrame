@@ -29,7 +29,7 @@ type Status =
   | { kind: "idle" }
   | { kind: "working"; progress: Progress }
   | { kind: "summarising" }
-  | { kind: "failed"; message: string; device: boolean; model?: boolean }
+  | { kind: "failed"; message: string; device: boolean; model?: boolean; notInstalled?: boolean; download?: boolean }
   | { kind: "summaryFailed"; message: string };
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
@@ -129,14 +129,21 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
     if (!mediaUrl) return;
     setStatus({ kind: "working", progress: { stage: "audio", fraction: 0 } });
     try {
-      const { transcribe, ModelUnavailable, UnsupportedDevice } = await import("@/lib/ai/transcribe");
+      const { transcribe, ModelDownloadFailed, ModelUnavailable, UnsupportedDevice } = await import("@/lib/ai/transcribe");
       let t: Transcript;
       try {
         const media = await (await fetch(mediaUrl)).blob();
         t = await transcribe(media, (progress) => setStatus({ kind: "working", progress }));
       } catch (err) {
         console.warn("Transcript unavailable:", (err as Error).message);
-        setStatus({ kind: "failed", message: (err as Error).message, device: err instanceof UnsupportedDevice, model: err instanceof ModelUnavailable });
+        setStatus({
+          kind: "failed",
+          message: (err as Error).message,
+          device: err instanceof UnsupportedDevice,
+          model: err instanceof ModelUnavailable,
+          notInstalled: err instanceof ModelUnavailable && err.notInstalled,
+          download: err instanceof ModelDownloadFailed,
+        });
         logFailure((err as Error).message);
         return;
       }
@@ -214,9 +221,16 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
           <div role="alert" className="mt-2 rounded-xl bg-warn-bg p-3 text-sm text-warn-fg" data-testid="ai-failed">
             <p className="font-medium">Transcript unavailable, try again.</p>
             <p className="mt-1 text-warn-fg">
+              {/* Says whose problem it is: our server, the connection, or this device. Only the last blames the device. */}
               {status.model
-                ? "Transcripts aren't ready on SureFrame yet: the speech model isn't installed. Please try again later."
-                : status.device || support?.mobile || support?.lowMemory
+                ? status.notInstalled
+                  ? "Transcripts aren't available on SureFrame yet: the speech model isn't installed on our server. It isn't a problem with your device. Please try again later."
+                  : "Transcripts aren't available on SureFrame right now: the speech model on our server is incomplete. It isn't a problem with your device. Please try again later."
+                : status.download
+                ? "The speech model didn't download properly, which is usually the connection. Check you're online and try again."
+                : status.device
+                ? "This device couldn't make the transcript. A computer with Chrome or Edge and plenty of memory works best."
+                : support?.mobile || support?.lowMemory
                 ? "This device may not be able to make transcripts. A computer with Chrome or Edge and plenty of memory works best."
                 : "Something went wrong making the transcript. Your video is safe and unchanged."}
             </p>

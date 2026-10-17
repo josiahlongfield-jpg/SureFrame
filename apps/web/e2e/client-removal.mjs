@@ -134,7 +134,7 @@ await fresh.screenshot({ path: `${shots}/client-removal-notice.png`, fullPage: t
 await anaPage.goto(BASE + "/inbox");
 ok("Ana's own device: inbox shows the notice", norm(await anaPage.textContent("[data-testid=client-removed]").catch(() => "")).includes(`${business} has ended your access`));
 await anaPage.goto(`${BASE}/v/${anaVideo.id}`);
-ok("Ana's own device: can't open her video", (await anaPage.textContent("main, body")).includes("This video is private"));
+ok("Ana's own device: can't open her video, and is told why", norm(await anaPage.textContent("[data-testid=video-removed]").catch(() => "")).includes(`${business} has ended your access`));
 const unknown = await (await browser.newContext()).newPage();
 await unknown.goto(`${BASE}/c/not-a-real-token-${stamp}`);
 ok("an unknown link still says invalid", new URL(unknown.url()).searchParams.get("invalid") === "1");

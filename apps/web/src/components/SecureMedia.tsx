@@ -37,7 +37,7 @@ type Props = { url: string; mediaKey: CryptoKey | null; mimeType: string; kind: 
 
 const SecureMedia = forwardRef<HTMLMediaElement | null, Props>(function SecureMedia({ url, mediaKey, mimeType, kind, className }, ref) {
   const { src, error } = useDecryptedUrl(url, mediaKey, mimeType);
-  if (error === "expired") return <MediaNotice text="This recording has been deleted from our servers." />;
+  if (error === "expired") return <MediaNotice text="This recording has been deleted from SureFrame." />;
   if (error) return <MediaNotice text="Couldn't unlock this recording on this device." />;
   if (!src) return <MediaNotice text="Unlocking…" />;
   return <MediaPlayer ref={ref} src={src} kind={kind} className={className} />;
