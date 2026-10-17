@@ -40,7 +40,12 @@ const STALL_MS = 10 * 60_000;
 /** Thrown when this browser or device can't run the model. */
 export class UnsupportedDevice extends Error {}
 /** Thrown when the speech model isn't installed on the server yet, or is incomplete there. */
-export class ModelUnavailable extends Error {}
+export class ModelUnavailable extends Error {
+  /** True when nothing is installed at all, rather than an install that's incomplete. */
+  constructor(message: string, readonly notInstalled = false) {
+    super(message);
+  }
+}
 /** Thrown when the speech model couldn't be fetched intact (usually the connection): worth trying again. */
 export class ModelDownloadFailed extends Error {}
 
@@ -61,7 +66,7 @@ export const modelBase = () => new URL("/models/", window.location.origin).toStr
 /** The installed model's manifest (exact revision and every file's sha256), read fresh each time. */
 async function fetchManifest(): Promise<ModelManifest> {
   const res = await fetch(`${modelBase()}manifest.json`, { cache: "no-store" }).catch(() => null);
-  if (res?.status === 404) throw new ModelUnavailable("The speech model isn't installed on this server yet.");
+  if (res?.status === 404) throw new ModelUnavailable("The speech model isn't installed on this server yet.", true);
   const manifest = res?.ok ? await res.json().catch(() => null) : null;
   if (!isManifest(manifest)) throw new ModelDownloadFailed("Couldn't check the transcription model just now.");
   return manifest;

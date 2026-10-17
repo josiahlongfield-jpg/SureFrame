@@ -29,7 +29,7 @@ type Status =
   | { kind: "idle" }
   | { kind: "working"; progress: Progress }
   | { kind: "summarising" }
-  | { kind: "failed"; message: string; device: boolean; model?: boolean; download?: boolean }
+  | { kind: "failed"; message: string; device: boolean; model?: boolean; notInstalled?: boolean; download?: boolean }
   | { kind: "summaryFailed"; message: string };
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
@@ -141,6 +141,7 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
           message: (err as Error).message,
           device: err instanceof UnsupportedDevice,
           model: err instanceof ModelUnavailable,
+          notInstalled: err instanceof ModelUnavailable && err.notInstalled,
           download: err instanceof ModelDownloadFailed,
         });
         logFailure((err as Error).message);
@@ -222,7 +223,9 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
             <p className="mt-1 text-warn-fg">
               {/* Says whose problem it is: our server, the connection, or this device. Only the last blames the device. */}
               {status.model
-                ? "Transcripts aren't available on SureFrame right now: the speech model on our server is missing or incomplete. It isn't a problem with your device. Please try again later."
+                ? status.notInstalled
+                  ? "Transcripts aren't available on SureFrame yet: the speech model isn't installed on our server. It isn't a problem with your device. Please try again later."
+                  : "Transcripts aren't available on SureFrame right now: the speech model on our server is incomplete. It isn't a problem with your device. Please try again later."
                 : status.download
                 ? "The speech model didn't download properly, which is usually the connection. Check you're online and try again."
                 : status.device

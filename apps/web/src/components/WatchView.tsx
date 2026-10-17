@@ -41,7 +41,7 @@ export type ClientOption = {
   link: string;
   teamKeyWrap: string | null;
   assignedToId?: string | null;
-  /** The client has opened their personal link on a device, so a plain Send emails them. */
+  /** The client has their personal link (they opened it, or the business copied it to send), so a plain Send emails them. */
   hasLink?: boolean;
   /** Has an email address and hasn't turned emails off. */
   emailable?: boolean;
