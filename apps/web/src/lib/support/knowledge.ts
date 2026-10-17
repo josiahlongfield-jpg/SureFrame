@@ -15,6 +15,7 @@ import {
 import { RETENTION_DAYS } from "@/lib/retention";
 import { DELETION_GRACE_DAYS } from "@/lib/accountDeletion";
 import { TERMS_NOTICE_DAYS } from "@/lib/periods";
+import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
 
 /** US dollars, with cents only when there are some: US$15, US$1.50. */
 const usd = (n: number) => `US$${Number.isInteger(n) ? n : n.toFixed(2)}`;
@@ -156,7 +157,7 @@ ${plan("AGENCY")}
 - In a text reply, Enter sends; Shift+Enter starts a new line.
 - The Conversation panel next to the video has an expand button ("Open conversation in a larger view") for long conversations; Escape or the close button returns to normal.
 - Clients see a short ${BRAND.name} intro (free plan businesses only) the first time they open a video from that business on a device. It's remembered on that device, can be skipped after a few seconds, and starts the video.
-- Video and voice replies are played back before sending, with Send, Re-record or Discard. If a recording was interrupted, it's never sent by itself: next time the person is asked to send or delete it.
+- Video and voice replies are played back before sending, with Send, Re-record or Discard. If a recording was interrupted, it's never sent by itself: next time the person is asked to send or delete it. A video or voice reply that's never sent is deleted ${HELD_REPLY_DAYS} days after it was recorded (with or without cloud backup); the review screen says so, and the unsent-reply box shows the date. Nobody else ever sees it, and it can't be recovered after that.
 - The business and its clients can delete their own replies at any time with Delete under the message. This removes it for both sides, including the recording.
 - Tap a reaction again to take it back. The team sees which reactions the client left.
 - The view count shows how many times the client has opened the video. Only the team sees it.

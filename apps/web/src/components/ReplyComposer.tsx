@@ -6,6 +6,7 @@ import { ChunkedUploader, FatalUploadError, lockName, mayRecover, type UploadSta
 import { bitrateFor, pickMimeType, stopAll } from "@/lib/recorder/media";
 import { encryptFrame, encryptText, generateKey, wrapKey } from "@/lib/e2e/crypto";
 import type { ReplyDTO } from "@/lib/replies";
+import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
 import MicLevel from "./MicLevel";
 import MediaPlayer from "./MediaPlayer";
 import { useVideoFrame } from "@/lib/videoFrame";
@@ -419,6 +420,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
       ) : review ? (
         <div data-testid="reply-review">
           <p className="mb-2 text-sm font-medium text-ink">Play it back, then send it. Nobody else can see it yet.</p>
+          <p className="mb-2 text-xs text-dim" data-testid="reply-review-expiry">If you leave it unsent, it&apos;s kept for you for {HELD_REPLY_DAYS} days, then deleted.</p>
           <MediaPlayer src={review.url} kind={review.kind} />
           <p className="mt-2 text-xs text-dim" role="status">
             {review.uploaded

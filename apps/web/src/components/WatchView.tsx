@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useRouter } from "next/navigation";
 import { REACTIONS } from "@/lib/reactions";
 import type { ReplyDTO } from "@/lib/replies";
+import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
 import { fixDuration } from "./MediaPlayer";
 import ReplyComposer, { deleteReply, sendHeldReply, type ReplyComposerHandle } from "./ReplyComposer";
 import SecureMedia, { useDecryptedUrl } from "./SecureMedia";
@@ -952,6 +953,9 @@ function WatchBody({
             <p className="font-medium">Send or delete your unfinished reply?</p>
             <p className="mt-0.5 text-xs">
               You recorded this {r.kind === "VIDEO" ? "video" : "voice"} reply but didn&apos;t send it. Nobody else has seen it.
+            </p>
+            <p className="mt-1 text-xs font-medium" data-testid="held-reply-expiry">
+              Unsent replies are deleted after {HELD_REPLY_DAYS} days{r.heldUntil ? `, so this one goes on ${day(r.heldUntil)}` : ""} unless you send it.
             </p>
             <div className="mt-2">
               <ReplyMedia reply={r} conversationKey={rootKey} />

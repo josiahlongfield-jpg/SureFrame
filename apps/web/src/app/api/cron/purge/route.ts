@@ -11,10 +11,11 @@ import { purgeScheduledAccounts, warnScheduledDeletions } from "@/lib/accountDel
 import { pruneAdminActions } from "@/lib/support/admin";
 import { pruneTermsAcceptances } from "@/lib/terms";
 import { sendTermsNotices } from "@/lib/termsNotice";
+import { purgeHeldReplies } from "@/lib/replies";
 
 export const maxDuration = 300;
 
-const JOBS = ["purged", "rateLimits", "staleUploads", "teamNotifications", "leftovers", "expiryWarnings", "clientsPurged", "clientWarnings", "accountWarnings", "accountsPurged", "adminActionsPruned", "agreementsPruned", "termsNotices"] as const;
+const JOBS = ["purged", "rateLimits", "staleUploads", "teamNotifications", "leftovers", "expiryWarnings", "clientsPurged", "clientWarnings", "accountWarnings", "accountsPurged", "adminActionsPruned", "agreementsPruned", "termsNotices", "unsentReplies"] as const;
 
 /** Run daily (e.g. Vercel Cron) with Authorization: Bearer $CRON_SECRET. */
 export async function GET(req: Request) {
@@ -43,6 +44,8 @@ export async function GET(req: Request) {
     pruneTermsAcceptances(),
     // Existing account holders told about new Terms and Privacy versions, 30 days before they take effect for them.
     unlessPaused(() => sendTermsNotices()),
+    // Video and voice replies their authors never sent, 7 days after recording (lib/replies.ts).
+    unlessPaused(() => purgeHeldReplies(new Date(), 60_000)),
   ]);
   const out: Partial<Record<(typeof JOBS)[number], unknown>> = {};
   results.forEach((r, i) => {
@@ -52,6 +55,6 @@ export async function GET(req: Request) {
       console.error(JSON.stringify({ level: "error", message: `[cron/purge] ${JOBS[i]} failed`, error: String(r.reason) }));
     }
   });
-  const { purged, expiryWarnings, clientsPurged, clientWarnings, accountWarnings, accountsPurged, adminActionsPruned, agreementsPruned, termsNotices } = out;
-  return Response.json({ purged, expiryWarnings, clientsPurged, clientWarnings, accountWarnings, accountsPurged, adminActionsPruned, agreementsPruned, termsNotices });
+  const { purged, expiryWarnings, clientsPurged, clientWarnings, accountWarnings, accountsPurged, adminActionsPruned, agreementsPruned, termsNotices, unsentReplies } = out;
+  return Response.json({ purged, expiryWarnings, clientsPurged, clientWarnings, accountWarnings, accountsPurged, adminActionsPruned, agreementsPruned, termsNotices, unsentReplies });
 }

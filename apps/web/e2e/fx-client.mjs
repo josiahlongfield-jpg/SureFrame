@@ -2,7 +2,8 @@
 // - the Free plan's intro names the sender, shows once per device per business, can be skipped after a
 //   few seconds, starts the video, and never covers a page that can't open;
 // - video and voice replies are reviewed before sending (Send, Re-record, Discard), one cut short by a
-//   closed browser is never sent by itself, and anyone can delete their own replies (file included);
+//   closed browser is never sent by itself (and is deleted after 7 days unsent, which both screens say),
+//   and anyone can delete their own replies (file included);
 // - unread counts only the other side's messages; own messages sit on the right; the panel names who
 //   the conversation is with; clients don't see a view count, and a client opening the video counts;
 // - reactions toggle and never double up; the business's message (encrypted) shows above the video;
@@ -167,6 +168,7 @@ await phone.waitForTimeout(2500);
 await phone.tap("button:has-text('Stop recording')");
 await phone.waitForSelector("[data-testid=reply-review] video", { timeout: 15000 });
 ok("review: plays it back first, with Send, Re-record and Discard", (await Promise.all(["Send video reply", "Re-record", "Discard"].map((t) => phone.isVisible(`[data-testid=reply-review] >> text=${t}`)))).every(Boolean));
+ok("review: says an unsent reply is deleted after 7 days", (await phone.textContent("[data-testid=reply-review-expiry]")).includes("7 days"));
 ok("review: nothing in the conversation yet", (await phone.locator("[data-testid=conversation] ul video").count()) === 0);
 await phone.screenshot({ path: `${shots}/review-320.png` });
 await phone.tap("text=Re-record");
@@ -223,10 +225,26 @@ await owner.reload();
 await owner.waitForSelector("[data-testid=conversation]", { timeout: 20000 });
 await owner.waitForTimeout(1500);
 ok("the business never sees an unsent reply", (await owner.locator("aside ul video").count()) === 0 && (await owner.locator("[data-testid=held-reply]").count()) === 0);
+const expiry = await phone2.textContent("[data-testid=held-reply-expiry]");
+ok("recovered reply: says it's deleted after 7 days, with the date", expiry.includes("deleted after 7 days") && /goes on \w+ \d+, \d{4}/.test(expiry));
+// The daily clean-up leaves an unsent reply alone until its 7 days are up, then deletes it with its recording.
+const dailyPurge = () => phone2.request.get(`${BASE}/api/cron/purge`, { headers: { authorization: `Bearer ${process.env.CRON_SECRET ?? "test-cron-secret"}` } });
+await prisma.reply.update({ where: { id: heldRow.id }, data: { heldAt: new Date(Date.now() - 6 * 86_400_000) } });
+const sixDays = await (await dailyPurge()).json();
+ok("clean-up: a 6-day-old unsent reply stays", typeof sixDays.unsentReplies === "number" && !!(await prisma.reply.findUnique({ where: { id: heldRow.id } })));
 phone2.once("dialog", (d) => d.accept());
 await phone2.tap("[data-testid=held-reply] >> button:has-text('Delete it')");
 await phone2.waitForSelector("[data-testid=held-reply]", { state: "detached", timeout: 10000 });
 ok("recovered reply deleted when asked", (await prisma.reply.count({ where: { videoId } })) === 0);
+const sentReply = await prisma.reply.create({ data: { videoId, kind: "TEXT", body: "x", authorName: "Client A", byClient: true, createdAt: new Date(Date.now() - 9 * 86_400_000) } });
+const oldHeld = await prisma.reply.create({ data: { videoId, kind: "TEXT", body: "x", authorName: "Client A", byClient: true, heldAt: new Date(Date.now() - 8 * 86_400_000) } });
+const newHeld = await prisma.reply.create({ data: { videoId, kind: "TEXT", body: "x", authorName: "Client A", byClient: true, heldAt: new Date(Date.now() - 86_400_000) } });
+const eightDays = await (await dailyPurge()).json();
+ok(
+  "clean-up: deletes only unsent replies older than 7 days",
+  eightDays.unsentReplies >= 1 && !(await prisma.reply.findUnique({ where: { id: oldHeld.id } })) && !!(await prisma.reply.findUnique({ where: { id: newHeld.id } })) && !!(await prisma.reply.findUnique({ where: { id: sentReply.id } })),
+);
+await prisma.reply.deleteMany({ where: { id: { in: [sentReply.id, newHeld.id] } } });
 await phone2.tap("[data-testid=chat-close]");
 
 // ---------- Unread counts only the other side ----------

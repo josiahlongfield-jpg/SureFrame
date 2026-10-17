@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { BRAND } from "@/lib/brand";
 import { LEGAL } from "@/lib/legal";
+import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
 import { CLOUD_BACKUP_PRICE, EXTRA_SEAT_PRICE, EXTRA_SEAT_PRICE_YEARLY, MAX_REPLY_MINUTES, PLANS } from "@/lib/plans";
 import { RETENTION_DAYS } from "@/lib/retention";
 
@@ -24,7 +25,7 @@ export const BUSINESS_FAQ: Qa[] = [
       <>
         <p>
           On every plan, the encrypted copy of a video on our servers is deleted {RETENTION_DAYS} days after it&rsquo;s recorded, unless Cloud backup is on. After
-          that it can&rsquo;t be watched from its link. Video and voice replies follow the same rule. Text replies, to-dos and notes stay until they&rsquo;re deleted.
+          that it can&rsquo;t be watched from its link. Video and voice replies follow the same rule, and one that&rsquo;s recorded but never sent is deleted after {HELD_REPLY_DAYS} days. Text replies, to-dos and notes stay until they&rsquo;re deleted.
         </p>
         <p>
           Cloud backup (US${CLOUD_BACKUP_PRICE} a month, on paid plans) keeps our encrypted copies until you delete them. To keep your own copy, open a video and

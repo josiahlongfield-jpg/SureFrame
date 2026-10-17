@@ -11,6 +11,7 @@ import {
   TERMS_RECORD_KEEP_YEARS,
 } from "@/lib/periods";
 import { RETENTION_DAYS } from "@/lib/retention";
+import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
 
 /**
  * Who runs the service, for the terms, privacy policy and data processing
@@ -31,6 +32,8 @@ export const LEGAL = {
   country: "Australia",
   minimumAge: 18,
   retentionDays: RETENTION_DAYS,
+  /** Unsent video and voice replies are deleted this many days after they were recorded. */
+  heldReplyDays: HELD_REPLY_DAYS,
   /** A removed client is kept this long, so the business can restore them, then deleted. */
   removedClientDays: CLIENT_KEEP_DAYS,
   /** The business is warned about this long before a removed client is deleted. */
@@ -72,9 +75,10 @@ export const LEGAL = {
    * The Privacy Policy page's own "last updated" date. Describing discount codes, referrals and the sf_offer cookie
    * (16 October 2026) only explains more of what we already do, so it keeps privacyVersion. So do a short section for
    * clients, the intro shown once per device, "Keep me signed in" and its cookies, and clients deleting their own replies
-   * (17 October 2026): they explain what we do or add choices, and take nothing away.
+   * (17 October 2026): they explain what we do or add choices, and take nothing away. Unsent video and voice replies
+   * being deleted after 7 days (18 October 2026) keeps less, for less time, so it keeps privacyVersion too.
    */
-  privacyUpdated: "17 October 2026",
+  privacyUpdated: "18 October 2026",
 };
 
 /**

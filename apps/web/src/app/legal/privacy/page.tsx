@@ -41,7 +41,7 @@ export default function Page() {
         <li>Clients can delete their own replies, at any time. A deleted reply is removed from our servers straight away.</li>
         <li>
           A video or voice reply is only shared once you choose to send it. If a recording is interrupted, it&rsquo;s kept for you alone to send or delete next
-          time, and is never sent automatically.
+          time, and is never sent automatically. A reply you don&rsquo;t send is deleted {LEGAL.heldReplyDays} days after you recorded it.
         </li>
         <li>
           Your browser keeps the key to a business&rsquo;s videos on your device. &ldquo;Remove from this device&rdquo; in your inbox deletes that key and our
@@ -239,6 +239,10 @@ export default function Page() {
           With cloud backup, encrypted content is kept until you delete it, the client it was sent to is removed and then deleted (see below), or your account is
           permanently deleted. If cloud backup ends (you switch it off, cancel, or your paid plan ends), our copies are deleted {LEGAL.retentionDays} days later;
           if it ends while the account is suspended or closed, those {LEGAL.retentionDays} days start when it&rsquo;s unsuspended, reopened or kept.
+        </li>
+        <li>
+          A video or voice reply that was recorded but never sent is deleted from our servers {LEGAL.heldReplyDays} days after it was recorded, with or without
+          cloud backup. Until then only the person who recorded it can see it, send it or delete it.
         </li>
         <li>Text replies, to-dos and notes are kept until they&rsquo;re deleted, the client they belong to is deleted (see below), or the account is permanently deleted.</li>
         <li>
