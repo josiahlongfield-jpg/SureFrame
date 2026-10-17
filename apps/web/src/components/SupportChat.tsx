@@ -118,8 +118,14 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
         {ticket?.messages.map((m) => <Bubble key={m.id} author={m.author} body={m.body} />)}
         {busy && <p className="text-sm text-dim">Thinking…</p>}
         {withPerson && (
-          <p className="rounded-xl bg-warn-bg p-3 text-xs text-warn-fg" data-testid="with-person">
-            {ticket.status === "ANSWERED" ? "The SureFrame team has replied." : "A person from the SureFrame team will reply"}
+          <p role="status" className="rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="with-person">
+            {ticket.status === "ANSWERED" ? (
+              "The SureFrame team has replied."
+            ) : (
+              <>
+                <span className="font-semibold">Passed to a person.</span> Someone from the SureFrame team has this conversation and will reply
+              </>
+            )}
             {signedIn || ticket.hasEmail ? " here and by email." : " here. Add your email below to get the reply by email too."}
           </p>
         )}
@@ -133,15 +139,21 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
         }}
       >
         {needsEmail && (
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Your email (so we can reply)"
-            aria-label="Your email"
-            data-gramm="false"
-            className="mb-2 w-full rounded-lg border border-line-strong px-3 py-2 text-sm"
-          />
+          <label className="mb-2 grid gap-1">
+            <span id="help-email-note" className="text-xs text-dim">
+              Your email <span className="font-medium">(optional)</span>: only needed if you&apos;d like a person&apos;s reply by email too. Replies always show here in this browser.
+            </span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              aria-label="Your email"
+              aria-describedby="help-email-note"
+              data-gramm="false"
+              className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm"
+            />
+          </label>
         )}
         <div className="flex items-end gap-2">
           <textarea
@@ -167,16 +179,17 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
           </button>
         </div>
         {error && <p role="alert" className="mt-2 text-sm text-danger-fg">{error}</p>}
-        <div className="mt-2 flex justify-between text-xs text-dim">
+        <div className="mt-2 flex flex-wrap justify-between gap-2 text-sm">
           {!withPerson ? (
-            <button type="button" onClick={() => send("I'd like to talk to a person, please.")} disabled={busy} className="hover:text-ink">
+            <button type="button" onClick={() => send("I'd like to talk to a person, please.")} disabled={busy} data-testid="talk-to-person"
+              className="rounded-lg border border-line-strong px-3 py-1.5 font-medium text-ink hover:bg-hover disabled:opacity-50">
               Talk to a person
             </button>
           ) : (
             <span />
           )}
           {ticket && (
-            <button type="button" onClick={startOver} className="hover:text-ink">
+            <button type="button" onClick={startOver} data-testid="new-conversation" className="rounded-lg border border-line-strong px-3 py-1.5 font-medium text-ink hover:bg-hover">
               New conversation
             </button>
           )}
@@ -232,10 +245,30 @@ export class ChatBoundary extends Component<{ children: ReactNode }, { failed: b
 /** A Help button fixed to the corner that opens the chat in a panel. */
 export default function SupportWidget({ signedIn }: { signedIn: boolean }) {
   const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+
+  // Escape closes the chat and puts focus back on the Help button.
+  useEffect(() => {
+    if (!open) return;
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      button.current?.focus();
+    };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [open]);
+
+  // On phones the page gets room at the bottom, so the button never sits over its last buttons or text.
+  useEffect(() => {
+    document.body.classList.add("max-sm:pb-20");
+    return () => document.body.classList.remove("max-sm:pb-20");
+  }, []);
+
   return (
     <>
       {open && (
-        <div role="dialog" aria-label="SureFrame help" className="fixed inset-x-3 bottom-20 z-50 flex h-[70vh] max-h-[37.5rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl sm:inset-x-auto sm:right-6 sm:w-[23.75rem]">
+        <div role="dialog" aria-label="SureFrame help" className="fixed inset-x-3 bottom-16 z-50 flex h-[70vh] max-h-[37.5rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl sm:inset-x-auto sm:right-6 sm:w-[23.75rem]">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <p className="font-semibold text-ink">SureFrame help</p>
             <button onClick={() => setOpen(false)} aria-label="Close help" className="rounded-lg px-2 text-dim hover:text-ink">
@@ -247,13 +280,17 @@ export default function SupportWidget({ signedIn }: { signedIn: boolean }) {
           </ChatBoundary>
         </div>
       )}
+      {/* A small round button on phones (the word on wider screens), tucked into the corner. */}
       <button
+        ref={button}
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full border border-line-strong bg-solid px-4 py-3 text-sm font-semibold text-on-solid shadow-lg backdrop-blur-md hover:bg-solid-hover sm:right-6"
+        aria-label="Help"
+        data-testid="help-button"
+        className="fixed bottom-3 right-3 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-line-strong bg-solid text-sm font-semibold text-on-solid shadow-lg backdrop-blur-md hover:bg-solid-hover sm:bottom-5 sm:right-6 sm:h-auto sm:w-auto sm:gap-2 sm:px-4 sm:py-3"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
-        Help
+        <span className="max-sm:sr-only">Help</span>
       </button>
     </>
   );

@@ -2,34 +2,42 @@ import Link from "next/link";
 import { signOut } from "@/auth";
 import { zoned } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { firstStepsFor } from "@/lib/firstSteps";
 import { currentUser } from "@/lib/session";
+import { formerTeams } from "@/lib/team";
 import NamePrompt from "./NamePrompt";
 import StaffNotices from "./StaffNotices";
 import Logo from "./Logo";
 import MobileMenu from "./MobileMenu";
-import NavLinks from "./NavLinks";
+import NavLinks, { SettingsMenu } from "./NavLinks";
 import RecoverUploads from "./RecoverUploads";
+import RecoveryKeyReminder from "./RecoveryKey";
+import RemovedNotice from "./RemovedNotice";
 import SupportWidget from "./SupportChat";
+import TimeZoneSync from "./TimeZoneSync";
 
-// Clients come first: a business adds them before sending anything.
-const LINKS = [
-  ["/clients", "Clients"],
-  ["/library", "Library"],
-  ["/settings/team", "Team"],
-  ["/settings/reminders", "Reminders"],
-  ["/settings/branding", "Branding"],
-  ["/settings/billing", "Billing"],
-  ["/settings/account", "Account"],
-] as const;
+type Links = (readonly [string, string])[];
 
 export default async function AppHeader({ email, plan }: { email: string; plan: string }) {
   const me = await currentUser();
-  const named = !me || !!me.user.name;
-  // Owners and admins get the Team overview; everyone gets reminders sent to them.
-  const links = me && me.role !== "MEMBER" ? [LINKS[0], LINKS[1], ["/team", "Overview"] as const, ...LINKS.slice(2)] : LINKS;
-  const notices = me
-    ? await db.staffNotice.findMany({ where: { toUserId: me.user.id, workspaceId: me.workspace.id, dismissedAt: null }, include: { from: { select: { name: true, email: true } } }, orderBy: { createdAt: "desc" }, take: 5 })
-    : [];
+  const manager = !!me && me.role !== "MEMBER";
+  const owner = me?.role === "OWNER";
+  const [teamSize, steps, former, notices] = me
+    ? await Promise.all([
+        db.membership.count({ where: { workspaceId: me.workspace.id } }),
+        // Only needed to hide the key reminder on the library while the first steps show it.
+        owner && !me.workspace.recoveryKeySavedAt && !me.workspace.firstStepsHiddenAt ? firstStepsFor(me) : null,
+        // Someone taken off a team, now in a business of their own: say so plainly.
+        owner && !me.user.memberships.some((m) => m.role !== "OWNER") ? formerTeams(me.user.id) : [],
+        db.staffNotice.findMany({ where: { toUserId: me.user.id, workspaceId: me.workspace.id, dismissedAt: null }, include: { from: { select: { name: true, email: true } } }, orderBy: { createdAt: "desc" }, take: 5 }),
+      ])
+    : [1, null, [], []];
+  // Clients come first: a business adds them before sending anything. A business of one has no team pages.
+  const links: Links = [["/clients", "Clients"], ["/library", "Library"], ...(teamSize > 1 ? [["/team", "Team"] as const] : [])];
+  // Everything else is under Settings. Staff don't see Billing or Branding (only owners and admins can change them).
+  const settings: Links = manager
+    ? [["/settings/reminders", "Reminders"], ["/settings/branding", "Branding"], ["/settings/team", teamSize > 1 ? "Team and staff" : "Invite staff"], ["/settings/billing", "Billing"], ["/settings/account", "Account"]]
+    : [["/settings/reminders", "Reminders"], ["/settings/account", "Account"], ...((me?.user.memberships.length ?? 0) > 1 ? [["/settings/team", "Your workspaces"] as const] : [])];
   const signOutForm = (
     <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
       <button className="whitespace-nowrap text-dim hover:text-ink">Sign out</button>
@@ -37,26 +45,27 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
   );
   // No backdrop-blur on the header: it would pin the fixed Help button, prompts and dialogs inside it.
   return (
-    <header className="relative">
-      {/* The bar itself is navy; notices, prompts and the help chat below it keep the page's colours. */}
-      <div data-theme="navy" className="bg-canvas text-ink">
+    <header>
+      {/* The bar itself is navy; notices, prompts and the help chat below it keep the page's colours.
+          It's the menus' anchor, so the phone menu opens right under it, over any banner. */}
+      <div data-theme="navy" className="relative z-40 bg-canvas text-ink">
       <div className="mx-auto flex h-16 max-w-6xl sm:h-[4.5rem] items-center justify-between gap-4 px-4 sm:px-6">
         <div className="flex items-center gap-6">
           <Logo href="/library" tone="dark" />
-          {/* Eight links need the room: below xl they sit behind the Menu button. */}
-          <nav className="hidden gap-4 text-sm xl:flex">
+          <nav className="hidden items-center gap-5 text-sm lg:flex">
             <NavLinks links={links} className="" />
+            <SettingsMenu links={settings} />
           </nav>
         </div>
         <div className="flex items-center gap-2 text-sm min-[24rem]:gap-3">
-          <span className="hidden rounded-full border border-line px-2.5 py-1 font-mono text-[0.6875rem] font-medium uppercase tracking-wider text-muted xl:inline">{plan}</span>
+          <span className="hidden rounded-full border border-line px-2.5 py-1 font-mono text-[0.6875rem] font-medium uppercase tracking-wider text-muted lg:inline">{plan}</span>
           <Link href="/record" className="whitespace-nowrap rounded-[0.625rem] bg-primary px-4 py-2 font-medium text-on-primary hover:bg-primary-hover">
             <span className="sm:hidden">Record</span>
             <span className="hidden sm:inline">New recording</span>
           </Link>
-          <div className="hidden xl:block">{signOutForm}</div>
+          <div className="hidden lg:block">{signOutForm}</div>
           {/* Phones and small screens: everything else sits behind one Menu button. */}
-          <MobileMenu links={links} plan={plan} email={email} signOut={signOutForm} />
+          <MobileMenu links={links} settings={settings} plan={plan} email={email} signOut={signOutForm} />
         </div>
       </div>
       </div>
@@ -72,8 +81,15 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
       <StaffNotices
         initial={notices.map((n) => ({ id: n.id, from: n.from.name ?? n.from.email.split("@")[0], message: n.message, link: n.link, linkLabel: n.linkLabel, createdAt: n.createdAt.toISOString() }))}
       />
+      {former.length > 0 && teamSize === 1 && <RemovedNotice teams={former} />}
       <RecoverUploads />
-      {!named && <NamePrompt />}
+      {/* Owners give their name in the welcome step (app/welcome); staff are asked here. */}
+      {me && !owner && !me.user.name && <NamePrompt />}
+      {me && owner && !me.workspace.recoveryKeySavedAt && (
+        // On the library the first steps show the key instead (components/FirstSteps.tsx).
+        <RecoveryKeyReminder workspaceId={me.workspace.id} fingerprint={me.workspace.keyFingerprint} business={me.workspace.name} hiddenOn={steps ? "/library" : null} />
+      )}
+      {me && <TimeZoneSync shownZone={zoned(me.workspace.timezone).zone} setWorkspace={manager && !me.workspace.timezone} />}
       <SupportWidget signedIn />
     </header>
   );

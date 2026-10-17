@@ -6,6 +6,9 @@ import ShowRecoveryKey from "@/components/ShowRecoveryKey";
 import DeleteAccountButton from "@/components/DeleteAccountButton";
 import ManageBillingButton from "@/components/ManageBillingButton";
 import MyEmailPrefs from "@/components/MyEmailPrefs";
+import ReadableExport from "@/components/ReadableExport";
+import { NotifyPrefs } from "@/components/TeamOverview";
+import { permsOf } from "@/lib/permissions";
 import Link from "next/link";
 import { signOut } from "@/auth";
 import { deletionDate, requestAccountDeletion } from "@/lib/accountDeletion";
@@ -23,6 +26,13 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
   const { user, workspace, role, membership, paused, agreed } = await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: true });
   const limited = paused || !agreed;
   const onTeam = role === "MEMBER" || (await db.membership.count({ where: { workspaceId: workspace.id } })) > 1;
+  // Owners and admins choose here which client replies and staff activity they're emailed about.
+  const staff = onTeam && role !== "MEMBER"
+    ? (await db.membership.findMany({ where: { workspaceId: workspace.id }, include: { user: true }, orderBy: { id: "asc" } })).map((m) => ({
+        userId: m.userId, name: m.user.name ?? m.user.email.split("@")[0], email: m.user.email, role: m.role, perms: permsOf(m),
+        own: { replyEmails: m.replyNotify !== "OFF", ownDefaults: false, message: false, replyTo: null },
+      }))
+    : [];
   // What deleting the account does depends on whether they run a workspace of their own or work on someone else's team.
   const mine = await db.membership.findMany({ where: { userId: user.id }, include: { workspace: { select: { name: true, timezone: true, stripeSubscriptionId: true, _count: { select: { members: true } } } } } });
   const ownWorkspace = mine.find((m) => m.role === "OWNER" && m.workspace._count.members === 1)?.workspace;
@@ -86,24 +96,29 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
           {error === "name" && <p className="mt-2 text-sm text-danger-fg">Enter your name.</p>}
         </section>}
 
-        {onTeam && !limited && <section id="emails" className="mt-6 rounded-2xl border border-line bg-surface p-6">
-          <h2 className="font-semibold text-ink">Emails to you</h2>
-          {role === "MEMBER" ? (
+        {onTeam && !limited && (role === "MEMBER" ? (
+          <section id="emails" className="mt-6 rounded-2xl border border-line bg-surface p-6">
+            <h2 className="font-semibold text-ink">Emails to you</h2>
             <MyEmailPrefs initial={{ replyEmails: membership?.replyNotify !== "OFF" }} />
-          ) : (
-            <p className="mt-1 text-sm text-muted">
-              Choose which client replies and staff activity you&apos;re emailed about on the{" "}
-              <Link href="/team" className="font-medium text-accent hover:underline">Team overview</Link>.
-            </p>
-          )}
-        </section>}
+          </section>
+        ) : (
+          <section id="emails" className="mt-6">
+            <h2 className="font-semibold text-ink">Emails to you</h2>
+            <p className="mb-3 mt-1 text-sm text-muted">Which client replies and staff activity you&apos;re emailed about. Each person on the team chooses their own.</p>
+            <NotifyPrefs
+              meId={user.id}
+              staff={staff}
+              initial={{ replyNotify: membership.replyNotify, replyNotifyStaff: membership.replyNotifyStaff, sentNotify: membership.sentNotify, sentNotifyStaff: membership.sentNotifyStaff }}
+            />
+          </section>
+        ))}
 
         {!limited && <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
-          <h2 className="font-semibold text-ink">Recovery key</h2>
+          <h2 className="font-semibold text-ink" id="recovery-key">Recovery key</h2>
           <p className="mt-1 text-sm text-muted">
             Use this to unlock your videos on a phone or another computer. Keep it private: anyone signed in to your account with it can open your videos.
           </p>
-          <ShowRecoveryKey workspaceId={workspace.id} fingerprint={workspace.keyFingerprint} />
+          <ShowRecoveryKey workspaceId={workspace.id} fingerprint={workspace.keyFingerprint} business={workspace.name} />
         </section>}
 
         {!agreed && role === "OWNER" && workspace.stripeCustomerId && (
@@ -117,12 +132,15 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
         <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
           <h2 className="font-semibold text-ink">Download your data</h2>
           <p className="mt-1 text-sm text-muted">
-            A file with your account, clients, videos list, to-dos and notes. Encrypted content stays encrypted in the file.
-            Download videos themselves from each video&apos;s page.
+            A file with your account, clients, videos list, to-dos, notes and replies. To-dos, notes and replies are end-to-end encrypted, so the readable copy opens
+            them here in your browser with your team&apos;s key before saving; nothing readable is sent to us. Download videos themselves from each video&apos;s page.
           </p>
-          <a href="/api/account/export" className="mt-4 inline-block rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:bg-hover">
-            Download my data
-          </a>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <ReadableExport />
+            <a href="/api/account/export" className="rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:bg-hover">
+              Download as stored (encrypted)
+            </a>
+          </div>
         </section>
 
         <section className="mt-6 rounded-2xl border border-danger-line bg-surface p-6">

@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { ACCOUNT_CLOSED_JOIN, hashToken, TEAM_CLOSED_JOIN, TEAM_UNAVAILABLE_JOIN } from "@/lib/team";
 import { ACCOUNT_CLOSED_BY_SUPPORT, ACCOUNT_SUSPENDED, pendingDeletion } from "@/lib/session";
 import { EMAIL_BLOCKED, isEmailBlocked } from "@/lib/blockedEmail";
+import { hasAgreed } from "@/lib/terms";
 
 export const metadata: Metadata = { title: "Join your team", robots: { index: false } };
 
@@ -62,7 +63,7 @@ export default async function Join({ params }: { params: Promise<{ token: string
               {invite.invitedBy.name ?? invite.invitedBy.email} invited you to record and reply to clients on SureFrame
               {invite.role === "ADMIN" ? " as an admin" : ""}.
             </p>
-            <JoinTeam token={token} signedIn={!!userId} />
+            <JoinTeam token={token} signedIn={!!userId} agreed={!!userId && (await hasAgreed(userId))} />
           </>
         )}
       </div>

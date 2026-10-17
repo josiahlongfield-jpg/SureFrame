@@ -159,9 +159,11 @@ async function tellManagersAboutLeaver(w: Workspace, leaver: string, closedBySup
 /**
  * Everything the server holds about a user, as JSON. To-dos, notes and
  * replies are end-to-end encrypted, so they are included as ciphertext;
- * videos are downloaded from each video's page.
+ * videos are downloaded from each video's page. With `wraps`, the wrapped
+ * keys come too, so the browser can make a readable copy with the team key
+ * (components/ReadableExport.tsx); they open nothing without it.
  */
-export async function exportAccount(userId: string) {
+export async function exportAccount(userId: string, { wraps = false } = {}) {
   const user = await db.user.findUniqueOrThrow({
     where: { id: userId },
     select: { id: true, name: true, email: true, createdAt: true, accounts: { select: { provider: true } } },
@@ -179,13 +181,13 @@ export async function exportAccount(userId: string) {
       const [clients, videos, items, notices] = await Promise.all([
         db.client.findMany({
           where: clientScopeWhere(access),
-          select: { id: true, name: true, email: true, createdAt: true, removedAt: true, purgeAt: true, remindersOff: true },
+          select: { id: true, name: true, email: true, createdAt: true, removedAt: true, purgeAt: true, remindersOff: true, teamKeyWrap: wraps },
         }),
         db.video.findMany({
           where: { workspaceId: w.id, ...(all ? {} : mineOnly) },
           select: {
             id: true, title: true, status: true, durationMs: true, sizeBytes: true, createdAt: true, clientId: true,
-            encrypted: true, purgeAt: true, replyToId: true, viewCount: true,
+            encrypted: true, purgeAt: true, replyToId: true, viewCount: true, teamKeyWrap: wraps,
             replies: { select: { kind: true, authorName: true, body: true, encrypted: true, timestampMs: true, createdAt: true } },
             insight: { select: { transcript: true, summary: true, createdAt: true } },
           },

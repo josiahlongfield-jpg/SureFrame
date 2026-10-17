@@ -1,30 +1,38 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
-import { Delegations, NotifyPrefs, StaffReminderForm } from "@/components/TeamOverview";
+import { Delegations, StaffReminderForm } from "@/components/TeamOverview";
+import { PermChecks } from "@/components/StaffPerms";
 import { db } from "@/lib/db";
 import { duration, PERIODS, teamStats, type StaffStats } from "@/lib/monitoring";
-import { permsOf } from "@/lib/permissions";
+import { accessOf, clientScopeWhere, permsOf } from "@/lib/permissions";
 import { PLANS } from "@/lib/plans";
 import { followTeamLink, requirePageUser } from "@/lib/session";
 import { zoned } from "@/lib/dates";
 
-export const metadata: Metadata = { title: "Team overview" };
+export const metadata: Metadata = { title: "Team" };
 
 /**
- * Owners and admins: staff and who looks after which clients, team emails,
- * reminders to staff, and how the whole business is keeping up with clients.
- * Staff never see this page or anyone else's numbers.
+ * Owners and admins: staff and who looks after which clients, reminders to
+ * staff, and how the whole business is keeping up with clients. Staff get
+ * their own page instead (StaffTeam), never anyone else's numbers. A business
+ * of one has no team page: inviting staff is under Settings.
  */
 
 /** A number cell: a labelled line on phones (the label comes from data-label), a plain cell from tablets up. */
 const CELL = "flex justify-between gap-3 py-0.5 before:text-dim before:content-[attr(data-label)] md:table-cell md:px-4 md:py-2.5 md:before:content-none";
 export default async function TeamOverviewPage({ searchParams }: { searchParams: Promise<{ days?: string; stale?: string; ws?: string }> }) {
   await followTeamLink((await searchParams).ws, "/team");
-  const { user, workspace, role, membership } = await requirePageUser("/team");
+  const me = await requirePageUser("/team");
+  const { user, workspace, role } = me;
   const dates = zoned(workspace.timezone);
-  if (role === "MEMBER") notFound();
+  if (role === "MEMBER") return <StaffTeam me={me} />;
+  const [teamSize, waiting] = await Promise.all([
+    db.membership.count({ where: { workspaceId: workspace.id } }),
+    db.invite.count({ where: { workspaceId: workspace.id, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } } }),
+  ]);
+  if (teamSize === 1 && !waiting) redirect("/settings/team");
   const q = await searchParams;
   const days = PERIODS.find((p) => String(p) === q.days) ?? 30;
   const staleDays = Math.min(365, Math.max(1, Number.parseInt(q.stale ?? "", 10) || 14));
@@ -59,10 +67,12 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
     <>
       <AppHeader email={user.email} plan={PLANS[workspace.plan].name} />
       <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Team overview</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Team</h1>
         <p className="mt-1 text-sm text-dim">
           Who looks after which clients, what each staff member can do, and how the business is keeping up. Only owners and admins see this page.{" "}
           <Link href="/settings/team" className="font-medium text-accent hover:underline">Invite or remove staff</Link>
+          {" · "}
+          <Link href="/settings/account#emails" className="font-medium text-accent hover:underline">Emails to you</Link>
         </p>
 
         <section id="monitoring" className="mt-8">
@@ -172,17 +182,6 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
         </section>
 
         <section className="mt-10">
-          <h2 className="text-lg font-semibold text-ink">Emails to you</h2>
-          <div className="mt-3">
-            <NotifyPrefs
-              meId={user.id}
-              staff={staff}
-              initial={{ replyNotify: membership.replyNotify, replyNotifyStaff: membership.replyNotifyStaff, sentNotify: membership.sentNotify, sentNotifyStaff: membership.sentNotifyStaff }}
-            />
-          </div>
-        </section>
-
-        <section className="mt-10">
           <h2 className="text-lg font-semibold text-ink">Remind staff</h2>
           <div className="mt-3">
             <StaffReminderForm meId={user.id} staff={staff} clients={clients} videos={videos} />
@@ -203,6 +202,58 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
               </ul>
             </div>
           )}
+        </section>
+      </main>
+    </>
+  );
+}
+
+/** A staff member's page: their business, who's on the team, what they can do and where their own settings are. */
+async function StaffTeam({ me }: { me: Awaited<ReturnType<typeof requirePageUser>> }) {
+  const { user, workspace, membership } = me;
+  const [members, clients] = await Promise.all([
+    db.membership.findMany({ where: { workspaceId: workspace.id }, include: { user: { select: { name: true, email: true } } }, orderBy: { id: "asc" } }),
+    db.client.count({ where: { ...clientScopeWhere(accessOf(me)), removedAt: null } }),
+  ]);
+  const display = (u: { name: string | null; email: string }) => u.name ?? u.email.split("@")[0];
+  const ROLE = { OWNER: "Owner", ADMIN: "Admin", MEMBER: "Member" } as const;
+  return (
+    <>
+      <AppHeader email={user.email} plan={PLANS[workspace.plan].name} />
+      <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6" data-testid="staff-team">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Your team</h1>
+        <p className="mt-1 text-sm text-dim">You record, send and reply for {workspace.name}. The owner or an admin chooses who you look after and what else you can do.</p>
+
+        <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
+          <h2 className="font-semibold text-ink">Your clients</h2>
+          <p className="mt-1 text-sm text-muted">
+            You look after {clients} {clients === 1 ? "client" : "clients"}.{" "}
+            <Link href="/clients" className="font-medium text-accent hover:underline">Open Clients</Link>
+          </p>
+          <div className="mt-4">
+            <PermChecks name={display(user)} email={user.email} perms={permsOf(membership)} self editable={false} />
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
+          <h2 className="font-semibold text-ink">Who&apos;s on the team</h2>
+          <ul className="mt-3 divide-y divide-line text-sm">
+            {members.map((m) => (
+              <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span className="text-ink">{display(m.user)}{m.userId === user.id && " (you)"}</span>
+                <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted">{ROLE[m.role]}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-dim">Need access to more clients, or something changed? Ask the owner or an admin.</p>
+        </section>
+
+        <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
+          <h2 className="font-semibold text-ink">Your own settings</h2>
+          <ul className="mt-2 grid gap-1 text-sm">
+            <li><Link href="/settings/account" className="font-medium text-accent hover:underline">Account</Link><span className="text-dim">: your name, emails to you, recovery key and data</span></li>
+            <li><Link href="/settings/reminders" className="font-medium text-accent hover:underline">Reminders</Link><span className="text-dim">: your reminder defaults and message for your clients</span></li>
+          </ul>
         </section>
       </main>
     </>
