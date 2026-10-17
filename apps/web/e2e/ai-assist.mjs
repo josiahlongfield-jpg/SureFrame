@@ -223,14 +223,18 @@ ok("team sees the summary", (await owner.textContent("[data-testid=ai-summary]")
 ok("summary says it can contain mistakes", await owner.isVisible("text=/can contain mistakes/"));
 await owner.click("[data-testid=ai-transcript] summary");
 ok("team sees the transcript", await owner.isVisible(`[data-testid=ai-transcript] >> text=${SPOKEN}`));
-// The conversation panel ends level with the reactions row, however long the transcript.
+// The conversation panel is tall enough for a video reply, fits the screen and stays beside the video
+// however long the transcript (it's sticky, not stretched to the page).
 const edges = await owner.evaluate(() => {
   const aside = document.querySelector("[data-testid=conversation]").getBoundingClientRect();
-  const row = document.querySelector("button[aria-label^='React']").parentElement.getBoundingClientRect();
-  const section = document.querySelector("main section")?.getBoundingClientRect() ?? row;
-  return { aside: aside.bottom, row: row.bottom, section: section.bottom };
+  const section = document.querySelector("main section").getBoundingClientRect();
+  return { top: aside.top, bottom: aside.bottom, height: aside.height, screen: innerHeight, section: section.bottom };
 });
-ok("conversation panel stops at the reactions row", Math.abs(edges.aside - edges.row) <= 2 && edges.section > edges.aside, JSON.stringify(edges));
+ok(
+  "conversation panel is tall, fits the screen and doesn't stretch with the transcript",
+  edges.height >= 480 && edges.bottom <= edges.screen && edges.section > edges.bottom,
+  JSON.stringify(edges),
+);
 await owner.click("button[aria-label='Open conversation in a larger view']");
 ok("conversation opens in a larger view", (await owner.getAttribute("[data-testid=conversation]", "data-expanded")) === "true");
 await owner.keyboard.press("Escape");

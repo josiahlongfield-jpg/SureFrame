@@ -78,15 +78,17 @@ await page.screenshot({ path: `${shots}/desktop-player.png` });
 // Phone-sized screen: the video-reply camera preview and the reply's playback.
 await page.setViewportSize({ width: 390, height: 844 });
 await page.reload();
-await page.click("[data-testid=chat-bubble]");
+await page.click("[data-testid=chat-open]");
 await page.click("button:has-text('Video')");
 s = await shape(page, "[data-testid=conversation] video[autoplay]");
 ok("reply camera preview (phone): fills its frame", fills(s) && s.wide, JSON.stringify(s));
 await page.screenshot({ path: `${shots}/phone-reply-camera.png` });
 await page.click("text=Record video reply");
 await page.waitForTimeout(2500);
-await page.click("text=Stop and send");
-s = await shape(page, "[data-testid=conversation] video[controls]");
+await page.click("text=Stop recording");
+await page.click("text=Send video reply");
+await page.waitForSelector("[data-testid=conversation] ul video[controls]", { timeout: 30000 });
+s = await shape(page, "[data-testid=conversation] ul video[controls]");
 ok("video reply playback: no black bars", fills(s) && s.wide, JSON.stringify(s));
 await page.screenshot({ path: `${shots}/phone-reply-playback.png` });
 

@@ -78,10 +78,10 @@ await coach.screenshot({ path: `${shots}/send-to-client.png` });
 // Client on a phone opens their personal link and replies
 const clientCtx = await browser.newContext({ ...devices["Pixel 7"], permissions: ["camera", "microphone"] });
 const client = await clientCtx.newPage();
-// The coach is on the Free plan, so clients see a short SureFrame intro first; wait it out and continue.
+// The coach is on the Free plan, so clients see a short intro the first time; wait it out and continue.
 const skipIntro = (p) =>
   p.addLocatorHandler(p.getByTestId("sureframe-promo"), async () => {
-    await p.click("text=/^Watch your video$/", { timeout: 15000 });
+    await p.click("text=/^Watch now$/", { timeout: 15000 });
   });
 client.on("console", (m) => m.type() === "error" && console.log("client console:", m.text()));
 await client.goto(personal);
@@ -91,8 +91,8 @@ await skipIntro(client);
 await client.waitForSelector("main video", { timeout: 20000 });
 console.log("key removed from address bar:", !client.url().includes("#k="));
 console.log("client plays video, duration", await client.$eval("main video", finiteDuration));
-// On a phone the conversation sits behind a chat bubble; open it to reply.
-await client.click("[data-testid=chat-bubble]");
+// On a phone the conversation opens from the reply card under the video.
+await client.click("[data-testid=chat-open]");
 await client.waitForSelector("[data-testid=conversation][data-sheet]");
 await client.fill('textarea[aria-label="Reply"]', "Felt strong this week!");
 await client.click("button:has-text('Send reply')");
@@ -104,7 +104,8 @@ await client.click("role=tab[name='Voice']");
 await client.click("button:has-text('Record voice reply')");
 await client.waitForSelector("text=/Recording · \\d/");
 await client.waitForTimeout(3000);
-await client.click("button:has-text('Stop and send')");
+await client.click("button:has-text('Stop recording')");
+await client.click("button:has-text('Send voice reply')");
 await client.waitForSelector("aside ul audio", { timeout: 30000 });
 console.log("voice reply duration", await client.$eval("aside ul audio", finiteDuration));
 
@@ -112,22 +113,31 @@ await client.click("role=tab[name='Video']");
 await client.click("button:has-text('Record video reply')");
 await client.waitForSelector("text=/Recording · \\d/");
 await client.waitForTimeout(4000);
-await client.click("button:has-text('Stop and send')");
+await client.click("button:has-text('Stop recording')");
+await client.click("button:has-text('Send video reply')");
 await client.waitForSelector("aside ul video", { timeout: 30000 });
 console.log("video reply duration", await client.$eval("aside ul video", finiteDuration));
 await client.screenshot({ path: `${shots}/reply-phone.png`, fullPage: true });
 
-// Interrupted video reply: close the tab mid-recording; reopening (no link) finishes it
-await client.click("role=tab[name='Video']");
+// Interrupted video reply: close the tab mid-recording; reopening (no link) finishes the upload but never
+// sends it: the client is asked to send or delete it.
+await client.click("[data-testid=reply-sent] >> text=Record another");
 await client.click("button:has-text('Record video reply')");
 await client.waitForSelector("text=/Recording · \\d/");
 await client.waitForTimeout(5000);
 await client.close({ runBeforeUnload: false });
 const client2 = await clientCtx.newPage();
+client2.on("dialog", (d) => (console.log("dialog:", d.message()), d.dismiss()));
 await skipIntro(client2);
 await client2.goto(link);
+await client2.waitForSelector("[data-testid=held-reply]", { state: "attached", timeout: 30000 });
+console.log("interrupted reply recovered, not sent:", (await client2.$$eval("aside ul video", (els) => els.length)) === 1);
+await client2.click("[data-testid=chat-open]");
+await client2.waitForSelector("[data-testid=held-reply] video", { timeout: 30000 });
+await client2.click("[data-testid=held-reply] >> button:has-text('Send it')");
 await client2.waitForFunction(() => document.querySelectorAll("aside ul video").length === 2, null, { timeout: 30000 });
-console.log("interrupted reply recovered and playable:", await client2.$$eval("aside ul video", (els) => els.length));
+console.log("interrupted reply sent once asked, playable:", await client2.$$eval("aside ul video", (els) => els.length));
+await client2.click("[data-testid=chat-close]");
 
 // Coach sees and answers
 await coach.reload();
@@ -171,7 +181,7 @@ const purge = await strangerCtx.request.get(`${BASE}/api/cron/purge`, { headers:
 console.log("purge job:", purge.status(), await purge.text());
 console.log("purge without secret:", (await strangerCtx.request.get(`${BASE}/api/cron/purge`)).status());
 await client2.reload();
-await client2.waitForSelector("text=deleted from our servers");
+await client2.waitForSelector("text=deleted from SureFrame");
 const onDisk = (() => { try { statSync(join(".data/uploads", keyPath)); return true; } catch { return false; } })();
 const inDb = sql(`select count(*) from "StoredPart" where key='${keyPath}'`) !== "0";
 console.log("client sees expiry notice; file on server:", onDisk || inDb ? "still there" : "deleted");
