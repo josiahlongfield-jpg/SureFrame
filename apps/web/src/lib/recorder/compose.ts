@@ -1,5 +1,5 @@
 /**
- * Screen + camera: draws the camera as a circle in the bottom-left corner of
+ * Screen + camera: draws the camera as a circle at the bottom left of
  * the screen recording, so it's in the video whatever is shared (a tab, a
  * window or the whole screen). Runs in a worker, which keeps drawing while the
  * SureFrame tab is in the background.
@@ -46,8 +46,9 @@ function draw() {
   if (dw < W || dh < H) ctx.fillRect(0, 0, W, H);
   ctx.drawImage(screen, (W - dw) / 2, (H - dh) / 2, dw, dh);
   if (cam) {
-    const d = Math.round(Math.min(W, H) * 0.24), m = Math.round(Math.min(W, H) * 0.035);
-    const x = m, y = H - m - d, r = d / 2;
+    // Raised off the bottom edge (18% of the height) so the player's controls, drawn over the bottom of the video, don't cover it.
+    const d = Math.round(Math.min(W, H) * 0.24), m = Math.round(Math.min(W, H) * 0.035), b = Math.round(H * 0.18);
+    const x = m, y = H - b - d, r = d / 2;
     const cw = cam.displayWidth, ch = cam.displayHeight, side = Math.min(cw, ch);
     ctx.save();
     ctx.beginPath();
@@ -88,8 +89,8 @@ onmessage = (e) => {
 `;
 
 /**
- * A video track of `screen` with `camera` in a circle in the bottom-left
- * corner. `close()` stops it; the screen and camera tracks are left running.
+ * A video track of `screen` with `camera` in a circle at the bottom left,
+ * clear of the player's controls. `close()` stops it; the screen and camera tracks are left running.
  */
 export function composeCamera(
   screen: MediaStreamTrack,
