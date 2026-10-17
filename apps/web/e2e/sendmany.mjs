@@ -69,8 +69,8 @@ for (const n of names) {
   await owner.waitForSelector(`a:has-text('${n}')`);
 }
 const clients = Object.fromEntries((await prisma.client.findMany({ where: { workspaceId } })).map((c) => [c.name, c]));
-// Ben and Cal already have their personal links, so Send by email can email them.
-for (const n of ["Ben", "Cal"]) await prisma.client.update({ where: { id: clients[n].id }, data: { assignedToId: staffUser.id, linkSentAt: new Date() } });
+// Ben and Cal have already opened their personal links, so Send by email can email them.
+for (const n of ["Ben", "Cal"]) await prisma.client.update({ where: { id: clients[n].id }, data: { assignedToId: staffUser.id, linkOpenedAt: new Date() } });
 
 // Record, send to Ana as usual, then to the staff member's clients in one go.
 await owner.goto(BASE + "/record");

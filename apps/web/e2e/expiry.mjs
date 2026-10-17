@@ -89,6 +89,7 @@ ok("normal: not amber beyond 48 hours", !s3.soon);
 const sS = await statusOf(soon2.id);
 ok("under 48 hours: amber with hours hint", sS.soon && /in 2[23] hours$/.test(sS.text), sS.text);
 ok("expired: deleted from our servers", (await statusOf(expired.id)).text === "Deleted from our servers");
+ok("more than a week away: no line on the card, the date is said once at the top", (await owner.locator(`a[href="/v/${in10days.id}"] [data-testid=storage-status]`).count()) === 0 && norm(await owner.textContent("[data-testid=deletion-note]")).includes("deleted from our servers 30 days after"));
 await owner.screenshot({ path: `${shots}/expiry-library.png`, fullPage: true });
 
 // ---- Deleting soon filter ----
@@ -118,8 +119,8 @@ const keptStale = await prisma.video.create({ data: { id: `eks${stamp.toString(3
 await cloud.goto(BASE + "/library");
 // The library groups videos by day; open every day's folder.
 await cloud.$$eval("[data-testid=day-folder]", (els) => els.forEach((e) => (e.open = true)));
-const keptEl = await cloud.waitForSelector(`a[href="/v/${kept.id}"] [data-testid=storage-status]`);
-ok("cloud backup: saved to cloud backup", norm(await keptEl.textContent()) === "Saved to cloud backup");
+await cloud.waitForSelector(`a[href="/v/${kept.id}"]`);
+ok("cloud backup: said once at the top, not on every card", norm(await cloud.textContent("[data-testid=deletion-note]")).startsWith("Cloud backup is on") && (await cloud.locator("main [data-testid=storage-status]").count()) === 0);
 
 // ---- The 24-hour warning ----
 const before = outbox().length;

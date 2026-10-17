@@ -5,6 +5,7 @@ import MemberPlanner from "@/components/MemberPlanner";
 import StorageStatus from "@/components/StorageStatus";
 import LibraryThumb from "@/components/LibraryThumb";
 import DayFolder from "@/components/DayFolder";
+import { LibrarySearch, ReplyBadges, type Conv } from "@/components/LibraryTools";
 import { db } from "@/lib/db";
 import { PLANS } from "@/lib/plans";
 import { followTeamLink, requirePageUser } from "@/lib/session";
@@ -13,6 +14,7 @@ import { accessOf, clientScopeWhere, effectivePerms, isManager, libraryWhere, se
 import type { Prisma } from "@prisma/client";
 import { zoned } from "@/lib/dates";
 import { videosUsed } from "@/lib/videoAllowance";
+import { RETENTION_DAYS } from "@/lib/retention";
 
 export const metadata: Metadata = { title: "Library" };
 
@@ -22,8 +24,12 @@ const fmt = (ms: number | null) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
-export default async function Library({ searchParams }: { searchParams: Promise<{ show?: string; filter?: string; ws?: string; restored?: string }> }) {
-  const { show, filter, ws, restored } = await searchParams;
+/** A card warns about its server copy being deleted only from this close (the "Deleting soon" filter's week). */
+const NEAR_MS = 7 * 86_400_000;
+
+export default async function Library({ searchParams }: { searchParams: Promise<{ show?: string; filter?: string; ws?: string; restored?: string; q?: string; client?: string }> }) {
+  const { show, filter, ws, restored, q: rawQ, client: rawClient } = await searchParams;
+  const q = (rawQ ?? "").trim().slice(0, 100);
   await followTeamLink(ws, filter ? `/library?filter=${encodeURIComponent(filter)}` : "/library");
   // Kept the "restored" note through /agree, for a kept account that has to agree to new terms first.
   const me = await requirePageUser(restored ? `/library?restored=${encodeURIComponent(restored)}` : "/library");
@@ -40,15 +46,44 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // "Deleting soon": server copies deleted within a week (no cloud backup), soonest first.
   const soonWhere: Prisma.VideoWhereInput = { ...scope, AND: [{ purgeAt: { not: null, lte: new Date(Date.now() + 7 * 86_400_000) } }, { status: { notIn: ["EXPIRED", "RECORDING"] } }] };
   const soon = filter === "soon";
-  const [videos, soonCount, allowance, clientCount] = await Promise.all([
-    // Copies sent to other clients count their views towards the original.
-    db.video.findMany({ where: soon ? soonWhere : scope, orderBy: soon ? { purgeAt: "asc" } : { createdAt: "desc" }, include: { copies: { select: { viewCount: true } }, client: { select: { removedAt: true, purgeAt: true } }, thumb: { select: { videoId: true } }, source: { select: { thumb: { select: { videoId: true } } } } } }),
+  const clients = await db.client.findMany({ where: { ...clientScopeWhere(access), removedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+  const clientId = clients.some((c) => c.id === rawClient) ? rawClient! : "";
+  const searching = !!q || !!clientId;
+  // By title, or by who it was sent to (the copies sent to other clients count too).
+  const contains = { contains: q, mode: "insensitive" as const };
+  const search: Prisma.VideoWhereInput[] = [
+    ...(q ? [{ OR: [{ title: contains }, { client: { name: contains } }, { copies: { some: { client: { name: contains } } } }] }] : []),
+    ...(clientId ? [{ OR: [{ clientId }, { copies: { some: { clientId } } }] }] : []),
+  ];
+  const [videos, soonCount, allowance] = await Promise.all([
+    // Copies sent to other clients count their views and replies towards the original, and name who it went to.
+    db.video.findMany({
+      where: { AND: [soon ? soonWhere : scope, ...search] },
+      orderBy: soon ? { purgeAt: "asc" } : { createdAt: "desc" },
+      include: {
+        copies: { select: { id: true, viewCount: true, client: { select: { name: true, assignedToId: true } } } },
+        client: { select: { name: true, removedAt: true, purgeAt: true } },
+        thumb: { select: { videoId: true } },
+        source: { select: { thumb: { select: { videoId: true } } } },
+      },
+    }),
     db.video.count({ where: soonWhere }),
     plan.maxVideos !== null ? videosUsed(workspace.id) : null,
-    db.client.count({ where: { ...clientScopeWhere(access), removedAt: null } }),
   ]);
+  // Replies per conversation, and how many came from the client (the team's own aren't news).
+  const convIds = videos.flatMap((v) => [v.id, ...v.copies.map((c) => c.id)]);
+  const [allReplies, clientReplies] = convIds.length
+    ? await Promise.all([
+        db.reply.groupBy({ by: ["videoId"], where: { videoId: { in: convIds } }, _count: { _all: true } }),
+        db.reply.groupBy({ by: ["videoId"], where: { videoId: { in: convIds }, authorUserId: null }, _count: { _all: true } }),
+      ])
+    : [[], []];
+  const totals = new Map(allReplies.map((r) => [r.videoId, r._count._all]));
+  const fromClients = new Map(clientReplies.map((r) => [r.videoId, r._count._all]));
+  const convsOf = (v: { id: string; copies: { id: string }[] }): Conv[] =>
+    [v.id, ...v.copies.map((c) => c.id)].map((id) => ({ id, total: totals.get(id) ?? 0, fromClient: fromClients.get(id) ?? 0 }));
   // A new business starts on its clients: once they're in, sending a video is picking them from a list.
-  const startHere = clientCount === 0 && videos.length === 0 && !soon && effectivePerms(access).addClients;
+  const startHere = clients.length === 0 && videos.length === 0 && !soon && !searching && effectivePerms(access).addClients;
   // Free: videos in total for the life of the workspace, deleted ones included.
   const freeLeft = allowance && plan.maxVideos !== null ? Math.max(0, plan.maxVideos - allowance.used) : null;
   const withParams = (p: Record<string, string | undefined>) => {
@@ -68,6 +103,24 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   const now = new Date();
   const views = (v: (typeof videos)[number]) => v.viewCount + v.copies.reduce((n, c) => n + c.viewCount, 0);
   type Item = (typeof videos)[number];
+  // Who it went to. Staff who only see their own clients aren't shown the others' names.
+  const seesAll = seesAllClients(access);
+  const sentTo = (v: Item) => [v.client?.name, ...v.copies.filter((c) => seesAll || c.client?.assignedToId === user.id).map((c) => c.client?.name)].filter((n): n is string => !!n);
+  const recipients = (v: Item) => {
+    const names = sentTo(v);
+    if (!names.length) return "Not sent yet";
+    return `To ${names.length <= 3 ? names.join(", ") : `${names.slice(0, 2).join(", ")} and ${names.length - 2} more`}`;
+  };
+  // Recordings with the same title (the date-made default, recorded in the same minute) also show the seconds.
+  const titles = new Map<string, number>();
+  for (const v of videos) titles.set(v.title, (titles.get(v.title) ?? 0) + 1);
+  const seconds = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", timeZone: dates.zone });
+  const when = (v: Item, inDay: boolean) => {
+    if ((titles.get(v.title) ?? 0) > 1) return inDay ? seconds.format(v.createdAt) : `${dates.shortDay(v.createdAt)}, ${seconds.format(v.createdAt)}`;
+    return inDay ? dates.time(v.createdAt) : dates.shortDayTime(v.createdAt);
+  };
+  // The deletion date is said once at the top; a card only warns when it's near (or in the "Deleting soon" list).
+  const nearDeletion = (v: Item) => !workspace.cloudBackup && !!v.purgeAt && v.purgeAt.getTime() - now.getTime() < NEAR_MS;
   // The library still: a sealed one for encrypted recordings (made on this device if missing), else the video itself.
   const still = (v: Item) =>
     v.thumbnailUrl ? (
@@ -99,9 +152,15 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             </div>
             <h3 className="mt-3 truncate font-medium text-ink group-hover:text-accent">{v.title}</h3>
             <p className="text-xs text-dim">
-              {inDay ? dates.time(v.createdAt) : dates.day(v.createdAt)} · {views(v)} {views(v) === 1 ? "view" : "views"}
+              <span data-testid="video-time">{when(v, inDay)}</span> · {views(v)} {views(v) === 1 ? "view" : "views"}
             </p>
-            <StorageStatus status={v.status} purgeAt={v.purgeAt?.toISOString() ?? null} cloudBackup={workspace.cloudBackup} />
+            <p className="truncate text-xs text-muted" data-testid="video-recipients" title={sentTo(v).join(", ") || undefined}>{recipients(v)}</p>
+            <span className="mt-1 block empty:hidden">
+              <ReplyBadges convs={convsOf(v)} />
+            </span>
+            {(soon || v.status === "EXPIRED" || nearDeletion(v)) && (
+              <StorageStatus status={v.status} purgeAt={v.purgeAt?.toISOString() ?? null} cloudBackup={workspace.cloudBackup} />
+            )}
             {v.client?.removedAt && (
               <p className="text-xs text-warn-fg" data-testid="client-removed-badge">
                 Client removed{v.client.purgeAt && v.client.purgeAt > now ? ` · conversation deleted ${dates.shortDay(v.client.purgeAt)}` : ""}
@@ -164,6 +223,13 @@ export default async function Library({ searchParams }: { searchParams: Promise<
                 <Link href="/pricing" className="font-medium text-accent hover:underline">See plans</Link>
               </p>
             ) : null}
+            {videos.length > 0 && !soon && (
+              <p className="mt-2 max-w-2xl text-sm text-dim" data-testid="deletion-note">
+                {workspace.cloudBackup
+                  ? "Cloud backup is on, so your recordings aren't deleted from our servers on a schedule."
+                  : `Each recording's encrypted copy is deleted from our servers ${RETENTION_DAYS} days after it's recorded. To keep one, open it and choose Save to device. A video shows a warning in its last week.`}
+              </p>
+            )}
             {plan.showsPromo && (
               <p className="mt-2 text-sm text-dim" data-testid="promo-note">
                 Your clients see a short SureFrame intro before each video. Paid plans remove it.{" "}
@@ -188,6 +254,16 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             )}
           </div>
         </div>
+        {(videos.length > 0 || searching) && !startHere && (
+          <LibrarySearch key={`${q}|${clientId}`} q={q} client={clientId} clients={clients} keep={{ show, filter }} />
+        )}
+        {searching && (
+          <p className="-mt-3 mb-4 text-sm text-muted" data-testid="search-summary">
+            {videos.length} {videos.length === 1 ? "video" : "videos"}
+            {q && <> matching &ldquo;{q}&rdquo;</>}
+            {clientId && <> sent to {clients.find((c) => c.id === clientId)?.name}</>}
+          </p>
+        )}
         {soon && (
           <p className="-mt-4 mb-6 max-w-2xl text-sm text-muted">
             {workspace.cloudBackup
@@ -195,7 +271,12 @@ export default async function Library({ searchParams }: { searchParams: Promise<
               : "These recordings' encrypted copies are deleted from our servers within 7 days. After that they can't be watched from their links. Open one and choose Save to device to keep your own copy."}
           </p>
         )}
-        {videos.length === 0 && soon ? (
+        {videos.length === 0 && searching ? (
+          <div className="rounded-2xl border border-dashed border-line-strong p-10 text-center sm:p-16">
+            <h2 className="font-semibold text-ink">No videos match</h2>
+            <p className="mt-1 text-sm text-dim">Try another word, or clear the search to see everything.</p>
+          </div>
+        ) : videos.length === 0 && soon ? (
           <div className="rounded-2xl border border-dashed border-line-strong p-16 text-center">
             <h2 className="font-semibold text-ink">Nothing deleting soon</h2>
             <p className="mt-1 text-sm text-dim">No recordings are due to be deleted from our servers in the next 7 days.</p>
@@ -227,15 +308,17 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             <Link href="/record" className="mt-6 inline-block rounded-xl bg-primary px-5 py-2.5 font-semibold text-on-primary hover:bg-primary-hover">Record a video</Link>
           </div>
         ) : (
-          soon ? (
+          soon || searching ? (
             grid(videos, false)
           ) : (
             // One folder per day something was recorded, newest first; opening it shows that day's videos.
             <div className="space-y-4">
-              {days.map(({ key, label, items }) => (
+              {days.map(({ key, label, items }, i) => (
                 <DayFolder
                   key={key}
                   day={key}
+                  // The newest day starts open, so the latest videos are on screen straight away.
+                  defaultOpen={i === 0}
                   summary={
                     <>
                       <span className="relative aspect-video w-24 shrink-0 sm:w-36">
@@ -247,6 +330,9 @@ export default async function Library({ searchParams }: { searchParams: Promise<
                       <span className="min-w-0 flex-1">
                         <span className="block font-semibold text-ink" data-testid="day-label">{label}</span>
                         <span className="block text-sm text-dim" data-testid="day-count">{items.length} {items.length === 1 ? "video" : "videos"}</span>
+                        <span className="mt-1 block empty:hidden">
+                          <ReplyBadges convs={items.flatMap(convsOf)} onlyNew />
+                        </span>
                       </span>
                     </>
                   }
@@ -263,9 +349,10 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             workspaceId={workspace.id}
             fingerprint={workspace.keyFingerprint}
             defaults={{ ...reminderDefaultsFor(workspace, me.membership), remindTeam: true }}
+            title="To-dos & notes"
             {...(teamSize > 1
-              ? { title: "Team to-dos & notes", note: "Everyone on your team can see and change these. Keep client to-dos on each client's page.", teamWho: { label: "Email the team", tag: "the team" } }
-              : { title: "My to-dos & notes" })}
+              ? { note: "Not about one client. Everyone on your team can see and change these. Client to-dos go on each client's page.", teamWho: { label: "Email the team", tag: "the team" } }
+              : { note: "Not about one client. Only you see these for now; anyone you add to your team later will too. Client to-dos go on each client's page." })}
           />
         </div>
       </main>

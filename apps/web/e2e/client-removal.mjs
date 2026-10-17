@@ -88,13 +88,13 @@ ok("before: Ana's link opens her inbox", new URL(anaPage.url()).pathname === "/i
 // ---- The confirm box ----
 await owner.goto(BASE + "/clients");
 await owner.waitForSelector(`text=Cal ${stamp}`, { timeout: 30000 });
-await owner.click(`li:has-text("Cal ${stamp}") >> button:text-is("Remove")`);
+await owner.click(`li:has-text("Cal ${stamp}") >> button:text-is("Remove client")`);
 await owner.waitForSelector("[data-testid=remove-client-confirm]");
 ok("no email box for a client without an email address", (await owner.locator("[data-testid=remove-client-email]").count()) === 0);
 await owner.click("[data-testid=remove-client-confirm] >> button:text-is('Cancel')");
 ok("cancel closes the box and removes nobody", (await owner.locator("[data-testid=remove-client-confirm]").count()) === 0 && !(await prisma.client.findUnique({ where: { id: cal.id } })).removedAt);
 
-await owner.click(`li:has-text("Ana ${stamp}") >> button:text-is("Remove")`);
+await owner.click(`li:has-text("Ana ${stamp}") >> button:text-is("Remove client")`);
 const panel = await owner.waitForSelector("[data-testid=remove-client-confirm]");
 const until = longDay(new Date(Date.now() + 30 * D), TZ);
 const ptext = norm(await panel.textContent());
@@ -102,10 +102,10 @@ ok("box: link stops now, seat freed", ptext.includes(`Remove Ana ${stamp}? Their
 ok("box: kept until the date, restorable from Removed clients", ptext.includes(`kept until ${until}, so you can restore them from Removed clients`), ptext);
 ok("box: then deleted for good, replies included, shared recordings stay", ptext.includes("deleted for good, including your team's replies to them, even with cloud backup on") && ptext.includes("Recordings you also sent to other clients stay with those clients"), ptext);
 ok("box: without cloud backup, recordings still leave on their own dates", ptext.includes("Recordings without cloud backup still leave our servers on their usual dates, and restoring doesn't bring those back."), ptext);
-ok("box: 'Email Ana that their access has ended' is ticked", ptext.includes("Email Ana that their access has ended") && (await owner.isChecked("[data-testid=remove-client-email]")));
-ok("no browser confirm() any more", (await owner.locator("[data-testid=remove-client-confirm] >> button:text-is('Remove Ana')").count()) === 1);
+ok("box: 'Email Ana that their access has ended' is ticked", ptext.includes(`Email Ana ${stamp} that their access has ended`) && (await owner.isChecked("[data-testid=remove-client-email]")));
+ok("no browser confirm() any more", (await owner.locator(`[data-testid=remove-client-confirm] >> button:text-is('Remove Ana ${stamp}')`).count()) === 1);
 await owner.screenshot({ path: `${shots}/client-removal-confirm.png`, fullPage: true });
-await owner.click("[data-testid=remove-client-confirm] >> button:text-is('Remove Ana')");
+await owner.click(`[data-testid=remove-client-confirm] >> button:text-is('Remove Ana ${stamp}')`);
 await owner.waitForSelector("[data-testid=clients-notice]");
 ok("after removing: says until when they can be restored", norm(await owner.textContent("[data-testid=clients-notice]")) === `Ana ${stamp} removed. You can restore them until ${until}.`);
 ok("Removed clients lists Ana with Restore", (await owner.textContent("[data-testid=removed-clients]")).includes(`Ana ${stamp}`) && (await owner.locator("[data-testid=restore-client]").count()) === 1);
@@ -164,7 +164,7 @@ await owner.waitForSelector("[data-testid=clients-notice]");
 ok("restore: says the same link works again", norm(await owner.textContent("[data-testid=clients-notice]")) === `Ana ${stamp} is back, and their personal link works again.`);
 const anaBack = await prisma.client.findUnique({ where: { id: ana.id } });
 ok("restore: cleared the removal, kept the same link", !anaBack.removedAt && !anaBack.purgeAt && !anaBack.purgeWarnedAt && !anaBack.removedById && anaBack.token === ana.token);
-ok("restore: Ana back in the list, seats 3 of 3", (await owner.textContent("main")).includes("3 of 3 used") && (await owner.locator(`li:has-text("Ana ${stamp}") >> button:text-is("Remove")`).count()) === 1);
+ok("restore: Ana back in the list, seats 3 of 3", (await owner.textContent("main")).includes("3 of 3 used") && (await owner.locator(`li:has-text("Ana ${stamp}") >> button:text-is("Remove client")`).count()) === 1);
 ok("restore: Dee's Restore is off while seats are full", await owner.isDisabled(`[data-testid=removed-clients] li:has-text("Dee ${stamp}") >> [data-testid=restore-client]`));
 await anaPage.goto(`${BASE}/c/${ana.token}`);
 ok("restore: Ana's link opens her inbox again", new URL(anaPage.url()).pathname === "/inbox" && (await anaPage.locator("[data-testid=client-removed]").count()) === 0);
@@ -180,7 +180,7 @@ await owner.waitForSelector("[data-testid=removed-clients]", { timeout: 30000 })
 await owner.fill("input[aria-label='Client email']", ben.email.toUpperCase());
 const hint = norm(await owner.textContent("[data-testid=removed-match]").catch(() => ""));
 ok("adding someone removed: hint to restore instead", hint.startsWith(`Ben ${stamp} was removed on`) && hint.includes("Restore them instead to keep their history"), hint);
-await owner.click("[data-testid=removed-match] >> button:text-is('Restore Ben')");
+await owner.click(`[data-testid=removed-match] >> button:text-is('Restore Ben ${stamp}')`);
 await owner.waitForSelector("[data-testid=clients-notice]");
 ok("restore after a key reset: says they have a new link, emailed", norm(await owner.textContent("[data-testid=clients-notice]")).includes("so they have a new personal link, which we've emailed to them"));
 const benBack = await prisma.client.findUnique({ where: { id: ben.id } });

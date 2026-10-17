@@ -188,7 +188,7 @@ ok("owner plays the video", (await owner.$eval("main video", finiteDuration)) > 
 await laptop.goto(BASE + "/library");
 await laptop.fill('input[aria-label="Recovery key"]', recoveryKey);
 await laptop.click("button:has-text('Unlock')");
-await laptop.waitForSelector("text=My to-dos & notes", { timeout: 10000 });
+await laptop.waitForSelector("text=To-dos & notes", { timeout: 10000 });
 const laptopKey = await laptop.evaluate((id) => localStorage.getItem(`framecast.key.team:${id}`), workspaceId);
 const ownerKey = await owner.evaluate((id) => localStorage.getItem(`framecast.key.team:${id}`), workspaceId);
 ok("old recovery key leads current members to the new key", laptopKey === ownerKey);

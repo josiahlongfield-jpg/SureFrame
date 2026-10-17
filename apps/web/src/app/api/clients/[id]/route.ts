@@ -6,9 +6,10 @@ import { enforceSeatLimits } from "@/lib/seatLimits";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
 import { rateLimit } from "@/lib/rateLimit";
 import { accessOf, clientScopeWhere } from "@/lib/permissions";
+import { NAME_MAX } from "@/lib/clients";
 
 const Patch = z.object({
-  name: z.string().trim().min(1).max(80).optional(),
+  name: z.string().trim().min(1).max(NAME_MAX).optional(),
   email: z.union([z.string().trim().email().max(200), z.literal("")]).optional(),
   /** Staff member who looks after this client; null puts them back in the shared list. */
   assignedToId: z.string().min(1).max(40).nullable().optional(),
@@ -19,8 +20,19 @@ export const PATCH = handle(async (req: Request, ctx: { params: Promise<{ id: st
   const { id } = await ctx.params;
   const me = await requireUser();
   const { workspace } = me;
-  const body = Patch.safeParse(await req.json());
-  if (!body.success) throw new HttpError(400, "Enter a valid email address");
+  const json = await req.json().catch(() => null);
+  const body = Patch.safeParse(json);
+  if (!body.success) {
+    if (typeof json?.name === "string") {
+      throw new HttpError(400, json.name.trim() ? `That name is too long. Names can be up to ${NAME_MAX} characters.` : "Enter a name");
+    }
+    throw new HttpError(400, "Enter a valid email address");
+  }
+  // Two clients with one email would get each other's emails.
+  if (body.data.email) {
+    const taken = await db.client.findFirst({ where: { workspaceId: workspace.id, removedAt: null, id: { not: id }, email: { equals: body.data.email, mode: "insensitive" } }, select: { name: true } });
+    if (taken) throw new HttpError(409, `${taken.name} already uses ${body.data.email}. Each client needs their own email.`);
+  }
   if (body.data.assignedToId !== undefined) {
     requireRole(me, "OWNER", "ADMIN");
     if (body.data.assignedToId && !(await db.membership.findUnique({ where: { userId_workspaceId: { userId: body.data.assignedToId, workspaceId: workspace.id } } }))) {

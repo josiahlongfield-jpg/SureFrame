@@ -3,6 +3,9 @@ import { db } from "@/lib/db";
 import { clientSeatLimit } from "@/lib/plans";
 import { appUrl } from "@/lib/stripe";
 
+/** Longest client name (the Clients page says so when one is too long). */
+export const NAME_MAX = 80;
+
 export const newClientToken = () => crypto.randomBytes(24).toString("base64url");
 
 /** The link a client uses to open their videos. Optionally opens one video. */

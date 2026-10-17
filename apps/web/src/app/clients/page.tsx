@@ -71,6 +71,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
             assignedToId: c.assignedToId,
             paused: !!c.pausedAt,
             linkOff: !!c.linkDisabledAt,
+            reached: !!c.linkOpenedAt,
           }))}
           initialRemoved={removedClients.map((c) => ({ id: c.id, name: c.name, email: c.email, removedAt: c.removedAt!.toISOString(), purgeAt: c.purgeAt?.toISOString() ?? null }))}
           keepDays={CLIENT_KEEP_DAYS}

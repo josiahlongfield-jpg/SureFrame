@@ -1,6 +1,7 @@
 // The library (src/app/library/page.tsx):
 // - videos are grouped into one folder per day something was recorded, newest day first,
-//   closed until clicked; a day you opened stays open when you come back from a video;
+//   the newest day open and the rest closed until clicked; a day you opened or closed stays that way
+//   when you come back from a video;
 // - every recording shows a real still: taken while recording (src/components/Recorder.tsx),
 //   or, for one without a still yet, made in the library from the start of the recording.
 import { chromium } from "@playwright/test";
@@ -70,7 +71,8 @@ const labels = await owner.$$eval("[data-testid=day-label]", (els) => els.map((e
 const expected = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(threeDaysAgo);
 ok("one folder per day, newest first", labels.length === 2 && labels[0] === "Today" && labels[1] === expected, JSON.stringify(labels));
 ok("each folder counts its videos", (await owner.textContent("[data-testid=day-folder] >> nth=0 >> [data-testid=day-count]")) === "1 video");
-ok("folders start closed", !(await owner.isVisible(`main a[href="/v/${second}"]`)));
+ok("the newest day starts open", !!(await owner.waitForSelector(`main a[href="/v/${second}"]`, { state: "visible", timeout: 10000 }).catch(() => null)));
+ok("older days start closed", !(await owner.isVisible(`main a[href="/v/${first}"]`)));
 ok("the folder shows the day's newest still", !!(await owner.waitForSelector("[data-testid=day-folder] >> nth=0 >> summary [data-testid=library-thumb]", { timeout: 30000 }).catch(() => null)));
 ok("the missing still is made in the library and saved", !!(await waitFor(() => prisma.videoThumb.findUnique({ where: { videoId: second } }), 15000)));
 await owner.screenshot({ path: `${shots}/library-days-closed.png`, fullPage: true });
@@ -85,10 +87,20 @@ await owner.screenshot({ path: `${shots}/library-days-open.png`, fullPage: true 
 
 await owner.click(`a[href="/v/${first}"]`);
 await owner.waitForURL(`**/v/${first}`);
+// Back once the video page is on screen, as a person would (going back mid-navigation can leave Next showing the video).
+await owner.waitForSelector("video", { timeout: 30000 });
 await owner.goBack();
 await owner.waitForURL("**/library");
 ok("an opened day stays open after coming back from a video", !!(await owner.waitForSelector(`main a[href="/v/${first}"]`, { timeout: 10000 }).catch(() => null)));
-ok("the other day stays closed", !(await owner.isVisible(`main a[href="/v/${second}"]`)));
+await owner.waitForSelector("[data-testid=day-folder]", { timeout: 30000 });
+ok("the newest day is still open too", !!(await owner.waitForSelector(`main a[href="/v/${second}"]`, { state: "visible", timeout: 10000 }).catch(() => null)));
+
+// Closing the newest day is remembered as well.
+await owner.click("[data-testid=day-folder] >> nth=0 >> summary");
+await owner.reload();
+await owner.waitForSelector("[data-testid=day-folder]");
+await owner.waitForTimeout(500);
+ok("a closed newest day stays closed", !(await owner.isVisible(`main a[href="/v/${second}"]`)) && (await owner.isVisible(`main a[href="/v/${first}"]`)));
 
 // Phones: nothing wider than the screen.
 await owner.setViewportSize({ width: 320, height: 700 });

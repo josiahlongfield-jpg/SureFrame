@@ -140,6 +140,8 @@ export default function Planner({
     // Keep anything typed while the save was in flight.
     setText((cur) => (cur === submitted ? "" : cur));
     setSchedule(fresh());
+    // Sharing is chosen each time, so the next item (often a private note) never goes to the client by mistake.
+    setShare(false);
   }
 
   async function patch(i: Decrypted, change: Record<string, unknown>, newText = i.text) {
@@ -184,6 +186,7 @@ export default function Planner({
   const notes = items.filter((i) => i.kind === "NOTE");
   const done = items.filter((i) => i.kind === "TASK" && i.done);
   const first = clientName?.split(" ")[0] ?? "client";
+  const who = clientName ?? "the client";
 
   const row = (i: Decrypted) =>
     editing === i.id ? (
@@ -243,7 +246,7 @@ export default function Planner({
             )}
             {role === "member" && clientId && (
               <button onClick={() => toggleShare(i)} className={`rounded px-1.5 ${i.shared ? "bg-primary-soft text-accent" : "bg-surface-2 text-muted"} hover:underline`}>
-                {i.shared ? `Shared with ${first}` : "Private to your team"}
+                {i.shared ? `Shared with ${who}` : "Private to your team"}
               </button>
             )}
           </div>
@@ -275,7 +278,10 @@ export default function Planner({
                 type="button"
                 role="tab"
                 aria-selected={kind === k}
-                onClick={() => setKind(k)}
+                onClick={() => {
+                  if (k !== kind) setShare(false);
+                  setKind(k);
+                }}
                 className={`rounded-md px-2 py-1 font-medium ${kind === k ? "bg-surface text-ink shadow-sm" : "text-muted"}`}
               >
                 {k === "TASK" ? "To-do" : "Note"}
@@ -291,10 +297,17 @@ export default function Planner({
             className="resize-none rounded-lg border border-line-strong px-3 py-2 text-sm focus:border-primary focus:outline-none"
           />
           {clientId && (
-            <label className="flex items-center gap-2 text-sm text-muted">
+            // Off unless ticked for this item: shared is the exception, and it's plain which one this is.
+            <label
+              data-testid="share-choice"
+              data-shared={share ? "true" : undefined}
+              className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-sm ${share ? "border-primary bg-primary-soft text-ink" : "border-line bg-surface-2 text-muted"}`}
+            >
               <input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} className="accent-primary" />
-              Share with {first}
-              <span className="text-xs text-dim">{share ? `${first} can see this` : "Only your team can see this"}</span>
+              Share with {who}
+              <span className={`text-xs ${share ? "font-medium text-accent" : "text-dim"}`}>
+                {share ? `${who} will see this ${kind === "NOTE" ? "note" : "to-do"}` : `Private: only your team will see this ${kind === "NOTE" ? "note" : "to-do"}`}
+              </span>
             </label>
           )}
           {kind === "TASK" && (
@@ -309,7 +322,7 @@ export default function Planner({
             />
           )}
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <button className="ml-auto rounded-lg bg-solid px-3 py-1.5 font-medium text-white hover:bg-solid-hover">Add</button>
+            <button className="ml-auto rounded-lg bg-solid px-3 py-1.5 font-medium text-white hover:bg-solid-hover">{clientId ? (share ? `Add and share with ${who}` : "Add privately") : "Add"}</button>
           </div>
           {error && <p role="alert" className="text-sm text-danger-fg">{error}</p>}
         </form>

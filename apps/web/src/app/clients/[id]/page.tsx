@@ -10,6 +10,7 @@ import { PLANS } from "@/lib/plans";
 import { followTeamLink, requirePageUser } from "@/lib/session";
 import { reminderDefaultsFor } from "@/lib/reminders";
 import ClientEmail from "@/components/ClientEmail";
+import ClientName from "@/components/ClientName";
 import { accessOf, canSeeClient } from "@/lib/permissions";
 import { zoned } from "@/lib/dates";
 import { activeMember } from "@/lib/team";
@@ -43,12 +44,14 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
         <Link href="/clients" className="text-sm text-dim hover:text-ink">← Clients</Link>
         <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-ink">{client.name}</h1>
+          <div className="min-w-0">
+            <ClientName clientId={client.id} initial={client.name} />
             <ClientEmail clientId={client.id} firstName={client.name.split(" ")[0]} initial={client.email} optedOut={client.remindersOff} />
           </div>
           {!client.linkDisabledAt && (
-            <CopyClientLink workspaceId={workspace.id} fingerprint={workspace.keyFingerprint} clientId={client.id} link={clientLink(client.token)} teamKeyWrap={client.teamKeyWrap} />
+            <CopyClientLink
+              name={client.name}
+              reached={!!client.linkOpenedAt} workspaceId={workspace.id} fingerprint={workspace.keyFingerprint} clientId={client.id} link={clientLink(client.token)} teamKeyWrap={client.teamKeyWrap} />
           )}
         </div>
         {client.linkDisabledAt && (
@@ -63,7 +66,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             <h2 className="font-semibold text-ink">Videos</h2>
             {client.videos.length === 0 ? (
               <p className="mt-3 text-sm text-dim">
-                Nothing sent yet. Record a video, then choose {client.name.split(" ")[0]} under &ldquo;Send to&rdquo;.
+                Nothing sent yet. Record a video, then choose {client.name} in the Send box under it.
               </p>
             ) : (
               <ul className="mt-3 divide-y divide-line">
@@ -90,6 +93,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             client={{ email: client.email, remindersOff: client.remindersOff }}
             defaults={reminderDefaultsFor(workspace, me.membership)}
             title="To-dos & notes"
+            note={`Only your team sees these unless you share one with ${client.name}. Shared ones show on ${client.name}'s page.`}
             teamWho={teamWho}
           />
         </div>
