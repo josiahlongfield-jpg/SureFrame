@@ -46,7 +46,13 @@ await pro.check("text=Share with Riley");
 await pro.click("form >> button:has-text('Add')");
 await pro.waitForSelector('li:has-text("Send your weekly check-in")');
 
+ok("after adding, the share box is unticked again", !(await pro.isChecked("text=Share with Riley")));
+await pro.check("text=Share with Riley");
 await pro.click("role=tab[name='Note']");
+ok("switching between To-do and Note unticks the share box", !(await pro.isChecked("text=Share with Riley")));
+ok("unticked says it's private", (await pro.textContent("[data-testid=share-choice]")).includes("Private: only your team will see this note") && (await pro.textContent("form >> button:has-text('Add')")) === "Add privately");
+await pro.check("text=Share with Riley");
+ok("ticked says the client will see it", (await pro.textContent("[data-testid=share-choice]")).includes("Riley Client will see this note") && (await pro.textContent("form >> button:has-text('Add')")) === "Add and share with Riley Client");
 await pro.fill('textarea[aria-label="New note"]', "Remember to stretch before sessions");
 await pro.click("form >> button:has-text('Add')");
 await pro.waitForSelector('li:has-text("Remember to stretch before sessions")');

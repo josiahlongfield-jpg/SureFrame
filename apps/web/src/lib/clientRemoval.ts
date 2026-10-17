@@ -44,6 +44,8 @@ const tzFooter = (ws: Pick<Workspace, "timezone">, zone: string) =>
 export async function emailClientRemoved(clientId: string) {
   const c = await db.client.findUnique({ where: { id: clientId }, include: { workspace: true } });
   if (!c?.email || !c.removedAt || !c.purgeAt) return false;
+  // A duplicate removed while another client still uses this email: that person hasn't lost anything.
+  if (await db.client.count({ where: { workspaceId: c.workspaceId, removedAt: null, email: { equals: c.email, mode: "insensitive" } } })) return false;
   // Once a day at most, so removing and restoring can't be used to flood someone.
   if (!(await rateLimit(`client-removed-mail:${c.id}`, 1, 86_400).then(() => true, () => false))) return false;
   const ws = c.workspace;
@@ -75,6 +77,11 @@ export async function restoreClient(workspace: Workspace, id: string, { ignoreSe
     const c = await tx.client.findFirst({ where: { id, workspaceId: workspace.id } });
     if (c && !c.removedAt) throw new HttpError(409, "This client hasn't been removed");
     if (!c || !free || (c.purgeAt && c.purgeAt <= now)) throw new HttpError(404, "This client has already been deleted");
+    // Restoring a duplicate would put the same person on the list twice.
+    const twin = c.email
+      ? await tx.client.findFirst({ where: { workspaceId: workspace.id, removedAt: null, email: { equals: c.email, mode: "insensitive" } }, select: { name: true } })
+      : null;
+    if (twin) throw new HttpError(409, `${twin.name} already uses ${c.email}, so ${c.name} can't be restored as well. Change or remove that client first.`);
     if (!ignoreSeatLimit) {
       const seats = await seatUsage(workspace, tx);
       if (seats.used >= seats.limit) throw new HttpError(402, `All ${seats.limit} client seats are in use. Add seats or remove a client first.`);
@@ -116,6 +123,7 @@ export async function restoreClient(workspace: Workspace, id: string, { ignoreSe
       assignedToId: c.assignedToId,
       paused: !!c.pausedAt,
       linkOff: !!c.linkDisabledAt,
+      reached: !!c.linkOpenedAt,
     },
     seats: await seatUsage(workspace),
     newLink: rekeyed,
