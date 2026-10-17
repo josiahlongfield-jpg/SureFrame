@@ -16,7 +16,7 @@ function Record() {
     <div className="f-cols">
       <div className="f-screen">
         <div className="f-pill"><i />Recording · 1:24</div>
-        <div className="msg">{Icon.monitor}<span>Recording your screen.</span></div>
+        <div className="msg">{Icon.monitor}<span>Recording your screen. Your camera is in the floating bubble.</span></div>
         <div className="f-cam"><Face /></div>
       </div>
       <div className="f-side f-box">
@@ -25,7 +25,6 @@ function Record() {
           <span className="f-btn sec wide">Pause</span>
           <span className="f-btn red wide">Stop</span>
         </div>
-        <span className="f-btn sec">Pop out camera bubble</span>
         <span className="f-link" style={{ justifySelf: "start" }}>Discard and start over</span>
         <div className="f-hr" />
         <p className="f-ok" style={{ fontSize: "0.78125rem" }}>Uploaded: 12.3 MB <span className="f-mut">(+0.8 MB on device)</span></p>
@@ -58,12 +57,17 @@ function Send() {
           </div>
         </div>
         <div className="f-row"><span className="f-btn pri">Send by email</span><span className="f-btn sec">Get their links</span></div>
-        <p className="f-dim f-hide-sm">Send by email and we email each client to say it&apos;s waiting. Or copy the link and send it from your own app, texts or messages.</p>
+        <p className="f-dim f-hide-sm">Send by email and we email each client who has opened their personal link before. The first time, copy their link and send it from your own app, texts or messages.</p>
         <div className="f-hr" />
         <p style={{ fontWeight: 500 }}>Sent to</p>
         <div className="f-sent">
           <span>Client A <span className="f-ok">Emailed</span></span>
           <span className="f-row"><span className="f-btn sec sm">Email again</span><span className="f-btn sec sm">Copy link</span></span>
+        </div>
+        <div className="f-sent">
+          <span>Client B <span className="f-ok">Link copied</span></span>
+          <span className="f-row"><span className="f-btn sec sm">Copy link</span></span>
+          <span className="f-dim" style={{ flexBasis: "100%", fontWeight: 400 }}>First time: copy Client B&apos;s link and send it yourself. After they open it once, Send by email works too.</span>
         </div>
       </div>
     </div>

@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
-import PricingTable from "@/components/PricingTable";
+import PricingTable, { type CurrentPlan } from "@/components/PricingTable";
+import { auth } from "@/auth";
 import { RETENTION_DAYS } from "@/lib/retention";
-import { AI_ASSIST_PRICES, AI_SUMMARIES_PER_MONTH, CLOUD_BACKUP_PRICE, CLOUD_BACKUP_PRICE_YEARLY, PLANS } from "@/lib/plans";
+import { AI_ASSIST_PRICES, AI_SUMMARIES_PER_MONTH, CLOUD_BACKUP_PRICE, CLOUD_BACKUP_PRICE_YEARLY, PAID_PLANS, PLANS, type PaidPlan } from "@/lib/plans";
 import { foundingLastDay, foundingOpen } from "@/lib/founding";
 import { automaticOffer, cachedOfferForCode, codeFromCookie, isCodeShaped, OFFER_COOKIE, offerIsFor, quietly, type Offer } from "@/lib/offers";
 import { currentUser } from "@/lib/session";
@@ -78,8 +79,50 @@ function Offers({
   );
 }
 
-export default async function Pricing({ searchParams }: { searchParams: Promise<{ ended?: string; code?: string }> }) {
+/**
+ * Everything the Free plan includes and leaves out, in one place (V4). Each line comes from lib/plans.ts, lib/retention.ts
+ * or the Terms (section 10 for unused workspaces).
+ */
+function FreePlanInFull() {
+  const free = PLANS.FREE;
+  const rows: [string, string][] = [
+    ["Clients", `${free.clientSeats} clients. Clients never pay and don't need an account.`],
+    ["Videos", `${free.maxVideos} videos in total, not per month, counting videos recorded on any plan. Deleting a video doesn't give its place back. Replies and sending a video to more clients don't count.`],
+    ["Length", `Up to ${free.maxDurationMin} minutes per video, and up to ${free.maxDurationMin} minutes for your own video and voice replies.`],
+    ["Quality", `${free.maxResolution}p recording. Paid plans record in 1080p or 4K.`],
+    ["What clients see", "A short SureFrame intro before your video, once on each device. Paid plans remove it and let you add your own logo and colours."],
+    ["Video storage", `Videos are deleted from our servers ${RETENTION_DAYS} days after they're recorded. Save a video to your device to keep your own copy. Cloud backup is only on paid plans.`],
+    ["Logins", `${free.staffSeats} login, yours. Staff logins are on Studio and Agency.`],
+    ["Unused workspaces", "We may delete a Free workspace that hasn't been used for 12 months, after emailing you at least 30 days beforehand."],
+  ];
+  return (
+    <section className="mx-auto mt-12 max-w-3xl rounded-2xl border border-line bg-surface p-6" aria-labelledby="free-in-full" data-testid="free-in-full">
+      <h2 id="free-in-full" className="text-lg font-semibold text-ink">The Free plan in full</h2>
+      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-[10rem_1fr] sm:gap-x-6">
+        {rows.map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt className="font-medium text-ink">{k}</dt>
+            <dd className="-mt-2 text-muted sm:mt-0">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+export default async function Pricing({ searchParams }: { searchParams: Promise<{ ended?: string; code?: string; plan?: string; interval?: string }> }) {
   const query = await searchParams;
+  // The plan being looked at by someone signed in, so its card is marked and its button doesn't offer it again.
+  const signedIn = !!(await auth())?.user;
+  const me = signedIn ? await currentUser() : null;
+  const current: CurrentPlan | null = me
+    ? { plan: me.workspace.plan, interval: me.workspace.stripeSubscriptionId ? (me.workspace.billingInterval === "year" ? "year" : "month") : null, owner: me.role === "OWNER" }
+    : null;
+  // Back from signing in after choosing a paid plan (its "Get" link sends /pricing?plan=…&interval=… as the way back).
+  const start =
+    me?.role === "OWNER" && PAID_PLANS.includes(query.plan as PaidPlan)
+      ? { plan: query.plan as PaidPlan, interval: query.interval === "year" ? ("year" as const) : ("month" as const) }
+      : null;
   const code = codeFromCookie((await cookies()).get(OFFER_COOKIE)?.value);
   // Wrapped, so a code Stripe says has ended (null offer) differs from Stripe not answering in time (null lookup).
   const referralCode = isReferralCode(code);
@@ -89,7 +132,7 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
     code && referralCode ? quietly(referralOffer(code).then((offer) => ({ offer }))) : null,
   ]);
   // A code given to one business only shows for that business.
-  const given = lookup?.offer?.customer ? await currentUser() : null;
+  const given = lookup?.offer?.customer ? me : null;
   const mine = !lookup?.offer?.customer || (!!given && offerIsFor(lookup.offer, given.workspace.stripeCustomerId));
   const linked = mine ? (lookup?.offer ?? null) : null;
   const referral = referred?.offer ?? null;
@@ -106,13 +149,15 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
           <p className="mt-4 text-muted">Pick a plan by how many clients you work with.</p>
         </div>
         <Offers founding={foundingOpen() ? foundingLastDay() : null} ended={ended} busy={query.code === "busy"} linked={linked} auto={auto} referral={referral} />
-        <PricingTable />
+        <PricingTable current={current} signedIn={signedIn} retentionDays={RETENTION_DAYS} start={start} />
         <p className="mt-10 text-center text-sm text-dim">More than 100 clients? Add extra clients for US$1.50 a month each.</p>
         <p className="mt-2 text-center text-sm text-dim" data-testid="free-videos-note">
           Free includes {PLANS.FREE.maxVideos} videos in total, not per month, counting videos recorded on any plan. Deleting a video doesn&rsquo;t give its place
           back. Replies and sending a video to more clients don&rsquo;t count.
         </p>
         <p className="mt-2 text-center text-sm text-dim" data-testid="currency-note">All prices are in US dollars (USD), plus any sales tax, VAT or GST that applies where you are. Checkout may offer to charge you in your own currency at Stripe&rsquo;s exchange rate; otherwise your bank converts it.</p>
+
+        <FreePlanInFull />
 
         <section className="mx-auto mt-16 max-w-3xl" aria-labelledby="add-ons">
           <h2 id="add-ons" className="text-center text-2xl font-semibold tracking-tight text-ink">Optional add-ons</h2>

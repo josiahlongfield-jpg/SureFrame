@@ -4,6 +4,7 @@
 // Start the app as for billing.mjs, plus FOUNDING_ENDS=2099-12-31 and SUPPORT_EMAIL=owner@test.dev:
 //   STRIPE_SECRET_KEY=sk_test_fake STRIPE_API_BASE=http://localhost:12111 STRIPE_WEBHOOK_SECRET=whsec_test
 import { chromium } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 import { start, state, createSubscription } from "./fake-stripe.mjs";
@@ -285,7 +286,7 @@ ok("upgrade: a new-customers code is refused", res.status() === 400 && /never bi
 res = await api(third, "/api/billing/checkout", { plan: "STUDIO", code: BIGCODE });
 ok("upgrade: the switch itself refuses it too, and nothing changes", res.status() === 400 && sub3.items.data.some((i) => /solo/.test(i.price.lookup_key)) && !sub3.discounts.length);
 await third.goto(BASE + "/pricing");
-await third.click("button:has-text('Get Studio')");
+await third.click("button:has-text('Switch to Studio')");
 await third.waitForSelector("[data-testid=plan-confirm]");
 const dueBefore = (await third.textContent("[data-testid=due-today]")).replace(/\s+/g, " ");
 await third.click("[data-testid=upgrade-have-code]");
@@ -353,7 +354,9 @@ ok("a discount past its end isn't shown, and still no code box", (await visitor.
 
 // 7) The Terms cover both.
 t = await text(late, "/legal/terms");
-ok("terms explain founding prices", /Founding prices are the exception/.test(t) && /16 October 2026/.test(t));
+// The page's own "last updated" date (lib/legal.ts termsUpdated), which moved on when later changes were added.
+const termsUpdated = readFileSync(new URL("../src/lib/legal.ts", import.meta.url), "utf8").match(/termsUpdated: "([^"]+)"/)?.[1];
+ok("terms explain founding prices", /Founding prices are the exception/.test(t) && !!termsUpdated && t.includes(`Last updated ${termsUpdated}`), termsUpdated);
 ok("terms explain discounts", /Discount codes and offers work as described when you use them/.test(t) && /only be used when you start a paid subscription or move up to a bigger plan, and when moving up a code can.t bring the new plan below what your current plan costs/.test(t));
 ok("terms say a code works once, for one business only", /A discount code we give your business works once and only for your business: it can.t be passed on, sold or used by anyone else/.test(t));
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useVideoFrame } from "@/lib/videoFrame";
 import { useRouter } from "next/navigation";
 import MicLevel from "./MicLevel";
+import ConfirmDialog from "./ConfirmDialog";
 import * as store from "@/lib/recorder/store";
 import { encryptFrame, fingerprint, generateKey, wrapKey } from "@/lib/e2e/crypto";
 import { browserTimeZone } from "@/lib/schedule";
@@ -78,6 +79,8 @@ export default function Recorder({
   const [camRetry, setCamRetry] = useState(0);
   const [flash, setFlash] = useState(0);
   const [recovered, setRecovered] = useState<string[]>([]);
+  // "Discard and start over" asks first; the recording is paused meanwhile, and carries on if they keep it.
+  const [confirmDiscard, setConfirmDiscard] = useState<{ wasRecording: boolean } | null>(null);
   const [bubbleOpen, setBubbleOpen] = useState(false);
   // Recording the whole screen with the camera drawn in: no floating window, it would be recorded too.
   const [wholeScreen, setWholeScreen] = useState(false);
@@ -94,6 +97,9 @@ export default function Recorder({
       setMode("camera");
       // Phones record 720p: lighter on memory and battery, and plenty for a phone screen.
       setQuality(720);
+    } else if (isPhone()) {
+      // A phone whose browser offers screen sharing still starts on the camera: that's what people record on a phone.
+      setMode("camera");
     }
   }, []);
 
@@ -468,6 +474,7 @@ export default function Recorder({
   }
 
   async function discard() {
+    setConfirmDiscard(null);
     const l = live.current;
     if (!l) return;
     l.recorder.ondataavailable = null;
@@ -480,6 +487,17 @@ export default function Recorder({
     live.current = null;
     setElapsed(0);
     setPhase("setup");
+  }
+
+  function askDiscard() {
+    const wasRecording = phase === "recording";
+    if (wasRecording) pause();
+    setConfirmDiscard({ wasRecording });
+  }
+
+  function keepRecording() {
+    if (confirmDiscard?.wasRecording) resume();
+    setConfirmDiscard(null);
   }
 
   function cleanup() {
@@ -531,13 +549,13 @@ export default function Recorder({
           </div>
         )}
         {mode === "screen+camera" && (
-          // Same place and size as the circle drawn into the video (lib/recorder/compose.ts): 24% of the height, inset 3.5%.
+          // Same place and size as the circle drawn into the video (lib/recorder/compose.ts): 24% of the height, 18% up, inset 3.5%.
           <video
             ref={previewRef}
             autoPlay
             muted
             playsInline
-            style={{ height: "24%", bottom: "3.5%", left: "1.97%" }}
+            style={{ height: "24%", bottom: "18%", left: "1.97%" }}
             className="absolute aspect-square -scale-x-100 rounded-full object-cover ring-2 ring-white/90"
             data-testid="camera-circle"
           />
@@ -612,13 +630,19 @@ export default function Recorder({
                 </select>
               </label>
               {phase === "setup" && <MicLevel deviceId={micId} />}
-              <label className="grid gap-1">
-                <span className="font-medium text-muted">Quality</span>
-                <select className="w-full min-w-0 rounded-lg border border-line-strong bg-surface px-3 py-2" value={quality} onChange={(e) => setQuality(Number(e.target.value) as Quality)}>
-                  {allowedQualities.map((q) => <option key={q} value={q}>{q === 2160 ? "4K" : `${q}p`}</option>)}
-                </select>
-                {maxResolution < 1080 && <span className="text-xs text-dim"><a href="/pricing" className="font-medium text-accent hover:underline">Upgrade to a paid plan</a> for 1080p and 4K.</span>}
-              </label>
+              {allowedQualities.length > 1 ? (
+                <label className="grid gap-1">
+                  <span className="font-medium text-muted">Quality</span>
+                  <select className="w-full min-w-0 rounded-lg border border-line-strong bg-surface px-3 py-2" value={quality} onChange={(e) => setQuality(Number(e.target.value) as Quality)}>
+                    {allowedQualities.map((q) => <option key={q} value={q}>{q === 2160 ? "4K" : `${q}p`}</option>)}
+                  </select>
+                </label>
+              ) : (
+                // Only one choice on Free, so no dropdown: just what it records in.
+                <p className="text-xs text-dim" data-testid="quality-note">
+                  {maxResolution}p on Free. <a href="/pricing" className="font-medium text-accent hover:underline">Upgrade to a paid plan</a> for 1080p and 4K.
+                </p>
+              )}
             </div>
 
             <button onClick={start} className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary shadow-sm hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
@@ -649,8 +673,25 @@ export default function Recorder({
             {mode === "screen+camera" && !bubbleOpen && !wholeScreen && (
               <button onClick={popOutBubble} className="rounded-xl border border-line-strong px-4 py-2 text-sm hover:bg-hover">Pop out camera bubble</button>
             )}
-            <button onClick={discard} className="text-sm text-dim underline-offset-2 hover:underline">Discard and start over</button>
+            <button onClick={askDiscard} className="text-sm text-dim underline-offset-2 hover:underline">Discard and start over</button>
             <UploadBadge s={upload} />
+            {confirmDiscard && (
+              <ConfirmDialog
+                title="Discard this recording?"
+                body={
+                  <p>
+                    What you&rsquo;ve recorded so far is deleted and can&rsquo;t be brought back.
+                    {freeVideos ? " It doesn't count towards your free videos." : ""}
+                  </p>
+                }
+                confirmLabel="Discard recording"
+                cancelLabel="Keep recording"
+                danger
+                onConfirm={() => void discard()}
+                onCancel={keepRecording}
+                testId="discard-confirm"
+              />
+            )}
             <p className="text-xs text-dim">
               Limit on your plan: {maxDurationMin % 60 === 0 && maxDurationMin >= 60 ? `${maxDurationMin / 60} hour${maxDurationMin === 60 ? "" : "s"}` : `${maxDurationMin} minutes`}.
             </p>
@@ -666,6 +707,13 @@ export default function Recorder({
       </aside>
     </div>
   );
+}
+
+/** A phone (not a tablet or computer): a touch screen with no mouse, small on its shorter side. */
+function isPhone() {
+  const ua = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
+  if (ua.userAgentData?.mobile) return true;
+  return /iPhone|Android.+Mobile|Mobi/i.test(navigator.userAgent) || (matchMedia("(pointer: coarse) and (hover: none)").matches && Math.min(screen.width, screen.height) < 600);
 }
 
 function UploadBadge({ s }: { s: UploadState }) {

@@ -16,6 +16,8 @@ export default async function SiteFooter({ widget = true }: { widget?: boolean }
         <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2">
           <Link href="/pricing" className="hover:text-ink">Pricing</Link>
           <Link href="/help" className="hover:text-ink">Help</Link>
+          <Link href="/faq" className="hover:text-ink">FAQ</Link>
+          <Link href="/about" className="hover:text-ink">About</Link>
           <Link href="/legal/privacy" className="hover:text-ink">Privacy</Link>
           <Link href="/legal/terms" className="hover:text-ink">Terms</Link>
           <Link href="/legal/dpa" className="hover:text-ink" title="Data Processing Agreement">DPA</Link>

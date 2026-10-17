@@ -25,6 +25,30 @@ export default function Page() {
         <li>We don&rsquo;t sell personal information, show third-party ads or use advertising trackers. Clients of businesses on the Free plan see a short SureFrame introduction before videos.</li>
       </ul>
 
+      <h2 id="for-clients">For clients</h2>
+      <p>If a business sends you videos through {LEGAL.product}, here&rsquo;s what it and we can see.</p>
+      <ul>
+        <li>
+          <strong>The business can see</strong> your name and email address as it entered them, when you first opened your personal link, how many times you&rsquo;ve
+          opened each video it sent you, your replies (video, voice and text) and reactions, and whether you&rsquo;ve turned off its emails. Your conversation
+          is between you and the business&rsquo;s team: no other client can see it.
+        </li>
+        <li>
+          <strong>We can&rsquo;t see</strong> the videos the business sends you or the video, voice and text replies you send: they&rsquo;re end-to-end encrypted,
+          and the key is in your personal link, which never reaches our servers. We can see your name and email address, the titles of videos sent to you, when
+          you opened your link and how many times you opened each video, and the emoji reactions you send.
+        </li>
+        <li>Clients can delete their own replies, at any time. A deleted reply is removed from our servers straight away.</li>
+        <li>
+          On a free-plan business, the short SureFrame intro is shown once per device for each business; your browser remembers this. You don&rsquo;t need an
+          account and never pay.
+        </li>
+        <li>
+          The business holds your details and decides what to send you. See <a href="#clients">Clients of businesses using {LEGAL.product}</a> for more, including
+          what happens if it removes you or closes its account.
+        </li>
+      </ul>
+
       <h2>What we collect</h2>
       <ul>
         <li>
@@ -40,9 +64,9 @@ export default function Page() {
         <li>
           <strong>Encrypted content:</strong> video and reply recordings, text replies, and the text of to-dos and notes. These are encrypted on your device before
           they reach us, and the keys stay with you and your clients, so we hold only scrambled copies of them. Some details aren&rsquo;t encrypted, because we need to
-          read them to show your library and send reminders: video titles, client names and email addresses, the names shown on replies, to-do due dates, repeat and
+          read them to show your library and send reminders: video titles, client names and email addresses, the names shown on replies, emoji reactions, to-do due dates, repeat and
           reminder settings, and the reminder message a business writes. We also keep basic information about content, such as when it was created, its size and
-          length, and who it was sent to, and we record when a client first opens their personal link and how many times each video sent to them is played,
+          length, and who it was sent to, and we record when a client first opens their personal link and how many times they open each video sent to them,
           which the business can see.
         </li>
         <li>
@@ -282,8 +306,22 @@ export default function Page() {
           <strong>Sign-in security cookies:</strong> short-lived cookies our sign-in system uses to protect the sign-in process, for example against forged requests.
         </li>
         <li>
-          <strong>sf_active:</strong> records the time of your last activity. It&rsquo;s deleted when you close your browser, and together with the sign-in cookie it
-          signs you out when the browser is closed or after 8 hours without use.
+          <strong>sf_active:</strong> records the time of your last activity. Together with the sign-in cookie it signs you out when the browser is closed or after
+          8 hours without use, and it&rsquo;s deleted when you close your browser. If you tick &ldquo;Keep me signed in&rdquo;, you stay signed in on that device
+          for 30 days from when you sign in, and sf_active is kept for those 30 days instead; after that, or once you sign out, the usual rules apply again.
+        </li>
+        <li>
+          <strong>sf_keep:</strong> set only if you tick &ldquo;Keep me signed in&rdquo;. It marks that device as kept signed in and expires 30 days after that
+          sign-in. <strong>sf_keep_next</strong> carries that choice from the sign-in page through the email link, for up to a day, and is removed when the
+          sign-in finishes.
+        </li>
+        <li>
+          <strong>sf_signin_to:</strong> holds the email address a sign-in link was just sent to, for up to an hour, so the sign-in page can show it and offer to
+          send it again. It&rsquo;s only sent to our sign-in pages.
+        </li>
+        <li>
+          <strong>sf_tz:</strong> your browser&rsquo;s time zone name (for example &ldquo;Australia/Sydney&rdquo;), for up to a year, so times in the app are
+          shown in your own time zone.
         </li>
         <li>
           <strong>sf_signed_out:</strong> set for 5 minutes after we sign you out this way, so the sign-in page can explain why.
@@ -305,7 +343,8 @@ export default function Page() {
         We also use your browser&rsquo;s storage to hold your encryption keys and recordings that haven&rsquo;t finished uploading, a link back to your help chat so
         you can return to it, a team invite you&rsquo;ve opened but not yet accepted, for businesses using AI transcripts a copy of the speech model so it
         doesn&rsquo;t download again, and small settings such as a prompt you&rsquo;ve dismissed, which replies you&rsquo;ve seen, and whether you&rsquo;ve already
-        seen the SureFrame introduction before a video. We don&rsquo;t use advertising or tracking cookies.
+        seen the SureFrame introduction before a video. On a free-plan business, the short SureFrame intro is shown once per device for each business; your browser
+        remembers this. We don&rsquo;t use advertising or tracking cookies.
       </p>
 
       <h2>Your choices and rights</h2>
@@ -320,7 +359,7 @@ export default function Page() {
         <li>Clients can turn off emails from a business (reminders and new-video emails) from the link in any of them.</li>
       </ul>
 
-      <h2>Clients of businesses using {LEGAL.product}</h2>
+      <h2 id="clients">Clients of businesses using {LEGAL.product}</h2>
       <p>
         If a business invited you as a client, that business decides what to send you and holds your details, and it&rsquo;s responsible for handling them
         lawfully (in data protection terms, the business is the controller and we&rsquo;re its processor). We store them on the business&rsquo;s behalf. Contact

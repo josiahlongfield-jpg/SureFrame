@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ConfirmDialog from "./ConfirmDialog";
 
 export default function CloudBackupToggle({
   enabled,
@@ -21,11 +22,12 @@ export default function CloudBackupToggle({
   const [on, setOn] = useState(enabled);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [asking, setAsking] = useState(false);
+  const [done, setDone] = useState<string>();
 
   async function toggle() {
-    if (!on && !confirm(`Add cloud backup for US$${price} a month (US$${yearlyPrice} a year on yearly billing), plus any tax? You're charged today for the rest of this billing period, then it renews with your plan.`)) return;
-    if (on && !confirm(`Turn off cloud backup? Our encrypted copies of your videos will be deleted ${days} days from today, unless you save them to a device first. Unused time is credited to your next bill.`)) return;
     setBusy(true);
+    setDone(undefined);
     setError(undefined);
     const res = await fetch("/api/billing/backup", {
       method: "POST",
@@ -34,9 +36,15 @@ export default function CloudBackupToggle({
     });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
+    setAsking(false);
     if (data.url) return void (window.location.href = data.url);
     if (!res.ok) return setError(data.error ?? "Could not change cloud backup");
     setOn(data.cloudBackup);
+    setDone(
+      data.cloudBackup
+        ? "Cloud backup is on. Our encrypted copies of your videos are now kept until you delete them."
+        : `Cloud backup is off. Our encrypted copies of your videos will be deleted ${days} days from today, unless you save them to a device first.`,
+    );
   }
 
   return (
@@ -57,7 +65,10 @@ export default function CloudBackupToggle({
           role="switch"
           aria-checked={on}
           aria-label="Cloud backup"
-          onClick={toggle}
+          onClick={() => {
+            setError(undefined);
+            setAsking(true);
+          }}
           disabled={busy || (!on && !canEnable)}
           className={`relative h-7 w-12 shrink-0 rounded-full transition disabled:opacity-50 ${on ? "bg-primary" : "bg-line-strong"}`}
         >
@@ -65,7 +76,32 @@ export default function CloudBackupToggle({
         </button>
       </div>
       {!canEnable && !on && <p className="mt-3 text-sm text-muted">Available on paid plans.</p>}
-      {error && <p role="alert" className="mt-3 text-sm text-danger-fg">{error}</p>}
+      {error && <p role="alert" className="mt-3 rounded-xl border border-danger-line bg-danger-bg p-3 text-sm text-danger-fg">{error}</p>}
+      {done && <p role="status" className="mt-3 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="backup-done">{done}</p>}
+      {asking && (
+        <ConfirmDialog
+          title={on ? "Turn off cloud backup?" : "Add cloud backup?"}
+          body={
+            on ? (
+              <p>
+                Our encrypted copies of your videos will be deleted {days} days from today, unless you save them to a device first. Unused time is credited to your
+                next bill.
+              </p>
+            ) : (
+              <p>
+                US${price} a month (US${yearlyPrice} a year on yearly billing), plus any tax. You&apos;re charged today for the rest of this billing period, then it
+                renews with your plan.
+              </p>
+            )
+          }
+          confirmLabel={on ? "Turn off cloud backup" : "Add cloud backup"}
+          danger={on}
+          busy={busy}
+          onConfirm={toggle}
+          onCancel={() => setAsking(false)}
+          testId="backup-confirm"
+        />
+      )}
     </div>
   );
 }

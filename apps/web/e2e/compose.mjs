@@ -107,9 +107,11 @@ const grab = (at) => page.evaluate(({ at }) => { window.__at = at; return (new P
       c.height = v.videoHeight;
       const g = c.getContext("2d");
       g.drawImage(v, 0, 0);
-      const W = c.width, H = c.height, d = Math.round(Math.min(W, H) * 0.24), m = Math.round(Math.min(W, H) * 0.035);
+      // The circle sits 18% of the height up from the bottom, clear of the player's controls (lib/recorder/compose.ts).
+      // The ring is sampled on its centre line, where the video codec keeps it white.
+      const W = c.width, H = c.height, d = Math.round(Math.min(W, H) * 0.24), m = Math.round(Math.min(W, H) * 0.035), b = Math.round(H * 0.18);
       const at = (x, y) => Array.from(g.getImageData(Math.round(x), Math.round(y), 1, 1).data.slice(0, 3));
-      done({ W, H, ring: at(m + d / 2, H - m - d + 1), centre: at(m + d / 2, H - m - d / 2), url: c.toDataURL("image/png") });
+      done({ W, H, ring: at(m + d / 2, H - b - d), centre: at(m + d / 2, H - b - d / 2), below: at(m + d / 2, H - b / 2), url: c.toDataURL("image/png") });
     }, { once: true });
   };
   if (v.readyState >= 1) go(); else v.addEventListener("loadedmetadata", go, { once: true });
@@ -124,6 +126,7 @@ if (early && late) {
   fs.writeFileSync(`${shots}/compose-frame.png`, Buffer.from(early.url.split(",")[1], "base64"));
   fs.writeFileSync(`${shots}/compose-frame-end.png`, Buffer.from(late.url.split(",")[1], "base64"));
   ok("with the white ring of the camera circle in the bottom-left corner", early.ring.every((c) => c > 200), JSON.stringify(early.ring));
+  ok("raised clear of the player's controls (no circle in the bottom strip)", !early.below.every((c) => c > 200), JSON.stringify(early.below));
   ok("and no circle once the camera was unplugged", !late.ring.every((c) => c > 200), JSON.stringify(late.ring));
 }
 

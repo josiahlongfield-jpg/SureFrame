@@ -42,16 +42,16 @@ export default function Home() {
               <Link href="/pricing" className="rounded-[0.625rem] border border-line bg-solid px-4 py-3 text-sm font-medium text-on-solid hover:bg-solid-hover sm:px-[1.125rem] sm:text-[0.9375rem]">
                 See pricing
               </Link>
-              <span className="ml-1.5 text-[0.8125rem] text-muted max-sm:hidden">Free for 3 clients</span>
+              <span className="text-[0.8125rem] text-muted max-sm:basis-full sm:ml-1.5" data-testid="hero-free">Free for 3 clients</span>
             </div>
-            <ul className="mt-1 grid grid-cols-2 gap-x-2.5 gap-y-2 border-t border-line pt-3 sm:mt-3.5 sm:gap-x-[1.375rem] sm:gap-y-3.5 sm:pt-[1.375rem]">
+            <ul className="mt-1 grid gap-x-2.5 gap-y-3 border-t border-line pt-3 min-[480px]:grid-cols-2 sm:mt-3.5 sm:gap-x-[1.375rem] sm:gap-y-3.5 sm:pt-[1.375rem]" data-testid="hero-points">
               {points(RETENTION_DAYS).map((p) => (
-                <li key={p.title} className="grid grid-cols-[1.375rem_1fr] items-center gap-x-[0.4375rem] sm:grid-cols-[2.125rem_1fr] sm:items-start sm:gap-x-3 sm:gap-y-0.5">
-                  <span className={`grid h-[1.375rem] w-[1.375rem] place-items-center rounded-md sm:row-span-2 sm:h-[2.125rem] sm:w-[2.125rem] sm:rounded-[0.5625rem] [&_svg]:h-[0.8125rem] [&_svg]:w-[0.8125rem] sm:[&_svg]:h-[1.125rem] sm:[&_svg]:w-[1.125rem] bg-primary-soft text-highlight`}>
+                <li key={p.title} className="grid grid-cols-[1.375rem_1fr] items-start gap-x-[0.4375rem] gap-y-0.5 sm:grid-cols-[2.125rem_1fr] sm:gap-x-3">
+                  <span className={`row-span-2 grid h-[1.375rem] w-[1.375rem] place-items-center rounded-md sm:h-[2.125rem] sm:w-[2.125rem] sm:rounded-[0.5625rem] [&_svg]:h-[0.8125rem] [&_svg]:w-[0.8125rem] sm:[&_svg]:h-[1.125rem] sm:[&_svg]:w-[1.125rem] bg-primary-soft text-highlight`}>
                     {Icon[p.icon]}
                   </span>
                   <b className="text-[0.78125rem] font-medium leading-tight sm:text-[0.90625rem] sm:font-semibold sm:tracking-[-0.01em]">{p.title}</b>
-                  <span className="text-[0.78125rem] leading-snug text-muted max-sm:hidden">{p.line}</span>
+                  <span className="text-[0.78125rem] leading-snug text-muted">{p.line}</span>
                 </li>
               ))}
             </ul>
@@ -116,6 +116,10 @@ export default function Home() {
               Studio includes 3 staff logins and Agency includes 10, the owner&rsquo;s own login included. Assign clients to staff, choose what each person can see and do, see how the team is keeping up with clients, and keep billing with the owner. Clients never need an account.
             </p>
             <p className="mt-6 font-medium">Free for 3 clients. Paid plans from US$15 a month.</p>
+            <p className="mt-2 text-sm text-muted" data-testid="home-storage">
+              Videos are kept on our servers for {RETENTION_DAYS} days after they&rsquo;re recorded, unless you add Cloud backup on a paid plan. Save any video to
+              your device to keep your own copy.
+            </p>
             <Link href="/pricing" className="mt-6 inline-block rounded-[0.625rem] bg-primary px-6 py-3 font-medium text-on-primary hover:bg-primary-hover">
               Compare plans
             </Link>

@@ -7,7 +7,7 @@ export const metadata = { title: "Data Processing Agreement" };
 export default function Page() {
   const mail = <a href={`mailto:${LEGAL.email}`}>{LEGAL.email}</a>;
   return (
-    <LegalPage title="Data Processing Agreement" version={LEGAL.dpaVersion}>
+    <LegalPage title="Data Processing Agreement" version={LEGAL.dpaVersion} updated={LEGAL.dpaUpdated}>
       <p>
         {operatorLine()} (&ldquo;we&rdquo;, &ldquo;us&rdquo;). This Data Processing Agreement (&ldquo;DPA&rdquo;) forms part of the {LEGAL.product}{" "}
         <Link href="/legal/terms">Terms of Service</Link> (the &ldquo;Terms&rdquo;) between us and the business that uses {LEGAL.product} (&ldquo;you&rdquo;). It
@@ -299,7 +299,8 @@ export default function Page() {
         </li>
         <li>
           <strong>Sign-in:</strong> passwordless sign-in links that work once and expire after 24 hours, or Google (verified email addresses only). Sessions usually
-          end when the browser closes, and after 8 hours without use, and we can sign a login out on every device. Repeated attempts are rate-limited, and
+          end when the browser closes, and after 8 hours without use; someone who ticks &ldquo;Keep me signed in&rdquo; stays signed in on that device for 30
+          days from when they sign in. We can sign a login out on every device. Repeated attempts are rate-limited, and
           scheduled jobs need a secret to run.
         </li>
         <li>

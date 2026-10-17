@@ -60,6 +60,8 @@ async function signIn(email, next = "/library", lands = next.split("?")[0]) {
   await page.fill('input[name="email"]', email);
   await page.click("text=Continue");
   await page.waitForURL((u) => u.pathname === lands, { timeout: 60000 });
+  // The page streams in behind app/loading.tsx; it makes a new account's workspace, so wait until it has rendered.
+  await page.waitForSelector("[role=status][aria-label=Loading]", { state: "detached", timeout: 30000 }).catch(() => {});
   return page;
 }
 async function closeAccount(page, email) {

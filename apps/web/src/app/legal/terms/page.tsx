@@ -16,7 +16,7 @@ export default function Page() {
       <p>
         To use {LEGAL.product} with an account, you must agree to these terms and our <Link href="/legal/privacy">privacy policy</Link> by ticking the box we show
         you, when you sign up and again whenever we update them (see section 18). We keep a record of each time you agree: when, which versions, and the email
-        address, IP address and browser you used. Until you agree, you can still sign out, download your data, manage or cancel your subscription and delete your
+        address, IP address and browser you used. Until you agree, you can still sign out, download your data, <Link href="/settings/billing">manage or cancel your subscription</Link> and delete your
         account, and a recording that was already uploading still finishes, but you can&rsquo;t otherwise use {LEGAL.product}.
       </p>
 
@@ -31,8 +31,9 @@ export default function Page() {
         <li>Keep your sign-in details safe. You&rsquo;re responsible for what happens in your account and in the accounts of staff you invite.</li>
         <li>Tell us straight away at {mail} if you think someone has accessed your account without permission.</li>
         <li>
-          For your security, you&rsquo;re usually signed out when you close your browser, and after 8 hours without using {LEGAL.product}. Some browsers that
-          restore your tabs can keep you signed in, so sign out yourself on shared devices.
+          For your security, you&rsquo;re usually signed out when you close your browser, and after 8 hours without using {LEGAL.product}. If you tick
+          &ldquo;Keep me signed in&rdquo;, you stay signed in on that device for 30 days from when you sign in. Some browsers that restore your tabs can keep you
+          signed in too, so sign out yourself on shared devices, and don&rsquo;t tick &ldquo;Keep me signed in&rdquo; on them.
         </li>
         <li>
           The workspace owner, and any admins they appoint, decide who joins the team, which clients each staff member looks after and what each staff member can
@@ -101,7 +102,7 @@ export default function Page() {
           period, then renew with your plan. Removing one credits the unused time against your next bill.
         </li>
         <li>
-          You can cancel any time in Settings &gt; Billing. Your plan stays active until the end of the period you&rsquo;ve paid for, then your workspace moves to the
+          You can cancel any time in <Link href="/settings/billing">Settings &gt; Billing</Link>. Your plan stays active until the end of the period you&rsquo;ve paid for, then your workspace moves to the
           Free plan.
         </li>
         <li>

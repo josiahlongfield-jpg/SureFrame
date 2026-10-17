@@ -30,8 +30,12 @@ async function signIn(email, next, opts = {}) {
   await page.fill('input[name="email"]', email);
   await page.click("text=Continue");
   await page.waitForURL((u) => u.pathname === next, { timeout: 60000 });
+  // The page streams in behind app/loading.tsx; it makes a new account's workspace, so wait until it has rendered.
+  await page.waitForSelector("[role=status][aria-label=Loading]", { state: "detached", timeout: 30000 }).catch(() => {});
   return page;
 }
+// Pages stream in behind app/loading.tsx, so a check right after goto waits for the element to show (up to 15s).
+const seen = (page, sel) => page.waitForSelector(sel, { state: "visible", timeout: 15000 }).then(() => true, () => false);
 const counter = async (ws) => (await prisma.workspace.findUnique({ where: { id: ws } })).videosRecorded;
 const setCounter = (ws, n) => prisma.workspace.update({ where: { id: ws }, data: { videosRecorded: n } });
 
@@ -187,25 +191,25 @@ await b.waitForSelector('[role="alert"] >> text=25 videos in total', { timeout: 
 ok("the recorder's refusal links to the plans", await b.isVisible('[role="alert"] a[href="/pricing"]'));
 await b.screenshot({ path: `${shots}/free-limit-recorder.png` });
 await b.goto(BASE + "/record");
-ok("record page shows the upgrade card when used up", await b.isVisible("[data-testid=free-limit-reached] >> text=You've used all 25 free videos"));
+ok("record page shows the upgrade card when used up", await seen(b, "[data-testid=free-limit-reached] >> text=You've used all 25 free videos"));
 ok("instead of the recorder", !(await b.isVisible("text=Start recording")));
 ok("with a link to the plans", await b.isVisible("[data-testid=free-limit-reached] a[href='/pricing']"));
 await b.screenshot({ path: `${shots}/free-limit-card.png` });
 await b.goto(BASE + "/library");
-ok("library shows 25 of 25 free videos used", await b.isVisible("text=25 of 25 free videos used"));
+ok("library shows 25 of 25 free videos used", await seen(b, "text=25 of 25 free videos used"));
 ok("library says they're all used", await b.isVisible("[data-testid=free-videos-note] >> text=You've used all 25 free videos"));
 await setCounter(wsB, 22);
 await b.reload();
-ok("library nudges when 5 or fewer are left", await b.isVisible("[data-testid=free-videos-note] >> text=3 free videos left"));
+ok("library nudges when 5 or fewer are left", await seen(b, "[data-testid=free-videos-note] >> text=3 free videos left"));
 await b.goto(BASE + "/settings/billing");
-ok("billing shows the free videos used", await b.isVisible("[data-testid=free-videos-used] >> text=22 of 25 free videos used"));
+ok("billing shows the free videos used", await seen(b, "[data-testid=free-videos-used] >> text=22 of 25 free videos used"));
 ok("billing lists 25 videos in total", await b.isVisible("text=25 videos in total"));
 
 // An unfinished upload at the limit: the card explains it.
 await setCounter(wsB, 24);
 await prisma.video.create({ data: { id: `fl${Date.now().toString(36)}`, title: "Stuck", mimeType: "video/webm", storageKey: `videos/${wsB}/stuck/source.webm`, ownerId: (await prisma.user.findUnique({ where: { email: emailB } })).id, workspaceId: wsB, encrypted: true } });
 await b.goto(BASE + "/record");
-ok("the card explains a recording still uploading", await b.isVisible("[data-testid=free-limit-reached] >> text=hasn't finished uploading"));
+ok("the card explains a recording still uploading", await seen(b, "[data-testid=free-limit-reached] >> text=hasn't finished uploading"));
 
 // ---- Copy (D4/D5) -------------------------------------------------------------------------------
 const visitor = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
@@ -225,9 +229,10 @@ ok("pricing: footnote says deleting doesn't give a place back", pricing.includes
 for (const width of [320, 360, 375]) {
   const phone = await (await browser.newContext({ viewport: { width, height: 740 } })).newPage();
   await phone.goto(BASE + "/");
+  await seen(phone, "h1");
   const wide = await phone.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   ok(`home: no sideways scroll at ${width}px`, !wide);
-  ok(`home: headline and tabs visible at ${width}px`, (await phone.isVisible("h1")) && (await phone.isVisible("[role=tablist]")));
+  ok(`home: headline and tabs visible at ${width}px`, (await seen(phone, "h1")) && (await phone.isVisible("[role=tablist]")));
   if (width === 320) await phone.screenshot({ path: `${shots}/free-limit-home-320.png` });
   await phone.context().close();
 }

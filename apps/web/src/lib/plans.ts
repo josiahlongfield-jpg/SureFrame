@@ -17,7 +17,7 @@ export type PlanLimits = {
   clientSeats: number;
   /** Staff who can sign in to the workspace, the owner included. */
   staffSeats: number;
-  /** Clients see a short SureFrame intro before each video. Paid plans remove it. */
+  /** Clients see a short SureFrame intro, once on each device for each business. Paid plans remove it. */
   showsPromo: boolean;
   features: string[];
 };
@@ -72,7 +72,7 @@ export const PLANS: Record<Plan, PlanLimits> = {
     clientSeats: 3,
     staffSeats: 1,
     showsPromo: true,
-    features: ["3 clients included", "25 videos in total", "Up to 5 minutes per video", "720p recording", "Video, voice and text replies", "End-to-end encrypted", "Clients see a short SureFrame intro before each video"],
+    features: ["3 clients included", "25 videos in total", "Up to 5 minutes per video", "720p recording", "Video, voice and text replies", "End-to-end encrypted", "Clients see a short SureFrame intro, once on each device"],
   },
   SOLO: {
     name: "Solo",
@@ -111,6 +111,16 @@ export const PLANS: Record<Plan, PlanLimits> = {
     features: ["100 clients included", "10 staff logins (yours included)", "Assign clients to staff", "Choose what each staff member can see and do", "Team overview: replies waiting, videos sent, staff reminders", "Extra staff US$8/month each", "Everything in Solo"],
   },
 };
+
+/**
+ * The plan cards' "Video storage" line. Without cloud backup a video's encrypted copy leaves our servers
+ * `days` after it's recorded (lib/retention.ts); cloud backup is a paid-plan add-on.
+ */
+export function storageLine(plan: Plan, days: number) {
+  return plan === "FREE"
+    ? `Videos are kept on our servers for ${days} days after they're recorded, then deleted. Cloud backup isn't available on Free.`
+    : `Videos are kept on our servers for ${days} days after they're recorded, unless Cloud backup is on (US$${CLOUD_BACKUP_PRICE} a month).`;
+}
 
 /** Longest video or voice reply a client can send. */
 export const MAX_REPLY_MINUTES = 15;
