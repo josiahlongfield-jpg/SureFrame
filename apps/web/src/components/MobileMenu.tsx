@@ -4,8 +4,14 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import NavLinks from "./NavLinks";
 
-/** The app menu on phones and small screens: one Menu button that opens every link in a tidy list. */
-export default function MobileMenu({ links, plan, email, signOut }: { links: readonly (readonly [string, string])[]; plan: string; email: string; signOut: ReactNode }) {
+type Links = readonly (readonly [string, string])[];
+
+/**
+ * The app menu on phones and small screens: one Menu button that opens every
+ * link in a tidy list, with the settings pages in their own section. It drops
+ * down from the bar itself, over any banners under it.
+ */
+export default function MobileMenu({ links, settings, plan, email, signOut }: { links: Links; settings: Links; plan: string; email: string; signOut: ReactNode }) {
   const [open, setOpen] = useState(false);
   const path = usePathname();
   const box = useRef<HTMLDivElement>(null);
@@ -25,7 +31,7 @@ export default function MobileMenu({ links, plan, email, signOut }: { links: rea
   }, [open]);
 
   return (
-    <div ref={box} className="xl:hidden">
+    <div ref={box} className="lg:hidden">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -45,10 +51,12 @@ export default function MobileMenu({ links, plan, email, signOut }: { links: rea
         <span className="max-[24rem]:sr-only">Menu</span>
       </button>
       {open && (
-        <div id="app-menu" className="absolute inset-x-0 top-full z-40 border-b border-line bg-surface shadow-lg" data-testid="app-menu">
+        <div id="app-menu" className="absolute inset-x-0 top-full z-40 max-h-[calc(100dvh-4rem)] overflow-y-auto border-b border-line bg-surface shadow-lg" data-testid="app-menu">
           {/* Any link closes the menu, the current page's too (that one doesn't change the path). */}
           <nav onClick={(e) => (e.target as HTMLElement).closest("a") && setOpen(false)} className="mx-auto flex max-w-6xl flex-col px-2 py-2 text-base sm:px-4">
             <NavLinks links={links} className="rounded-lg px-3 py-2.5 hover:bg-hover" />
+            <p className="mt-2 border-t border-line px-3 pb-1 pt-3 text-xs font-medium uppercase tracking-wider text-dim" data-testid="menu-settings">Settings</p>
+            <NavLinks links={settings} className="rounded-lg py-2.5 pl-6 pr-3 hover:bg-hover" />
           </nav>
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 border-t border-line px-5 py-3 text-sm sm:px-7">
             <span className="min-w-0 truncate text-dim">

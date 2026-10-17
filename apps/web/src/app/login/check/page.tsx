@@ -1,20 +1,42 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import Logo from "@/components/Logo";
+import { safeNext } from "@/lib/secrets";
+import { emailLink } from "../actions";
+import { errorText, SENT_TO_COOKIE } from "../errors";
+import SendAgain from "./SendAgain";
 
 export const metadata: Metadata = { title: "Check your email" };
 
-export default function CheckEmail() {
+/** After the sign-in link is sent: which address it went to, and a way to send it again after a short wait. */
+export default async function CheckEmail({ searchParams }: { searchParams: Promise<{ next?: string; again?: string; error?: string; signup?: string }> }) {
+  const { next, again, error, signup } = await searchParams;
+  const redirectTo = safeNext(next);
+  const email = (await cookies()).get(SENT_TO_COOKIE)?.value;
+  const startOver = `/login?next=${encodeURIComponent(redirectTo)}${signup === "1" ? "&signup=1" : ""}`;
   return (
     <main data-theme="navy" className="fit-screen navy-glow text-ink px-4 py-4 short:py-2">
       <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8 short:p-4">
         <Logo tone="dark" />
         <h1 className="mt-6 short:mt-3 text-xl font-semibold text-ink">Check your email</h1>
-        <p className="mt-3 text-sm text-muted">
-          We sent you a sign-in link. Open it on this device to continue. It works once and expires in 24 hours.
+        <p className="mt-3 text-sm text-muted" data-testid="sent-to">
+          {again ? "We sent another sign-in link" : "We sent a sign-in link"}
+          {email ? <> to <span className="break-all font-semibold text-ink">{email}</span></> : null}. Open it on this device to continue. It works once and expires in 24 hours.
         </p>
+        {error && <p role="alert" className="mt-3 text-sm text-danger-fg">{errorText(error)}</p>}
+        <p className="mt-4 text-sm text-dim">Nothing there? Check your spam or junk folder.</p>
+        {email && (
+          <form action={emailLink} className="mt-3">
+            <input type="hidden" name="email" value={email} />
+            <input type="hidden" name="next" value={redirectTo} />
+            <input type="hidden" name="again" value="1" />
+            {signup === "1" && <input type="hidden" name="signup" value="1" />}
+            <SendAgain />
+          </form>
+        )}
         <p className="mt-4 text-sm text-dim">
-          Nothing there? Check your spam folder, or <Link href="/login" className="font-medium text-accent underline">try again</Link>.
+          Wrong address? <Link href={startOver} className="font-medium text-accent underline">Use a different email</Link>
         </p>
       </div>
     </main>

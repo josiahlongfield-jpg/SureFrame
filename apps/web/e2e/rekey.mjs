@@ -130,8 +130,11 @@ await signIn(laptop, `rk-owner${stamp}@example.com`, "/library");
 const before = await prisma.workspace.findUnique({ where: { id: workspaceId } });
 const outboxBefore = new Set(readdirSync(".data/outbox"));
 await owner.goto(BASE + "/settings/team");
-owner.once("dialog", (d) => d.accept());
+// An in-page confirmation listing the clients whose links change (not the browser's own box).
 await owner.click("[data-testid=remove-member]");
+await owner.waitForSelector("[data-testid=team-dialog]");
+ok("removing asks first, in the page", await owner.isVisible("[data-testid=team-dialog] >> text=every client gets a new personal link"));
+await owner.click("[data-testid=dialog-confirm]");
 await owner.waitForSelector("[data-testid=key-reset]", { timeout: 20000 });
 await owner.screenshot({ path: `${shots}/key-reset.png`, fullPage: true });
 const after = await prisma.workspace.findUnique({ where: { id: workspaceId } });

@@ -17,7 +17,7 @@ export async function savePerm(userId: string, key: keyof Perms, value: boolean)
 }
 
 /** The permission checkboxes for one member, with a note of what they see. */
-export function PermChecks({ name, email, perms, self, editable, onChange }: { name: string; email: string; perms: Perms; self: boolean; editable: boolean; onChange: (key: keyof Perms, value: boolean) => void }) {
+export function PermChecks({ name, email, perms, self, editable, onChange }: { name: string; email: string; perms: Perms; self: boolean; editable: boolean; onChange?: (key: keyof Perms, value: boolean) => void }) {
   return (
     <fieldset className="w-full rounded-xl bg-canvas px-4 py-3" data-testid={`perms-${email}`}>
       <legend className="sr-only">What {name} can do</legend>
@@ -27,7 +27,7 @@ export function PermChecks({ name, email, perms, self, editable, onChange }: { n
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         {PERMS.map((p) => (
           <label key={p.key} className="flex items-start gap-2 text-sm">
-            <input type="checkbox" className="mt-0.5" checked={perms[p.key]} disabled={!editable} onChange={(e) => onChange(p.key, e.target.checked)} aria-label={`${p.label} for ${name}`} />
+            <input type="checkbox" className="mt-0.5" checked={perms[p.key]} disabled={!editable} onChange={(e) => onChange?.(p.key, e.target.checked)} aria-label={`${p.label} for ${name}`} />
             <span>
               <span className="font-medium text-ink">{p.label}</span>
               <span className="block text-xs text-dim">{p.hint}</span>

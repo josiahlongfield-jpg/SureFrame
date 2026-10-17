@@ -284,8 +284,9 @@ ok("a general to-do reminder still goes to the whole team", generalReminders.len
 const ownerUser = await prisma.user.findUnique({ where: { email: `sa-owner${stamp}@example.com` } });
 const cell = async (page, row, col) => (await page.textContent(`[data-testid=stats-${row}] [data-col=${col}]`))?.trim();
 await amy.goto(BASE + "/team");
-ok("staff can't open the Team overview", !!(await amy.waitForSelector("text=Page not found", { timeout: 10000 }).catch(() => null)) && !(await amy.isVisible("[data-testid=team-stats]")));
-ok("staff have no Overview link", !(await amy.isVisible("nav >> a[href='/team']")));
+// Staff get their own Team page (who's on the team, what they can do), never the overview's numbers.
+ok("staff see the staff Team page, not the Team overview", !!(await amy.waitForSelector("[data-testid=staff-team]", { timeout: 10000 }).catch(() => null)) && !(await amy.isVisible("[data-testid=team-stats]")));
+ok("staff have no Billing or Branding links", (await amy.locator("a[href='/settings/billing'], a[href='/settings/branding']").count()) === 0);
 ok("staff can't change team email preferences", (await status(amy.request.patch(BASE + "/api/team/prefs", { data: { replyNotify: "ALL" } }))) === 403);
 ok("staff can't send staff reminders", (await status(amy.request.post(BASE + "/api/team/notices", { data: { to: "all", message: "hi" } }))) === 403);
 ok("staff can't bulk-assign clients", (await status(amy.request.post(BASE + "/api/clients/assign", { data: { clientIds: [ben.id], assignedToId: amyUser.id } }))) === 403);
@@ -348,8 +349,8 @@ await replyAs(anaClient, await record(amy, "Amy 5", ana.id));
 ok("all staff: the owner hears about Amy's client too", !!(await waitFor(() => mailsTo(mark, ownerUser.email, "Ana replied").length)) && mailsTo(mark, amyUser.email, "Ana replied").length === 1);
 await prefs({ replyNotify: "MINE" });
 
-// "Tell me when they send a video", set on the page.
-await owner.goto(BASE + "/team");
+// "Tell me when they send a video", set with the owner's own email settings (Settings > Account).
+await owner.goto(BASE + "/settings/account#emails");
 await owner.check('input[name="sentNotify"] >> nth=1'); // Only selected staff
 await owner.check(`input[aria-label="Tell me when sa-bob${stamp} sends a video"]`);
 await waitFor(async () => (await prisma.membership.findFirst({ where: { userId: ownerUser.id, workspaceId } })).sentNotifyStaff.includes(bobUser.id));

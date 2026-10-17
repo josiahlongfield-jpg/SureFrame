@@ -34,3 +34,20 @@ export async function staffUsage(
   ]);
   return { members, pending, used: members + pending, limit: staffSeatLimit(workspace) };
 }
+
+/** A business still named after its owner's email, as new workspaces start ("sam's workspace"). */
+export const isPlaceholderName = (name: string) => /'s workspace$/i.test(name.trim());
+
+/**
+ * Teams this person joined from an invite and is no longer on: an owner or
+ * admin removed them (the invite stays accepted; the membership goes). Told
+ * plainly, rather than finding themselves in a new empty workspace.
+ */
+export async function formerTeams(userId: string) {
+  const accepted = await db.invite.findMany({
+    where: { acceptedById: userId, workspace: { members: { none: { userId } }, deleteAt: null, closedAt: null } },
+    select: { workspaceId: true, workspace: { select: { name: true } } },
+    orderBy: { acceptedAt: "desc" },
+  });
+  return [...new Map(accepted.map((i) => [i.workspaceId, { id: i.workspaceId, name: i.workspace.name }])).values()];
+}

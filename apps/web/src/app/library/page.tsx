@@ -6,6 +6,8 @@ import StorageStatus from "@/components/StorageStatus";
 import LibraryThumb from "@/components/LibraryThumb";
 import DayFolder from "@/components/DayFolder";
 import { LibrarySearch, ReplyBadges, type Conv } from "@/components/LibraryTools";
+import FirstSteps from "@/components/FirstSteps";
+import { firstStepsFor } from "@/lib/firstSteps";
 import { db } from "@/lib/db";
 import { PLANS } from "@/lib/plans";
 import { followTeamLink, requirePageUser } from "@/lib/session";
@@ -82,8 +84,10 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   const fromClients = new Map(clientReplies.map((r) => [r.videoId, r._count._all]));
   const convsOf = (v: { id: string; copies: { id: string }[] }): Conv[] =>
     [v.id, ...v.copies.map((c) => c.id)].map((id) => ({ id, total: totals.get(id) ?? 0, fromClient: fromClients.get(id) ?? 0 }));
+  // A new owner's first steps (components/FirstSteps.tsx) include the clients step; staff get "Start here" below.
+  const steps = await firstStepsFor(me);
   // A new business starts on its clients: once they're in, sending a video is picking them from a list.
-  const startHere = clients.length === 0 && videos.length === 0 && !soon && !searching && effectivePerms(access).addClients;
+  const startHere = clients.length === 0 && videos.length === 0 && !soon && !searching && effectivePerms(access).addClients && !steps;
   // Free: videos in total for the life of the workspace, deleted ones included.
   const freeLeft = allowance && plan.maxVideos !== null ? Math.max(0, plan.maxVideos - allowance.used) : null;
   const withParams = (p: Record<string, string | undefined>) => {
@@ -254,6 +258,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             )}
           </div>
         </div>
+        {steps && !soon && <FirstSteps steps={steps} workspaceId={workspace.id} fingerprint={workspace.keyFingerprint} business={workspace.name} />}
         {(videos.length > 0 || searching) && !startHere && (
           <LibrarySearch key={`${q}|${clientId}`} q={q} client={clientId} clients={clients} keep={{ show, filter }} />
         )}
@@ -301,7 +306,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
               <Link href="/record" className="text-sm text-dim hover:text-ink">Record first instead</Link>
             </div>
           </div>
-        ) : videos.length === 0 ? (
+        ) : videos.length === 0 && !steps ? (
           <div className="rounded-2xl border border-dashed border-line-strong p-16 text-center">
             <h2 className="font-semibold text-ink">No videos yet</h2>
             <p className="mt-1 text-sm text-dim">Record your first video and it will show up here.</p>

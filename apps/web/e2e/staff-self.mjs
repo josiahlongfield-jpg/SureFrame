@@ -255,8 +255,10 @@ ok("owner sees Cal's unanswered reply under Amy", (await cellOf(amyUser.id, "una
 ok("owner sees Amy's video in her numbers", (await cellOf(amyUser.id, "sent")) === "1");
 const own = await owner.textContent(`[data-testid="staff-${amyUser.email}"] [data-testid=own-settings]`);
 ok("owner sees Amy's own settings, reply emails off", own.includes("reply emails off") && own.includes("their own") && own.includes(`amy-desk${stamp}@summit.test`), own);
-ok("and is told Amy turned reply emails off", (await owner.textContent("[data-testid=quiet-staff]")).includes(amyName));
 await owner.screenshot({ path: `${shots}/staff-self-overview.png`, fullPage: true });
+// The owner's own team emails are with their settings (Settings > Account), and say who turned theirs off.
+await owner.goto(BASE + "/settings/account#emails");
+ok("and is told Amy turned reply emails off", (await owner.textContent("[data-testid=quiet-staff]")).includes(amyName));
 ok("owner opens Cal's page and to-dos", (await owner.request.get(`${BASE}/api/items?clientId=${calId}`)).ok());
 
 // ---- Turning reply emails back on; back to the business's defaults ----

@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { exportKey, fingerprint as keyFingerprint, generateKey, importKey } from "@/lib/e2e/crypto";
+import { fingerprint as keyFingerprint, generateKey, importKey } from "@/lib/e2e/crypto";
 import { followRotations, loadKey, saveKey, teamKeyName } from "@/lib/e2e/keystore";
+
+/** Sent when this device has just made the team's key (the first device of a new business); components/RecoveryKey.tsx shows it. */
+export const KEY_CREATED = "sureframe-team-key-created";
 
 type State =
   | { kind: "loading" }
-  | { kind: "ready"; key: CryptoKey; recoveryKey?: string }
+  | { kind: "ready"; key: CryptoKey }
   | { kind: "recover"; error?: string };
 
 /**
@@ -15,7 +18,7 @@ type State =
  * Otherwise two keys race, one loses with a 409, and a brand-new account is
  * asked for a recovery key it was never shown.
  */
-const creating = new Map<string, Promise<{ key: CryptoKey; recoveryKey: string } | null>>();
+const creating = new Map<string, Promise<{ key: CryptoKey } | null>>();
 function createTeamKey(workspaceId: string) {
   let pending = creating.get(workspaceId);
   if (!pending) {
@@ -28,7 +31,9 @@ function createTeamKey(workspaceId: string) {
       });
       if (!res.ok) return null;
       await saveKey(teamKeyName(workspaceId), key);
-      return { key, recoveryKey: await exportKey(key) };
+      // The header shows the new recovery key until it's saved (components/RecoveryKey.tsx).
+      window.dispatchEvent(new CustomEvent(KEY_CREATED, { detail: workspaceId }));
+      return { key };
     })();
     creating.set(workspaceId, pending);
     pending.then((r) => r || creating.delete(workspaceId));
@@ -53,7 +58,8 @@ async function catchUp(workspaceId: string, key: CryptoKey) {
 /**
  * Makes sure this device holds the team's end-to-end key before rendering
  * children that record, send or play videos. The first device creates the
- * key and shows a recovery key once; other devices enter that recovery key.
+ * key (the header then shows its recovery key until it's saved); other
+ * devices enter that recovery key.
  */
 export default function TeamKeyGate({
   workspaceId,
@@ -145,38 +151,5 @@ export default function TeamKeyGate({
     );
   }
 
-  return (
-    <>
-      {state.recoveryKey && <RecoveryKeyNotice value={state.recoveryKey} onDone={() => setState({ kind: "ready", key: state.key })} />}
-      {children(state.key)}
-    </>
-  );
-}
-
-function RecoveryKeyNotice({ value, onDone }: { value: string; onDone: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const grouped = value.match(/.{1,4}/g)?.join(" ") ?? value;
-  return (
-    <div role="dialog" aria-label="Save your recovery key" className="mb-6 rounded-2xl border border-warn-line bg-warn-bg p-5">
-      <h2 className="font-semibold text-warn-fg">Save your recovery key</h2>
-      <p className="mt-1 text-sm text-warn-fg">
-        Your videos are end-to-end encrypted on this device. You&apos;ll need this key to open them on another computer, phone or browser. We can&apos;t recover it for you.
-      </p>
-      <p className="mt-3 break-all rounded-lg bg-surface px-3 py-2 font-mono text-sm text-ink" data-recovery-key={value}>
-        {grouped}
-      </p>
-      <div className="mt-3 flex gap-2">
-        <button
-          onClick={async () => {
-            await navigator.clipboard.writeText(value);
-            setCopied(true);
-          }}
-          className="rounded-lg border border-warn-line bg-surface px-3 py-1.5 text-sm font-medium text-warn-fg"
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
-        <button onClick={onDone} className="rounded-lg bg-amber-900 px-3 py-1.5 text-sm font-medium text-white">I&apos;ve saved it</button>
-      </div>
-    </div>
-  );
+  return <>{children(state.key)}</>;
 }

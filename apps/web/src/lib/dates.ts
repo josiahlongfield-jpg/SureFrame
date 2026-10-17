@@ -1,12 +1,39 @@
+import { cache } from "react";
 import { isTimeZone } from "@/lib/schedule";
 
 /**
- * Dates as the business reads them, in the workspace's time zone. Pages and
- * emails are rendered on the server, which runs in UTC; without this an
- * Australian morning shows as the day before.
+ * The viewer's own time zone, from their browser (components/TimeZoneSync.tsx
+ * keeps this cookie up to date). Signed-in pages show times in it, on the
+ * server and in the browser alike, so a phone and a computer agree and the
+ * page the server sent matches what the browser draws.
+ */
+export const TZ_COOKIE = "sf_tz";
+
+/** This request's viewer zone on the server. Outside a page render (emails, crons) it's always empty. */
+const viewer = cache(() => ({ zone: null as string | null }));
+
+/** Set once per request from the cookie (lib/session.ts currentUser). */
+export function setViewerZone(zone: string | null | undefined) {
+  viewer().zone = zone && isTimeZone(zone) ? zone : null;
+}
+
+function viewerZone(): string | null {
+  if (typeof document !== "undefined") {
+    const raw = document.cookie.split("; ").find((c) => c.startsWith(`${TZ_COOKIE}=`))?.slice(TZ_COOKIE.length + 1);
+    const zone = raw ? decodeURIComponent(raw) : null;
+    return zone && isTimeZone(zone) ? zone : null;
+  }
+  return viewer().zone;
+}
+
+/**
+ * Dates as the viewer reads them: in their own time zone when we know it
+ * (signed-in pages), else the workspace's. Pages and emails are rendered on
+ * the server, which runs in UTC; without this an Australian morning shows as
+ * the day before.
  */
 export function zoned(timeZone: string | null | undefined) {
-  const zone = timeZone && isTimeZone(timeZone) ? timeZone : "UTC";
+  const zone = viewerZone() ?? (timeZone && isTimeZone(timeZone) ? timeZone : "UTC");
   const f = (opts: Intl.DateTimeFormatOptions) => {
     const fmt = new Intl.DateTimeFormat("en-US", { ...opts, timeZone: zone });
     return (d: Date) => fmt.format(d);

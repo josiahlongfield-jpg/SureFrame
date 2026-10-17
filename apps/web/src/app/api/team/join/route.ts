@@ -2,12 +2,13 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { ACCOUNT_CLOSED_BY_SUPPORT, ACCOUNT_SUSPENDED, handle, HttpError, termsRequired } from "@/lib/session";
-import { hasAgreed } from "@/lib/terms";
+import { hasAgreed, recordAgreement } from "@/lib/terms";
 import { limitByIp } from "@/lib/rateLimit";
 import { EMAIL_BLOCKED, isEmailBlocked } from "@/lib/blockedEmail";
 import { ACCOUNT_CLOSED_JOIN, hashToken, staffUsage, TEAM_CLOSED_JOIN, TEAM_UNAVAILABLE_JOIN } from "@/lib/team";
 
-const Body = z.object({ token: z.string().min(20).max(100) });
+/** `agree`: ticked on the invite page, so agreeing to the terms and joining are one step. */
+const Body = z.object({ token: z.string().min(20).max(100), agree: z.boolean().optional() });
 
 /**
  * Accept an invite. Deliberately doesn't use currentUser(), which would
@@ -19,7 +20,7 @@ export const POST = handle(async (req: Request) => {
   await limitByIp("join", 30, 3600);
   const userId = (await auth())?.user?.id;
   // A browser still holding a sign-in for an account deleted elsewhere.
-  const me = userId ? await db.user.findUnique({ where: { id: userId }, select: { email: true, deleteAt: true, suspendedAt: true, closedAt: true } }) : null;
+  const me = userId ? await db.user.findUnique({ where: { id: userId }, select: { id: true, email: true, createdAt: true, deleteAt: true, suspendedAt: true, closedAt: true } }) : null;
   if (!userId || !me) throw new HttpError(401, "Sign in required");
   // Closed by support: it can't be kept, so there's nothing to keep first (lib/support/admin.ts).
   if (me.closedAt) throw new HttpError(403, ACCOUNT_CLOSED_BY_SUPPORT, "ACCOUNT_CLOSED");
@@ -29,10 +30,13 @@ export const POST = handle(async (req: Request) => {
   if (me.deleteAt) throw new HttpError(403, ACCOUNT_CLOSED_JOIN);
   // A login suspended by support joins nothing (lib/support/admin.ts).
   if (me.suspendedAt) throw new HttpError(403, ACCOUNT_SUSPENDED, "ACCOUNT_SUSPENDED");
-  // Agree to the current Terms and Privacy Policy first (lib/terms.ts); the invite page sends them to /agree and back.
-  if (!(await hasAgreed(userId))) throw termsRequired();
   const body = Body.safeParse(await req.json());
   if (!body.success) throw new HttpError(400, "This invite link is incomplete");
+  // Agree to the current Terms and Privacy Policy first (lib/terms.ts): ticked on the invite page itself.
+  if (!(await hasAgreed(userId))) {
+    if (!body.data.agree) throw termsRequired();
+    await recordAgreement(me);
+  }
   const invite = await db.invite.findUnique({ where: { tokenHash: hashToken(body.data.token) }, include: { workspace: true } });
   if (!invite || invite.revokedAt) throw new HttpError(404, "This invite was cancelled or doesn't exist. Ask for a new one.");
   if (invite.workspace.suspendedAt || invite.workspace.closedAt) throw new HttpError(403, TEAM_UNAVAILABLE_JOIN);

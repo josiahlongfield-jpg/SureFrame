@@ -16,7 +16,7 @@ export async function agreed(email, { name } = {}) {
   db ??= new PrismaClient();
   const e = String(email).trim().toLowerCase();
   try {
-    const user = await db.user.upsert({ where: { email: e }, update: {}, create: { email: e, name: name === undefined ? e.split("@")[0] : name } });
+    const user = await db.user.upsert({ where: { email: e }, update: {}, create: { email: e, name: name === undefined ? e.split("@")[0] : name, onboardedAt: new Date() } });
     const latest = await db.termsAcceptance.findFirst({ where: { userId: user.id }, orderBy: { acceptedAt: "desc" } });
     if (latest?.termsVersion !== TERMS_VERSION || latest?.privacyVersion !== PRIVACY_VERSION) {
       await db.termsAcceptance.create({

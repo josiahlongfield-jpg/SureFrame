@@ -1,9 +1,11 @@
 import { cache } from "react";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import type { Membership, Role, User } from "@prisma/client";
 import { db, type Workspace } from "@/lib/db";
 import { hasAgreed, noticePeriod, TERMS_REQUIRED } from "@/lib/terms";
+import { setViewerZone, TZ_COOKIE } from "@/lib/dates";
 
 /** Shown to staff the plan no longer covers (lib/seatLimits.ts). */
 export const STAFF_PAUSED = "Your access to this team is paused because its plan changed. Ask the owner to restore it.";
@@ -44,6 +46,8 @@ export const currentUser = cache(async () => {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return null;
+  // Times on this request's pages follow the viewer's own clock (lib/dates.ts).
+  setViewerZone((await cookies()).get(TZ_COOKIE)?.value);
   // Awaited one after the other: in development React shows what a Promise.all resolved to in the page
   // (debug info), which would put support's internal notes on the workspace into the HTML.
   const user = await db.user.findUnique({
@@ -132,7 +136,13 @@ export const pendingDeletion = cache(async () => {
 /** Where someone goes to agree to the current terms, coming back to `next` afterwards. */
 export const agreePath = (next: string) => `/agree?next=${encodeURIComponent(next)}`;
 
-export async function requirePageUser(next = "/library", { allowPaused = false, allowSuspended = false, allowTermsPending = false } = {}) {
+/** Where a new owner gives their name and business name, coming back to `next` afterwards (app/welcome). */
+export const welcomePath = (next: string) => `/welcome?next=${encodeURIComponent(next)}`;
+
+/** A new owner who hasn't done the one-step welcome yet. Staff are never asked: their business already has a name. */
+export const needsWelcome = (me: { role: Role; user: Pick<User, "onboardedAt"> }) => me.role === "OWNER" && !me.user.onboardedAt;
+
+export async function requirePageUser(next = "/library", { allowPaused = false, allowSuspended = false, allowTermsPending = false, allowWelcome = false } = {}) {
   const me = await currentUser();
   if (!me) {
     // A closed account just signed in again: offer to keep it.
@@ -146,6 +156,8 @@ export async function requirePageUser(next = "/library", { allowPaused = false, 
   // Not agreed to the current Terms and Privacy Policy yet (lib/terms.ts): only /agree, their account
   // page (to download their data or delete it) and the support console.
   if (!me.agreed && !allowTermsPending) redirect(agreePath(next));
+  // Just signed up: the business name clients will see, and their own (app/welcome).
+  if (me.agreed && needsWelcome(me) && !allowWelcome && !allowTermsPending) redirect(welcomePath(next));
   return me;
 }
 

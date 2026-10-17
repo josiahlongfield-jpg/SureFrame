@@ -157,8 +157,11 @@ ok("owner with staff can't delete their account", !!(await prisma.user.findUniqu
 // Removing staff puts their clients back in the shared list.
 for (const i of await prisma.invite.findMany({ where: { workspaceId, acceptedAt: null, revokedAt: null } })) await owner.request.delete(`${BASE}/api/team/invites/${i.id}`);
 await owner.goto(BASE + "/settings/team");
-owner.once("dialog", (d) => d.accept());
+// An in-page confirmation listing the clients whose links change (not the browser's own box).
 await owner.click("[data-testid=remove-member]");
+await owner.waitForSelector("[data-testid=team-dialog]");
+ok("removing asks first, in the page", await owner.isVisible("[data-testid=team-dialog] >> text=every client gets a new personal link"));
+await owner.click("[data-testid=dialog-confirm]");
 ok("owner removes the staff member", !!(await owner.waitForSelector("[data-testid=key-reset]", { timeout: 20000 }).catch(() => null)));
 ok("their client goes back to shared", (await prisma.client.findUnique({ where: { id: avery.id } })).assignedToId === null);
 await staff.goto(BASE + "/clients");

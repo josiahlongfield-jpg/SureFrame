@@ -65,7 +65,7 @@ export default async function Agree({ searchParams }: { searchParams: Promise<{ 
 
   return (
     <main data-theme="fresh" className="text-ink mx-auto max-w-lg px-4 py-12 sm:px-6 sm:py-16">
-      <Logo href="/agree" tone="dark" />
+      <Logo href="/agree" />
       {updated ? (
         <>
           <h1 className="mt-10 text-2xl font-semibold tracking-tight text-ink" data-testid="agree-heading">
@@ -102,13 +102,20 @@ export default async function Agree({ searchParams }: { searchParams: Promise<{ 
         We keep a record of when you agree and to which versions (Terms {LEGAL.termsVersion}, Privacy Policy {LEGAL.privacyVersion}).
       </p>
       <div className="mt-8 grid gap-3 border-t border-line pt-6 text-sm text-muted">
-        <p>
-          Don&rsquo;t agree? You can{" "}
-          <Link href="/settings/account" className="font-medium text-accent hover:underline" data-testid="agree-account">
-            download your data, manage or cancel your subscription, or delete your account
-          </Link>
-          .
-        </p>
+        {/* Someone who has only just signed up has no data or subscription yet: just a way out. */}
+        {updated && (
+          <p>
+            Don&rsquo;t agree? You can{" "}
+            <Link href="/settings/billing" className="font-medium text-accent hover:underline" data-testid="agree-billing">
+              manage or cancel your subscription
+            </Link>
+            , or{" "}
+            <Link href="/settings/account" className="font-medium text-accent hover:underline" data-testid="agree-account">
+              download your data or delete your account
+            </Link>
+            .
+          </p>
+        )}
         <form
           action={async () => {
             "use server";

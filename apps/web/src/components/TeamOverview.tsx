@@ -22,7 +22,7 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
   const [target, setTarget] = useState<string>("");
   const [note, setNote] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const nameOf = (id: string | null) => staff.find((s) => s.userId === id)?.name ?? "Shared";
+  const nameOf = (id: string | null) => staff.find((s) => s.userId === id)?.name ?? "Unassigned";
 
   async function setPerm(s: OverviewStaff, key: keyof Perms, value: boolean) {
     setNote(undefined);
@@ -44,7 +44,7 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
     setBusy(false);
     if (!res.ok) return setNote(data.error ?? "Could not assign those clients");
     setClients((list) => list.map((c) => (picked.has(c.id) ? { ...c, assignedToId } : c)));
-    setNote(`${data.updated} ${data.updated === 1 ? "client" : "clients"} now with ${nameOf(assignedToId)}.`);
+    setNote(`${data.updated} ${data.updated === 1 ? "client" : "clients"} ${assignedToId ? `now with ${nameOf(assignedToId)}` : "now unassigned: the owner and admins look after them"}.`);
     setPicked(new Set());
   }
 
@@ -91,7 +91,7 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
 
       <section className="rounded-2xl border border-line bg-surface p-5">
         <h3 className="font-semibold text-ink">Reassign clients</h3>
-        <p className="mt-1 text-xs text-dim">Tick clients, then choose who looks after them. Members only see the clients assigned to them, unless they can see all clients.</p>
+        <p className="mt-1 text-xs text-dim">Tick clients, then choose who looks after them. Members only see the clients assigned to them, unless they can see all clients. Unassigned clients are looked after by the owner and admins.</p>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <button type="button" onClick={() => setPicked(new Set(clients.filter((c) => !c.assignedToId).map((c) => c.id)))} className="rounded-full border border-line-strong px-3 py-1 hover:bg-hover">Pick unassigned</button>
           <button type="button" onClick={() => setPicked(new Set(clients.map((c) => c.id)))} className="rounded-full border border-line-strong px-3 py-1 hover:bg-hover">Pick all</button>
@@ -113,7 +113,7 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
         </ul>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <select value={target} onChange={(e) => setTarget(e.target.value)} aria-label="Assign picked clients to" className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
-            <option value="">Shared (nobody)</option>
+            <option value="">Unassigned (owner and admins)</option>
             {staff.map((s) => <option key={s.userId} value={s.userId}>{s.name}</option>)}
           </select>
           <button type="button" onClick={assign} disabled={busy || picked.size === 0} className="rounded-lg bg-primary px-4 py-1.5 font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">

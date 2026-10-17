@@ -1,0 +1,17 @@
+import { EMAIL_BLOCKED } from "@/lib/blockedEmail";
+
+/** The address the last sign-in link went to, for "Check your email" (only this browser, briefly). */
+export const SENT_TO_COOKIE = "sf_signin_to";
+
+/** What went wrong signing in, for the sign-in and "Check your email" pages. */
+export function errorText(code: string) {
+  if (code === "blocked") return EMAIL_BLOCKED;
+  if (code === "rate") return "Too many sign-in emails to this address in the last hour. Check your inbox and spam folder for the latest one, or wait a little and try again.";
+  if (code === "rate-network") return "Too many sign-in emails were asked for from your network (your Wi-Fi or mobile connection) in the last hour. Please wait a little and try again, or use another connection.";
+  if (code === "email") return "That email address doesn't look right. Check it and try again.";
+  if (code === "send") return "We couldn't send the sign-in email just now. Please try again in a few minutes, or email support@sureframe.app.";
+  if (code === "password") return "That password isn't right. Check it and try again.";
+  if (code === "Verification") return "That sign-in link has expired or was already used. Enter your email to get a new one.";
+  if (code === "OAuthAccountNotLinked") return "That email is already used with another sign-in method. Use the email link instead.";
+  return "Something went wrong signing in. Please try again.";
+}

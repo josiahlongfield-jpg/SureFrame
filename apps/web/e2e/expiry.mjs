@@ -135,7 +135,8 @@ const m = toOwner[0] ?? { subject: "", text: "", html: "" };
 ok("subject", m.subject === "2 recordings are deleted from SureFrame in 24 hours", m.subject);
 ok("lists each recording once (copies merged), with clients", m.text.includes(`sent to Ana ${stamp}, Ben ${stamp}`) && m.text.split(`/v/${soon1.id}`).length === 2 && m.text.includes(`/v/${soon2.id}`), m.text);
 ok("not the 3-day, 10-day, expired or reply videos", ![in3days, in10days, expired, reply, soon1copy].some((v) => m.text.includes(`/v/${v.id}`)));
-ok("exact deletion time in UTC", m.text.includes(new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(soon1.purgeAt) + " UTC"));
+// The business had no time zone; the owner's browser set it (components/TimeZoneSync.tsx), so emails use it.
+ok("exact deletion time in the business's time zone (from the owner's browser)", norm(m.text).includes(`${local(soon1.purgeAt)} ${new Intl.DateTimeFormat("en-US", { timeZone: TZ, timeZoneName: "short" }).formatToParts(soon1.purgeAt).find((p) => p.type === "timeZoneName").value}`) && m.text.includes(`time zone (${TZ})`), m.text);
 ok("advises saving to device", m.text.includes("Save to device") && m.text.includes("can no longer be watched from the link") && !m.text.includes("original stays on"));
 ok("owner on a paid plan is told about cloud backup", m.text.includes("/settings/billing"));
 ok("no titles in any email", !mails.some((x) => (x.text + x.html + x.subject).includes("Secret title")));

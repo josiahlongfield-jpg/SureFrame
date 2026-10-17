@@ -103,13 +103,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // Starts the browser-session activity cookie that src/middleware.ts checks,
     // for every way of signing in (including server actions, which the
     // middleware never sees as a callback request).
+    // Also settles "Keep me signed in on this device" (lib/activity.ts): kept for KEEP_DAYS from now if it was
+    // ticked before this sign-in, else not at all.
     async signIn() {
       const { cookies } = await import("next/headers");
-      const { ACTIVITY_COOKIE, activityCookie } = await import("@/lib/activity");
+      const { ACTIVITY_COOKIE, KEEP_COOKIE, KEEP_NEXT_COOKIE, activityCookie, keepCookie } = await import("@/lib/activity");
       try {
-        (await cookies()).set(ACTIVITY_COOKIE, String(Date.now()), activityCookie());
+        const jar = await cookies();
+        const keep = jar.get(KEEP_NEXT_COOKIE)?.value === "1";
+        jar.set(ACTIVITY_COOKIE, String(Date.now()), activityCookie(undefined, keep));
+        if (keep) jar.set(KEEP_COOKIE, "1", keepCookie());
+        else jar.delete(KEEP_COOKIE);
+        jar.delete(KEEP_NEXT_COOKIE);
       } catch {
         // Not in a request that can set cookies; the callback request sets it instead.
+      }
+    },
+    // Signing out ends "Keep me signed in" on this device too.
+    async signOut() {
+      const { cookies } = await import("next/headers");
+      const { KEEP_COOKIE } = await import("@/lib/activity");
+      try {
+        (await cookies()).delete(KEEP_COOKIE);
+      } catch {
+        // Not in a request that can set cookies; the next sign-in decides it afresh anyway.
       }
     },
   },
