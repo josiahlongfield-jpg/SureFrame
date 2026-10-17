@@ -5,7 +5,7 @@ import { accessOf, visibleVideo } from "@/lib/permissions";
 import { limitByIp } from "@/lib/rateLimit";
 
 /** Ciphertext only: base64url sealed with the video's key on the team's device. Plain text is refused. */
-const Body = z.object({ message: z.string().min(24).max(4000).regex(/^[A-Za-z0-9_-]+$/).nullable() });
+const Body = z.object({ message: z.string().min(24).max(5600).regex(/^[A-Za-z0-9_-]+$/).nullable() });
 
 /** The team's short message to this conversation's client, shown above the video (null removes it). */
 export const PUT = handle(async (req: Request, ctx: { params: Promise<{ id: string }> }) => {

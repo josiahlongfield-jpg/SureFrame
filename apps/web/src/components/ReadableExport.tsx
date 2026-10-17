@@ -7,7 +7,7 @@ import { loadKey, teamKeyName } from "@/lib/e2e/keystore";
 type Wrapped = { teamKeyWrap?: string | null };
 type Item = { body: string; shared: boolean; clientId: string | null; text?: string | null };
 type Reply = { body: string | null; encrypted: boolean; text?: string | null };
-type Video = Wrapped & { replies: Reply[]; insight: { transcript: string; summary: string | null } | null };
+type Video = Wrapped & { message?: string | null; messageText?: string | null; replies: Reply[]; insight: { transcript: string; summary: string | null } | null };
 type Team = { workspace: { id: string; name: string }; clients?: (Wrapped & { id: string })[]; videos?: Video[]; items?: Item[]; readable?: string };
 type Export = { note: string; workspaces: Team[] };
 
@@ -49,6 +49,12 @@ export async function readableCopy(data: Export) {
     for (const v of team.videos ?? []) {
       const videoKey = v.teamKeyWrap ? await unwrapKey(v.teamKeyWrap, teamKey).catch(() => null) : null;
       delete v.teamKeyWrap;
+      // The message to the client shown above the video, sealed with the video's key.
+      if (v.message) {
+        v.messageText = await open(v.message, videoKey);
+        if (v.messageText === null) unopened++;
+        else v.message = "(decrypted: see messageText)";
+      }
       for (const r of v.replies) {
         if (!r.encrypted || !r.body) continue;
         r.text = await open(r.body, videoKey);
@@ -64,7 +70,7 @@ export async function readableCopy(data: Export) {
     }
     team.readable = unopened ? `Opened with this browser's key. ${unopened} encrypted ${unopened === 1 ? "entry" : "entries"} couldn't be opened and are left as they were.` : "Opened with this browser's key.";
   }
-  data.note = "A readable copy: to-dos, notes, text replies and AI transcripts and summaries were decrypted in your browser with your team key before saving. Keep this file private. Download videos from each video's page.";
+  data.note = "A readable copy: to-dos, notes, messages to clients, text replies and AI transcripts and summaries were decrypted in your browser with your team key before saving. Keep this file private. Download videos from each video's page.";
   return data;
 }
 

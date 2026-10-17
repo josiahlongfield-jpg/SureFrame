@@ -187,7 +187,7 @@ export async function exportAccount(userId: string, { wraps = false } = {}) {
           where: { workspaceId: w.id, ...(all ? {} : mineOnly) },
           select: {
             id: true, title: true, status: true, durationMs: true, sizeBytes: true, createdAt: true, clientId: true,
-            encrypted: true, purgeAt: true, replyToId: true, viewCount: true, teamKeyWrap: wraps,
+            encrypted: true, purgeAt: true, replyToId: true, viewCount: true, message: true, teamKeyWrap: wraps,
             replies: { select: { kind: true, authorName: true, body: true, encrypted: true, timestampMs: true, createdAt: true } },
             insight: { select: { transcript: true, summary: true, createdAt: true } },
           },

@@ -28,10 +28,16 @@ export const PATCH = handle(async (req: Request, ctx: { params: Promise<{ id: st
     }
     throw new HttpError(400, "Enter a valid email address");
   }
-  // Two clients with one email would get each other's emails.
+  await rateLimit(`client-edit:${workspace.id}`, 30, 3600);
+  const scope = clientScopeWhere(accessOf(me));
+  if (!(await db.client.findFirst({ where: { ...scope, id, removedAt: null }, select: { id: true } }))) throw new HttpError(404, "Client not found");
+  // Two clients with one email would get each other's emails. Only name the other client if this person can see them.
   if (body.data.email) {
-    const taken = await db.client.findFirst({ where: { workspaceId: workspace.id, removedAt: null, id: { not: id }, email: { equals: body.data.email, mode: "insensitive" } }, select: { name: true } });
-    if (taken) throw new HttpError(409, `${taken.name} already uses ${body.data.email}. Each client needs their own email.`);
+    const taken = await db.client.findFirst({ where: { workspaceId: workspace.id, removedAt: null, id: { not: id }, email: { equals: body.data.email, mode: "insensitive" } }, select: { id: true, name: true } });
+    if (taken) {
+      const visible = await db.client.count({ where: { ...scope, id: taken.id } });
+      throw new HttpError(409, visible ? `${taken.name} already uses ${body.data.email}. Each client needs their own email.` : `Another client already uses ${body.data.email}. Each client needs their own email.`);
+    }
   }
   if (body.data.assignedToId !== undefined) {
     requireRole(me, "OWNER", "ADMIN");
@@ -39,9 +45,8 @@ export const PATCH = handle(async (req: Request, ctx: { params: Promise<{ id: st
       throw new HttpError(400, "That person isn't on your team");
     }
   }
-  await rateLimit(`client-edit:${workspace.id}`, 30, 3600);
   const res = await db.client.updateMany({
-    where: { ...clientScopeWhere(accessOf(me)), id, removedAt: null },
+    where: { ...scope, id, removedAt: null },
     data: { name: body.data.name, email: body.data.email === undefined ? undefined : body.data.email || null, assignedToId: body.data.assignedToId },
   });
   if (res.count === 0) throw new HttpError(404, "Client not found");

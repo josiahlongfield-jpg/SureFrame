@@ -55,7 +55,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM });
 async function signIn(email, next = "/library", lands = next.split("?")[0]) {
   // Agreed to the current Terms and Privacy Policy, so signing in isn't stopped at /agree (e2e/agree.mjs).
   await agreed(email);
-  const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+  const page = await (await browser.newContext({ timezoneId: "Australia/Brisbane", viewport: { width: 1280, height: 900 } })).newPage();
   await page.goto(`${BASE}/login?next=${encodeURIComponent(next)}`);
   await page.fill('input[name="email"]', email);
   await page.click("text=Continue");
@@ -96,7 +96,7 @@ const anaVideo = await prisma.video.create({ data: { id: `gra${stamp.toString(36
 const invite = await prisma.invite.create({ data: { workspaceId: ws, tokenHash: sha(`gr-invite-${stamp}`), teamKeyWrap: "w".repeat(60), expiresAt: new Date(Date.now() + 7 * D), invitedById: ownerUser.id } });
 
 // Ana opened her link on her phone before.
-const anaPhone = await (await browser.newContext()).newPage();
+const anaPhone = await (await browser.newContext({ timezoneId: "Australia/Brisbane" })).newPage();
 await anaPhone.goto(`${BASE}/c/${ana.token}`);
 ok("before: Ana's link opens her inbox", new URL(anaPhone.url()).pathname === "/inbox" && (await anaPhone.locator("[data-testid=client-closed]").count()) === 0);
 
@@ -140,7 +140,7 @@ await laptop.goto(BASE + "/account/restore");
 ok("other device: the restore page asks to sign in again, with no Keep button", (await laptop.textContent("h1")).includes("Sign in again to keep your account") && (await laptop.locator("text=Keep my account").count()) === 0);
 
 // ---- The clients' side ----
-const fresh = await (await browser.newContext()).newPage();
+const fresh = await (await browser.newContext({ timezoneId: "Australia/Brisbane" })).newPage();
 await fresh.goto(`${BASE}/c/${ana.token}`);
 ok("old link: lands on the closed notice", new URL(fresh.url()).searchParams.get("closed") === "1");
 ok("notice: names the business, not a plan change", norm(await fresh.textContent("[data-testid=client-closed]").catch(() => "")).includes(`${business} has closed their SureFrame account`) && (await fresh.locator("[data-testid=client-paused]").count()) === 0);
@@ -176,7 +176,7 @@ ok("nothing emailed to the owner while closed", mailTo(ownerEmail).length === be
 
 // An invite made out somehow while closed still can't be used.
 await prisma.invite.create({ data: { workspaceId: ws, tokenHash: sha(`gr-late-${stamp}`), teamKeyWrap: "w".repeat(60), expiresAt: new Date(Date.now() + 7 * D), invitedById: ownerUser.id } });
-const joiner = await (await browser.newContext()).newPage();
+const joiner = await (await browser.newContext({ timezoneId: "Australia/Brisbane" })).newPage();
 await joiner.goto(`${BASE}/join/gr-late-${stamp}`);
 ok("joining a closed business's team is refused", (await joiner.textContent("h1")).includes("This team has closed its SureFrame account"));
 
@@ -256,7 +256,7 @@ ok("deleted: the workspace, its clients and videos", !(await prisma.workspace.fi
 ok("deleted: its files", !has(fileKey));
 const goneMail = await waitMail(ownerEmail, (m) => m.subject === "Your SureFrame account has been deleted");
 ok("deleted: emailed", !!goneMail && goneMail.text.includes(`with ${business} and its recordings`) && goneMail.text.includes("starts a new, empty account"));
-const gone = await (await browser.newContext()).newPage();
+const gone = await (await browser.newContext({ timezoneId: "Australia/Brisbane" })).newPage();
 await gone.goto(`${BASE}/c/${ana.token}`);
 ok("deleted: the old client link is no longer active", new URL(gone.url()).searchParams.get("invalid") === "1");
 await late.goto(BASE + "/account/restore");

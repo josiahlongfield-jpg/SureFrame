@@ -9,7 +9,7 @@ import { notifyClientReply } from "@/lib/teamNotify";
 
 type Ctx = { params: Promise<{ id: string; replyId: string }> };
 
-/** A reply in this conversation written by whoever is asking (a client's are the replies not from the team). */
+/** A reply in this conversation written by whoever is asking (the client's are marked byClient). */
 async function ownReply(ctx: Ctx) {
   const { id, replyId } = await ctx.params;
   const { video: root, viewer } = await viewableVideo(id);
@@ -17,7 +17,7 @@ async function ownReply(ctx: Ctx) {
   const who = replyViewer(viewer);
   const reply = await db.reply.findFirst({ where: { id: replyId, videoId: id }, include: { media: true } });
   // Someone else's reply looks the same as no reply, so ids don't leak.
-  if (!reply || (who.userId ? reply.authorUserId !== who.userId : !!reply.authorUserId)) throw new HttpError(404, "Reply not found");
+  if (!reply || (who.userId ? reply.authorUserId !== who.userId : !reply.byClient)) throw new HttpError(404, "Reply not found");
   return { root, viewer, who, reply };
 }
 

@@ -52,7 +52,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM });
 async function signIn(email, next = "/library") {
   // Agreed to the current Terms and Privacy Policy, so signing in isn't stopped at /agree (e2e/agree.mjs).
   await agreed(email);
-  const page = await (await browser.newContext({ viewport: { width: 1360, height: 1000 } })).newPage();
+  const page = await (await browser.newContext({ timezoneId: "Australia/Brisbane", viewport: { width: 1360, height: 1000 } })).newPage();
   await page.goto(`${BASE}/login?next=${encodeURIComponent(next)}`);
   await page.fill('input[name="email"]', email);
   await page.click("text=Continue");
@@ -81,7 +81,7 @@ const cal = await mk(ws, `Cal ${stamp}`, null, 2);
 const anaVideo = await prisma.video.create({ data: { id: `rma${stamp.toString(36)}`, mimeType: "video/webm", storageKey: `test/${stamp}/ana`, status: "UPLOADED", workspaceId: ws, ownerId: ownerUser.id, clientId: ana.id } });
 
 // Ana has opened her link on her own device before.
-const anaPage = await (await browser.newContext()).newPage();
+const anaPage = await (await browser.newContext({ timezoneId: "Australia/Brisbane" })).newPage();
 await anaPage.goto(`${BASE}/c/${ana.token}`);
 ok("before: Ana's link opens her inbox", new URL(anaPage.url()).pathname === "/inbox" && !new URL(anaPage.url()).searchParams.get("removed"));
 
@@ -124,7 +124,7 @@ ok("email: says who and until when, no link or button", !!gone && gone.text.incl
 ok("email: from the business, deleted afterwards", !!gone && gone.from.includes(business) && gone.text.includes("deleted for good"));
 
 // ---- The client's side ----
-const fresh = await (await browser.newContext()).newPage();
+const fresh = await (await browser.newContext({ timezoneId: "Australia/Brisbane" })).newPage();
 await fresh.goto(`${BASE}/c/${ana.token}`);
 ok("old link: lands on the access-ended notice (not 'invalid')", new URL(fresh.url()).searchParams.get("removed") === "1" && !new URL(fresh.url()).searchParams.get("invalid"));
 const note = norm(await fresh.textContent("[data-testid=client-removed]").catch(() => ""));
@@ -135,7 +135,7 @@ await anaPage.goto(BASE + "/inbox");
 ok("Ana's own device: inbox shows the notice", norm(await anaPage.textContent("[data-testid=client-removed]").catch(() => "")).includes(`${business} has ended your access`));
 await anaPage.goto(`${BASE}/v/${anaVideo.id}`);
 ok("Ana's own device: can't open her video, and is told why", norm(await anaPage.textContent("[data-testid=video-removed]").catch(() => "")).includes(`${business} has ended your access`));
-const unknown = await (await browser.newContext()).newPage();
+const unknown = await (await browser.newContext({ timezoneId: "Australia/Brisbane" })).newPage();
 await unknown.goto(`${BASE}/c/not-a-real-token-${stamp}`);
 ok("an unknown link still says invalid", new URL(unknown.url()).searchParams.get("invalid") === "1");
 
@@ -187,7 +187,7 @@ const benBack = await prisma.client.findUnique({ where: { id: ben.id } });
 ok("restore after a key reset: the link changed", !benBack.removedAt && benBack.token !== ben.token);
 const newLink = await waitMail(ben.email, (m) => m.subject === `${business} sent you a new private link`);
 ok("restore after a key reset: new link emailed", !!newLink && newLink.text.includes(`/c/${benBack.token}`) && !newLink.text.includes(ben.token));
-const oldBen = await (await browser.newContext()).newPage();
+const oldBen = await (await browser.newContext({ timezoneId: "Australia/Brisbane" })).newPage();
 await oldBen.goto(`${BASE}/c/${ben.token}`);
 ok("restore after a key reset: the old link no longer works", new URL(oldBen.url()).searchParams.get("invalid") === "1");
 
@@ -272,7 +272,8 @@ const noticeKeep = await prisma.staffNotice.create({ data: { workspaceId: ws2, f
 const beaItem = await prisma.item.create({ data: { kind: "NOTE", body: "b".repeat(40), authorName: "Owner", workspaceId: ws2, clientId: bea.id } });
 
 // ---- The team's view while Xan is removed ----
-const xanUntil = longDay(xan.purgeAt, "UTC");
+// The owner's browser runs in Brisbane, so pages show its dates, and the business took on that zone for emails (components/TimeZoneSync.tsx).
+const xanUntil = longDay(xan.purgeAt, TZ);
 await owner2.goto(`${BASE}/v/${o1.id}`);
 const banner1 = norm(await owner2.textContent("[data-testid=recipient-removed]", { timeout: 30000 }).catch(() => ""));
 ok("watch page: removed client and date (recording also sent to others stays)", banner1.includes(`Xan ${stamp} was removed from your clients`) && banner1.includes(`Their conversation here will be deleted on ${xanUntil}`) && banner1.includes("The recording itself stays, as you also sent it to other clients"), banner1);
@@ -296,7 +297,7 @@ await owner2.goto(`${BASE}/library`);
 await owner2.$$eval("[data-testid=day-folder]", (els) => els.forEach((e) => (e.open = true)));
 await owner2.waitForSelector("[data-testid=client-removed-badge]", { timeout: 30000 }).catch(() => null);
 const badges = await owner2.$$eval("[data-testid=client-removed-badge]", (els) => els.map((e) => e.textContent.replace(/\s+/g, " ").trim()));
-ok("Library marks videos of a removed client", badges.length === 3 && badges.every((b) => b === `Client removed · conversation deleted ${shortDay(xan.purgeAt, "UTC")}`), JSON.stringify(badges));
+ok("Library marks videos of a removed client", badges.length === 3 && badges.every((b) => b === `Client removed · conversation deleted ${shortDay(xan.purgeAt, TZ)}`), JSON.stringify(badges));
 await owner2.goto(`${BASE}/clients`);
 const removedList = norm(await owner2.textContent("[data-testid=removed-clients]", { timeout: 30000 }).catch(() => ""));
 ok("Removed clients: says recordings without cloud backup leave on their own dates", removedList.includes("Recordings without cloud backup still leave our servers on their usual dates before then"), removedList);
@@ -364,7 +365,7 @@ ok("nobody else told about the earlier removals", mailTo(adminEmail).every((m) =
 const warnOwner = mailTo(owner2Email).filter((m) => m.subject.includes("will be deleted from SureFrame"));
 const warnAdmin = mailTo(adminEmail).filter((m) => m.subject.includes("will be deleted from SureFrame"));
 const warnMember = mailTo(memberEmail).filter((m) => m.subject.includes("will be deleted from SureFrame"));
-const wesSubject = `Wes ${stamp} will be deleted from SureFrame on ${shortDay(wes.purgeAt, "UTC")}`;
+const wesSubject = `Wes ${stamp} will be deleted from SureFrame on ${shortDay(wes.purgeAt, TZ)}`;
 const ow = warnOwner[0]?.text ?? "";
 ok("warning: owner emailed once about both", warnOwner.length === 1 && warnOwner[0].subject === "2 removed clients will be deleted from SureFrame within 3 days", JSON.stringify(warnOwner.map((m) => m.subject)));
 ok("warning: lists each with its date", ow.includes(`Wes ${stamp}, removed`) && ow.includes(`Vic ${stamp}, removed`) && ow.includes("Deleted after"), ow);

@@ -17,6 +17,7 @@ import type { Prisma } from "@prisma/client";
 import { zoned } from "@/lib/dates";
 import { videosUsed } from "@/lib/videoAllowance";
 import { RETENTION_DAYS } from "@/lib/retention";
+import { visibleReplies } from "@/lib/replies";
 
 export const metadata: Metadata = { title: "Library" };
 
@@ -72,18 +73,16 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     db.video.count({ where: soonWhere }),
     plan.maxVideos !== null ? videosUsed(workspace.id) : null,
   ]);
-  // Replies per conversation, and how many came from the client (the team's own aren't news).
+  // The client's replies in each conversation (the team's own aren't news), newest first, with when they came,
+  // so each device can tell which it hasn't seen (components/LibraryTools.tsx). Held and uploading replies don't count yet.
   const convIds = videos.flatMap((v) => [v.id, ...v.copies.map((c) => c.id)]);
-  const [allReplies, clientReplies] = convIds.length
-    ? await Promise.all([
-        db.reply.groupBy({ by: ["videoId"], where: { videoId: { in: convIds } }, _count: { _all: true } }),
-        db.reply.groupBy({ by: ["videoId"], where: { videoId: { in: convIds }, authorUserId: null }, _count: { _all: true } }),
-      ])
-    : [[], []];
-  const totals = new Map(allReplies.map((r) => [r.videoId, r._count._all]));
-  const fromClients = new Map(clientReplies.map((r) => [r.videoId, r._count._all]));
+  const clientReplies = convIds.length
+    ? await db.reply.findMany({ where: { videoId: { in: convIds }, authorUserId: null, ...visibleReplies }, orderBy: { createdAt: "desc" }, select: { videoId: true, createdAt: true } })
+    : [];
+  const fromClients = new Map<string, string[]>();
+  for (const r of clientReplies) fromClients.set(r.videoId, [...(fromClients.get(r.videoId) ?? []), r.createdAt.toISOString()]);
   const convsOf = (v: { id: string; copies: { id: string }[] }): Conv[] =>
-    [v.id, ...v.copies.map((c) => c.id)].map((id) => ({ id, total: totals.get(id) ?? 0, fromClient: fromClients.get(id) ?? 0 }));
+    [v.id, ...v.copies.map((c) => c.id)].map((id) => ({ id, fromClient: fromClients.get(id) ?? [] }));
   // A new owner's first steps (components/FirstSteps.tsx) include the clients step; staff get "Start here" below.
   const steps = await firstStepsFor(me);
   // A new business starts on its clients: once they're in, sending a video is picking them from a list.

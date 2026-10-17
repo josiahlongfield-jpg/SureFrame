@@ -55,7 +55,13 @@ export const POST = handle(async (req: Request) => {
     const existing = await tx.client.findMany({ where: { workspaceId: workspace.id, removedAt: null }, select: { name: true, email: true } });
     const emails = new Set(existing.flatMap((c) => (c.email ? [c.email.toLowerCase()] : [])));
     const bare = new Set(existing.flatMap((c) => (c.email ? [] : [c.name.trim().toLowerCase()])));
-    const dupe = wanted.find((c) => (c.email ? emails.has(c.email.toLowerCase()) : bare.has(c.name.trim().toLowerCase())));
+    // Checked one by one, so the same client twice in one pasted list counts too.
+    const dupe = wanted.find((c) => {
+      const [seen, key] = c.email ? [emails, c.email.toLowerCase()] : [bare, c.name.trim().toLowerCase()];
+      if (seen.has(key)) return true;
+      seen.add(key);
+      return false;
+    });
     if (dupe) {
       throw new HttpError(
         409,

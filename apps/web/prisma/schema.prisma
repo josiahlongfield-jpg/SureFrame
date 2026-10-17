@@ -402,6 +402,8 @@ model Reply {
   /// A video or voice reply waiting for its author to review it: hidden from everyone else
   /// until they press Send (cleared then), or deleted if they discard it.
   heldAt       DateTime?
+  /// Written by the client (not the team). Kept apart from authorUserId, which empties if a team member's login is deleted.
+  byClient     Boolean   @default(false)
   video        Video     @relation("Conversation", fields: [videoId], references: [id], onDelete: Cascade)
   media        Video?    @relation("ReplyMedia", fields: [mediaId], references: [id], onDelete: Cascade)
   authorUser   User?     @relation(fields: [authorUserId], references: [id], onDelete: SetNull)

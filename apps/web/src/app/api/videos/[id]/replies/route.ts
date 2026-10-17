@@ -51,7 +51,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
 
   if (body.kind === "TEXT") {
     const reply = await db.reply.create({
-      data: { kind: "TEXT", body: body.body, encrypted: true, timestampMs: body.timestampMs, authorName, videoId: id, authorUserId: me?.user.id },
+      data: { kind: "TEXT", body: body.body, encrypted: true, timestampMs: body.timestampMs, authorName, videoId: id, authorUserId: me?.user.id, byClient: !me },
       include: { media: true },
     });
     if (viewer.kind === "client") after(() => notifyClientReply(root.id));
@@ -78,6 +78,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
       kind: body.kind,
       authorName,
       heldAt: body.review ? new Date() : null,
+      byClient: !me,
       video: { connect: { id } },
       ...(me ? { authorUser: { connect: { id: me.user.id } } } : {}),
       media: {

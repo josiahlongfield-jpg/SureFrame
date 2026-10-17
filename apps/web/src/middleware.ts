@@ -23,6 +23,7 @@ import { OWNER_COOKIE, OWNER_PARAM, maintenanceOn, ownerPass, sameText } from "@
 /** Read by the sign-in page to explain why someone was signed out. */
 const EXPIRED = "sf_signed_out";
 const IDLE_MS = 8 * 3_600_000;
+const MARK_EVERY_MS = 60_000;
 const SESSION_COOKIES = ["authjs.session-token", "__Secure-authjs.session-token"];
 /** Sent by background checks (new replies, support answers), which aren't someone using the site. */
 const BACKGROUND_HEADER = "x-sf-background";
@@ -98,7 +99,10 @@ function sessionActivity(req: NextRequest) {
   const last = Number(req.cookies.get(MARKER)?.value);
   const idle = req.cookies.get(KEEP_COOKIE)?.value === "1" ? KEEP_DAYS * 86_400_000 : IDLE_MS;
   const fresh = Number.isFinite(last) && last > 0 && Date.now() - last < idle;
-  if (fresh) return req.headers.get(BACKGROUND_HEADER) ? NextResponse.next() : mark(NextResponse.next(), req);
+  // Re-marked at most once a minute. A new cookie on every request made each form's server action
+  // send the whole page back to redraw (Next does that when a cookie changes), and that redraw
+  // could leave the form stuck on "Saving…".
+  if (fresh) return req.headers.get(BACKGROUND_HEADER) || Date.now() - last < MARK_EVERY_MS ? NextResponse.next() : mark(NextResponse.next(), req);
 
   const names = new Set(session.map((c) => c.name));
   // Completing a new sign-in over an expired one: it goes ahead without the old session and sets

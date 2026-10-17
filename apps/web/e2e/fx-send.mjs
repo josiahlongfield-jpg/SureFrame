@@ -174,7 +174,7 @@ ok("Send box: offers a title for a default-named video", await owner.isVisible("
 await owner.fill("#send-title", "Week 1 plan");
 await owner.click("[data-testid=title-prompt] >> button:has-text('Save title')");
 await owner.waitForSelector("[data-testid=title-saved]");
-ok("title saved and shown as the heading", (await prisma.video.findUnique({ where: { id: vid } })).title === "Week 1 plan" && (await owner.inputValue("input[aria-label='Video title']")) === "Week 1 plan");
+ok("title saved and shown as the heading", (await prisma.video.findUnique({ where: { id: vid } })).title === "Week 1 plan" && (await owner.inputValue("textarea[aria-label='Video title']")) === "Week 1 plan");
 await owner.click("[data-testid=client-picker]");
 ok("picker marks first-time clients", (await owner.locator("[role=listbox] li:has-text('Client B') [data-testid=needs-first-link]").count()) === 1 && (await owner.locator("[role=listbox] li:has-text('Client A') [data-testid=needs-first-link]").count()) === 0);
 await owner.keyboard.press("Escape");
@@ -224,6 +224,13 @@ ok("library: newest day open", !!(await card.waitFor({ state: "visible", timeout
 ok("library: who it went to", norm(await card.locator("[data-testid=video-recipients]").textContent()) === "To Client A, Client B");
 ok("library: replies and unread", (await card.locator("[data-testid=reply-count]").textContent()) === "2 replies" && (await card.locator("[data-testid=unread-count]").textContent()) === "2 new");
 ok("library: the day says what's new", (await owner.textContent("[data-testid=day-folder] summary [data-testid=unread-count]")) === "2 new");
+// Opening the conversation counts Client A's reply as seen on this device; Client B's copy still has one new.
+await owner.goto(`${BASE}/v/${vid}`);
+await owner.waitForSelector("[data-testid=reply-composer], aside", { timeout: 20000 }).catch(() => {});
+await owner.waitForTimeout(1000);
+await owner.goto(BASE + "/library");
+await card.waitFor({ state: "visible", timeout: 15000 });
+ok("library: a conversation opened here isn't new any more", !!(await waitFor(async () => (await card.locator("[data-testid=unread-count]").textContent().catch(() => "")) === "1 new")));
 ok("library: deletion date said once at the top, not on each card", (await owner.isVisible("[data-testid=deletion-note]")) && (await card.locator("[data-testid=storage-status]").count()) === 0);
 ok("library: to-dos labelled the same way as elsewhere", await owner.isVisible("h2:text-is('To-dos & notes')"));
 const other = await record();

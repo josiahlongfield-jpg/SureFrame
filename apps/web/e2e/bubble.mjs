@@ -44,7 +44,7 @@ const circle = () => page.evaluate(() => {
 ok("setup: the camera is a live circle", await circleLive());
 let c = await circle();
 console.log("setup circle", JSON.stringify(c));
-ok("setup: round, a quarter of the height, in the bottom-left corner", Math.abs(c.w - c.h) < 1 && Math.abs(c.h / c.panelH - 0.24) < 0.02 && c.left < c.panelH * 0.06 && c.bottom < c.panelH * 0.06, JSON.stringify(c));
+ok("setup: round, a quarter of the height, bottom-left and raised clear of the player controls", Math.abs(c.w - c.h) < 1 && Math.abs(c.h / c.panelH - 0.24) < 0.02 && c.left < c.panelH * 0.06 && Math.abs(c.bottom / c.panelH - 0.18) < 0.02, JSON.stringify(c));
 ok("setup: and no full-size camera", c.videos === 1);
 await page.screenshot({ path: `${shots}/bubble-setup.png` });
 await page.click("text=Start recording");

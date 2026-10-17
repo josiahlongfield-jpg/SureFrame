@@ -201,7 +201,7 @@ ok("reminder job ran", run.sent >= 3, JSON.stringify(run));
 const fresh = outbox().slice(mark);
 const calMail = fresh.find((m) => m.to === `cal${stamp}@example.com`);
 ok("Cal's reminder replies to Amy's address", calMail?.replyTo === `amy-desk${stamp}@summit.test`, JSON.stringify(calMail?.replyTo));
-ok("and carries Amy's message, from the business", calMail?.text.includes("Amy here: text me to move it.") && !calMail.text.includes("Business note") && calMail.from.startsWith(`${business} <`));
+ok("and carries Amy's message, from the business", calMail?.text.includes("Amy here: text me to move it.") && !calMail.text.includes("Business note") && calMail.from.startsWith(`${business} via SureFrame <`));
 ok("never the to-do text", !JSON.stringify(calMail ?? {}).includes("food diary"));
 const amyMail = fresh.find((m) => m.to === amyUser.email && m.subject.startsWith("Cal:"));
 ok("Amy gets her own reminder for Cal's to-do", !!amyMail);
@@ -218,6 +218,8 @@ async function record(page, title, clientId, notify = false) {
   return video.id;
 }
 let m2 = outbox().length;
+// Videos are only emailed to clients who have opened their personal link once.
+await prisma.client.update({ where: { id: calId }, data: { linkOpenedAt: new Date() } });
 const vCal = await record(amy, "Amy to Cal", calId, true);
 const videoMail = await waitFor(() => outbox().slice(m2).find((m) => m.to === `cal${stamp}@example.com`));
 ok("new-video email to Cal replies to Amy's address", videoMail?.replyTo === `amy-desk${stamp}@summit.test`, JSON.stringify(videoMail?.replyTo));

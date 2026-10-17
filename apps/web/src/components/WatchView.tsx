@@ -777,7 +777,7 @@ function WatchBody({
             rootKey={rootKey}
             teamKey={teamKey}
             onLinkCopied={linkCopied}
-            onTitle={setTitle}
+            onTitle={(t) => ((lastTitle.current = t), setTitle(t))}
           />
         )}
 

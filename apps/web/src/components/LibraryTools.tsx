@@ -2,30 +2,31 @@
 
 import { useEffect, useState } from "react";
 
-/** One conversation about a recording: its replies, and how many came from the client. */
-export type Conv = { id: string; total: number; fromClient: number };
+/** One conversation about a recording: when each of the client's replies came, newest first. */
+export type Conv = { id: string; fromClient: string[] };
 
 /**
  * Reply and unread counts for a recording (all its conversations). "New" is
- * per device, like the conversation's own bubble (components/WatchView.tsx):
- * replies from the client this device hasn't had on screen yet.
+ * per device, like the conversation's own dot (components/WatchView.tsx, which
+ * remembers when this device last had the conversation on screen): replies
+ * from the client since then.
  */
 export function ReplyBadges({ convs, onlyNew = false }: { convs: Conv[]; onlyNew?: boolean }) {
   const [fresh, setFresh] = useState(0);
   useEffect(() => {
     let n = 0;
     for (const c of convs) {
-      let seen = 0;
+      let seenAt = "";
       try {
-        seen = Number(localStorage.getItem(`sureframe:seen-replies:${c.id}`)) || 0;
+        seenAt = localStorage.getItem(`sureframe:seen-at:${c.id}`) ?? "";
       } catch {
         /* storage blocked: everything from the client counts as new */
       }
-      n += Math.min(c.fromClient, Math.max(0, c.total - seen));
+      n += c.fromClient.filter((at) => at > seenAt).length;
     }
     setFresh(n);
   }, [convs]);
-  const replies = convs.reduce((n, c) => n + c.fromClient, 0);
+  const replies = convs.reduce((n, c) => n + c.fromClient.length, 0);
   if (!replies || (onlyNew && !fresh)) return null;
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5" data-testid="reply-badges">

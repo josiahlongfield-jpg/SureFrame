@@ -37,7 +37,7 @@ export function replyDTO(r: Reply & { media: Video | null }, ownerId: string, vi
     authorName: r.authorName,
     fromOwner: !!r.authorUserId && r.authorUserId === ownerId,
     fromTeam: !!r.authorUserId,
-    mine: viewer.userId ? r.authorUserId === viewer.userId : !r.authorUserId,
+    mine: viewer.userId ? r.authorUserId === viewer.userId : r.byClient,
     held: !!r.heldAt,
     createdAt: r.createdAt.toISOString(),
     media: r.media

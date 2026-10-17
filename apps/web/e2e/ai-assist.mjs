@@ -41,6 +41,8 @@ const SPOKEN = "Hello Ana, here is the plan for next week";
 /** A speech model "installed" in the app's local storage (the dev server runs without a bucket here). */
 const manifestFile = fileURLToPath(new URL("../.data/uploads/models/manifest.json", import.meta.url));
 const hadManifest = existsSync(manifestFile);
+// The stand-in model is removed even if a check crashes part way, so the next run starts without it.
+process.on("exit", () => hadManifest || rmSync(manifestFile, { force: true }));
 async function installModel() {
   if (hadManifest) return;
   mkdirSync(dirname(manifestFile), { recursive: true });
