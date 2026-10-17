@@ -2,7 +2,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { storage } from "@/lib/storage";
-import { replyDTO, visibleReplies } from "@/lib/replies";
+import { heldRepliesOf, replyDTO, replyViewer, visibleReplies } from "@/lib/replies";
 import { handle, HttpError } from "@/lib/session";
 import { viewableVideo } from "@/lib/access";
 import { ALLOWED_MIME, extensionFor, newUploadToken, newVideoId, REPLY_DAILY_BYTES, replyBytesToday } from "@/lib/videos";
@@ -14,18 +14,20 @@ const Body = z.discriminatedUnion("kind", [
   // Text arrives already sealed with the conversation's video key.
   z.object({ kind: z.literal("TEXT"), body: z.string().min(1).max(8000), encrypted: z.literal(true), timestampMs: z.number().int().min(0).optional() }),
   // Media key wrapped with the conversation's video key.
-  z.object({ kind: z.enum(["VIDEO", "AUDIO"]), mimeType: z.string().max(120).regex(ALLOWED_MIME), parentKeyWrap: z.string().min(40).max(200) }),
+  // `review`: held back once uploaded until its author sends it (api/videos/[id]/replies/[replyId]).
+  z.object({ kind: z.enum(["VIDEO", "AUDIO"]), mimeType: z.string().max(120).regex(ALLOWED_MIME), parentKeyWrap: z.string().min(40).max(200), review: z.boolean().optional() }),
 ]);
 
 export const GET = handle(async (_req: Request, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params;
-  const { video: root } = await viewableVideo(id);
-  const replies = await db.reply.findMany({
-    where: { videoId: id, ...visibleReplies },
-    orderBy: { createdAt: "asc" },
-    include: { media: true },
-  });
-  return Response.json({ replies: replies.map((r) => replyDTO(r, root.ownerId)) });
+  const { video: root, viewer } = await viewableVideo(id);
+  const who = replyViewer(viewer);
+  const [replies, held] = await Promise.all([
+    db.reply.findMany({ where: { videoId: id, ...visibleReplies }, orderBy: { createdAt: "asc" }, include: { media: true } }),
+    // The viewer's own unsent video and voice replies (e.g. recorded before the browser closed): only they see these.
+    db.reply.findMany({ where: { videoId: id, ...heldRepliesOf(who) }, orderBy: { createdAt: "asc" }, include: { media: true } }),
+  ]);
+  return Response.json({ replies: replies.map((r) => replyDTO(r, root.ownerId, who)), held: held.map((r) => replyDTO(r, root.ownerId, who)) });
 });
 
 /**
@@ -53,7 +55,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
       include: { media: true },
     });
     if (viewer.kind === "client") after(() => notifyClientReply(root.id));
-    return Response.json({ reply: replyDTO(reply, root.ownerId) }, { status: 201 });
+    return Response.json({ reply: replyDTO(reply, root.ownerId, replyViewer(viewer)) }, { status: 201 });
   }
 
   // A conversation can't hold endless unfinished uploads.
@@ -75,6 +77,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
     data: {
       kind: body.kind,
       authorName,
+      heldAt: body.review ? new Date() : null,
       video: { connect: { id } },
       ...(me ? { authorUser: { connect: { id: me.user.id } } } : {}),
       media: {
@@ -96,7 +99,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
     include: { media: true },
   });
   return Response.json(
-    { reply: replyDTO(reply, root.ownerId), mediaId, uploadToken: upload.token, maxDurationMin },
+    { reply: replyDTO(reply, root.ownerId, replyViewer(viewer)), mediaId, uploadToken: upload.token, maxDurationMin },
     { status: 201 },
   );
 });

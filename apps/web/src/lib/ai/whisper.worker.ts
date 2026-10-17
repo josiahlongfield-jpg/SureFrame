@@ -23,6 +23,10 @@ let loading: Promise<Asr> | null = null;
 const hex = (buf: ArrayBuffer) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
 const sha256 = async (body: Uint8Array) => hex(await crypto.subtle.digest("SHA-256", body as Uint8Array<ArrayBuffer>));
 const BAD_DOWNLOAD = "The transcription model didn't download correctly.";
+/** The model on our server is missing or broken: nothing to do with this device. */
+class ServerModelError extends Error {}
+/** The model files didn't arrive intact (a dropped connection, usually): worth another try. */
+class DownloadError extends Error {}
 
 async function openCache() {
   try {
@@ -63,7 +67,7 @@ async function fetchVerified(manifest: ModelManifest, prefix: string, names: str
     }
     // Same-origin request; /models answers with a redirect to our storage bucket.
     const res = await fetch(url, { cache: "no-store", credentials: "same-origin" });
-    if (!res.ok || !res.body) throw new Error(`Couldn't download the transcription model (${res.status}).`);
+    if (!res.ok || !res.body) throw new ServerModelError(`Couldn't download the transcription model (${res.status}).`);
     const reader = res.body.getReader();
     const parts: Uint8Array[] = [];
     let n = 0;
@@ -72,7 +76,7 @@ async function fetchVerified(manifest: ModelManifest, prefix: string, names: str
       if (done) break;
       parts.push(value);
       n += value.length;
-      if (n > expected.bytes) throw new Error(BAD_DOWNLOAD);
+      if (n > expected.bytes) throw new DownloadError(BAD_DOWNLOAD);
       got.set(name, n);
       report();
     }
@@ -82,7 +86,7 @@ async function fetchVerified(manifest: ModelManifest, prefix: string, names: str
       body.set(p, at);
       at += p.length;
     }
-    if (n !== expected.bytes || (await sha256(body)) !== expected.sha256) throw new Error(BAD_DOWNLOAD);
+    if (n !== expected.bytes || (await sha256(body)) !== expected.sha256) throw new DownloadError(BAD_DOWNLOAD);
     await cache?.put(url, new Response(body, { headers: { "Content-Type": "application/octet-stream" } })).catch(() => {});
     out.set(name, body);
   }
@@ -92,7 +96,7 @@ async function fetchVerified(manifest: ModelManifest, prefix: string, names: str
 async function load(device: "webgpu" | "wasm", modelBase: string, manifest: ModelManifest): Promise<Asr> {
   const prefix = `${modelBase}${manifest.model}/${manifest.revision}/`;
   const needed = [...Object.keys(manifest.files).filter((n) => !n.includes("/") && n.endsWith(".json")), ...ONNX_FOR[device]];
-  if (needed.some((n) => !manifest.files[n])) throw new Error("The transcription model on this server is incomplete.");
+  if (needed.some((n) => !manifest.files[n])) throw new ServerModelError("The transcription model on this server is incomplete.");
   // Everything is checked before the model code even loads.
   const verified = await fetchVerified(manifest, prefix, needed);
 
@@ -167,6 +171,8 @@ self.onmessage = async (e: MessageEvent<WorkerIn>) => {
     post({ type: "done", transcript: { v: 1, segments } });
   } catch (err) {
     loading = null;
-    post({ type: "error", message: (err as Error)?.message ?? String(err) });
+    // Says whose problem it was, so the page doesn't blame this device for our server or the connection.
+    const cause = err instanceof ServerModelError ? "server" : err instanceof DownloadError || err instanceof TypeError ? "download" : "device";
+    post({ type: "error", message: (err as Error)?.message ?? String(err), cause });
   }
 };

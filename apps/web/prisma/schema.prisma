@@ -318,6 +318,9 @@ model Video {
   replyToId            String?
   /// sha256 of a one-time token that lets a guest (no account) upload this reply's media.
   uploadTokenHash      String?
+  /// A short message from the business to this conversation's client, shown above the video.
+  /// Ciphertext, sealed with the video's key on the team's device (like replies).
+  message              String?
   owner                User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   workspace            Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   parts                UploadPart[]
@@ -390,6 +393,9 @@ model Reply {
   videoId      String
   mediaId      String?   @unique
   authorUserId String?
+  /// A video or voice reply waiting for its author to review it: hidden from everyone else
+  /// until they press Send (cleared then), or deleted if they discard it.
+  heldAt       DateTime?
   video        Video     @relation("Conversation", fields: [videoId], references: [id], onDelete: Cascade)
   media        Video?    @relation("ReplyMedia", fields: [mediaId], references: [id], onDelete: Cascade)
   authorUser   User?     @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
@@ -399,12 +405,16 @@ model Reply {
 }
 
 model Reaction {
-  id          String   @id @default(cuid())
-  emoji       String
-  timestampMs Int?
-  createdAt   DateTime @default(now())
-  videoId     String
-  video       Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  emoji        String
+  timestampMs  Int?
+  createdAt    DateTime @default(now())
+  videoId      String
+  /// Who reacted, so a second tap takes it back: the team member (a plain id, no relation), or the
+  /// conversation's client (byClient). Older reactions have neither and stay as they were.
+  authorUserId String?
+  byClient     Boolean  @default(false)
+  video        Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@index([videoId])
 }
