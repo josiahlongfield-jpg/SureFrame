@@ -193,3 +193,50 @@ export default function BrandingForm(props: { workspaceId: string; name: string;
     </div>
   );
 }
+
+/** The business name on its own, for the Free plan (custom logo and colour are part of paid plans). */
+export function BusinessNameForm({ name: initial }: { name: string }) {
+  const [saved, setSaved] = useState(initial);
+  const [name, setName] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string }>();
+  const trimmed = name.trim();
+  const placeholderName = /'s workspace$/i.test(trimmed);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg(undefined);
+    const r = await fetch("/api/workspace/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: trimmed }) }).catch(() => null);
+    const d = r ? await r.json().catch(() => ({})) : {};
+    setBusy(false);
+    if (!r?.ok) return setMsg({ ok: false, text: d.error ?? "Could not save the business name. Check your connection and try again." });
+    setSaved(d.name ?? trimmed);
+    setName(d.name ?? trimmed);
+    setMsg({ ok: true, text: "Saved. Your clients see this now." });
+  }
+
+  return (
+    <form onSubmit={save} className="mt-6 rounded-2xl border border-line bg-surface p-6" data-testid="business-name-form">
+      <label className="grid gap-1">
+        <span className="text-sm font-medium text-muted">Business name</span>
+        <span className="text-xs text-dim">Shown on client pages, and as the sender of your emails and reminders.</span>
+        <input
+          value={name}
+          onChange={(e) => { setName(e.target.value); setMsg(undefined); }}
+          maxLength={80}
+          aria-label="Business name"
+          placeholder="Your business name"
+          className="mt-2 w-full max-w-md rounded-xl border border-line-strong px-3 py-2 text-sm"
+        />
+        {placeholderName && <span className="text-sm text-warn-fg" data-testid="name-hint">Clients see this name. Change it to your business name.</span>}
+      </label>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button disabled={busy || !trimmed || trimmed === saved} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60">
+          {busy ? "Saving…" : "Save name"}
+        </button>
+        {msg && <p role="status" className={`text-sm ${msg.ok ? "text-ok-fg" : "text-danger-fg"}`}>{msg.text}</p>}
+      </div>
+    </form>
+  );
+}

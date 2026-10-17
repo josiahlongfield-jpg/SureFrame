@@ -45,6 +45,8 @@ model User {
   sessionsValidAfter  DateTime?
   /// Closed for good by SureFrame support: suspended and deleted on deleteAt, which the account holder can't undo.
   closedAt            DateTime?
+  /// Finished the one-step welcome after signing up (name and business name). Owners are asked until then.
+  onboardedAt         DateTime?
 
   @@index([deleteAt])
 }
@@ -172,6 +174,10 @@ model Workspace {
   legalHoldAt           DateTime?
   /// Why, for support only.
   legalHoldReason       String?
+  /// The owner pressed "I've saved it" for the recovery key (first steps). Null: still reminded.
+  recoveryKeySavedAt    DateTime?
+  /// The owner dismissed the first-steps checklist before finishing it.
+  firstStepsHiddenAt    DateTime?
   createdAt             DateTime           @default(now())
   members               Membership[]
   videos                Video[]

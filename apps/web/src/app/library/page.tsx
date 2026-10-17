@@ -5,6 +5,8 @@ import MemberPlanner from "@/components/MemberPlanner";
 import StorageStatus from "@/components/StorageStatus";
 import LibraryThumb from "@/components/LibraryThumb";
 import DayFolder from "@/components/DayFolder";
+import FirstSteps from "@/components/FirstSteps";
+import { firstStepsFor } from "@/lib/firstSteps";
 import { db } from "@/lib/db";
 import { PLANS } from "@/lib/plans";
 import { followTeamLink, requirePageUser } from "@/lib/session";
@@ -47,8 +49,10 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     plan.maxVideos !== null ? videosUsed(workspace.id) : null,
     db.client.count({ where: { ...clientScopeWhere(access), removedAt: null } }),
   ]);
+  // A new owner's first steps (components/FirstSteps.tsx) include the clients step; staff get "Start here" below.
+  const steps = await firstStepsFor(me);
   // A new business starts on its clients: once they're in, sending a video is picking them from a list.
-  const startHere = clientCount === 0 && videos.length === 0 && !soon && effectivePerms(access).addClients;
+  const startHere = clientCount === 0 && videos.length === 0 && !soon && effectivePerms(access).addClients && !steps;
   // Free: videos in total for the life of the workspace, deleted ones included.
   const freeLeft = allowance && plan.maxVideos !== null ? Math.max(0, plan.maxVideos - allowance.used) : null;
   const withParams = (p: Record<string, string | undefined>) => {
@@ -188,6 +192,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             )}
           </div>
         </div>
+        {steps && !soon && <FirstSteps steps={steps} workspaceId={workspace.id} fingerprint={workspace.keyFingerprint} business={workspace.name} />}
         {soon && (
           <p className="-mt-4 mb-6 max-w-2xl text-sm text-muted">
             {workspace.cloudBackup
@@ -220,7 +225,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
               <Link href="/record" className="text-sm text-dim hover:text-ink">Record first instead</Link>
             </div>
           </div>
-        ) : videos.length === 0 ? (
+        ) : videos.length === 0 && !steps ? (
           <div className="rounded-2xl border border-dashed border-line-strong p-16 text-center">
             <h2 className="font-semibold text-ink">No videos yet</h2>
             <p className="mt-1 text-sm text-dim">Record your first video and it will show up here.</p>

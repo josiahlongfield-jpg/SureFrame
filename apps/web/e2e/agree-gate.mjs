@@ -96,8 +96,8 @@ ok("the box starts unticked", !(await fresh.isChecked("[data-testid=agree-checkb
 ok("the box says what it means", norm(await fresh.textContent("label:has([data-testid=agree-checkbox])")) === "I have read and agree to the Terms of Service and Privacy Policy");
 ok("Agree is off until it's ticked", await fresh.isDisabled("[data-testid=agree-submit]"));
 ok("a Sign out button", (await fresh.locator("button:text-is('Sign out')").count()) === 1);
-ok("a way to download data or delete the account instead", (await fresh.getAttribute("[data-testid=agree-account]", "href")) === "/settings/account");
-ok("which says the subscription can be cancelled there too", norm(await fresh.textContent("[data-testid=agree-account]")).includes("manage or cancel your subscription"));
+ok("a brand-new account isn't offered its data or cancelling (it has none yet)", (await fresh.locator("[data-testid=agree-account], [data-testid=agree-billing]").count()) === 0);
+ok("the logo's frame shows on the light page", (await fresh.locator("main a[aria-label=SureFrame] svg").count()) === 1);
 ok("fits a phone", await noSideways(fresh));
 await fresh.screenshot({ path: `${shots}/agree-new-phone.png`, fullPage: true });
 
@@ -128,6 +128,13 @@ await fresh.check("[data-testid=agree-checkbox]");
 ok("ticking turns Agree on", await fresh.isEnabled("[data-testid=agree-submit]"));
 await fresh.click("[data-testid=agree-submit]");
 await fresh.waitForURL((u) => u.pathname !== "/agree", { timeout: 30000 });
+// The page streams in, so the redirect to the welcome step can land just after.
+await fresh.waitForURL((u) => u.pathname === "/welcome", { timeout: 15000 }).catch(() => {});
+// A new owner then gives the business name, in one step (app/welcome), and carries on.
+ok("a new owner is asked for the business name next", path(fresh) === "/welcome" && new URL(fresh.url()).searchParams.get("next") === "/clients", fresh.url());
+await fresh.fill("[data-testid=welcome-business]", "Business A");
+await fresh.click("[data-testid=welcome-submit]");
+await fresh.waitForURL((u) => u.pathname !== "/welcome", { timeout: 30000 });
 ok("agreeing carries on to where it was going", path(fresh) === "/clients", fresh.url());
 let rec = await rows(newUser.id);
 ok("one agreement recorded", rec.length === 1, JSON.stringify(rec));
@@ -153,6 +160,8 @@ ok("a newer agreement to older versions: sent back to /agree", path(fresh) === "
 ok("heading: We've updated our Terms of Service and Privacy Policy", norm(await fresh.textContent("[data-testid=agree-heading]")) === "We’ve updated our Terms of Service and Privacy Policy");
 const changes = await fresh.locator("[data-testid=agree-changes] li").count();
 ok("with a short summary of the changes", changes >= 3 && changes <= 4, String(changes));
+ok("an existing account can manage or cancel its subscription instead", (await fresh.getAttribute("[data-testid=agree-billing]", "href")) === "/settings/billing");
+ok("or download its data or delete the account", (await fresh.getAttribute("[data-testid=agree-account]", "href")) === "/settings/account");
 await fresh.screenshot({ path: `${shots}/agree-updated-phone.png`, fullPage: true });
 await tickAndAgree(fresh);
 rec = await rows(newUser.id);
@@ -161,7 +170,7 @@ ok("and carries on", path(fresh) === "/clients");
 
 // An account from before agreements were recorded, with no record at all: also an update.
 const oldEmail = `agree-old${stamp}@example.com`;
-const oldUser = await prisma.user.create({ data: { email: oldEmail, name: "Old Timer", createdAt: new Date("2026-01-15T00:00:00Z") } });
+const oldUser = await prisma.user.create({ data: { onboardedAt: new Date("2026-01-15T00:00:00Z"), email: oldEmail, name: "Old Timer", createdAt: new Date("2026-01-15T00:00:00Z") } });
 // Notice first (Terms section 18): until it has been emailed, and for 30 days after, it carries on as before.
 const old = await signIn(oldEmail, "/library", { lands: "/library" });
 ok("notice period: an existing account isn't sent to /agree before it's been told", path(old) === "/library", old.url());
@@ -270,7 +279,7 @@ ok("its agreement records are kept", (await rows(upUser.id)).length === recBefor
 
 // ---- Keeping a closed account works before agreeing, then the terms come first ---------------------------
 const keepEmail = `agree-keep${stamp}@example.com`;
-const keepUser = await prisma.user.create({ data: { email: keepEmail, name: "Keeper", deletionRequestedAt: new Date(Date.now() - 60_000), deleteAt: new Date(Date.now() + 20 * D) } });
+const keepUser = await prisma.user.create({ data: { onboardedAt: new Date("2026-01-15T00:00:00Z"), email: keepEmail, name: "Keeper", deletionRequestedAt: new Date(Date.now() - 60_000), deleteAt: new Date(Date.now() + 20 * D) } });
 const keep = await signIn(keepEmail, "/library", { lands: "/account/restore" });
 ok("a closed account signing in is offered to keep it (not /agree)", path(keep) === "/account/restore", keep.url());
 await keep.click("button:text-is('Keep my account')");
@@ -283,7 +292,7 @@ ok("which says the account is open again", new URL(keep.url()).searchParams.get(
 
 // ---- Suspended and paused still go where they did ----------------------------------------------------------
 const suspEmail = `agree-susp${stamp}@example.com`;
-const suspUser = await prisma.user.create({ data: { email: suspEmail, name: "Sus", suspendedAt: new Date() } });
+const suspUser = await prisma.user.create({ data: { onboardedAt: new Date("2026-01-15T00:00:00Z"), email: suspEmail, name: "Sus", suspendedAt: new Date() } });
 const susp = await signIn(suspEmail, "/library", { lands: "/suspended" });
 ok("a suspended login goes to /suspended, not /agree", path(susp) === "/suspended", susp.url());
 await visit(susp, "/agree", "/suspended");
@@ -294,7 +303,7 @@ ok("nothing recorded for it", (await rows(suspUser.id)).length === 0);
 
 // The owner of a workspace support suspended, who hasn't agreed yet: /suspended's Manage subscription still works.
 const suspOwnerEmail = `agree-suspowner${stamp}@example.com`;
-const suspOwner = await prisma.user.create({ data: { email: suspOwnerEmail, name: "Sue Owner" } });
+const suspOwner = await prisma.user.create({ data: { onboardedAt: new Date("2026-01-15T00:00:00Z"), email: suspOwnerEmail, name: "Sue Owner" } });
 await prisma.workspace.create({ data: { name: `Agree susp ${stamp}`, suspendedAt: new Date(), stripeCustomerId: `cus_agreesusp${stamp}`, members: { create: { userId: suspOwner.id, role: "OWNER" } } } });
 const suspOwnerPage = await signIn(suspOwnerEmail, "/library", { lands: "/suspended" });
 ok("a suspended workspace's owner who hasn't agreed lands on /suspended", path(suspOwnerPage) === "/suspended", suspOwnerPage.url());
@@ -305,13 +314,13 @@ ok("coming back to /suspended", /\/suspended$/.test(stripeState.portalSessions.a
 
 const ownerWs = (await prisma.membership.findFirst({ where: { userId: newUser.id } })).workspaceId;
 const pausedEmail = `agree-paused${stamp}@example.com`;
-const pausedUser = await prisma.user.create({ data: { email: pausedEmail, name: "Paula", activeWorkspaceId: ownerWs } });
+const pausedUser = await prisma.user.create({ data: { onboardedAt: new Date("2026-01-15T00:00:00Z"), email: pausedEmail, name: "Paula", activeWorkspaceId: ownerWs } });
 await prisma.membership.create({ data: { userId: pausedUser.id, workspaceId: ownerWs, role: "MEMBER", pausedAt: new Date() } });
 const paused = await signIn(pausedEmail, "/library", { lands: "/paused" });
 ok("paused staff go to /paused, not /agree", path(paused) === "/paused", paused.url());
 
 // ---- Support's console works for the support admin before agreeing -----------------------------------------
-const adminUser = await prisma.user.upsert({ where: { email: ADMIN }, update: {}, create: { email: ADMIN, name: "owner" } });
+const adminUser = await prisma.user.upsert({ where: { email: ADMIN }, update: {}, create: { email: ADMIN, name: "owner", onboardedAt: new Date() } });
 await prisma.termsAcceptance.deleteMany({ where: { userId: adminUser.id } });
 await noticeOver(adminUser.id, ADMIN);
 const admin = await signIn(ADMIN, "/support/lookup", { lands: "/support/lookup" });
@@ -347,7 +356,7 @@ await prisma.termsAcceptance.createMany({
   ],
 });
 // An account still open whose only agreement is older than 7 years (the terms haven't changed since), and a deleted one's.
-const oldTimer = await prisma.user.create({ data: { email: `oldtimer-${stamp}@example.com` } });
+const oldTimer = await prisma.user.create({ data: { email: `oldtimer-${stamp}@example.com`, onboardedAt: new Date("2026-01-15T00:00:00Z") } });
 const gone = `gone-${stamp}`;
 await prisma.termsAcceptance.createMany({
   data: [

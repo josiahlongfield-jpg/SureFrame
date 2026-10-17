@@ -48,7 +48,14 @@ await pro.waitForURL("**/settings/reminders");
 // 1. Settings, with a live preview of the email
 await pro.waitForFunction((tz) => document.querySelector('select[aria-label="Time zone"]')?.value === tz, TZ, { timeout: 5000 }).catch(() => {});
 ok("time zone picked up from the browser", (await pro.inputValue('select[aria-label="Time zone"]')) === TZ);
-await pro.fill('input[aria-label="Business name"]', "Peak Fitness");
+// The business name lives in Settings > Branding (any plan); Reminders shows it and links there.
+ok("Reminders links to Branding for the business name", (await pro.getAttribute("[data-testid=reminders-business] a", "href")) === "/settings/branding");
+await pro.goto(BASE + "/settings/branding");
+await pro.fill('[data-testid=business-name-form] input[aria-label="Business name"]', "Peak Fitness");
+await pro.click("text=Save name");
+await pro.waitForSelector("role=status >> text=Saved");
+await pro.goto(BASE + "/settings/reminders");
+await pro.waitForSelector("[data-testid=reminders-business] >> text=Peak Fitness");
 await pro.fill('input[aria-label="Reply-to email"]', "coach@peak.com");
 await pro.fill('textarea[aria-label="Personal message"]', "Reply here if you need to reschedule.");
 await pro.click("role=group[name='Reminders'] >> text=1 week before");

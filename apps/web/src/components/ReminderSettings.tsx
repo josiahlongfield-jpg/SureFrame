@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { reminderEmail } from "@/lib/reminderEmail";
 import { browserTimeZone, ruleLabel, sortRules, type ReminderRule } from "@/lib/schedule";
@@ -18,6 +19,9 @@ type Settings = {
 export default function ReminderSettings({ initial }: { initial: Settings }) {
   const [s, setS] = useState<Settings>(initial);
   const [zones, setZones] = useState<string[]>([]);
+  // The preview's dates depend on the clock and this device's zone, so it's drawn once the page is in the browser.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => setNow(new Date()), []);
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState<string>();
   const set = (patch: Partial<Settings>) => {
@@ -36,7 +40,7 @@ export default function ReminderSettings({ initial }: { initial: Settings }) {
 
   const tz = s.timezone ?? "UTC";
   const preview = useMemo(() => {
-    const now = new Date();
+    if (!now) return null;
     const due = new Date(now.getTime() + 86_400_000);
     due.setHours(9, 0, 0, 0);
     return reminderEmail({
@@ -48,7 +52,7 @@ export default function ReminderSettings({ initial }: { initial: Settings }) {
       link: "#",
       unsubscribe: "#",
     });
-  }, [s.name, s.reminderMessage, tz]);
+  }, [now, s.name, s.reminderMessage, tz]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -57,7 +61,8 @@ export default function ReminderSettings({ initial }: { initial: Settings }) {
     const res = await fetch("/api/workspace/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...s, timezone: tz }),
+      // The business name is saved on the Branding page.
+      body: JSON.stringify({ ...s, name: undefined, timezone: tz }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -74,11 +79,14 @@ export default function ReminderSettings({ initial }: { initial: Settings }) {
       <div className="grid gap-6">
         <section className="grid gap-4 rounded-2xl border border-line bg-surface p-6">
           <h2 className="font-semibold text-ink">Your business</h2>
-          <label className="grid gap-1 text-sm">
+          <p className="grid gap-1 text-sm" data-testid="reminders-business">
             <span className="font-medium text-muted">Business name</span>
+            <span>
+              <span className="text-ink">{s.name}</span>{" "}
+              <Link href="/settings/branding" className="font-medium text-accent hover:underline">Change in Branding</Link>
+            </span>
             <span className="text-xs text-dim">Shown to clients on their page and as the sender of reminder emails.</span>
-            <input value={s.name} onChange={(e) => set({ name: e.target.value })} required maxLength={80} aria-label="Business name" className={field} />
-          </label>
+          </p>
           <label className="grid gap-1 text-sm">
             <span className="font-medium text-muted">Time zone</span>
             <span className="text-xs text-dim">Reminders and repeats follow this clock, including daylight saving.</span>
@@ -146,9 +154,9 @@ export default function ReminderSettings({ initial }: { initial: Settings }) {
         <div className="overflow-hidden rounded-2xl border border-line bg-surface text-ink">
           <div className="border-b border-line px-4 py-3 text-xs text-dim">
             <p><span className="text-dim">From:</span> {s.name || "Your business"}</p>
-            <p className="mt-0.5 font-medium text-ink" data-testid="preview-subject">{preview.subject}</p>
+            <p className="mt-0.5 font-medium text-ink" data-testid="preview-subject">{preview?.subject ?? "\u00a0"}</p>
           </div>
-          <div className="text-left" data-testid="preview-body" dangerouslySetInnerHTML={{ __html: preview.html }} />
+          <div className="min-h-40 text-left" data-testid="preview-body" dangerouslySetInnerHTML={{ __html: preview?.html ?? "" }} />
         </div>
         <p className="mt-3 text-xs text-dim">
           To-dos are end-to-end encrypted, so emails never include what the to-do says. Clients tap through to read it. Every email has a link to stop reminders.

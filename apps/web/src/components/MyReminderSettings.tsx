@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { reminderEmail } from "@/lib/reminderEmail";
 import { ruleLabel, sortRules, type ReminderRule } from "@/lib/schedule";
 import { ReminderPicker } from "./ScheduleFields";
@@ -37,12 +37,15 @@ export default function MyReminderSettings({ business, ...initial }: Props) {
   };
 
   const tz = business.timezone ?? "UTC";
+  // The preview's dates depend on the clock and this device's zone, so it's drawn once the page is in the browser.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => setNow(new Date()), []);
   const preview = useMemo(() => {
-    const now = new Date();
+    if (!now) return null;
     const due = new Date(now.getTime() + 86_400_000);
     due.setHours(9, 0, 0, 0);
     return reminderEmail({ business: business.name, message: message.trim() || business.reminderMessage, due, now, tz, link: "#", unsubscribe: "#" });
-  }, [business.name, business.reminderMessage, message, tz]);
+  }, [now, business.name, business.reminderMessage, message, tz]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -149,9 +152,9 @@ export default function MyReminderSettings({ business, ...initial }: Props) {
         <div className="overflow-hidden rounded-2xl border border-line bg-surface text-ink">
           <div className="border-b border-line px-4 py-3 text-xs text-dim">
             <p><span className="text-dim">From:</span> {business.name}</p>
-            <p className="mt-0.5 font-medium text-ink" data-testid="preview-subject">{preview.subject}</p>
+            <p className="mt-0.5 font-medium text-ink" data-testid="preview-subject">{preview?.subject ?? "\u00a0"}</p>
           </div>
-          <div className="text-left" data-testid="preview-body" dangerouslySetInnerHTML={{ __html: preview.html }} />
+          <div className="min-h-40 text-left" data-testid="preview-body" dangerouslySetInnerHTML={{ __html: preview?.html ?? "" }} />
         </div>
         <p className="mt-3 text-xs text-dim">
           These apply to the clients assigned to you. To-dos are end-to-end encrypted, so emails never include what the to-do says. Every email has a link to stop reminders.
