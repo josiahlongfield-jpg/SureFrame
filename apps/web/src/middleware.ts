@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { ACTIVITY_COOKIE as MARKER, activityCookie } from "@/lib/activity";
+import { ACTIVITY_COOKIE as MARKER, activityCookie, KEEP_COOKIE, KEEP_DAYS, KEEP_NEXT_COOKIE } from "@/lib/activity";
 import { OWNER_COOKIE, OWNER_PARAM, maintenanceOn, ownerPass, sameText } from "@/lib/maintenance";
 
 /**
@@ -15,6 +15,10 @@ import { OWNER_COOKIE, OWNER_PARAM, maintenanceOn, ownerPass, sameText } from "@
  * an activity time older than IDLE_MS, is treated as signed out and the
  * session cookies are deleted. Encryption keys stay on the device, so signing
  * back in doesn't ask for the recovery key.
+ *
+ * "Keep me signed in on this device" (lib/activity.ts) is the exception: for
+ * KEEP_DAYS after that sign-in, the activity cookie outlives the browser and
+ * there is no idle limit.
  */
 /** Read by the sign-in page to explain why someone was signed out. */
 const EXPIRED = "sf_signed_out";
@@ -26,9 +30,17 @@ const BACKGROUND_HEADER = "x-sf-background";
 const sessionCookies = (req: NextRequest) =>
   req.cookies.getAll().filter((c) => SESSION_COOKIES.some((n) => c.name === n || c.name.startsWith(`${n}.`)));
 
+const isCallback = (req: NextRequest) => req.nextUrl.pathname.startsWith("/api/auth/callback/");
+
+/** Kept signed in on this device: ticked for the sign-in being completed now, or for the one in place. */
+const keeping = (req: NextRequest) => (isCallback(req) ? req.cookies.get(KEEP_NEXT_COOKIE)?.value === "1" : req.cookies.get(KEEP_COOKIE)?.value === "1");
+
 function mark(res: NextResponse, req: NextRequest) {
-  // No maxAge/expires: a browser-session cookie.
-  res.cookies.set(MARKER, String(Date.now()), activityCookie(req.nextUrl.protocol === "https:"));
+  const secure = req.nextUrl.protocol === "https:";
+  const keep = keeping(req);
+  // No maxAge/expires unless kept: a browser-session cookie.
+  res.cookies.set(MARKER, String(Date.now()), activityCookie(secure, keep));
+  // The sign-in itself sets or clears KEEP, once it has worked (events.signIn in src/auth.ts).
   return res;
 }
 
@@ -79,20 +91,20 @@ export async function middleware(req: NextRequest) {
 }
 
 function sessionActivity(req: NextRequest) {
-  const { pathname } = req.nextUrl;
   const session = sessionCookies(req);
   // Completing a sign-in from signed out (email link, Google, dev login) starts the browser session.
-  if (!session.length) return pathname.startsWith("/api/auth/callback/") ? mark(NextResponse.next(), req) : NextResponse.next();
+  if (!session.length) return isCallback(req) ? mark(NextResponse.next(), req) : NextResponse.next();
 
   const last = Number(req.cookies.get(MARKER)?.value);
-  const fresh = Number.isFinite(last) && last > 0 && Date.now() - last < IDLE_MS;
+  const idle = req.cookies.get(KEEP_COOKIE)?.value === "1" ? KEEP_DAYS * 86_400_000 : IDLE_MS;
+  const fresh = Number.isFinite(last) && last > 0 && Date.now() - last < idle;
   if (fresh) return req.headers.get(BACKGROUND_HEADER) ? NextResponse.next() : mark(NextResponse.next(), req);
 
   const names = new Set(session.map((c) => c.name));
   // Completing a new sign-in over an expired one: it goes ahead without the old session and sets
   // its own cookies and activity time (src/auth.ts). If the link was bad, the old cookies are
   // cleared on the next request.
-  if (pathname.startsWith("/api/auth/callback/")) return NextResponse.next({ request: { headers: withoutSession(req, names) } });
+  if (isCallback(req)) return NextResponse.next({ request: { headers: withoutSession(req, names) } });
 
   // The browser was closed, or nothing happened for too long: sign out here.
   // This request carries on as signed out (pages that need an account send
@@ -102,6 +114,7 @@ function sessionActivity(req: NextRequest) {
   // __Secure- cookies can only be replaced by a Secure cookie.
   for (const name of names) res.cookies.set(name, "", { path: "/", maxAge: 0, secure: name.startsWith("__Secure-") });
   res.cookies.set(MARKER, "", { path: "/", maxAge: 0 });
+  res.cookies.set(KEEP_COOKIE, "", { path: "/", maxAge: 0 });
   res.cookies.set(EXPIRED, "1", { path: "/", maxAge: 300, sameSite: "lax", httpOnly: true });
   return res;
 }

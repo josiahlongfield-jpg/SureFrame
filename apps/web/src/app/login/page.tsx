@@ -1,22 +1,33 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import Link from "next/link";
 import Logo from "@/components/Logo";
 import { AuthError } from "next-auth";
 import { auth, authProviders, previewPassword, signIn } from "@/auth";
 import { safeNext } from "@/lib/secrets";
 import { db } from "@/lib/db";
-import { plainEmail } from "@/lib/emailAddress";
 import { DELETION_GRACE_DAYS } from "@/lib/accountDeletion";
 import { pendingDeletion } from "@/lib/session";
-import { EMAIL_BLOCKED, isEmailBlocked } from "@/lib/blockedEmail";
+import { isEmailBlocked } from "@/lib/blockedEmail";
+import KeepSignedIn from "@/components/KeepSignedIn";
+import { emailLink } from "./actions";
+import { errorText } from "./errors";
+import { BRAND } from "@/lib/brand";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-export default async function Login({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; deleted?: string; closed?: string }> }) {
-  const { next, error, deleted, closed } = await searchParams;
-  const redirectTo = safeNext(next);
+/**
+ * Where to go after signing in: `next`, or `callbackUrl` (what Auth.js and
+ * some links use). Any same-site path with its query, e.g.
+ * /login?next=%2Fpricing%3Fplan%3DSOLO comes back to /pricing?plan=SOLO,
+ * through the email link, /agree and /welcome.
+ */
+export default async function Login({ searchParams }: { searchParams: Promise<{ next?: string; callbackUrl?: string; error?: string; deleted?: string; closed?: string; signup?: string }> }) {
+  const { next, callbackUrl, error, deleted, closed, signup } = await searchParams;
+  const redirectTo = safeNext(next ?? (callbackUrl ? relative(callbackUrl) : undefined));
+  // "Start free" (it opens /record) and a plan picked on the pricing page: say an account is being made.
+  const creating = signup === "1" || /^\/(record|pricing)(\/|\?|$)/.test(redirectTo);
+  const joining = redirectTo.startsWith("/join/");
   // Checked against the database: a sign-in left over from a deleted account must not bounce back and forth.
   const userId = (await auth())?.user?.id;
   const signedInAs = userId ? await db.user.findUnique({ where: { id: userId }, select: { deleteAt: true } }) : null;
@@ -33,7 +44,12 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
     <main data-theme="navy" className="fit-screen navy-glow text-ink px-4 py-4 short:py-2">
       <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8 short:p-4">
         <Logo tone="dark" />
-        <h1 className="mt-6 short:mt-3 text-xl font-semibold text-ink">Sign in to start recording</h1>
+        <h1 className="mt-6 short:mt-3 text-xl font-semibold text-ink" data-testid="login-heading">
+          {creating ? "Create your free account" : joining ? "Sign in to join your team" : "Sign in"}
+        </h1>
+        <p className="mt-1 text-sm text-muted">
+          {creating ? "Already have one? The same email signs you in." : `New to ${BRAND.name}? Entering your email creates your free account.`}
+        </p>
         {deleted && (
           <p role="status" className="mt-3 rounded-lg bg-ok-bg px-3 py-2 text-sm text-ok-fg" data-testid="deleted-note">
             Your account is closed and will be deleted in {DELETION_GRACE_DAYS} days. We&apos;ve emailed you the date. Changed your mind? Sign in before then to keep it.
@@ -63,34 +79,9 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
             </div>
           )}
           {hasEmail && (
-            <form
-              className="grid gap-3"
-              action={async (fd: FormData) => {
-                "use server";
-                const email = plainEmail(String(fd.get("email") ?? ""));
-                const back = (code: string) => redirect(`/login?error=${code}&next=${encodeURIComponent(redirectTo)}`);
-                if (!email) back("email");
-                // Refused again in src/auth.ts for any way in; checked here so the page says why.
-                if (await isEmailBlocked(email)) back("blocked");
-                // Sending is counted inside the provider (src/auth.ts), so direct API calls are limited too;
-                // this only tells the two kinds of failure apart.
-                const { signInEmailLimited } = await import("@/lib/signInGuard");
-                if (await signInEmailLimited(email!)) back("rate");
-                let failed = false;
-                try {
-                  // With redirect off, Auth.js reports a failed send as an error URL instead of throwing.
-                  const url = await signIn("email", { email, redirectTo, redirect: false });
-                  failed = typeof url === "string" && /[?&]error=/.test(url);
-                } catch {
-                  failed = true;
-                }
-                if (failed) {
-                  console.error("[signin] sign-in email not sent", JSON.stringify({ domain: email!.split("@")[1] }));
-                  back("send");
-                }
-                redirect("/login/check");
-              }}
-            >
+            <form className="grid gap-3" action={emailLink}>
+              <input type="hidden" name="next" value={redirectTo} />
+              {creating && <input type="hidden" name="signup" value="1" />}
               <label className="grid gap-1 text-sm">
                 <span className="font-medium text-muted">Email</span>
                 <input name="email" type="email" required autoComplete="email" placeholder="you@company.com" className="rounded-lg border border-line-strong px-3 py-2" />
@@ -127,28 +118,32 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
             </form>
           )}
           {error && <p role="alert" className="text-sm text-danger-fg">{errorText(error)}</p>}
+          {authProviders.length > 0 && (
+            <div className="grid gap-2 border-t border-line pt-4 short:pt-2">
+              <p className="text-xs text-dim" data-testid="signout-default">
+                For your security, you&apos;re signed out when you close your browser or after 8 hours without using {BRAND.name}.
+              </p>
+              <KeepSignedIn />
+            </div>
+          )}
           {authProviders.length === 0 && (
             <p className="text-sm text-muted">No sign-in method is configured. Set RESEND_API_KEY, AUTH_GOOGLE_ID or AUTH_DEV_LOGIN.</p>
           )}
         </div>
-        <p className="mt-6 text-xs text-dim short:mt-3">
-          By continuing you agree to our <Link href="/legal/terms" className="underline">Terms</Link> and{" "}
-          <Link href="/legal/privacy" className="underline">Privacy Policy</Link>.
-        </p>
       </div>
     </main>
   );
 }
 
-function errorText(code: string) {
-  if (code === "blocked") return EMAIL_BLOCKED;
-  if (code === "rate") return "Too many sign-in emails were requested for this address. Please wait up to an hour, then try again.";
-  if (code === "email") return "That email address doesn't look right. Check it and try again.";
-  if (code === "send") return "We couldn't send the sign-in email just now. Please try again in a few minutes, or email support@sureframe.app.";
-  if (code === "password") return "That password isn't right. Check it and try again.";
-  if (code === "Verification") return "That sign-in link has expired or was already used. Enter your email to get a new one.";
-  if (code === "OAuthAccountNotLinked") return "That email is already used with another sign-in method. Use the email link instead.";
-  return "Something went wrong signing in. Please try again.";
+/** A callbackUrl may be a whole address on this site; only its path and query are used. */
+function relative(url: string) {
+  if (url.startsWith("/")) return url;
+  try {
+    const u = new URL(url);
+    return u.origin === new URL(process.env.APP_URL ?? process.env.AUTH_URL ?? "http://localhost:3000").origin ? u.pathname + u.search : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function GoogleMark() {
