@@ -84,7 +84,7 @@ await page.click('[aria-label="Page"] >> text=Inbox');
 ok("inbox preview", await visible(preview, "[data-testid=preview-inbox] >> text=Your videos") && /^data:/.test((await previewLogo.getAttribute("src")) ?? ""));
 await page.screenshot({ path: `${shots}/brand-phone-inbox.png`, fullPage: true });
 await page.click('[aria-label="Page"] >> text=Email');
-ok("email preview: '{business} sent you a video'", await visible(preview, "[data-testid=email-subject] >> text=/sent you a video$/"));
+ok("email preview: '{business} sent you a video: {title}'", await visible(preview, "[data-testid=email-subject] >> text=/sent you a video: Your weekly check-in$/"));
 ok("email preview carries the logo", /^data:image/.test((await preview.frameLocator('iframe[title="Email body"]').locator("img").getAttribute("src")) ?? ""));
 await page.click('[aria-label="Screen size"] >> text=Desktop');
 await page.screenshot({ path: `${shots}/brand-desktop-email.png`, fullPage: true });

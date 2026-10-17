@@ -589,14 +589,14 @@ function Manager({
                     )}
                     <p className="break-words text-xs text-dim">
                       {c.email && <><span className="break-all">{c.email}</span> · </>}{plural(c.videoCount, "video", "videos")}
-                      {staff.length > 1 && seesAll && !canManage && ` · ${staffName(c.assignedToId) ?? "Shared"}`}
+                      {staff.length > 1 && seesAll && !canManage && ` · ${staffName(c.assignedToId) ?? "Unassigned"}`}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 text-sm">
                     {staff.length > 1 && canManage && (
                       <select aria-label={`Who looks after ${c.name}`} value={c.assignedToId ?? ""} onChange={(e) => assign(c, e.target.value || null)}
                         className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
-                        <option value="">Shared</option>
+                        <option value="">Unassigned (owner and admins)</option>
                         {staff.map((p) => <option key={p.id} value={p.id}>{p.id === meId ? `${p.name} (you)` : p.name}</option>)}
                       </select>
                     )}

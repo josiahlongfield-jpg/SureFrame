@@ -105,7 +105,7 @@ export default function Page() {
       <p>You&rsquo;re responsible for:</p>
       <ul>
         <li>having a lawful basis for the Customer Personal Data;</li>
-        <li>giving your clients and staff the information the law requires, including about Team overview and the AI add-on;</li>
+        <li>giving your clients and staff the information the law requires, including about the Team page and the AI add-on;</li>
         <li>keeping your devices, recovery key and client links secure;</li>
         <li>and making sure your instructions comply with Data Protection Law.</li>
       </ul>

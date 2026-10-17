@@ -65,7 +65,7 @@ function VideoPage({ business, sender }: { business: string; sender: string }) {
           <div className="min-w-0 sm:flex-1">
             <h1 className="text-2xl font-semibold text-ink">{TITLE}</h1>
             <p className="mt-1 px-1 text-sm text-dim">
-              {sender} from {business} · {today()} · 2 views
+              {sender} from {business} · {today()}
             </p>
           </div>
         </div>
@@ -162,7 +162,7 @@ function InboxPage({ business, sender }: { business: string; sender: string }) {
 function EmailPreview({ brand, sender, origin }: { brand: Brand; sender: string; origin: string }) {
   // Emails need absolute addresses; an unsaved logo is a data: URL already.
   const logoUrl = brand.logoUrl && brand.logoUrl.startsWith("/") ? origin + brand.logoUrl : brand.logoUrl;
-  const mail = newVideoEmail({ business: brand.name, sender, clientName: CLIENT, link: `${origin}/inbox`, logoUrl, color: brand.color });
+  const mail = newVideoEmail({ business: brand.name, sender, clientName: CLIENT, link: `${origin}/inbox`, title: "Your weekly check-in", logoUrl, color: brand.color });
   return (
     <div className="min-h-screen bg-canvas-2 p-3 text-ink sm:p-8" data-testid="preview-email">
       <div className="mx-auto max-w-2xl overflow-hidden rounded-2xl border border-line bg-surface">
@@ -171,7 +171,7 @@ function EmailPreview({ brand, sender, origin }: { brand: Brand; sender: string;
           <div className="mt-2 flex items-center gap-3 text-sm">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-line-strong font-semibold text-muted">{brand.name.trim().charAt(0).toUpperCase()}</span>
             <span className="min-w-0">
-              <span className="block truncate font-medium text-ink">{brand.name}</span>
+              <span className="block truncate font-medium text-ink">{brand.name} via SureFrame</span>
               <span className="block text-xs text-dim">to client-a@example.com</span>
             </span>
           </div>

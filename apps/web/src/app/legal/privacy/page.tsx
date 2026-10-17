@@ -34,11 +34,19 @@ export default function Page() {
           is between you and the business&rsquo;s team: no other client can see it.
         </li>
         <li>
-          <strong>We can&rsquo;t see</strong> the videos the business sends you or the video, voice and text replies you send: they&rsquo;re end-to-end encrypted,
+          <strong>We can&rsquo;t see</strong> the videos the business sends you, any message it adds to a video, or the video, voice and text replies you send: they&rsquo;re end-to-end encrypted,
           and the key is in your personal link, which never reaches our servers. We can see your name and email address, the titles of videos sent to you, when
           you opened your link and how many times you opened each video, and the emoji reactions you send.
         </li>
         <li>Clients can delete their own replies, at any time. A deleted reply is removed from our servers straight away.</li>
+        <li>
+          A video or voice reply is only shared once you choose to send it. If a recording is interrupted, it&rsquo;s kept for you alone to send or delete next
+          time, and is never sent automatically.
+        </li>
+        <li>
+          Your browser keeps the key to a business&rsquo;s videos on your device. &ldquo;Remove from this device&rdquo; in your inbox deletes that key and our
+          cookie for that business from that device only.
+        </li>
         <li>
           On a free-plan business, the short SureFrame intro is shown once per device for each business; your browser remembers this. You don&rsquo;t need an
           account and never pay.

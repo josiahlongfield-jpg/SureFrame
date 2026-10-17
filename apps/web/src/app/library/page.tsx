@@ -236,7 +236,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             )}
             {plan.showsPromo && (
               <p className="mt-2 text-sm text-dim" data-testid="promo-note">
-                Your clients see a short SureFrame intro before each video. Paid plans remove it.{" "}
+                Your clients see a short SureFrame intro the first time they open your videos on a device. Paid plans remove it.{" "}
                 <Link href="/pricing" className="font-medium text-accent hover:underline">See plans</Link>
               </p>
             )}
