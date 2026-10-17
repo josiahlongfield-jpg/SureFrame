@@ -63,13 +63,18 @@ export const LEGAL = {
    * discount offers, 13 October 2026) isn't one to agree to again, so it keeps termsVersion and moves only this.
    * Discount codes limited to starting a subscription or moving up a plan, codes given to one business for one use, and the
    * referral programme (16 October 2026) keep it too: they only add to what customers get, and the site was closed for maintenance.
+   * "Keep me signed in" and cancelling in Settings > Billing (17 October 2026) only add choices, so they keep it too.
    */
-  termsUpdated: "16 October 2026",
+  termsUpdated: "17 October 2026",
+  /** The Data Processing Agreement's own "last updated" date: "Keep me signed in" added to its security measures (17 October 2026). */
+  dpaUpdated: "17 October 2026",
   /**
    * The Privacy Policy page's own "last updated" date. Describing discount codes, referrals and the sf_offer cookie
-   * (16 October 2026) only explains more of what we already do, so it keeps privacyVersion.
+   * (16 October 2026) only explains more of what we already do, so it keeps privacyVersion. So do a short section for
+   * clients, the intro shown once per device, "Keep me signed in" and its cookies, and clients deleting their own replies
+   * (17 October 2026): they explain what we do or add choices, and take nothing away.
    */
-  privacyUpdated: "16 October 2026",
+  privacyUpdated: "17 October 2026",
 };
 
 /**

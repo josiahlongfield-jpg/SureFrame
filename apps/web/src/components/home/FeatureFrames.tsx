@@ -24,7 +24,6 @@ export default function FeatureFrames({ retentionDays }: { retentionDays: number
   const [offscreen, setOffscreen] = useState(false);
   const [reduce, setReduce] = useState(false);
   const host = useRef<HTMLDivElement>(null);
-  const strip = useRef<HTMLDivElement>(null);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
@@ -42,15 +41,6 @@ export default function FeatureFrames({ retentionDays }: { retentionDays: number
     io.observe(el);
     return () => io.disconnect();
   }, []);
-
-  // Keep the chosen tab in view inside the strip without scrolling the page.
-  useEffect(() => {
-    const s = strip.current, t = tabs.current[active];
-    if (!s || !t) return;
-    const left = t.offsetLeft - 4, right = t.offsetLeft + t.offsetWidth + 4;
-    if (left < s.scrollLeft) s.scrollLeft = left;
-    else if (right > s.scrollLeft + s.clientWidth) s.scrollLeft = right - s.clientWidth;
-  }, [active]);
 
   const select = useCallback((i: number, secs: number) => {
     setActive(i);
@@ -77,7 +67,7 @@ export default function FeatureFrames({ retentionDays }: { retentionDays: number
         onPointerEnter={(e) => e.pointerType === "mouse" && setHover(true)}
         onPointerLeave={(e) => e.pointerType === "mouse" && setHover(false)}
       >
-        <div className="ff-tabs" role="tablist" aria-label="What SureFrame does" ref={strip} onKeyDown={onKey}>
+        <div className="ff-tabs" role="tablist" aria-label="What SureFrame does" onKeyDown={onKey}>
           {list.map((f, i) => (
             <button
               key={f.key}
