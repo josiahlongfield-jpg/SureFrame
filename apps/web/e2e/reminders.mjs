@@ -103,7 +103,7 @@ const run1 = await cron();
 ok("reminder job sent 1", run1.body?.sent === 1, JSON.stringify(run1.body));
 const [mail] = mailTo("riley@example.com");
 ok("email went to the client", mail?.to === "riley@example.com");
-ok("email from the business, reply-to set", mail?.from.startsWith("Peak Fitness <") && mail?.replyTo === "coach@peak.com");
+ok("email from the business, reply-to set", mail?.from.startsWith("Peak Fitness via SureFrame <") && mail?.replyTo === "coach@peak.com");
 ok("email has the personal message and opt-out link", mail?.text.includes("Reply here if you need to reschedule.") && mail?.text.includes("/reminders/off?c="));
 ok("email never contains the to-do text", !JSON.stringify(mail).includes("weekly check-in"));
 console.log("   subject:", mail?.subject);

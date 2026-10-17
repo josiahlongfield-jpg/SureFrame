@@ -35,7 +35,11 @@ export async function sendMails(mails: Mail[]) {
   return sent;
 }
 
-const fromOf = (mail: Mail) => `${displayName(mail.fromName ?? BRAND.name)} <${process.env.MAIL_FROM ?? "reminders@example.com"}>`;
+/** A business's emails read "Business A via SureFrame", from our one sending address. */
+const fromOf = (mail: Mail) => {
+  const name = mail.fromName?.trim();
+  return `${displayName(name && name !== BRAND.name ? `${name} via ${BRAND.name}` : BRAND.name)} <${process.env.MAIL_FROM ?? "reminders@example.com"}>`;
+};
 const resendBody = (mail: Mail) => ({ from: fromOf(mail), to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html, reply_to: mail.replyTo ?? undefined });
 
 async function resend(key: string, path: string, payload: unknown) {
