@@ -292,6 +292,8 @@ await owner2.goto(`${BASE}/v/${c2.id}`);
 const banner3 = norm(await owner2.textContent("[data-testid=recipient-removed]", { timeout: 30000 }).catch(() => ""));
 ok("watch page: their copy of a recording sent to several clients", banner3.includes(`Their conversation here will be deleted on ${xanUntil}`) && banner3.includes("The recording itself stays"), banner3);
 await owner2.goto(`${BASE}/library`);
+// The library groups videos by day; open every day's folder.
+await owner2.$$eval("[data-testid=day-folder]", (els) => els.forEach((e) => (e.open = true)));
 await owner2.waitForSelector("[data-testid=client-removed-badge]", { timeout: 30000 }).catch(() => null);
 const badges = await owner2.$$eval("[data-testid=client-removed-badge]", (els) => els.map((e) => e.textContent.replace(/\s+/g, " ").trim()));
 ok("Library marks videos of a removed client", badges.length === 3 && badges.every((b) => b === `Client removed · conversation deleted ${shortDay(xan.purgeAt, "UTC")}`), JSON.stringify(badges));

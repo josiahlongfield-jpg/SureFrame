@@ -19,6 +19,10 @@ export function zoned(timeZone: string | null | undefined) {
     longDay: f({ dateStyle: "long" }),
     /** Oct 10 */
     shortDay: f({ month: "short", day: "numeric" }),
+    /** Saturday, October 10, 2026 */
+    weekdayDay: f({ weekday: "long", month: "long", day: "numeric", year: "numeric" }),
+    /** 9:30 AM */
+    time: f({ hour: "numeric", minute: "2-digit" }),
     /** Oct 10, 9:30 AM */
     shortDayTime: f({ month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
     /** Oct 10, 2026, 9:30 AM */

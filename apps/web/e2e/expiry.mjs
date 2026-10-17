@@ -43,6 +43,8 @@ async function signIn(email, next = "/library") {
   await page.fill('input[name="email"]', email);
   await page.click("text=Continue");
   await page.waitForURL((u) => u.pathname === next.split("?")[0]);
+  // The page has rendered, so the new account's workspace exists.
+  await page.waitForSelector("main h1", { timeout: 30000 });
   return page;
 }
 
@@ -73,6 +75,8 @@ const staffVid = await vid("st", { purgeAt: new Date(now + 22 * H), ownerId: sta
 
 // ---- Library: status text in the viewer's time zone ----
 await owner.goto(BASE + "/library");
+// The library groups videos by day; open every day's folder.
+await owner.$$eval("[data-testid=day-folder]", (els) => els.forEach((e) => (e.open = true)));
 const statusOf = async (id) => {
   const el = await owner.waitForSelector(`a[href="/v/${id}"] [data-testid=storage-status]:not(:empty)`);
   await owner.waitForFunction((e) => e.textContent.trim().length > 1, el);
@@ -112,6 +116,8 @@ const kept = await prisma.video.create({ data: { id: `ek${stamp.toString(36)}`, 
 // A stale purgeAt in a cloud-backup workspace must still never be warned about.
 const keptStale = await prisma.video.create({ data: { id: `eks${stamp.toString(36)}`, mimeType: "video/webm", storageKey: `test/${stamp}/ks`, status: "UPLOADED", workspaceId: cloudWs, ownerId: cloudUser.id, purgeAt: new Date(now + 10 * H) } });
 await cloud.goto(BASE + "/library");
+// The library groups videos by day; open every day's folder.
+await cloud.$$eval("[data-testid=day-folder]", (els) => els.forEach((e) => (e.open = true)));
 const keptEl = await cloud.waitForSelector(`a[href="/v/${kept.id}"] [data-testid=storage-status]`);
 ok("cloud backup: saved to cloud backup", norm(await keptEl.textContent()) === "Saved to cloud backup");
 

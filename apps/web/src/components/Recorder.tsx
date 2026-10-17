@@ -7,6 +7,7 @@ import MicLevel from "./MicLevel";
 import * as store from "@/lib/recorder/store";
 import { encryptFrame, fingerprint, generateKey, wrapKey } from "@/lib/e2e/crypto";
 import { browserTimeZone } from "@/lib/schedule";
+import { thumbFromTrack } from "@/lib/thumb";
 import { ChunkedUploader, FatalUploadError, lockName, mayRecover, recoverInterrupted, type UploadState } from "@/lib/recorder/uploader";
 import {
   bitrateFor,
@@ -390,6 +391,11 @@ export default function Recorder({
       live.current.started = true;
       live.current.startedAt = performance.now();
       setPhase("recording");
+      // The library still, from a moment into the recording; if this misses, opening the video makes one.
+      const still = video;
+      setTimeout(() => {
+        if (still.readyState === "live") void thumbFromTrack(videoId, still, videoKey).catch(() => {});
+      }, 1500);
     } catch (err) {
       stopAll(...streams);
       composed?.close();

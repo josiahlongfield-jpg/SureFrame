@@ -4,6 +4,7 @@ import AppHeader from "@/components/AppHeader";
 import MemberPlanner from "@/components/MemberPlanner";
 import StorageStatus from "@/components/StorageStatus";
 import LibraryThumb from "@/components/LibraryThumb";
+import DayFolder from "@/components/DayFolder";
 import { db } from "@/lib/db";
 import { PLANS } from "@/lib/plans";
 import { followTeamLink, requirePageUser } from "@/lib/session";
@@ -66,6 +67,61 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   const dates = zoned(workspace.timezone);
   const now = new Date();
   const views = (v: (typeof videos)[number]) => v.viewCount + v.copies.reduce((n, c) => n + c.viewCount, 0);
+  type Item = (typeof videos)[number];
+  // The library still: a sealed one for encrypted recordings (made on this device if missing), else the video itself.
+  const still = (v: Item) =>
+    v.thumbnailUrl ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={v.thumbnailUrl} alt="" className="h-full w-full object-cover transition group-hover:scale-105" />
+    ) : v.encrypted ? (
+      // Staff who look after a client see that client's copy here; it uses the original's still.
+      <LibraryThumb videoId={v.id} teamKeyWrap={v.teamKeyWrap} workspaceId={workspace.id} fingerprint={workspace.keyFingerprint} has={v.status !== "EXPIRED" && !!(v.thumb ?? v.source?.thumb)} canMake={v.status === "UPLOADED" || v.status === "PROCESSING" || v.status === "READY"} rawUrl={`/api/videos/${v.id}/stream`} mimeType={v.mimeType} />
+    ) : v.status !== "RECORDING" ? (
+      <video src={`/api/videos/${v.id}/stream#t=0.5`} preload="metadata" muted className="h-full w-full object-cover" />
+    ) : null;
+  // Inside a day's folder the time says when; in "Deleting soon" the date does.
+  const grid = (items: Item[], inDay: boolean) => (
+    <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {items.map((v) => (
+        <li key={v.id}>
+          <Link href={`/v/${v.id}`} className="group block">
+            <div className="relative aspect-video overflow-hidden rounded-xl bg-solid">
+              {still(v)}
+              {v.status === "EXPIRED" && (
+                <span className="absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">Deleted from our servers</span>
+              )}
+              {v.status === "RECORDING" && (
+                <span className="absolute inset-0 grid place-items-center text-sm text-dim">Incomplete upload</span>
+              )}
+              {v.durationMs ? (
+                <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">{fmt(v.durationMs)}</span>
+              ) : null}
+            </div>
+            <h3 className="mt-3 truncate font-medium text-ink group-hover:text-accent">{v.title}</h3>
+            <p className="text-xs text-dim">
+              {inDay ? dates.time(v.createdAt) : dates.day(v.createdAt)} · {views(v)} {views(v) === 1 ? "view" : "views"}
+            </p>
+            <StorageStatus status={v.status} purgeAt={v.purgeAt?.toISOString() ?? null} cloudBackup={workspace.cloudBackup} />
+            {v.client?.removedAt && (
+              <p className="text-xs text-warn-fg" data-testid="client-removed-badge">
+                Client removed{v.client.purgeAt && v.client.purgeAt > now ? ` · conversation deleted ${dates.shortDay(v.client.purgeAt)}` : ""}
+              </p>
+            )}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+  // Days in the workspace's time zone; videos are already newest first.
+  const today = dates.day(now);
+  const yesterday = dates.day(new Date(now.getTime() - 86_400_000));
+  const days: { key: string; label: string; items: Item[] }[] = [];
+  for (const v of videos) {
+    const key = dates.day(v.createdAt);
+    const last = days[days.length - 1];
+    if (last?.key === key) last.items.push(v);
+    else days.push({ key, label: key === today ? "Today" : key === yesterday ? "Yesterday" : dates.weekdayDay(v.createdAt), items: [v] });
+  }
   const pill = (active: boolean) => `rounded-md px-3 py-1.5 ${active ? "bg-surface font-medium text-ink shadow-sm" : "text-muted hover:text-ink"}`;
 
   return (
@@ -171,44 +227,35 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             <Link href="/record" className="mt-6 inline-block rounded-xl bg-primary px-5 py-2.5 font-semibold text-on-primary hover:bg-primary-hover">Record a video</Link>
           </div>
         ) : (
-          <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {videos.map((v) => (
-              <li key={v.id}>
-                <Link href={`/v/${v.id}`} className="group block">
-                  <div className="relative aspect-video overflow-hidden rounded-xl bg-solid">
-                    {v.thumbnailUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={v.thumbnailUrl} alt="" className="h-full w-full object-cover transition group-hover:scale-105" />
-                    ) : v.encrypted ? (
-                      // Staff who look after a client see that client's copy here; it uses the original's still.
-                      <LibraryThumb videoId={v.id} teamKeyWrap={v.teamKeyWrap} workspaceId={workspace.id} fingerprint={workspace.keyFingerprint} has={v.status !== "EXPIRED" && !!(v.thumb ?? v.source?.thumb)} />
-                    ) : v.status !== "RECORDING" ? (
-                      <video src={`/api/videos/${v.id}/stream#t=0.5`} preload="metadata" muted className="h-full w-full object-cover" />
-                    ) : null}
-                    {v.status === "EXPIRED" && (
-                      <span className="absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">Deleted from our servers</span>
-                    )}
-                    {v.status === "RECORDING" && (
-                      <span className="absolute inset-0 grid place-items-center text-sm text-dim">Incomplete upload</span>
-                    )}
-                    {v.durationMs ? (
-                      <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">{fmt(v.durationMs)}</span>
-                    ) : null}
-                  </div>
-                  <h3 className="mt-3 truncate font-medium text-ink group-hover:text-accent">{v.title}</h3>
-                  <p className="text-xs text-dim">
-                    {dates.day(v.createdAt)} · {views(v)} {views(v) === 1 ? "view" : "views"}
-                  </p>
-                  <StorageStatus status={v.status} purgeAt={v.purgeAt?.toISOString() ?? null} cloudBackup={workspace.cloudBackup} />
-                  {v.client?.removedAt && (
-                    <p className="text-xs text-warn-fg" data-testid="client-removed-badge">
-                      Client removed{v.client.purgeAt && v.client.purgeAt > now ? ` · conversation deleted ${dates.shortDay(v.client.purgeAt)}` : ""}
-                    </p>
-                  )}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          soon ? (
+            grid(videos, false)
+          ) : (
+            // One folder per day something was recorded, newest first; opening it shows that day's videos.
+            <div className="space-y-4">
+              {days.map(({ key, label, items }) => (
+                <DayFolder
+                  key={key}
+                  day={key}
+                  summary={
+                    <>
+                      <span className="relative aspect-video w-24 shrink-0 sm:w-36">
+                        {/* A stack of cards: the day's newest still in front. */}
+                        {items.length > 2 && <span aria-hidden className="absolute inset-0 translate-x-2 -translate-y-2 rounded-lg border border-line bg-solid opacity-60" />}
+                        {items.length > 1 && <span aria-hidden className="absolute inset-0 translate-x-1 -translate-y-1 rounded-lg border border-line bg-solid opacity-80" />}
+                        <span className="absolute inset-0 overflow-hidden rounded-lg border border-line bg-solid">{still(items[0])}</span>
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-semibold text-ink" data-testid="day-label">{label}</span>
+                        <span className="block text-sm text-dim" data-testid="day-count">{items.length} {items.length === 1 ? "video" : "videos"}</span>
+                      </span>
+                    </>
+                  }
+                >
+                  {grid(items, true)}
+                </DayFolder>
+              ))}
+            </div>
+          )
         )}
         <div className="mt-12 max-w-2xl">
           {/* Items not about a client are one list for the whole team; say so when there is a team. */}

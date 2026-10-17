@@ -107,6 +107,23 @@ export async function encryptFrame(chunk: Blob | Uint8Array, key: CryptoKey) {
   return frame;
 }
 
+/**
+ * Decrypt the complete frames at the start of a framed file, for a preview
+ * from only the first part of a recording. A frame cut off at the end is left out.
+ */
+export async function decryptLeadingFrames(bytes: Uint8Array, key: CryptoKey): Promise<Uint8Array[]> {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const out: Uint8Array[] = [];
+  let at = 0;
+  while (at + 4 <= bytes.length) {
+    const len = view.getUint32(at);
+    if (at + 4 + len > bytes.length) break;
+    out.push(await open(bytes.subarray(at + 4, at + 4 + len), key));
+    at += 4 + len;
+  }
+  return out;
+}
+
 /** Decrypt a whole framed file back into the original recording bytes. */
 export async function decryptFrames(data: ArrayBuffer, key: CryptoKey): Promise<Uint8Array[]> {
   const bytes = new Uint8Array(data);

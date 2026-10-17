@@ -3,7 +3,7 @@
 // - a video is sent by choosing clients from one dropdown, then Send by email or Copy link;
 // - a client who hasn't opened their personal link yet gets it from the business (it holds their key),
 //   after which Send by email works for them;
-// - the library shows an encrypted still from each recording once the team has opened it.
+// - the library shows an encrypted still from each recording.
 import { chromium } from "@playwright/test";
 import { readdirSync, readFileSync, mkdirSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
@@ -102,6 +102,7 @@ ok("Copy link emails nobody", mailTo(zoeEmail).length === 0);
 // The team opened it, so the library has its still.
 ok("library still saved, encrypted", !!(await waitFor(async () => prisma.videoThumb.findUnique({ where: { videoId: first } }), 15000)));
 await owner.goto(BASE + "/library");
+await owner.click("[data-testid=day-folder] summary");
 ok("library shows the still", !!(await owner.waitForSelector(`a[href="/v/${first}"] [data-testid=library-thumb]`, { timeout: 15000 }).catch(() => null)));
 ok("start step gone once there are clients", (await owner.locator("[data-testid=start-here]").count()) === 0);
 await owner.screenshot({ path: `${process.argv[2] ?? "/tmp"}/first-link-library.png` });
