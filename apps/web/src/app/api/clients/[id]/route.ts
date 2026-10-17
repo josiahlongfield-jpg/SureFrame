@@ -29,6 +29,7 @@ export const PATCH = handle(async (req: Request, ctx: { params: Promise<{ id: st
     throw new HttpError(400, "Enter a valid email address");
   }
   await rateLimit(`client-edit:${workspace.id}`, 30, 3600);
+  if (body.data.assignedToId !== undefined) requireRole(me, "OWNER", "ADMIN");
   const scope = clientScopeWhere(accessOf(me));
   if (!(await db.client.findFirst({ where: { ...scope, id, removedAt: null }, select: { id: true } }))) throw new HttpError(404, "Client not found");
   // Two clients with one email would get each other's emails. Only name the other client if this person can see them.
@@ -39,11 +40,8 @@ export const PATCH = handle(async (req: Request, ctx: { params: Promise<{ id: st
       throw new HttpError(409, visible ? `${taken.name} already uses ${body.data.email}. Each client needs their own email.` : `Another client already uses ${body.data.email}. Each client needs their own email.`);
     }
   }
-  if (body.data.assignedToId !== undefined) {
-    requireRole(me, "OWNER", "ADMIN");
-    if (body.data.assignedToId && !(await db.membership.findUnique({ where: { userId_workspaceId: { userId: body.data.assignedToId, workspaceId: workspace.id } } }))) {
-      throw new HttpError(400, "That person isn't on your team");
-    }
+  if (body.data.assignedToId && !(await db.membership.findUnique({ where: { userId_workspaceId: { userId: body.data.assignedToId, workspaceId: workspace.id } } }))) {
+    throw new HttpError(400, "That person isn't on your team");
   }
   const res = await db.client.updateMany({
     where: { ...scope, id, removedAt: null },

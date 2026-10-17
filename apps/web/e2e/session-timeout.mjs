@@ -42,7 +42,7 @@ await p2.goto(BASE + "/library");
 // The page streams in, so the redirect to sign in can land just after load.
 await p2.waitForURL("**/login**", { timeout: 15000 }).catch(() => {});
 ok("after closing the browser: sent to sign in", new URL(p2.url()).pathname === "/login", p2.url());
-ok("sign-in page explains why", await p2.isVisible("[data-testid=signed-out-note]"));
+ok("sign-in page explains why", !!(await p2.waitForSelector("[data-testid=signed-out-note]", { timeout: 10000 }).catch(() => null)));
 ok("session cookie deleted", !(await reopened.cookies()).some((c) => c.name.includes("session-token")));
 await p2.goto(BASE + "/library");
 await p2.waitForURL("**/login**", { timeout: 15000 }).catch(() => {});
