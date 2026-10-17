@@ -7,6 +7,7 @@ import { discountOf } from "@/lib/offers";
 import { rateLimit } from "@/lib/rateLimit";
 import { applyBackupSetting } from "@/lib/retention";
 import { enforceSeatLimits } from "@/lib/seatLimits";
+import { HttpError } from "@/lib/session";
 import { stripe } from "@/lib/stripe";
 
 /** Stripe's "no such object": a test-mode id used with live keys, or something deleted in the Dashboard. */
@@ -233,4 +234,37 @@ export async function reconcileSubscriptions(budgetMs = 120_000) {
   }
   console.log("[billing] subscriptions checked", JSON.stringify({ checked, forgotten, total: ids.length }));
   return { checked, forgotten };
+}
+
+/**
+ * Cancel in the app (Settings > Billing): the plan stops renewing and ends when the paid period does, the same as
+ * cancelling under Manage subscription (portalConfiguration in lib/billing.ts uses "at_period_end"), and as closing an
+ * account does (lib/accountDeletion.ts). Returns when it ends. The webhook brings the rest of Billing up to date.
+ */
+export async function cancelAtPeriodEnd(workspace: Workspace): Promise<Date | null> {
+  const sub = await currentSubscription(workspace);
+  if (!sub || !ACTIVE_STATUSES.has(sub.status)) throw new HttpError(400, "There's no paid plan to cancel.");
+  const planItem = sub.items.data.find((i) => planOf(i.price));
+  const already = cancelDate(sub, planItem);
+  if (already) return already;
+  const updated = await stripe().subscriptions.update(sub.id, { cancel_at_period_end: true });
+  const ends = cancelDate(updated, updated.items?.data.find((i) => planOf(i.price))) ?? workspace.currentPeriodEnd;
+  await db.workspace.update({ where: { id: workspace.id }, data: { cancelsAt: ends } });
+  return ends;
+}
+
+/**
+ * "Keep my plan": turns renewal back on for a plan cancelled in the app or under Manage subscription. Not for one that
+ * stopped renewing because a payment was disputed (api/webhooks/stripe; a person turns that back on), nor one Stripe
+ * set to end on a date of its own.
+ */
+export async function keepRenewing(workspace: Workspace) {
+  const sub = await currentSubscription(workspace);
+  if (!sub || !ACTIVE_STATUSES.has(sub.status)) throw new HttpError(400, "Your plan has already ended. Choose a plan on the Pricing page to subscribe again.");
+  if (!sub.cancel_at_period_end && !sub.cancel_at) return;
+  if (!sub.cancel_at_period_end) throw new HttpError(409, "Your plan is set to end on a fixed date. Choose Manage subscription to change it, or contact support@sureframe.app.");
+  const charges = workspace.stripeCustomerId ? await stripe().charges.list({ customer: workspace.stripeCustomerId, limit: 100 }) : null;
+  if (charges?.data.some((c) => c.disputed)) throw new HttpError(409, "A payment on this plan was disputed, so it can't be renewed from here. Contact support@sureframe.app.");
+  await stripe().subscriptions.update(sub.id, { cancel_at_period_end: false });
+  await db.workspace.update({ where: { id: workspace.id }, data: { cancelsAt: null } });
 }

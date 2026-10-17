@@ -42,6 +42,8 @@ const outbox = () =>
 const alerts = (subject) => outbox().filter((m) => m.to === "owner@test.dev" && m.subject.startsWith("[Action needed]") && m.subject.includes(subject));
 const planText = async () => {
   await page.goto(BASE + "/settings/billing");
+  // The page streams in behind app/loading.tsx; wait for the plan card itself.
+  await page.waitForSelector("main h1:has-text('Billing')", { state: "visible", timeout: 15000 }).catch(() => {});
   return page.textContent("main");
 };
 
@@ -98,13 +100,14 @@ const sessionsBefore = state.sessions.length;
 const updateBefore = sub.lastUpdate;
 await page.route("https://billing.stripe.test/**", (r) => r.fulfill({ body: "portal" }));
 await page.goto(BASE + "/pricing");
-await page.click("button:has-text('Get Studio')");
+await page.click("button:has-text('Switch to Studio')");
 const dialog = await page.waitForSelector("[data-testid=plan-confirm]");
 const confirmText = await dialog.textContent();
 ok("nothing changes before confirming", sub.items.data.some((i) => i.price.lookup_key === "sureframe_solo_monthly") && sub.lastUpdate === updateBefore);
 ok("confirm shows the card on file", /Visa ending 4242/.test(confirmText));
 ok("confirm shows full price, credit and amount due", /Studio, from today/.test(confirmText) && /Unused time on your current plan/.test(confirmText) && /Due today/.test(confirmText), confirmText);
-ok("confirm lists add-ons and tax on their own rows", /Studio, from today\s*US\$49\.00/.test(confirmText) && /Extra clients and add-ons, from today/.test(confirmText) && /Tax/.test(confirmText));
+ok("confirm lists add-ons and tax on their own rows", /Studio, from today\s*US\$49\.00/.test(confirmText) && /Add-ons, from today/.test(confirmText) && /Tax/.test(confirmText));
+ok("confirm says the extra seats Studio includes come off", /Studio includes 40 clients, so your 2 extra client seats are removed with this switch/.test(confirmText), confirmText);
 {
   const amounts = [...confirmText.matchAll(/(−?)US\$([\d,]+\.\d\d)/g)].map((m) => (m[1] ? -1 : 1) * Number(m[2].replace(/,/g, "")));
   const due = amounts.at(-2) ?? amounts.at(-1); // the Pay button repeats the amount
@@ -116,20 +119,22 @@ await page.waitForURL("https://billing.stripe.test/**");
 const cardFlow = state.portalSessions.at(-1);
 ok("different card opens Stripe's card update", cardFlow.flow_data?.type === "payment_method_update" && cardFlow.flow_data.after_completion.redirect.return_url.endsWith("/pricing"));
 await page.goto(BASE + "/pricing");
-await page.click("button:has-text('Get Studio')");
+await page.click("button:has-text('Switch to Studio')");
 await page.waitForSelector("[data-testid=plan-confirm]");
 await page.click("button:has-text('and switch')");
 await page.waitForURL((u) => u.pathname === "/settings/billing" && u.searchParams.get("upgraded") === "1");
 ok("upgrade goes straight back to billing, no second checkout", state.sessions.length === sessionsBefore);
 ok("upgrade charges now and restarts the billing date", sub.lastUpdate.billing_cycle_anchor?.type === "now" && sub.lastUpdate.proration_behavior === "always_invoice");
-ok("upgrade only applies once paid", sub.lastUpdate.payment_behavior === "pending_if_incomplete");
+// It removes the extra seats, which a pending update can't do, so a declined card refuses it outright (lib/billing.ts chargeChange);
+// a plain upgrade keeps a link to pay (4a below).
+ok("upgrade only applies once paid", sub.lastUpdate.payment_behavior === "error_if_incomplete");
 ok("plan item switched to Studio", sub.items.data.some((i) => i.price.lookup_key === "sureframe_studio_monthly") && !sub.items.data.some((i) => i.price.lookup_key === "sureframe_solo_monthly"));
-ok("seats kept through the upgrade", sub.items.data.find((i) => i.price.lookup_key === "sureframe_client_seat_monthly")?.quantity === 2);
+// Studio includes 40 clients, so the 2 extra seats bought on Solo (no clients yet) come off with the move (lib/planChange.ts).
+ok("extra seats the bigger plan includes come off with the upgrade", !sub.items.data.some((i) => i.price.lookup_key?.startsWith("sureframe_client_seat")));
 await webhook("customer.subscription.updated", sub);
 ok("billing page shows Studio", /Studio plan/.test(await planText()));
 await page.goto(BASE + "/pricing");
-await page.click("button:has-text('Get Studio')");
-ok("current plan isn't offered again", !!(await page.waitForSelector("text=You're already on Studio", { timeout: 5000 }).catch(() => null)));
+ok("current plan isn't offered again", !!(await page.waitForSelector("[data-testid=plan-STUDIO] >> text=You’re on Studio", { timeout: 10000 }).catch(() => null)) && (await page.$$("[data-testid=plan-STUDIO] button")).length === 0);
 
 // 4a) A declined card leaves the plan as it was and sends the owner to pay the invoice.
 control.declineNext = true;
@@ -138,10 +143,12 @@ const declined = await res.json();
 ok("declined upgrade goes to Stripe's invoice page", res.ok() && declined.url === "https://invoice.stripe.test/pay");
 ok("declined upgrade keeps Studio", /Studio plan/.test(await planText()) && sub.items.data.some((i) => i.price.lookup_key === "sureframe_studio_monthly"));
 
-// 4b) Switching to yearly moves the plan and every add-on to yearly prices together.
+// 4b) Switching to yearly moves the plan and every add-on to yearly prices together. Seats bought ahead stay: it isn't a bigger plan.
+res = await api("/api/billing/seats", { extraSeats: 2 });
+ok("seats can be bought ahead on Studio", res.ok());
 res = await api("/api/billing/checkout", { plan: "STUDIO", interval: "year" });
 const keys = () => sub.items.data.map((i) => i.price.lookup_key).sort();
-ok("yearly switch moves every item", res.ok() && JSON.stringify(keys()) === JSON.stringify(["sureframe_client_seat_yearly", "sureframe_cloud_backup_yearly", "sureframe_studio_yearly"]), keys().join());
+ok("yearly switch moves every item, seats bought ahead included", res.ok() && JSON.stringify(keys()) === JSON.stringify(["sureframe_client_seat_yearly", "sureframe_cloud_backup_yearly", "sureframe_studio_yearly"]), keys().join());
 const yearly = sub.items.data.find((i) => i.price.lookup_key === "sureframe_studio_yearly");
 ok("yearly Studio costs 10 months", yearly?.price.unit_amount === 49000 && yearly.price.recurring?.interval === "year");
 res = await api("/api/billing/seats", { extraSeats: 4 });

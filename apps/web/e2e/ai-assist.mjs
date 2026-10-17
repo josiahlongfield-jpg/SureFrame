@@ -74,6 +74,8 @@ async function signIn(context, email, next) {
   await page.fill('input[name="email"]', email);
   await page.click("text=Continue");
   await page.waitForURL((u) => u.pathname === next, { timeout: 60000 });
+  // The page streams in behind app/loading.tsx; it makes a new account's workspace, so wait until it has rendered.
+  await page.waitForSelector("[role=status][aria-label=Loading]", { state: "detached", timeout: 30000 }).catch(() => {});
   return page;
 }
 async function webhook(page, sub) {
@@ -153,8 +155,9 @@ await owner.goto(BASE + "/settings/billing");
 await owner.waitForSelector("[data-testid=ai-assist]");
 const billingText = await owner.textContent("[data-testid=ai-assist]");
 ok("billing explains what leaves the device", billingText.includes("The audio isn't sent anywhere to make it") && billingText.includes("Anthropic") && billingText.includes("$8 per month"));
-owner.once("dialog", (d) => d.accept());
+// Adding it asks first, in the page (src/components/ConfirmDialog.tsx).
 await owner.click("[data-testid=ai-assist] [role=switch]");
+await owner.click("[data-testid=ai-confirm-yes]");
 await owner.waitForSelector("[data-testid=ai-assist] [role=switch][aria-checked=true]");
 const aiItem = sub.items.data.find((i) => i.price.lookup_key === "sureframe_ai_assist_solo_monthly");
 ok("Solo add-on added at $8/month", aiItem?.price.unit_amount === 800 && aiItem.price.recurring?.interval === "month");

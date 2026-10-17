@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ConfirmDialog from "./ConfirmDialog";
 
 type Props = {
   enabled: boolean;
@@ -18,10 +19,12 @@ export default function AiAssistToggle({ enabled, canEnable, priceLabel, usage, 
   const [on, setOn] = useState(enabled);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [asking, setAsking] = useState(false);
+  const [done, setDone] = useState<string>();
 
   async function toggle() {
-    if (!on && priceLabel && !confirm(`Add AI transcripts and summaries for ${priceLabel}, plus any tax? You're charged today for the rest of this billing period, then it renews with your plan.`)) return;
     setBusy(true);
+    setDone(undefined);
     setError(undefined);
     const res = await fetch("/api/billing/ai", {
       method: "POST",
@@ -30,9 +33,11 @@ export default function AiAssistToggle({ enabled, canEnable, priceLabel, usage, 
     });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
+    setAsking(false);
     if (data.url) return void (window.location.href = data.url);
     if (!res.ok) return setError(data.error ?? "Could not change AI summaries");
     setOn(data.aiAssist);
+    setDone(data.aiAssist ? "AI transcripts and summaries are on. Open a video to make its transcript and summary." : "AI transcripts and summaries are off.");
   }
 
   return (
@@ -65,14 +70,31 @@ export default function AiAssistToggle({ enabled, canEnable, priceLabel, usage, 
           role="switch"
           aria-checked={on}
           aria-label="AI transcripts and summaries"
-          onClick={toggle}
+          onClick={() => {
+            setError(undefined);
+            // Adding a paid add-on asks first; switching it off or on for free doesn't charge anything.
+            if (!on && priceLabel) setAsking(true);
+            else void toggle();
+          }}
           disabled={busy || (!on && (!canEnable || (!modelReady && !!priceLabel)))}
           className={`relative h-7 w-12 shrink-0 rounded-full transition disabled:opacity-50 ${on ? "bg-primary" : "bg-line-strong"}`}
         >
           <span className={`absolute top-1 h-5 w-5 rounded-full bg-surface shadow transition ${on ? "left-6" : "left-1"}`} />
         </button>
       </div>
-      {error && <p role="alert" className="mt-3 text-sm text-danger-fg">{error}</p>}
+      {error && <p role="alert" className="mt-3 rounded-xl border border-danger-line bg-danger-bg p-3 text-sm text-danger-fg">{error}</p>}
+      {done && <p role="status" className="mt-3 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="ai-done">{done}</p>}
+      {asking && priceLabel && (
+        <ConfirmDialog
+          title="Add AI transcripts and summaries?"
+          body={<p>{priceLabel}, plus any tax. You&apos;re charged today for the rest of this billing period, then it renews with your plan.</p>}
+          confirmLabel="Add AI summaries"
+          busy={busy}
+          onConfirm={toggle}
+          onCancel={() => setAsking(false)}
+          testId="ai-confirm"
+        />
+      )}
     </div>
   );
 }

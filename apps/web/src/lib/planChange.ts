@@ -11,19 +11,38 @@ export type PlanChange = {
   items: Stripe.SubscriptionUpdateParams.Item[];
   /** True when the plan and interval are already the ones asked for. */
   same: boolean;
-  /** Some items are removed (extra staff when leaving a team plan). */
+  /** Some items are removed (extra staff when leaving a team plan, or extra client seats the new plan includes). */
   removesItems: boolean;
+  /** Extra client seats the new plan makes unnecessary, taken off as part of the switch: how many there are now and after. */
+  seats: { from: number; to: number } | null;
 };
 
-/** Throws when the workspace has more clients or staff than the plan (plus its extra seats) allows. */
+const clientsUsed = (workspaceId: string) => db.client.count({ where: { workspaceId, removedAt: null } });
+
+/**
+ * Throws when the workspace has more clients or staff than the plan (plus its extra seats) allows, saying how many
+ * to remove and where. The code (TOO_MANY_CLIENTS or TOO_MANY_STAFF) lets the pricing page link there.
+ */
 export async function assertFits(workspace: Workspace, plan: PaidPlan) {
-  const used = await db.client.count({ where: { workspaceId: workspace.id, removedAt: null } });
-  if (PLANS[plan].clientSeats + workspace.extraClientSeats < used) {
-    throw new HttpError(400, `You have ${used} clients, more than ${PLANS[plan].name} allows. Remove some or add seats first.`);
+  const { name, clientSeats } = PLANS[plan];
+  const used = await clientsUsed(workspace.id);
+  const clientLimit = clientSeats + workspace.extraClientSeats;
+  if (clientLimit < used) {
+    const allows = workspace.extraClientSeats ? `${clientSeats} clients, plus your ${workspace.extraClientSeats} extra` : `${clientSeats} clients`;
+    throw new HttpError(
+      400,
+      `${name} includes ${allows}, and you have ${used}. Remove ${used - clientLimit} on the Clients page, or add extra client seats, then try again.`,
+      "TOO_MANY_CLIENTS",
+    );
   }
   const staff = await db.membership.count({ where: { workspaceId: workspace.id } });
-  if (staffSeatLimit({ plan, extraStaffSeats: workspace.extraStaffSeats }) < staff) {
-    throw new HttpError(400, `You have ${staff} people on your team, more than ${PLANS[plan].name} allows. Remove some first.`);
+  const staffLimit = staffSeatLimit({ plan, extraStaffSeats: workspace.extraStaffSeats });
+  if (staffLimit < staff) {
+    throw new HttpError(
+      400,
+      `${name} has ${staffLimit} ${staffLimit === 1 ? "login" : "logins"}, and your team has ${staff} people. Remove ${staff - staffLimit} on the Team page, then try again.`,
+      "TOO_MANY_STAFF",
+    );
   }
 }
 
@@ -39,15 +58,30 @@ export async function planChange(workspace: Workspace, plan: PaidPlan, interval:
   const founding = hasFoundingPrices(sub);
   const price = await priceId(keyFor(PLAN_ITEM[plan], interval, founding));
   const item = sub.items.data.find((i) => planOf(i.price));
-  if (item?.price.id === price) return { sub, items: [], same: true, removesItems: false };
+  if (item?.price.id === price) return { sub, items: [], same: true, removesItems: false, seats: null };
 
   await assertFits(workspace, plan);
+  // Moving to a plan that includes more clients: extra client seats it now covers come off with the switch (Solo with 12
+  // clients and 2 extra seats moving to Studio, which includes 40, needs none), so you never pay twice for the same room.
+  // Never fewer than the clients you have need; staying on the same size or moving down keeps every seat.
+  const seatItems = sub.items.data.filter((i) => catalogOf(i.price)?.item === "client_seat");
+  const bought = seatItems.reduce((t, i) => t + (i.quantity ?? 0), 0);
+  const fromPlan = item ? planOf(item.price) : null;
+  const more = fromPlan ? PLANS[plan].clientSeats - PLANS[fromPlan].clientSeats : 0;
+  const needed = Math.max(0, (await clientsUsed(workspace.id)) - PLANS[plan].clientSeats);
+  const keep = Math.max(needed, bought - more);
+  const seats = more > 0 && keep < bought ? { from: bought, to: keep } : null;
   // Every item on a subscription bills on the same interval, so extras move with the plan.
   const extras = await Promise.all(
     sub.items.data
       .filter((i) => i !== item)
       .map(async (i): Promise<Stripe.SubscriptionUpdateParams.Item | null> => {
         const entry = catalogOf(i.price);
+        // Unneeded extra client seats: the first seat item keeps what's still needed, any others go.
+        if (seats && entry?.item === "client_seat") {
+          if (i !== seatItems[0] || seats.to === 0) return { id: i.id, deleted: true };
+          return { id: i.id, quantity: seats.to, ...(entry.interval !== interval ? { price: await priceId(keyFor("client_seat", interval, founding)) } : {}) };
+        }
         // Extra staff only exist on team plans.
         if (entry?.item === "staff_seat" && !TEAM_PLANS.includes(plan)) return { id: i.id, deleted: true };
         // AI summaries are priced by plan, so the add-on follows the new plan.
@@ -56,7 +90,7 @@ export async function planChange(workspace: Workspace, plan: PaidPlan, interval:
       }),
   );
   const items = [item ? { id: item.id, price } : { price, quantity: 1 }, ...extras.filter((x) => x !== null)];
-  return { sub, items, same: false, removesItems: items.some((i) => i.deleted) };
+  return { sub, items, same: false, removesItems: items.some((i) => i.deleted), seats };
 }
 
 /** The card (or other method) the subscription is charged to, for showing to the owner. */

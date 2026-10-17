@@ -63,6 +63,8 @@ export const POST = handle(async (req: Request) => {
     leftover: Math.max(0, -preview.total),
     currency: preview.currency,
     paymentMethod: await paymentMethodLabel(change.sub),
+    // Extra client seats the new plan covers, which come off with the switch (lib/planChange.ts).
+    seats: change.seats,
     // Switching plans doesn't undo a cancellation; the dialog says so.
     cancelling: !!(change.sub.cancel_at || change.sub.cancel_at_period_end),
   });

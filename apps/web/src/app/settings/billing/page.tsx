@@ -6,12 +6,14 @@ import CloudBackupToggle from "@/components/CloudBackupToggle";
 import AiAssistToggle from "@/components/AiAssistToggle";
 import RedeemCode from "@/components/RedeemCode";
 import CopyText from "@/components/CopyText";
+import CancelPlan from "@/components/CancelPlan";
 import { summaryUsage } from "@/lib/ai/summary";
 import { readManifest } from "@/lib/ai/speechModel";
 import { RETENTION_DAYS } from "@/lib/retention";
 import { AI_ASSIST_PRICES, aiAssistActive, CLOUD_BACKUP_PRICE, CLOUD_BACKUP_PRICE_YEARLY, PLANS } from "@/lib/plans";
 import type { Workspace } from "@/lib/db";
-import { followTeamLink, requirePageUser } from "@/lib/session";
+import { redirect } from "next/navigation";
+import { agreePath, followTeamLink, requirePageUser } from "@/lib/session";
 import { BRAND } from "@/lib/brand";
 import { zoned } from "@/lib/dates";
 import { videosUsed } from "@/lib/videoAllowance";
@@ -132,7 +134,9 @@ async function Referrals({ workspace }: { workspace: Workspace }) {
 export default async function Billing({ searchParams }: { searchParams: Promise<{ upgraded?: string; ws?: string }> }) {
   const { upgraded, ws } = await searchParams;
   await followTeamLink(ws, "/settings/billing");
-  const { user, workspace, role } = await requirePageUser(upgraded ? "/settings/billing?upgraded=1" : "/settings/billing");
+  // Reachable before agreeing to updated terms, to manage or cancel the plan (Terms, introduction); the rest waits for /agree.
+  const { user, workspace, role, agreed } = await requirePageUser(upgraded ? "/settings/billing?upgraded=1" : "/settings/billing", { allowTermsPending: true });
+  if (!agreed && role !== "OWNER") redirect(agreePath("/settings/billing"));
   const plan = PLANS[workspace.plan];
   const comp = !!workspace.complimentaryPlan && !workspace.stripeSubscriptionId;
   const freeLimit = PLANS.FREE.maxVideos;
@@ -141,6 +145,14 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
     workspace.stripeSubscriptionId && workspace.discountLabel && !(workspace.discountEndsAt && workspace.discountEndsAt.getTime() <= Date.now())
       ? workspace.discountLabel
       : null;
+  const afterCancel = (
+    <>
+      If you cancel, or a payment can&apos;t be taken, you move to the Free plan when the paid period ends. Clients and staff beyond its limits are then paused
+      until you upgrade or remove some. Please tell them about any change.
+      {freeLimit !== null && ` Free includes ${freeLimit} videos in total, counting the ones you've already recorded, so you may need a paid plan to record new ones.`}
+      {workspace.cloudBackup && ` Cloud backup ends too, and our copies of your recordings are deleted ${RETENTION_DAYS} days later unless you subscribe again or save them.`}
+    </>
+  );
   if (role !== "OWNER") {
     return (
       <>
@@ -208,7 +220,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
           )}
           {plan.showsPromo && (
             <p className="mt-3 rounded-xl bg-canvas p-3 text-sm text-muted">
-              Your clients see a short SureFrame intro before each video. Any paid plan removes it and lets you add your own logo and colours (a small Made with {BRAND.name} credit stays).
+              Your clients see a short SureFrame intro, once on each device. Any paid plan removes it and lets you add your own logo and colours (a small Made with {BRAND.name} credit stays).
             </p>
           )}
           <ul className="mt-4 space-y-1 text-sm text-muted">
@@ -219,22 +231,37 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
           )}
           {workspace.stripeSubscriptionId && (
             <p className="mt-4 text-xs text-dim" data-testid="cancel-note">
-              If you cancel, or a payment can&apos;t be taken, you move to the Free plan when the paid period ends. Clients and staff beyond its limits are then
-              paused until you upgrade or remove some. Please tell them about any change.
-              {freeLimit !== null && ` Free includes ${freeLimit} videos in total, counting the ones you've already recorded, so you may need a paid plan to record new ones.`}
-              {workspace.cloudBackup && ` Cloud backup ends too, and our copies of your recordings are deleted ${RETENTION_DAYS} days later unless you subscribe again or save them.`}
+              {afterCancel}
             </p>
           )}
-          <div className="mt-6 flex gap-3">
+          <div className="mt-6 flex flex-wrap gap-3">
             {workspace.stripeCustomerId && <ManageBillingButton />}
-            {(workspace.plan !== "AGENCY" || comp) && (
-              <Link href="/pricing" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">{comp ? "Choose a paid plan" : "Upgrade"}</Link>
+            {agreed && (
+              <Link href="/pricing" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">
+                {comp ? "Choose a paid plan" : workspace.plan === "FREE" ? "Upgrade" : "Change plan"}
+              </Link>
             )}
           </div>
+          {workspace.stripeSubscriptionId && (
+            <CancelPlan
+              planName={plan.name}
+              periodEnd={workspace.currentPeriodEnd ? day(workspace.currentPeriodEnd, workspace.timezone) : null}
+              cancelsOn={workspace.cancelsAt ? day(workspace.cancelsAt, workspace.timezone) : null}
+              whatHappens={<p>{afterCancel}</p>}
+            />
+          )}
+          {!agreed && (
+            <p className="mt-4 rounded-xl border border-line bg-canvas p-3 text-sm text-muted" data-testid="billing-terms-pending">
+              To change your plan or add-ons, first <Link href={agreePath("/settings/billing")} className="font-medium text-accent hover:underline">agree to our updated terms</Link>. You can
+              cancel your plan or choose Manage subscription without agreeing.
+            </p>
+          )}
           {/* Codes are for starting a subscription (Free or a plan we gave to paid), never for one that's running. */}
-          {!workspace.stripeSubscriptionId && <RedeemCode />}
+          {agreed && !workspace.stripeSubscriptionId && <RedeemCode />}
         </div>
-        <Referrals workspace={workspace} />
+        {agreed && <Referrals workspace={workspace} />}
+        {agreed && (
+          <>
         <CloudBackupToggle
           enabled={workspace.cloudBackup}
           canEnable={workspace.plan !== "FREE" && !!workspace.stripeSubscriptionId}
@@ -244,6 +271,8 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
           days={RETENTION_DAYS}
         />
         <AiAddOn workspace={workspace} />
+          </>
+        )}
       </main>
     </>
   );
