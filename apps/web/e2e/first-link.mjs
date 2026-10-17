@@ -1,8 +1,9 @@
 // Clients first, then sending (src/components/SendPanel.tsx):
 // - a new business is shown "Start here: add your clients", and can paste a whole list;
 // - a video is sent by choosing clients from one dropdown, then Send by email or Copy link;
-// - a client who hasn't opened their personal link yet gets it from the business (it holds their key),
-//   after which Send by email works for them;
+// - a client who hasn't opened their personal link yet is marked "Needs first link" and gets it from the
+//   business (it holds their key); copying it doesn't count, only their opening it, after which Send by
+//   email works for them;
 // - the library shows an encrypted still from each recording.
 import { chromium } from "@playwright/test";
 import { readdirSync, readFileSync, mkdirSync } from "node:fs";
@@ -87,58 +88,69 @@ const choose = async (...names) => {
 // First video: private until sent. Copy link puts Zoe's personal link on the clipboard and emails nobody.
 const first = await record();
 ok("unsent: only the team can watch", await owner.isVisible("[data-testid=send-private]"));
+await owner.click("[data-testid=client-picker]");
+ok("new clients are marked in the picker", (await owner.locator("[role=listbox] li:has-text('Zoe Park') [data-testid=needs-first-link]").count()) === 1);
+await owner.keyboard.press("Escape");
+ok("the first-link rule is explained before sending", await owner.isVisible("[data-testid=first-link-rule]"));
 await choose("Zoe Park");
+ok("a first-time client isn't offered Send by email", (await owner.locator("[data-testid=send-email]").count()) === 0 && (await owner.textContent("[data-testid=first-links]")).includes("Copy Zoe Park's link"));
 ok("dropdown shows who's chosen", (await owner.textContent("[data-testid=client-picker]")).includes("Zoe Park"));
 await owner.click("[data-testid=send-link]");
 await owner.waitForSelector("text=/link is copied/");
 const link = await clipboard();
 ok("copied link opens this video with Zoe's key", link.includes(`v=${first}`) && link.includes("#k="), link);
-const list = await owner.textContent("[data-testid=sent-list]");
-ok("Zoe is listed as sent, link copied", list.includes("Zoe Park") && list.includes("Link copied"), list);
+const list = await owner.textContent("[data-testid=waiting-list]");
+ok("Zoe waits for her first link (not under Sent to), link copied", list.includes("Zoe Park") && list.includes("Link copied") && (await owner.locator("[data-testid=sent-list]").count()) === 0, list);
 ok("the video is hers now", (await prisma.video.findUnique({ where: { id: first } })).clientId === zoe.id);
 ok("copying the link is remembered", !!(await waitFor(async () => (await prisma.client.findUnique({ where: { id: zoe.id } })).linkSentAt, 5000)));
+ok("but copying doesn't count as reaching her", !(await prisma.client.findUnique({ where: { id: zoe.id } })).linkOpenedAt);
+ok("and she can't be emailed until she opens it", (await owner.evaluate(async (id) => (await fetch(`/api/videos/${id}/notify`, { method: "POST" })).status, first)) === 409);
 ok("Copy link emails nobody", mailTo(zoeEmail).length === 0);
 
 // The team opened it, so the library has its still.
 ok("library still saved, encrypted", !!(await waitFor(async () => prisma.videoThumb.findUnique({ where: { videoId: first } }), 15000)));
 await owner.goto(BASE + "/library");
-await owner.click("[data-testid=day-folder] summary");
+// The newest day starts open.
 ok("library shows the still", !!(await owner.waitForSelector(`a[href="/v/${first}"] [data-testid=library-thumb]`, { timeout: 15000 }).catch(() => null)));
 ok("start step gone once there are clients", (await owner.locator("[data-testid=start-here]").count()) === 0);
 await owner.screenshot({ path: `${process.argv[2] ?? "/tmp"}/first-link-library.png` });
-
-// Second video to Zoe (has her link) and Ann (hasn't): Zoe is emailed, Ann needs her link from you.
-const second = await record();
-await choose("Zoe Park", `Ann Lee${stamp}`);
-await owner.screenshot({ path: `${process.argv[2] ?? "/tmp"}/first-link-chosen.png` });
-await owner.click("[data-testid=send-email]");
-const note = await waitFor(async () => {
-  const t = await owner.textContent("[data-testid=send-status]").catch(() => "");
-  return /Emailed/.test(t) ? t : null;
-}, 15000);
-ok("says who was emailed and who wasn't", /Emailed 1 client/.test(note ?? "") && /Ann can.t be emailed yet/.test(note ?? ""), String(note));
-ok("Zoe emailed about the second video", (await waitFor(() => mailTo(zoeEmail).some((m) => m.text.includes(second)))) === true);
-await waitFor(async () => (await owner.locator("[data-testid=sent-row]").count()) === 2, 5000);
-await owner.screenshot({ path: `${process.argv[2] ?? "/tmp"}/first-link-sent.png`, fullPage: true });
-const annRow = owner.locator("[data-testid=sent-row]", { hasText: "Ann Lee" });
-ok("Ann's row says to send her link this first time", (await annRow.locator("[data-testid=first-time]").count()) === 1);
-const annCopy = await prisma.video.findFirst({ where: { sourceId: second, clientId: ann.id } });
-ok("Ann got her own copy", !!annCopy);
-await annRow.locator("[data-testid=copy-row-link]").click();
-await owner.waitForTimeout(300);
-const annLink = await clipboard();
-ok("Ann's link opens her own conversation", annLink.includes(`v=${annCopy?.id}`) && annLink.includes("#k="), annLink);
-ok("Ann wasn't emailed a link she can't open", mailTo(annEmail).length === 0);
-
-// Undo takes it back from the first client while they haven't replied.
-await owner.locator("[data-testid=sent-row]", { hasText: "Zoe Park" }).locator("button:has-text('Undo')").click();
-ok("undo: Zoe no longer has it", !!(await waitFor(async () => (await prisma.video.findUnique({ where: { id: second } })).clientId === null, 5000)));
 
 // Zoe opens her personal link: that's recorded.
 const zoePage = await (await browser.newContext(perms)).newPage();
 await zoePage.goto(link);
 await zoePage.waitForSelector("main video", { timeout: 30000 });
 ok("opening the link is recorded", !!(await waitFor(async () => (await prisma.client.findUnique({ where: { id: zoe.id } })).linkOpenedAt)));
+
+// Second video to Zoe (has opened her link) and Ann (hasn't): Zoe is emailed, Ann needs her link from you.
+const second = await record();
+await choose("Zoe Park", `Ann Lee${stamp}`);
+await owner.screenshot({ path: `${process.argv[2] ?? "/tmp"}/first-link-chosen.png` });
+ok("mixed choice: only Zoe is offered email", (await owner.textContent("[data-testid=send-email]")).trim() === "Email 1 of them");
+await owner.click("[data-testid=send-email]");
+const note = await waitFor(async () => {
+  const t = await owner.textContent("[data-testid=send-status]").catch(() => "");
+  return /Emailed/.test(t) ? t : null;
+}, 15000);
+ok("says who was emailed and who still needs their first link", /Emailed 1 client/.test(note ?? "") && new RegExp(`Ann Lee${stamp} still needs their first link`).test(note ?? ""), String(note));
+ok("Zoe emailed about the second video", (await waitFor(() => mailTo(zoeEmail).some((m) => m.text.includes(second)))) === true);
+ok("Ann is still chosen, with her own Copy button", (await owner.textContent("[data-testid=first-links]")).includes(`Copy Ann Lee${stamp}'s link`));
+await owner.click("[data-testid=first-links] >> [data-testid=copy-first-link]");
+await owner.waitForSelector("[data-testid=waiting-row]");
+await owner.screenshot({ path: `${process.argv[2] ?? "/tmp"}/first-link-sent.png`, fullPage: true });
+const annRow = owner.locator("[data-testid=waiting-row]", { hasText: "Ann Lee" });
+ok("Ann waits for her first link, Zoe is under Sent to", (await annRow.count()) === 1 && (await owner.locator("[data-testid=sent-row]", { hasText: "Zoe Park" }).count()) === 1);
+const annCopy = await prisma.video.findFirst({ where: { sourceId: second, clientId: ann.id } });
+ok("Ann got her own copy", !!annCopy);
+const annLink = await clipboard();
+ok("Ann's link opens her own conversation", annLink.includes(`v=${annCopy?.id}`) && annLink.includes("#k="), annLink);
+ok("Ann wasn't emailed a link she can't open", mailTo(annEmail).length === 0);
+
+// Stop sharing takes it back from the first client, after an in-page confirm.
+await owner.locator("[data-testid=sent-row]", { hasText: "Zoe Park" }).locator("[data-testid=stop-sharing]").click();
+ok("stop sharing asks first", await owner.isVisible("[data-testid=stop-sharing-confirm]"));
+await owner.click("[data-testid=stop-sharing-confirm] >> button:has-text('Stop sharing with Zoe Park')");
+ok("stop sharing: Zoe no longer has it", !!(await waitFor(async () => (await prisma.video.findUnique({ where: { id: second } })).clientId === null, 5000)));
+
 
 // A business trying a client's link in its own signed-in browser still records the client's visit.
 await owner.goto(BASE + "/clients");
