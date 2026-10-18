@@ -2,7 +2,9 @@ import Link from "next/link";
 import { signOut } from "@/auth";
 import { zoned } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { dueTodos } from "@/lib/dueTodos";
 import { firstStepsFor } from "@/lib/firstSteps";
+import { accessOf } from "@/lib/permissions";
 import { currentUser } from "@/lib/session";
 import { formerTeams } from "@/lib/team";
 import NamePrompt from "./NamePrompt";
@@ -22,7 +24,7 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
   const me = await currentUser();
   const manager = !!me && me.role !== "MEMBER";
   const owner = me?.role === "OWNER";
-  const [teamSize, steps, former, notices] = me
+  const [teamSize, steps, former, notices, due] = me
     ? await Promise.all([
         db.membership.count({ where: { workspaceId: me.workspace.id } }),
         // Only needed to hide the key reminder on the library while the first steps show it.
@@ -30,10 +32,14 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
         // Someone taken off a team, now in a business of their own: say so plainly.
         owner && !me.user.memberships.some((m) => m.role !== "OWNER") ? formerTeams(me.user.id) : [],
         db.staffNotice.findMany({ where: { toUserId: me.user.id, workspaceId: me.workspace.id, dismissedAt: null }, include: { from: { select: { name: true, email: true } } }, orderBy: { createdAt: "desc" }, take: 5 }),
+        dueTodos(accessOf(me)).then((d) => d.total),
       ])
-    : [1, null, [], []];
+    : [1, null, [], [], 0];
   // Clients come first: a business adds them before sending anything. A business of one has no team pages.
-  const links: Links = [["/clients", "Clients"], ["/library", "Library"], ...(teamSize > 1 ? [["/team", "Team"] as const] : [])];
+  // To-dos live on the library and each client's page; this goes to the library's list, which names the clients with some due.
+  const links: Links = [["/clients", "Clients"], ["/library", "Library"], ["/library#todos", due ? `To-dos (${due} due)` : "To-dos"], ...(teamSize > 1 ? [["/team", "Team"] as const] : [])];
+  // The plan pill opens what can be done about the plan: Billing for those who can change it, else the plans.
+  const planHref = manager ? "/settings/billing" : "/pricing";
   // Everything else is under Settings. Staff don't see Billing or Branding (only owners and admins can change them).
   const settings: Links = manager
     ? [["/settings/reminders", "Reminders"], ["/settings/branding", "Branding"], ["/settings/team", teamSize > 1 ? "Team and staff" : "Invite staff"], ["/settings/billing", "Billing"], ["/settings/account", "Account"]]
@@ -58,14 +64,22 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
           </nav>
         </div>
         <div className="flex items-center gap-2 text-sm min-[24rem]:gap-3">
-          <span className="hidden rounded-full border border-line px-2.5 py-1 font-mono text-[0.6875rem] font-medium uppercase tracking-wider text-muted lg:inline">{plan}</span>
+          <Link
+            href={planHref}
+            title={`Your plan: ${plan}. ${manager ? "Open Billing" : "See plans"}`}
+            aria-label={`Your plan: ${plan}. ${manager ? "Open Billing" : "See plans"}`}
+            data-testid="plan-pill"
+            className="hidden rounded-full border border-line px-2.5 py-1 font-mono text-[0.6875rem] font-medium uppercase tracking-wider text-muted hover:border-line-strong hover:text-ink lg:inline"
+          >
+            {plan}
+          </Link>
           <Link href="/record" className="whitespace-nowrap rounded-[0.625rem] bg-primary px-4 py-2 font-medium text-on-primary hover:bg-primary-hover">
             <span className="sm:hidden">Record</span>
             <span className="hidden sm:inline">New recording</span>
           </Link>
           <div className="hidden lg:block">{signOutForm}</div>
           {/* Phones and small screens: everything else sits behind one Menu button. */}
-          <MobileMenu links={links} settings={settings} plan={plan} email={email} signOut={signOutForm} />
+          <MobileMenu links={links} settings={settings} plan={plan} planHref={planHref} email={email} signOut={signOutForm} />
         </div>
       </div>
       </div>

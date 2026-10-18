@@ -16,18 +16,20 @@ type Props = {
   title?: string;
   note?: string;
   teamWho?: TeamWho;
+  /** Shown while this device is locked, when the page has its own unlock box (components/TeamKeyGate.tsx LibraryUnlock). */
+  lockedNote?: React.ReactNode;
 };
 
 /** The team's planner: private items use the team key, shared items the client's key. */
-export default function MemberPlanner({ workspaceId, fingerprint, ...rest }: Props) {
+export default function MemberPlanner({ workspaceId, fingerprint, lockedNote, ...rest }: Props) {
   return (
-    <TeamKeyGate workspaceId={workspaceId} fingerprint={fingerprint}>
+    <TeamKeyGate workspaceId={workspaceId} fingerprint={fingerprint} lockedNote={lockedNote}>
       {(teamKey) => <Unlocked teamKey={teamKey} {...rest} />}
     </TeamKeyGate>
   );
 }
 
-function Unlocked({ teamKey, clientId = null, clientName, clientTeamKeyWrap, client, defaults, title, note, teamWho }: Omit<Props, "workspaceId" | "fingerprint"> & { teamKey: CryptoKey }) {
+function Unlocked({ teamKey, clientId = null, clientName, clientTeamKeyWrap, client, defaults, title, note, teamWho }: Omit<Props, "workspaceId" | "fingerprint" | "lockedNote"> & { teamKey: CryptoKey }) {
   const [clientKey, setClientKey] = useState<CryptoKey | null>(null);
   const [ready, setReady] = useState(!clientTeamKeyWrap);
 
