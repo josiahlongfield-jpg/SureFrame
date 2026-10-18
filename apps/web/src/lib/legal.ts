@@ -9,6 +9,7 @@ import {
   REVIEW_DAYS,
   TERMS_NOTICE_DAYS,
   TERMS_RECORD_KEEP_YEARS,
+  CLIENT_QUESTION_KEEP_DAYS,
 } from "@/lib/periods";
 import { RETENTION_DAYS } from "@/lib/retention";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
@@ -46,6 +47,8 @@ export const LEGAL = {
   deletionWarningDays: DELETION_WARN_DAYS,
   /** Records of support actions on accounts are kept this long. */
   supportRecordYears: ADMIN_ACTION_KEEP_YEARS,
+  /** Questions typed into the help chat on client pages are kept this long. */
+  clientQuestionDays: CLIENT_QUESTION_KEEP_DAYS,
   /** Records of agreeing to the Terms and Privacy Policy are kept this long. */
   agreementRecordYears: TERMS_RECORD_KEEP_YEARS,
   /** Time to ask us to review a suspension, closure or turned-off link. */
@@ -67,8 +70,9 @@ export const LEGAL = {
    * Discount codes limited to starting a subscription or moving up a plan, codes given to one business for one use, and the
    * referral programme (16 October 2026) keep it too: they only add to what customers get, and the site was closed for maintenance.
    * "Keep me signed in" and cancelling in Settings > Billing (17 October 2026) only add choices, so they keep it too.
+   * Saying the help chat on client pages is AI only and points clients to the business (18 October 2026) explains a new help option, so it keeps it too.
    */
-  termsUpdated: "17 October 2026",
+  termsUpdated: "18 October 2026",
   /** The Data Processing Agreement's own "last updated" date: "Keep me signed in" added to its security measures (17 October 2026). */
   dpaUpdated: "17 October 2026",
   /**
@@ -76,7 +80,9 @@ export const LEGAL = {
    * (16 October 2026) only explains more of what we already do, so it keeps privacyVersion. So do a short section for
    * clients, the intro shown once per device, "Keep me signed in" and its cookies, and clients deleting their own replies
    * (17 October 2026): they explain what we do or add choices, and take nothing away. Unsent video and voice replies
-   * being deleted after 7 days (18 October 2026) keeps less, for less time, so it keeps privacyVersion too.
+   * being deleted after 7 days (18 October 2026) keeps less, for less time, so it keeps privacyVersion too. Describing the
+   * help chat on client pages and the question text it keeps for 90 days (18 October 2026) explains a new, optional help
+   * feature that takes nothing away, so it keeps privacyVersion too.
    */
   privacyUpdated: "18 October 2026",
 };

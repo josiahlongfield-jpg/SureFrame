@@ -217,6 +217,15 @@ export const CLIENT_FAQ: Qa[] = [
     id: "stop-emails",
     q: "How do I stop emails from a business?",
     a: <p>Use the link at the bottom of any email from it. That turns off its reminders and new-video emails.</p>,
+  },  {
+    id: "client-help",
+    q: "Where can I get help with my videos?",
+    a: (
+      <p>
+        Press Help at the top of your videos page. An AI assistant answers questions about watching, replying and your personal link; it can&rsquo;t see your
+        videos or replies. For anything about the business itself, it tells you how to contact them.
+      </p>
+    ),
   },
 ];
 

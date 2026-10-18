@@ -14,7 +14,7 @@ import {
 } from "@/lib/plans";
 import { RETENTION_DAYS } from "@/lib/retention";
 import { DELETION_GRACE_DAYS } from "@/lib/accountDeletion";
-import { TERMS_NOTICE_DAYS } from "@/lib/periods";
+import { CLIENT_QUESTION_KEEP_DAYS, TERMS_NOTICE_DAYS } from "@/lib/periods";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
 
 /** US dollars, with cents only when there are some: US$15, US$1.50. */
@@ -114,6 +114,7 @@ ${plan("AGENCY")}
 - Restoring: owners and admins use Restore under Clients > Removed clients (it shows each deletion date), or the hint that appears when adding someone with the same email. It needs a free client seat. The same personal link works again, unless the team's keys were reset while they were removed (someone left the team): then the client gets a new link, emailed to them if they have an address, or copy it from the Clients page. A restored client counts from when they were first added if seats are ever short. Restoring doesn't bring back recordings that already expired. Once deleted, a removed client can't be brought back; adding them again starts fresh. Requests to keep a removed client longer or delete one sooner: hand over.
 - Removing a staff member resets the workspace keys automatically, so they can't open anything through ${BRAND.name} again (anything they already saved to their own device stays with them). The confirm box lists the clients whose links change: clients with an email get their new link by email, and the owner copies new links for clients without one straight after (Copy new link).
 - Clients can turn reminder and new-video emails off or back on from any email or from their inbox. Clients can also remove a business's videos from a device in their inbox ("Remove from this device"); nothing is deleted, and opening the personal link again brings them back.
+- Client pages (their videos, inbox and the emails page) have their own Help button in the top bar: an AI help chat about watching, replying and those pages, separate from this one. It can't see videos, replies or to-dos, and it never passes clients to ${BRAND.name}. For anything it can't answer, it tells the client to contact the business, with the reply-to address from Settings > Reminders (the assigned staff member's own where they set one), and nothing else about the business's account. Without a reply-to address it just says to contact the business directly. Questions clients type there are kept for ${CLIENT_QUESTION_KEEP_DAYS} days (the text and the business only, not who asked) so ${BRAND.name} can see what it couldn't answer.
 
 ## Teams (Studio and Agency)
 - Invite staff from Settings > Team. Roles: Owner (billing and everything), Admin (full access to clients and videos, plus inviting, assigning and removing staff), Member (staff).

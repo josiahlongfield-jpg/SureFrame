@@ -188,6 +188,7 @@ model Workspace {
   aiUsages              AiUsage[]
   teamNotifications     TeamNotification[]
   staffNotices          StaffNotice[]
+  clientQuestions       ClientQuestion[]
 }
 
 /// An invitation for a staff member to join a workspace. The link carries a
@@ -801,4 +802,33 @@ model ReferralCode {
   rewardEndedAt     DateTime?
 
   @@index([rewardDueAt])
+}
+
+/// A question a client typed into the help chat on their pages (lib/support/clientHelp.ts), kept so the weekly digest to
+/// the support inbox shows what the chat couldn't answer and what clients ask most. Only the question text and which
+/// business's link it came from: never who asked, the answer, or anything else from the conversation. Deleted after 90 days.
+model ClientQuestion {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// As the client typed it, cut to 500 characters.
+  question    String
+  /// ANSWERED, CANT_HELP (the assistant couldn't answer from its guide), FAILED (the AI call failed) or OFF (assistant off or over its daily cap).
+  outcome     String
+  /// Which page it was asked on: video, inbox, emails or cant-open.
+  page        String
+  createdAt   DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([workspaceId])
+}
+
+/// Each weekly digest of client help questions sent to the support inbox, so the daily job sends one a week.
+model ClientQuestionDigest {
+  id        String   @id @default(cuid())
+  sentAt    DateTime @default(now())
+  /// Questions it covered.
+  questions Int
+
+  @@index([sentAt])
 }

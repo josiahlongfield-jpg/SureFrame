@@ -5,6 +5,8 @@
 // Summary requests (structured output, for AI summaries) get a JSON summary
 // that quotes the transcript's first line; a transcript containing "explode"
 // fails.
+// The client help chat (its system prompt holds the client guide): "explode" fails, "tax", "appointment" or "a person"
+// can't be answered (cant_help), anything else gets a plain answer about replying.
 import { createServer } from "node:http";
 
 export const requests = [];
@@ -28,6 +30,11 @@ function reply(body) {
   // A user's words are a string, or text blocks (the latest carries the cache marker); tool results aren't words.
   const words = (m) => (typeof m.content === "string" ? m.content : m.content.filter((b) => b.type === "text").map((b) => b.text).join("\n"));
   const lastUser = words([...msgs].reverse().find((m) => m.role === "user" && words(m)) ?? { content: "" });
+  if ([].concat(body.system ?? []).some((b) => (typeof b === "string" ? b : b.text)?.includes("<client_help_guide>"))) {
+    if (/explode/i.test(lastUser)) return null;
+    if (/tax|appointment|a person/i.test(lastUser)) return msg([tool("cant_help", { reason: "needs_the_business" })], "tool_use");
+    return msg([text("To reply, open the video and use the reply box: choose Text, Video or Voice.")], "end_turn");
+  }
   if (Array.isArray(last.content) && last.content[0]?.type === "tool_result") {
     const result = last.content[0].content;
     if (result.startsWith("{")) return msg([text(`You're on the ${JSON.parse(result).plan} plan.`)], "end_turn");

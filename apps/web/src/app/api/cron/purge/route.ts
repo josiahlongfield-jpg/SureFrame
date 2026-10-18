@@ -12,10 +12,11 @@ import { pruneAdminActions } from "@/lib/support/admin";
 import { pruneTermsAcceptances } from "@/lib/terms";
 import { sendTermsNotices } from "@/lib/termsNotice";
 import { purgeHeldReplies } from "@/lib/replies";
+import { pruneClientQuestions, sendClientQuestionDigest } from "@/lib/support/clientQuestions";
 
 export const maxDuration = 300;
 
-const JOBS = ["purged", "rateLimits", "staleUploads", "teamNotifications", "leftovers", "expiryWarnings", "clientsPurged", "clientWarnings", "accountWarnings", "accountsPurged", "adminActionsPruned", "agreementsPruned", "termsNotices", "unsentReplies"] as const;
+const JOBS = ["purged", "rateLimits", "staleUploads", "teamNotifications", "leftovers", "expiryWarnings", "clientsPurged", "clientWarnings", "accountWarnings", "accountsPurged", "adminActionsPruned", "agreementsPruned", "termsNotices", "unsentReplies", "clientQuestionDigest", "clientQuestionsPruned"] as const;
 
 /** Run daily (e.g. Vercel Cron) with Authorization: Bearer $CRON_SECRET. */
 export async function GET(req: Request) {
@@ -46,6 +47,9 @@ export async function GET(req: Request) {
     unlessPaused(() => sendTermsNotices()),
     // Video and voice replies their authors never sent, 7 days after recording (lib/replies.ts).
     unlessPaused(() => purgeHeldReplies(new Date(), 60_000)),
+    // Client help questions: the support inbox's weekly digest (checked daily, sent once a week), and the 90-day clean-up.
+    unlessPaused(() => sendClientQuestionDigest()),
+    pruneClientQuestions(),
   ]);
   const out: Partial<Record<(typeof JOBS)[number], unknown>> = {};
   results.forEach((r, i) => {
@@ -55,6 +59,6 @@ export async function GET(req: Request) {
       console.error(JSON.stringify({ level: "error", message: `[cron/purge] ${JOBS[i]} failed`, error: String(r.reason) }));
     }
   });
-  const { purged, expiryWarnings, clientsPurged, clientWarnings, accountWarnings, accountsPurged, adminActionsPruned, agreementsPruned, termsNotices, unsentReplies } = out;
-  return Response.json({ purged, expiryWarnings, clientsPurged, clientWarnings, accountWarnings, accountsPurged, adminActionsPruned, agreementsPruned, termsNotices, unsentReplies });
+  const { purged, expiryWarnings, clientsPurged, clientWarnings, accountWarnings, accountsPurged, adminActionsPruned, agreementsPruned, termsNotices, unsentReplies, clientQuestionDigest, clientQuestionsPruned } = out;
+  return Response.json({ purged, expiryWarnings, clientsPurged, clientWarnings, accountWarnings, accountsPurged, adminActionsPruned, agreementsPruned, termsNotices, unsentReplies, clientQuestionDigest, clientQuestionsPruned });
 }

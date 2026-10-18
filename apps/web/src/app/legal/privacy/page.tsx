@@ -48,6 +48,13 @@ export default function Page() {
           cookie for that business from that device only.
         </li>
         <li>
+          The Help button on your pages opens a help chat answered by an AI assistant (Anthropic). It receives only what you type there and which business&rsquo;s
+          page you&rsquo;re on, never your videos, messages, replies, to-dos or notes. Nobody from our team answers it, and it can&rsquo;t pass anything to the
+          business or to us: for anything it can&rsquo;t help with, it gives you the business&rsquo;s name and, if the business set one, its reply-to email address.
+          We keep the text of each question you type, with the business&rsquo;s name but not who asked, for {LEGAL.clientQuestionDays} days, and send our team a
+          weekly summary of the questions it couldn&rsquo;t answer, so we can fix problems. The rest of the conversation stays in your browser tab.
+        </li>
+        <li>
           On a free-plan business, the short SureFrame intro is shown once per device for each business; your browser remembers this. You don&rsquo;t need an
           account and never pay.
         </li>
@@ -89,7 +96,8 @@ export default function Page() {
           business that shared a code sees only that it was used and when, not which business used it.
         </li>
         <li>
-          <strong>Support conversations:</strong> what you type into our help chat, and the email address you give us there.
+          <strong>Support conversations:</strong> what you type into our help chat, and the email address you give us there. From the help chat on client pages,
+          only the text of each question and which business&rsquo;s page it was asked on.
         </li>
         <li>
           <strong>Technical information:</strong> IP address, browser type and logs of requests, used to keep the service secure, prevent abuse and fix problems.
@@ -163,6 +171,10 @@ export default function Page() {
         The help chat is answered first by an AI assistant provided by Anthropic. Your messages, and for signed-in customers a summary of your plan, usage and account status, are sent
         to Anthropic to generate replies. The assistant can&rsquo;t see your videos, replies, to-dos or notes. Anything it can&rsquo;t resolve is passed to a person on our
         team, who can read the conversation. Please don&rsquo;t share passwords, recovery keys or card numbers in the chat. We don&rsquo;t use your content or chats to train AI models, and Anthropic doesn&rsquo;t use them to train its models either.
+      </p>
+      <p>
+        Clients have their own help chat on their pages, also answered by the AI assistant, which never passes conversations to a person (see{" "}
+        <a href="#for-clients">For clients</a>).
       </p>
 
       <h2>AI transcripts and summaries (optional)</h2>
@@ -259,6 +271,10 @@ export default function Page() {
         <li>
           Support chats are kept for as long as we need them to help you, and we delete them if you ask. They aren&rsquo;t deleted automatically when an account is
           deleted.
+        </li>
+        <li>
+          Questions typed into the help chat on client pages are deleted {LEGAL.clientQuestionDays} days after they&rsquo;re asked, or sooner with the
+          business&rsquo;s account.
         </li>
         <li>
           Records of team emails (who was told about which reply or video) are deleted about 30 days after the email is sent. Reminders sent to staff are kept

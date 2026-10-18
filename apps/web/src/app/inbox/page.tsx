@@ -17,6 +17,7 @@ import { unsubscribeUrl } from "@/lib/reminders";
 import { zoned } from "@/lib/dates";
 import { clientCookie, REMOVED_COOKIE, usableClientWhere } from "@/lib/access";
 import { visibleReplies } from "@/lib/replies";
+import { helpForDevice } from "@/lib/support/clientHelp";
 
 /** "jo@example.com" as "j•••@example.com": enough to recognise, without showing the whole address on screen. */
 const masked = (email: string) => email.replace(/^(.)[^@]*/, "$1•••");
@@ -158,11 +159,12 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
 
   // With one business, the whole page wears its branding.
   const brand = clients.length === 1 ? brandOf(clients[0].workspace) : null;
+  const help = await helpForDevice();
 
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
       {arrivedAs && clients.some((c) => c.id === arrivedAs) && <ClientKeyCapture clientId={arrivedAs} />}
-      <ClientHeader brand={brand} />
+      <ClientHeader brand={brand} help={help.length ? { for: help, page: "inbox" } : undefined} />
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
         {arrived && (
           <div className="mb-8">

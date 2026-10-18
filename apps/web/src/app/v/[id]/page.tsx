@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import type { Video } from "@prisma/client";
 import { notFound, redirect } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
@@ -119,7 +119,12 @@ export default async function Watch({ params, searchParams }: Props) {
         // The team gets the normal app menu, so they can get back to the Library and everything else.
         <AppHeader email={memberEmail ?? ""} plan={PLANS[workspace.plan].name} />
       ) : (
-        <ClientHeader brand={brand} width="max-w-6xl" allVideosLink />
+        <ClientHeader
+          brand={brand}
+          width="max-w-6xl"
+          allVideosLink
+          help={viewer.kind === "client" ? { for: [{ clientId: viewer.client.id, business: workspace.name }], page: expired ? "cant-open" : "video", videoId: id } : undefined}
+        />
       )}
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {expired ? (
@@ -179,7 +184,7 @@ export default async function Watch({ params, searchParams }: Props) {
 const brandFields = { id: true, name: true, plan: true, brandColor: true, brandLogoType: true, brandVersion: true } as const;
 
 /** A page around the one "can't open" card, in the business's colours when this device is one of their clients. */
-function CantOpenShell({ brand, team = false, children }: { brand: Brand | null; team?: boolean; children: ReactNode }) {
+function CantOpenShell({ brand, team = false, help, children }: { brand: Brand | null; team?: boolean; help?: ComponentProps<typeof ClientHeader>["help"]; children: ReactNode }) {
   return (
     <div data-theme="fresh" className="flex min-h-screen flex-col bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
       {team ? (
@@ -188,7 +193,7 @@ function CantOpenShell({ brand, team = false, children }: { brand: Brand | null;
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6"><Logo href="/library" /></div>
         </header>
       ) : (
-        <ClientHeader brand={brand} allVideosLink />
+        <ClientHeader brand={brand} allVideosLink help={help} />
       )}
       <main className="flex-1 px-4 py-10 sm:px-6">{children}</main>
       <MadeWith />
@@ -219,7 +224,7 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
               ? ["This link no longer opens your videos", `${name} has closed their SureFrame account. If you need anything, contact them directly.`, "video-closed"]
               : ["Your access is paused", `${name} changed its SureFrame plan, so your access is paused. Nothing has been deleted; contact them to have it restored.`, "video-paused"];
     return (
-      <CantOpenShell brand={brandOf(mine.workspace)}>
+      <CantOpenShell brand={brandOf(mine.workspace)} help={{ for: [{ clientId: mine.id, business: name }], page: "cant-open", videoId: video.id }}>
         <CantOpen title={title} testId={testId}>
           <p>{text}</p>
         </CantOpen>
