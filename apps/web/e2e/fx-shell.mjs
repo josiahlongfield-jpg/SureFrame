@@ -304,6 +304,8 @@ ok("they're with the owner's own settings", (await owner.locator("#emails input[
 const teamNav = await owner.locator("header nav a").evaluateAll((els) => els.map((e) => e.getAttribute("href")));
 ok("with staff, the bar has Team", teamNav.includes("/team"));
 
+// Both had opened their personal links (only those are emailed a new one after a key reset, lib/rekey.ts).
+await prisma.client.updateMany({ where: { workspaceId: ws.id }, data: { linkOpenedAt: new Date() } });
 await owner.goto(`${BASE}/settings/team`);
 await owner.click("[data-testid=remove-member]");
 await owner.waitForSelector("[data-testid=team-dialog]");
