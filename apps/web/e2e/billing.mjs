@@ -95,6 +95,29 @@ res = await api("/api/billing/seats", { extraSeats: 2 });
 ok("removing seats credits the next bill instead", res.ok() && sub.lastUpdate?.proration_behavior === "create_prorations" && seatItem.quantity === 2);
 await webhook("customer.subscription.updated", sub);
 
+// 3b) Billing lists what's paid for, each period, with the total; receipts come from Stripe (Link).
+await planText();
+// A row's cells joined with a space (they're side by side, so textContent alone runs them together).
+const pay = (id) =>
+  page
+    .$eval(`[data-testid=${id}]`, (el) => (el.tagName === "LI" ? [...el.children].map((c) => c.textContent).join(" ") : el.textContent))
+    .then((t) => t.replace(/\s+/g, " ").trim(), () => "");
+ok("what you pay: the plan", (await pay("pay-plan")) === "Solo plan US$15 a month", await pay("pay-plan"));
+ok("what you pay: extra client seats", (await pay("pay-seats")) === "2 extra client seats (US$1.50 each) US$3 a month", await pay("pay-seats"));
+ok("what you pay: cloud backup", (await pay("pay-backup")) === "Cloud backup US$5 a month", await pay("pay-backup"));
+ok("what you pay: the monthly total", (await pay("pay-total")) === "Total US$23 a month", await pay("pay-total"));
+ok("receipts: from Link, Stripe's payment service, with invoices under Manage subscription", /Receipts for your payments come by email from Link, Stripe.s payment service/.test(await pay("receipts-note")));
+ok("no raw HTML entities on Billing", !/&(apos|quot|amp|lt|gt);/.test(await page.textContent("main")));
+await page.goto(BASE + "/settings/billing?upgraded=1");
+await page.waitForSelector("[data-testid=upgraded]");
+const thanks = await pay("upgraded");
+ok("after checkout: says the plan is on, not that it's pending", thanks.includes("You're on Solo now") && !thanks.includes("as soon as payment is confirmed"), thanks);
+// A discount code on a running plan: checked here, used by moving up a plan.
+await page.click("[data-testid=have-code]");
+await page.fill("#discount-code", "NO-SUCH-CODE");
+await page.click("text=Check code");
+ok("discount box on a paid plan: an unknown code is refused", !!(await page.waitForSelector("text=That code isn't valid or has ended.", { timeout: 10000 }).catch(() => null)));
+
 // 4) Upgrading switches the plan in place, after the owner confirms what's charged and to which card.
 const sessionsBefore = state.sessions.length;
 const updateBefore = sub.lastUpdate;
@@ -158,13 +181,24 @@ ok("yearly Studio still shows as Studio", /Studio plan/.test(await planText()));
 ok("billing says it's billed yearly", (await page.textContent("[data-testid=billing-interval]"))?.includes("yearly"));
 await page.goto(BASE + "/clients");
 ok("yearly plans see yearly prices for extra clients", !!(await page.waitForSelector("button:has-text('Add for US$75/year')", { timeout: 15000 }).catch(() => null)));
+// Buying staff logins only comes up once every login is in use: invites waiting to join hold them.
+const owned = await prisma.user.findUnique({ where: { email } });
+const holders = await Promise.all(
+  Array.from({ length: 10 }, (_, i) =>
+    prisma.invite.create({ data: { tokenHash: `billing-hold-${Date.now()}-${i}`, teamKeyWrap: "x", expiresAt: new Date(Date.now() + 86400000), workspaceId, invitedById: owned.id } }),
+  ),
+);
 await page.goto(BASE + "/settings/team");
 ok("and for extra staff", !!(await page.waitForSelector("button:has-text('/year')", { timeout: 15000 }).catch(() => null)));
+await prisma.invite.deleteMany({ where: { id: { in: holders.map((h) => h.id) } } });
 
 // 4c) A switch that also drops something (extra staff, leaving Studio) still only happens once paid.
 res = await api("/api/billing/staff", { extraStaff: 1 });
 ok("extra staff added (yearly)", res.ok() && sub.items.data.find((i) => i.price.lookup_key === "sureframe_staff_seat_yearly")?.quantity === 1);
 await webhook("customer.subscription.updated", sub);
+await planText();
+ok("what you pay, yearly: extra staff at the yearly price", (await pay("pay-staff")) === "1 extra staff login (US$80 each) US$80 a year", await pay("pay-staff"));
+ok("what you pay, yearly: the total is a year's", (await pay("pay-total")).endsWith("a year"), await pay("pay-total"));
 control.declineNext = true;
 res = await api("/api/billing/checkout", { plan: "SOLO", interval: "year" });
 ok("declined downgrade is refused, nothing changes", res.status() === 402 && sub.items.data.some((i) => i.price.lookup_key === "sureframe_studio_yearly") && sub.items.data.some((i) => i.price.lookup_key === "sureframe_staff_seat_yearly"));
@@ -251,11 +285,10 @@ await page.goto(BASE + "/settings/account");
 const explainer = (await page.textContent("[data-testid=delete-explainer]")).replace(/\s+/g, " ");
 ok("explainer: closed now, deleted in 30 days unless kept, plan won't renew", explainer.includes("closed straight away and permanently deleted 30 days later") && explainer.includes("sign in to keep it") && explainer.includes("your plan won't renew"), explainer);
 await page.fill('input[name="confirm"]', "someone@else.com");
-await page.click("text=Delete my account");
-await page.waitForURL("**error=confirm**");
-ok("wrong confirmation refused", !!(await page.waitForSelector("text=doesn't match your email", { timeout: 5000 }).catch(() => null)));
+ok("wrong confirmation: the button stays off", await page.isDisabled("[data-testid=delete-account]"));
 await page.fill('input[name="confirm"]', email);
 await page.click("text=Delete my account");
+await page.click("[data-testid=delete-account-yes]");
 await page.waitForURL((u) => u.pathname === "/login");
 ok("after closing: told it's deleted in 30 days unless kept", ((await page.textContent("[data-testid=deleted-note]", { timeout: 10000 }).catch(() => "")) ?? "").includes("will be deleted in 30 days"));
 const closedUser = await prisma.user.findUnique({ where: { email } });
@@ -289,6 +322,7 @@ ok("Billing shows the renewal again", (await page.isVisible("[data-testid=renews
 await page.goto(BASE + "/settings/account");
 await page.fill('input[name="confirm"]', email);
 await page.click("text=Delete my account");
+await page.click("[data-testid=delete-account-yes]");
 await page.waitForURL((u) => u.pathname === "/login");
 ok("closed again: renewal stopped and noted", !!(await prisma.workspace.findUnique({ where: { id: workspaceId } })).renewalStoppedAt);
 // A payment disputed while it's closed: keeping it mustn't turn renewal back on.

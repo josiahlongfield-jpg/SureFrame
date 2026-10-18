@@ -8,6 +8,7 @@ import { accessOf } from "@/lib/permissions";
 import { currentUser } from "@/lib/session";
 import { formerTeams } from "@/lib/team";
 import { TEAM_PLANS } from "@/lib/plans";
+import { isSupportAgent } from "@/lib/support/tickets";
 import { settingsPages } from "@/lib/settingsMenu";
 import NamePrompt from "./NamePrompt";
 import StaffNotices from "./StaffNotices";
@@ -45,7 +46,7 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
   // The plan pill opens what can be done about the plan: Billing for those who can change it, else the plans.
   const planHref = manager ? "/settings/billing" : "/pricing";
   // Everything else is under Settings (lib/settingsMenu.ts).
-  const settings: Links = me ? settingsPages({ manager, teamSize, plan: me.workspace.plan, workspaces: me.user.memberships.length }).map((p) => [p.href, p.label] as const) : [];
+  const settings: Links = me ? settingsPages({ manager, teamSize, plan: me.workspace.plan, workspaces: me.user.memberships.length, supportAgent: isSupportAgent(me.user.email) }).map((p) => [p.href, p.label] as const) : [];
   const signOutForm = (
     <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
       <button className="whitespace-nowrap text-dim hover:text-ink">Sign out</button>
@@ -65,7 +66,7 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
             <SettingsMenu links={settings} />
           </nav>
         </div>
-        <div className="flex items-center gap-2 text-sm min-[24rem]:gap-3">
+        <div className="flex items-center gap-2 text-sm min-[30rem]:gap-3">
           {/* Shown on phones too (from 384px wide), so the plan is one glance away. */}
           <Link
             href={planHref}

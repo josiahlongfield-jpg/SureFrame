@@ -48,8 +48,8 @@ export default function MobileMenu({ links, settings, plan, planHref, email, sig
             <path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
           )}
         </svg>
-        {/* The smallest phones show just the icon, so the bar fits beside the logo and Record. */}
-        <span className="max-[24rem]:sr-only">Menu</span>
+        {/* Phones show just the icon, so the bar fits the logo, plan pill and Record. */}
+        <span className="max-[30rem]:sr-only">Menu</span>
       </button>
       {open && (
         <div id="app-menu" className="absolute inset-x-0 top-full z-40 max-h-[calc(100dvh-4rem)] overflow-y-auto border-b border-line bg-surface shadow-lg" data-testid="app-menu">

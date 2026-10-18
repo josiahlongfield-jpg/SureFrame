@@ -250,6 +250,7 @@ await leaver.waitForURL((u) => u.pathname === "/library");
 await leaver.goto(BASE + "/settings/account");
 await leaver.fill('input[name="confirm"]', `rk-leaver${stamp}@example.com`);
 await leaver.click("text=Delete my account");
+await leaver.click("[data-testid=delete-account-yes]");
 await leaver.waitForURL((u) => u.pathname === "/login");
 await owner.goto(BASE + "/settings/team");
 ok("owner asked to reset after a self-deletion", !!(await owner.waitForSelector("text=left the team and still holds its keys", { timeout: 10000 }).catch(() => null)));

@@ -46,7 +46,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ userId:
   const gone = await db.user.findUnique({ where: { id: userId }, select: { email: true, deleteAt: true } });
   if (gone && !gone.deleteAt && !workspace.suspendedAt && !workspace.closedAt) {
     const brand = brandOf(workspace, appUrl(""));
-    await sendMail({ to: gone.email, ...removedEmail({ business: workspace.name, logoUrl: brand.logoUrl, color: brand.color }), fromName: workspace.name }).catch((err) => console.error("removed email failed", err));
+    await sendMail({ to: gone.email, ...removedEmail({ business: workspace.name, logoUrl: brand.logoUrl, color: brand.color }) }).catch((err) => console.error("removed email failed", err));
   }
   return Response.json(result);
 });

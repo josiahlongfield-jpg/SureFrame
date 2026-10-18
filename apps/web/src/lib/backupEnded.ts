@@ -1,6 +1,7 @@
 import { brandOf } from "@/lib/branding";
 import { zoned } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { RECEIPTS_NOTE } from "@/lib/plans";
 import { sendMail } from "@/lib/mail";
 import { applyBackupSetting, purgeDate } from "@/lib/retention";
 import { appUrl } from "@/lib/stripe";
@@ -30,6 +31,7 @@ export async function tellOwnerBackupEnded(workspaceId: string) {
     lines: [
       { text: "To keep them, subscribe again with cloud backup before then, or open each video and choose Save to device." },
       { text: "Clients can't watch a recording once our copy is deleted." },
+      { text: RECEIPTS_NOTE },
     ],
     button: { label: "Open Billing", link: appUrl(teamPath("/settings/billing", workspaceId)) },
     logoUrl: brand.logoUrl,

@@ -135,7 +135,7 @@ export async function flushGroup(userId: string, kind: TeamNotificationKind, gro
       subject: n === 1 ? `${name} replied` : `${name} sent ${n} replies`,
       lead: n === 1 ? `${name} replied to a video from ${ws.name}.` : `${name} sent ${n} replies to a video from ${ws.name}.`,
       button: { label: "Open the conversation", link: appUrl(`/v/${groupKey}?team=1`) },
-      footer: "For privacy, replies are only shown in the app.",
+      footer: "For privacy, replies are only shown in the app. Choose which emails you get under Settings > Account, Emails to you.",
       logoUrl: brand.logoUrl,
       color: brand.color,
     });
@@ -149,13 +149,13 @@ export async function flushGroup(userId: string, kind: TeamNotificationKind, gro
       lead: `${who} sent ${n === 1 ? "a video" : `${n} videos`} to clients:`,
       lines: pending.map((p) => ({ text: clientName(p.clientId), link: p.videoId ? appUrl(`/v/${p.videoId}?team=1`) : undefined })),
       button: { label: "Open the Team overview", link: appUrl(teamPath("/team", ws.id)) },
-      footer: "Change which emails you get on the Team overview page.",
+      footer: "Choose which emails you get under Settings > Account, Emails to you.",
       logoUrl: brand.logoUrl,
       color: brand.color,
     });
   }
   try {
-    await sendMail({ to: user.email, ...mail, fromName: ws.name });
+    await sendMail({ to: user.email, ...mail });
   } catch (err) {
     // Put them back so the reminders job tries again.
     await db.teamNotification.updateMany({ where: { id: { in: pending.map((p) => p.id) } }, data: { sentAt: null } });

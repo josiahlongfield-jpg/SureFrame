@@ -144,6 +144,14 @@ export function storageLine(plan: Plan, days: number, interval: Interval = "mont
     : `Videos are kept on our servers for ${days} days after they're recorded, unless Cloud backup is on (US$${interval === "year" ? `${CLOUD_BACKUP_PRICE_YEARLY} a year` : `${CLOUD_BACKUP_PRICE} a month`}).`;
 }
 
+/**
+ * Payment receipts and invoices come from Link, Stripe's merchant-of-record
+ * service (Terms, Payments), not from SureFrame, which sends none of its own. Said in plan and billing
+ * emails and on Settings > Billing.
+ */
+export const RECEIPTS_NOTE =
+  "Receipts and invoices for your payments come by email from Link, Stripe's payment service, which sells our plans. You can also see and download them any time under Settings > Billing, Manage subscription.";
+
 /** Longest video or voice reply a client can send. */
 export const MAX_REPLY_MINUTES = 15;
 

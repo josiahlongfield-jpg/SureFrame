@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { reminderEmail } from "@/lib/reminderEmail";
 import { browserTimeZone, ruleLabel, sortRules, type ReminderRule } from "@/lib/schedule";
 import { ReminderPicker } from "./ScheduleFields";
+import TimeZonePicker from "./TimeZonePicker";
 
 type Settings = {
   name: string;
@@ -18,7 +19,6 @@ type Settings = {
 
 export default function ReminderSettings({ initial }: { initial: Settings }) {
   const [s, setS] = useState<Settings>(initial);
-  const [zones, setZones] = useState<string[]>([]);
   // The preview's dates depend on the clock and this device's zone, so it's drawn once the page is in the browser.
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => setNow(new Date()), []);
@@ -30,11 +30,6 @@ export default function ReminderSettings({ initial }: { initial: Settings }) {
   };
 
   useEffect(() => {
-    try {
-      setZones((Intl as unknown as { supportedValuesOf: (k: string) => string[] }).supportedValuesOf("timeZone"));
-    } catch {
-      setZones([]);
-    }
     if (!initial.timezone) setS((cur) => ({ ...cur, timezone: browserTimeZone() }));
   }, [initial.timezone]);
 
@@ -87,15 +82,11 @@ export default function ReminderSettings({ initial }: { initial: Settings }) {
             </span>
             <span className="text-xs text-dim">Shown to clients on their page and as the sender of reminder emails.</span>
           </p>
-          <label className="grid gap-1 text-sm">
+          <div className="grid gap-1 text-sm">
             <span className="font-medium text-muted">Time zone</span>
             <span className="text-xs text-dim">Reminders and repeats follow this clock, including daylight saving.</span>
-            <select value={tz} onChange={(e) => set({ timezone: e.target.value })} aria-label="Time zone" className={field}>
-              {(zones.length ? zones : [tz]).map((z) => (
-                <option key={z} value={z}>{z.replace(/_/g, " ")}</option>
-              ))}
-            </select>
-          </label>
+            <TimeZonePicker value={tz} onChange={(timezone) => set({ timezone })} className={field} />
+          </div>
           <label className="grid gap-1 text-sm">
             <span className="font-medium text-muted">Reply-to email</span>
             <span className="text-xs text-dim">If a client replies to a reminder or new-video email, it goes here. Left blank, those emails ask clients not to reply.</span>

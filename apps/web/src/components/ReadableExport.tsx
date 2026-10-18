@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { decryptText, unwrapKey } from "@/lib/e2e/crypto";
 import { loadKey, teamKeyName } from "@/lib/e2e/keystore";
+import { readableHtml } from "@/lib/readableExport";
 
 type Wrapped = { teamKeyWrap?: string | null };
 type Item = { body: string; shared: boolean; clientId: string | null; text?: string | null };
@@ -74,18 +75,27 @@ export async function readableCopy(data: Export) {
   return data;
 }
 
+/**
+ * The readable copy, as a web page that opens in any browser (the default) or
+ * as JSON for moving the data elsewhere. Both are made here from the
+ * decrypted export.
+ */
 export default function ReadableExport() {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"html" | "json" | null>(null);
   const [error, setError] = useState<string>();
-  async function go() {
-    setBusy(true);
+  async function go(as: "html" | "json") {
+    setBusy(as);
     setError(undefined);
     try {
       const res = await fetch("/api/account/export?wraps=1");
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Couldn't download your data. Try again.");
       const data = await readableCopy((await res.json()) as Export);
-      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
-      const a = Object.assign(document.createElement("a"), { href: url, download: `sureframe-export-readable-${new Date().toISOString().slice(0, 10)}.json` });
+      const blob =
+        as === "html"
+          ? new Blob([readableHtml(data as unknown as Record<string, unknown>)], { type: "text/html" })
+          : new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement("a"), { href: url, download: `sureframe-export-readable-${new Date().toISOString().slice(0, 10)}.${as}` });
       document.body.append(a);
       a.click();
       a.remove();
@@ -93,15 +103,18 @@ export default function ReadableExport() {
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
   return (
     <>
-      <button type="button" onClick={go} disabled={busy} data-testid="readable-export" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60">
-        {busy ? "Preparing…" : "Download a readable copy"}
+      <button type="button" onClick={() => go("html")} disabled={!!busy} data-testid="readable-export" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60">
+        {busy === "html" ? "Preparing…" : "Download a readable copy"}
       </button>
-      {error && <p role="alert" className="mt-2 text-sm text-danger-fg">{error}</p>}
+      <button type="button" onClick={() => go("json")} disabled={!!busy} data-testid="readable-export-json" className="rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:bg-hover disabled:opacity-60">
+        {busy === "json" ? "Preparing…" : "Readable copy as JSON"}
+      </button>
+      {error && <p role="alert" className="mt-2 w-full text-sm text-danger-fg">{error}</p>}
     </>
   );
 }

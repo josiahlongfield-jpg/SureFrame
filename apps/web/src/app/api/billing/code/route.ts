@@ -1,20 +1,30 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { ACTIVE_STATUSES } from "@/lib/billing";
-import { billedBefore, isCodeShaped, NEW_CUSTOMERS_ONLY, NOT_YOURS, offerCookieValue, offerForCode, offerIsFor, OFFER_COOKIE, OFFER_COOKIE_OPTIONS } from "@/lib/offers";
+import {
+  billedBefore,
+  isCodeShaped,
+  NEW_CUSTOMERS_ONLY,
+  NOT_YOURS,
+  offerCookieValue,
+  offerForCode,
+  offerIsFor,
+  OFFER_COOKIE,
+  OFFER_COOKIE_OPTIONS,
+} from "@/lib/offers";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
 import { currentSubscription } from "@/lib/subscription";
 import { limitByIp } from "@/lib/rateLimit";
 import { isReferralCode, REFERRAL_SUMMARY, usableReferral } from "@/lib/referrals";
 
-const SUBSCRIBED = "Discount codes can only be used when you start a paid plan or move up to a bigger one. To move up, choose the plan on the Pricing page and enter the code there.";
-
 const Body = z.object({ code: z.string().trim().max(40) });
 
 /**
- * A discount code typed on Settings > Billing, kept for checkout like a share
- * link. Codes are only for starting a subscription or moving up a plan (the
- * Pricing page's switch box): one that's running can't take a code here.
+ * A discount code typed on Settings > Billing. Without a subscription it's
+ * kept for checkout, like a share link. A running subscription only takes a
+ * code when moving up to a bigger plan (Terms, Discounts; lib/offers.ts
+ * upgradeOffer), so for a subscriber the code is checked here and the reply
+ * says how to use it; nothing is applied.
  */
 export const POST = handle(async (req: Request) => {
   const me = await requireUser();
@@ -25,7 +35,17 @@ export const POST = handle(async (req: Request) => {
   if (!body.success || !isCodeShaped(body.data.code)) throw new HttpError(400, "Enter the code as written: letters, numbers and dashes.");
   const { code } = body.data;
   const sub = me.workspace.stripeSubscriptionId ? await currentSubscription(me.workspace) : null;
-  if (sub && ACTIVE_STATUSES.has(sub.status)) throw new HttpError(400, SUBSCRIBED);
+  if (sub && ACTIVE_STATUSES.has(sub.status)) {
+    if (isReferralCode(code)) throw new HttpError(400, "Referral codes are for businesses starting their first paid plan, so they can't be used on a running subscription.");
+    const offer = await offerForCode(code);
+    if (!offer) throw new HttpError(400, "That code isn't valid or has ended.");
+    if (!offerIsFor(offer, typeof sub.customer === "string" ? sub.customer : sub.customer.id)) throw new HttpError(400, NOT_YOURS);
+    if (offer.newCustomersOnly) throw new HttpError(400, NEW_CUSTOMERS_ONLY);
+    if ((sub.discounts ?? []).some((d) => typeof d === "string" || (!d.deleted && !(d.end && d.end * 1000 <= Date.now())))) {
+      throw new HttpError(400, "Your subscription already has a discount, and codes can't be combined.");
+    }
+    return Response.json({ applied: false, subscribed: true, code: offer.code, summary: offer.summary, biggest: me.workspace.plan === "AGENCY" });
+  }
   if (isReferralCode(code)) {
     // A business's referral code (lib/referrals.ts): checked for this business now, and again at checkout.
     const row = await usableReferral(code, { userId: me.user.id, workspace: me.workspace });

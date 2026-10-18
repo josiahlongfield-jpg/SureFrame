@@ -53,7 +53,7 @@ export async function askForLink(clientId: string) {
   let sent = 0;
   for (const m of to) {
     try {
-      await sendMail({ to: m.user.email, ...mail, fromName: ws.name });
+      await sendMail({ to: m.user.email, ...mail });
       sent++;
     } catch (err) {
       console.error("[clients] lost-key email", client.id, err);

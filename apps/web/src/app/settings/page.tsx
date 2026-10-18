@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { PLANS } from "@/lib/plans";
 import { requirePageUser } from "@/lib/session";
 import { settingsPages } from "@/lib/settingsMenu";
+import { isSupportAgent } from "@/lib/support/tickets";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -16,7 +17,7 @@ export default async function Settings() {
   if (me.paused || !me.agreed) redirect("/settings/account");
   const manager = me.role !== "MEMBER";
   const teamSize = manager ? await db.membership.count({ where: { workspaceId: me.workspace.id } }) : 1;
-  const pages = settingsPages({ manager, teamSize, plan: me.workspace.plan, workspaces: me.user.memberships.length });
+  const pages = settingsPages({ manager, teamSize, plan: me.workspace.plan, workspaces: me.user.memberships.length, supportAgent: isSupportAgent(me.user.email) });
   return (
     <>
       <AppHeader email={me.user.email} plan={PLANS[me.workspace.plan].name} />

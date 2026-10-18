@@ -198,6 +198,7 @@ ok("downgrade to Solo blocked while staff remain", down.status() === 400);
 await owner.goto(BASE + "/settings/account");
 await owner.fill('input[name="confirm"]', `owner${stamp}@example.com`);
 await owner.click("text=Delete my account");
+await owner.click("[data-testid=delete-account-yes]");
 await owner.waitForURL((u) => u.searchParams.get("error") === "team");
 ok("owner with staff can't delete their account", !!(await prisma.user.findUnique({ where: { email: `owner${stamp}@example.com` } })));
 

@@ -172,7 +172,8 @@ export async function runReminders(now = new Date()) {
     if (!item.dueAt || item.dueAt.getTime() < now.getTime() - 3_600_000) { await skip("late"); continue; }
 
     const base = { business: ws.name, due: item.dueAt, now, tz: workspaceTz(ws) };
-    const mails: { to: string; m: ReturnType<typeof reminderEmail>; replyTo?: string | null }[] = [];
+    // Clients' reminders come from "Business A via SureFrame"; the team's own from SureFrame (lib/mail.ts).
+    const mails: { to: string; m: ReturnType<typeof reminderEmail>; replyTo?: string | null; fromName?: string }[] = [];
     if (r.to === "CLIENT") {
       const c = item.client;
       if (!c || c.removedAt || c.pausedAt || c.linkDisabledAt || c.remindersOff || !c.email || !item.shared) { await skip("client unavailable"); continue; }
@@ -181,6 +182,7 @@ export async function runReminders(now = new Date()) {
       mails.push({
         to: c.email,
         replyTo: own.replyTo,
+        fromName: ws.name,
         m: reminderEmail({ ...base, ...brandOf(ws, appUrl("")), message: own.message, link: appUrl(`/c/${c.token}`), unsubscribe: unsubscribeUrl(c.id), noReply: !own.replyTo }),
       });
     } else {
@@ -204,9 +206,9 @@ export async function runReminders(now = new Date()) {
     if (claimed.count === 0) continue;
     const failed: string[] = [];
     let delivered = 0;
-    for (const { to, m, replyTo } of mails) {
+    for (const { to, m, replyTo, fromName } of mails) {
       try {
-        await sendMail({ to, subject: m.subject, text: m.text, html: m.html, fromName: ws.name, replyTo });
+        await sendMail({ to, subject: m.subject, text: m.text, html: m.html, fromName, replyTo });
         delivered++;
       } catch (e) {
         failed.push(String(e).slice(0, 200));

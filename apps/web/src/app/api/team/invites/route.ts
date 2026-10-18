@@ -54,7 +54,7 @@ export const POST = handle(async (req: Request) => {
   if (invite.email && !(await isEmailBlocked(invite.email))) {
     const brand = brandOf(workspace, appUrl(""));
     const mail = inviteEmail({ business: workspace.name, inviter: user.name ?? user.email, admin: invite.role === "ADMIN", logoUrl: brand.logoUrl, color: brand.color });
-    emailed = await sendMail({ to: invite.email, ...mail, fromName: workspace.name }).then(
+    emailed = await sendMail({ to: invite.email, ...mail }).then(
       () => true,
       (err) => (console.error("invite email failed", err), false),
     );

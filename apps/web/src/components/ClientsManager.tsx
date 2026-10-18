@@ -421,7 +421,7 @@ function Manager({
             )}
             {!!seatsAdded && !buying && (
               <p role="status" data-testid="seats-added" className="rounded-lg border border-ok-line bg-ok-bg px-3 py-2 text-ok-fg">
-                Added {plural(seatsAdded, "client seat", "client seats")}. You can add {plural(left, "more client", "more clients")} now.
+                Added {plural(seatsAdded, "client seat", "client seats")}. You can add {plural(left, "more client", "more clients")} now. Your receipt comes by email from Link, Stripe&apos;s payment service, and Settings &gt; Billing shows what you pay.
               </p>
             )}
             {/* Lowering bought seats is billing, on its own row away from removing a client. */}

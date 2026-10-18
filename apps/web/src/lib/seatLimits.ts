@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { sendMail } from "@/lib/mail";
-import { clientSeatLimit, PLANS, staffSeatLimit } from "@/lib/plans";
+import { clientSeatLimit, PLANS, RECEIPTS_NOTE, staffSeatLimit } from "@/lib/plans";
 import { appUrl } from "@/lib/stripe";
 import { teamEmail } from "@/lib/teamEmail";
 import { teamPath } from "@/lib/teamLink";
@@ -76,7 +76,8 @@ async function emailOwner(workspaceId: string, business: string, planName: strin
     lines,
     button: { label: "Choose a plan", link: appUrl(teamPath("/settings/billing", workspaceId)) },
     footer:
-      "Pausing doesn't delete anything, though recordings still expire on the usual schedule. Upgrade, or remove clients or staff you no longer need, and the others are restored straight away. Please let anyone affected know about the change.",
+      "Pausing doesn't delete anything, though recordings still expire on the usual schedule. Upgrade, or remove clients or staff you no longer need, and the others are restored straight away. Please let anyone affected know about the change. " +
+      RECEIPTS_NOTE,
   });
   await sendMail({ to: owner.user.email, ...mail });
 }

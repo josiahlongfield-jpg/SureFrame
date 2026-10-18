@@ -11,7 +11,7 @@ export function newLinkEmail(o: { business: string; clientName: string; link: st
   const lead = `Hi ${o.clientName}, ${o.business} replaced your personal link to keep your videos secure, so your old link no longer opens them.`;
   const how = "Open this new link on the phone or computer you used before, and your videos and replies are all there, as before. Use it from now on.";
   const after = `On a phone or computer you haven't used before, it can't open your videos: ask ${o.business} for your full personal link.`;
-  const text = [lead, "", how, "", `Your new link: ${o.link}`, "", after].join("\n");
+  const text = [lead, "", how, "", `Your new link: ${o.link}`, "", after, "", "Sent with SureFrame"].join("\n");
   const colors = emailColors(o.color);
   const html = emailShell(`${emailLogo(o.logoUrl, o.business)}
 <p style="font-size:16px;line-height:1.5;margin:0 0 16px">${esc(lead)}</p>

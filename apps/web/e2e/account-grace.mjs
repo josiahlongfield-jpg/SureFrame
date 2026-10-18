@@ -68,6 +68,7 @@ async function closeAccount(page, email) {
   await page.goto(BASE + "/settings/account");
   await page.fill('input[name="confirm"]', email);
   await page.click("text=Delete my account");
+  await page.click("[data-testid=delete-account-yes]");
   await page.waitForURL((u) => u.pathname === "/login", { timeout: 60000 });
 }
 
@@ -104,7 +105,7 @@ ok("before: Ana's link opens her inbox", new URL(anaPhone.url()).pathname === "/
 await owner.goto(BASE + "/settings/account");
 const explainer = norm(await owner.textContent("[data-testid=delete-explainer]"));
 const roughly = longDay(new Date(Date.now() + 30 * D), TZ);
-ok("explainer: closed now, deleted on the date, sign in to keep it", explainer.includes(`If you delete it, your account is closed straight away and permanently deleted 30 days later (${roughly} if you delete it today). Until then, sign in to keep it with everything as it was.`), explainer);
+ok("explainer: closed now, deleted on the date, sign in to keep it", explainer.includes(`Nothing is scheduled yet. If you delete your account, it's closed straight away and permanently deleted 30 days later (on ${roughly} if you delete it today). Until then, you can sign in to keep it with everything as it was.`), explainer);
 ok("explainer: workspace goes with it, links stop, expiry carries on", explainer.includes("Your workspace goes with it") && explainer.includes("links stop working now") && explainer.includes("still expire on their usual dates") && explainer.includes("removed clients are still deleted on their dates") && !explainer.includes("won't renew"), explainer);
 ok("explainer: sooner on request", explainer.includes("Want it deleted sooner? Email support@sureframe.app."), explainer);
 await owner.screenshot({ path: `${shots}/account-grace-settings.png`, fullPage: true });

@@ -147,6 +147,19 @@ const SCOPES: { value: Scope; label: string }[] = [
 ];
 
 /** The owner's or admin's own email preferences. */
+/** A radio option drawn as a pill, so the chosen one is plain to see (not just a small dot). */
+function Choice({ name, checked, onChange, children }: { name: string; checked: boolean; onChange: () => void; children: React.ReactNode }) {
+  return (
+    <label
+      className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 ${checked ? "border-primary bg-primary-soft font-semibold text-ink" : "border-line-strong text-muted hover:bg-hover"}`}
+    >
+      <input type="radio" name={name} checked={checked} onChange={onChange} className="accent-primary" />
+      {children}
+      {checked && <span className="sr-only"> (selected)</span>}
+    </label>
+  );
+}
+
 export function NotifyPrefs({ meId, staff, initial }: { meId: string; staff: OverviewStaff[]; initial: Prefs }) {
   const [prefs, setPrefs] = useState(initial);
   const [saved, setSaved] = useState<string>();
@@ -173,10 +186,9 @@ export function NotifyPrefs({ meId, staff, initial }: { meId: string; staff: Ove
         )}
         <div className="mt-2 flex flex-wrap gap-3">
           {SCOPES.map((s) => (
-            <label key={s.value} className="flex items-center gap-1.5">
-              <input type="radio" name="replyNotify" checked={prefs.replyNotify === s.value} onChange={() => save({ ...prefs, replyNotify: s.value })} />
+            <Choice key={s.value} name="replyNotify" checked={prefs.replyNotify === s.value} onChange={() => save({ ...prefs, replyNotify: s.value })}>
               {s.label}
-            </label>
+            </Choice>
           ))}
         </div>
         {prefs.replyNotify === "SELECTED" && (
@@ -194,10 +206,9 @@ export function NotifyPrefs({ meId, staff, initial }: { meId: string; staff: Ove
         <legend className="font-medium text-ink">Videos sent by staff</legend>
         <div className="mt-2 flex flex-wrap gap-3">
           {SCOPES.map((s) => (
-            <label key={s.value} className="flex items-center gap-1.5">
-              <input type="radio" name="sentNotify" checked={prefs.sentNotify === s.value} onChange={() => save({ ...prefs, sentNotify: s.value })} />
+            <Choice key={s.value} name="sentNotify" checked={prefs.sentNotify === s.value} onChange={() => save({ ...prefs, sentNotify: s.value })}>
               {s.value === "MINE" ? "Only to my own clients" : s.label}
-            </label>
+            </Choice>
           ))}
         </div>
         {prefs.sentNotify === "SELECTED" && (
@@ -211,7 +222,10 @@ export function NotifyPrefs({ meId, staff, initial }: { meId: string; staff: Ove
           </div>
         )}
       </fieldset>
-      <p className="text-xs text-dim">Emails are combined: at most one every 15 minutes per conversation or staff member. They never include replies or video titles.</p>
+      <p className="text-xs text-dim">
+        Emails are combined: at most one every 15 minutes per conversation or staff member. They never include replies or video titles. Deletion warnings,
+        requests for a personal link and account notices always come.
+      </p>
       {saved && <p role="status" className="text-xs text-muted">{saved}</p>}
     </div>
   );

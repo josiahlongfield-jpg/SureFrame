@@ -4,6 +4,7 @@
 // Start the app as for offers.mjs, with founding off and CRON_SECRET=test-cron-secret:
 //   STRIPE_SECRET_KEY=sk_test_fake STRIPE_API_BASE=http://localhost:12111 STRIPE_WEBHOOK_SECRET=whsec_test
 import { chromium } from "@playwright/test";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 import { start, state, createSubscription } from "./fake-stripe.mjs";
@@ -23,6 +24,10 @@ for (const p of state.promos) Object.assign(p, { active: false, metadata: { ...p
 const sig = new Stripe("sk_test_fake");
 const fake = new Stripe("sk_test_fake", { host: "localhost", port: 12111, protocol: "http" });
 const stamp = Date.now();
+const mailTo = (to) =>
+  existsSync(".data/outbox")
+    ? readdirSync(".data/outbox").filter((f) => Number(f.split("-")[0]) >= stamp).sort().map((f) => JSON.parse(readFileSync(`.data/outbox/${f}`, "utf8"))).filter((m) => m.to === to)
+    : [];
 const COUPON = "sureframe_referral_10_forever";
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM });
@@ -124,6 +129,14 @@ await webhook(bPage, "customer.subscription.created", subB);
 let row = await prisma.referralCode.findUnique({ where: { code: codeA } });
 const aWs = await ws(A.w.id);
 ok("the code is used by B", !!row.usedAt && row.usedByWorkspaceId === bWs.id);
+// A is told by email, without naming B; a repeat of the event doesn't send it again.
+await webhook(bPage, "customer.subscription.updated", subB);
+const used = mailTo(`refa${stamp}@example.com`).filter((m) => m.subject === "Your referral code was used");
+const usedMail = used[0] ?? { html: "", text: "", from: "" };
+ok("A is emailed once that its code was used", used.length === 1, String(used.length));
+ok("the email says when the 10% starts and where receipts are", usedMail.text.includes(codeA) && /10% off your plan starts with your next bill, on \w+ \d{1,2}, \d{4}/.test(usedMail.text) && usedMail.text.includes("come by email from Link, Stripe's payment service"), usedMail.text);
+ok("it doesn't name the business that used it", !usedMail.text.includes(bEmail) && !usedMail.html.includes(bEmail) && !usedMail.text.includes(bWs.name), usedMail.text);
+ok("it's from SureFrame, fits a phone and is signed off", usedMail.from.startsWith("SureFrame <") && usedMail.html.includes('name="viewport"') && usedMail.html.includes("Sent with SureFrame"), usedMail.from);
 ok("A's reward is due two hours before A's next bill", Math.abs(row.rewardDueAt - (aWs.currentPeriodEnd.getTime() - 2 * 3600_000)) < 5000, `${row.rewardDueAt} vs ${aWs.currentPeriodEnd}`);
 t = await text(bPage, "/settings/billing");
 ok("B's billing shows its referral discount", squash(await bPage.textContent('[data-testid="discount"]').catch(() => "")).includes("Referral: 10% off your plan"), t.slice(0, 400));

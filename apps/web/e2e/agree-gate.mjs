@@ -270,6 +270,7 @@ await prisma.workspace.update({ where: { id: wsUp }, data: { stripeCustomerId: n
 const recBefore = await rows(upUser.id);
 await up.fill('input[name="confirm"]', upEmail);
 await up.click("text=Delete my account");
+await up.click("[data-testid=delete-account-yes]");
 await up.waitForURL((u) => u.pathname === "/login", { timeout: 60000 });
 ok("deleting the account works before agreeing", !!(await prisma.user.findUnique({ where: { email: upEmail } }))?.deleteAt);
 await prisma.user.update({ where: { id: upUser.id }, data: { deleteAt: new Date(Date.now() - 60_000) } });

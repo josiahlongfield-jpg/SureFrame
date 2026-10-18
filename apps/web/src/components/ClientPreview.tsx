@@ -65,7 +65,7 @@ function VideoPage({ business, sender }: { business: string; sender: string }) {
           <div className="min-w-0 sm:flex-1">
             <h1 className="text-2xl font-semibold text-ink">{TITLE}</h1>
             <p className="mt-1 px-1 text-sm text-dim">
-              {sender} from {business} · {today()}
+              {sender ? `${sender} from ${business}` : business} · {today()}
             </p>
           </div>
         </div>
@@ -84,7 +84,7 @@ function VideoPage({ business, sender }: { business: string; sender: string }) {
           </div>
         </div>
         <ul className="flex-1 space-y-4 overflow-y-auto px-5 py-4 text-sm">
-          <Bubble who={sender} fromOwner text="Here's this week's plan. Watch from 1:05 for the new part." at="0:00" />
+          <Bubble who={sender || business} fromOwner text="Here's this week's plan. Watch from 1:05 for the new part." at="0:00" />
           <Bubble who={CLIENT} text="Thanks! Got it. I'll send a video of my first try tomorrow." />
         </ul>
         <div className="border-t border-line p-4">
@@ -134,7 +134,7 @@ function InboxPage({ business, sender }: { business: string; sender: string }) {
             <li key={v.title} className="flex items-center justify-between px-5 py-4">
               <span className="min-w-0">
                 <span className="block truncate font-medium text-ink">{v.title}</span>
-                <span className="block text-xs text-dim">{sender} from {business}</span>
+                <span className="block text-xs text-dim">{sender ? `${sender} from ${business}` : business}</span>
               </span>
               <span className="shrink-0 pl-3 text-sm text-dim">{new Date(Date.now() - v.ago * 86_400_000).toLocaleDateString("en-US", { dateStyle: "medium" })}</span>
             </li>

@@ -27,8 +27,29 @@ export const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "
 export const emailButton = (href: string, label: string, { fill, on }: { fill: string; on: string }) =>
   `<p style="margin:24px 0"><a href="${esc(href)}" style="background:${fill};color:${on};text-decoration:none;font-size:15px;padding:11px 20px;border-radius:10px;font-weight:600;display:inline-block">${esc(label)}</a></p>`;
 
+/**
+ * The small SureFrame mark (the frame's padlock and the wordmark), drawn in
+ * HTML so it shows even when a mail app blocks images.
+ */
+export const emailMark = (margin = "0 0 20px") =>
+  `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:${margin}"><tr>` +
+  `<td width="22" height="22" bgcolor="${EMAIL.ink}" style="width:22px;height:22px;background:${EMAIL.ink};border-radius:6px;text-align:center;vertical-align:middle;line-height:0"><span style="display:inline-block;width:10px;height:8px;margin-top:3px;border-radius:2px;background:#ff6f61"></span></td>` +
+  `<td style="padding-left:8px;font-family:${EMAIL.font};font-size:17px;line-height:22px;color:${EMAIL.ink};letter-spacing:-0.02em"><span style="font-weight:700">Sure</span><span style="font-weight:300">Frame</span></td>` +
+  `</tr></table>`;
+
+/** The business's logo on branded emails, otherwise the SureFrame mark, so every email has a recognisable top. */
 export const emailLogo = (logoUrl: string | null | undefined, alt: string) =>
-  logoUrl ? `<p style="margin:0 0 20px"><img src="${esc(logoUrl)}" alt="${esc(alt)}" style="max-height:40px;max-width:200px"></p>` : "";
+  logoUrl ? `<p style="margin:0 0 20px"><img src="${esc(logoUrl)}" alt="${esc(alt)}" style="max-height:40px;max-width:200px"></p>` : emailMark();
+
+/**
+ * A whole HTML document around an email, with a viewport tag, so a phone
+ * shows it at its own width instead of a zoomed-out desktop page. lib/mail.ts
+ * wraps every email in it.
+ */
+export const emailDocument = (html: string, title: string) =>
+  /^\s*<!doctype/i.test(html)
+    ? html
+    : `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title></head><body style="margin:0;padding:0">${html}</body></html>`;
 
 /** Wraps an email's content in the page and card (topped with the button colour), with the small SureFrame mark underneath. */
 export function emailShell(inner: string, footer = "Sent with SureFrame", accent = "#ff6f61") {

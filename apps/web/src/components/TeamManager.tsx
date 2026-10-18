@@ -13,6 +13,7 @@ import { BRAND } from "@/lib/brand";
 const money = (n: number) => `US$${Number.isInteger(n) ? n : n.toFixed(2)}`;
 import { PermChecks, savePerm, type Perms } from "./StaffPerms";
 import RemoveExtras from "./RemoveExtras";
+import PurchaseNotice, { reloadAfterPurchase } from "./PurchaseNotice";
 import type { NewLink } from "@/lib/rekey";
 
 /** How a removed person's recordings are shown (lib/team.ts FORMER_MEMBER; that file is server-only). */
@@ -214,7 +215,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
     const data = await res.json().catch(() => ({}));
     if (data.url) return void (window.location.href = data.url);
     if (!res.ok) return setError(data.error ?? "Could not add staff logins");
-    window.location.reload();
+    reloadAfterPurchase(buyQty);
   }
 
   // The counter says who's on the team; an invite holds a login until it's used or cancelled.
@@ -234,6 +235,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
         <p className="mt-1 text-xs text-dim">
           {includedStaff} included with your plan (yours counts as one){extraStaff > 0 && ` + ${extraStaff} extra`}
         </p>
+        {canBuyStaff && <PurchaseNotice one="staff login" many="staff logins" where="Invite someone below to use them." />}
         {/* Buying more only comes up once every login is in use; bought ones can be given back any time. */}
         {canBuyStaff && (full || extraStaff > 0) && (
           <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-5 text-sm">

@@ -72,7 +72,7 @@ export const POST = handle(async (req: Request) => {
         logoUrl: brand.logoUrl,
         color: brand.color,
       });
-      await sendMail({ to: m.user.email, ...mail, fromName: workspace.name });
+      await sendMail({ to: m.user.email, ...mail });
       await db.staffNotice.update({ where: { id: n.id }, data: { emailedAt: new Date() } });
       emailed++;
     } catch (err) {
