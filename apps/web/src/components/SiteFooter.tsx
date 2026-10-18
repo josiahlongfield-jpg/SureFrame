@@ -15,7 +15,8 @@ export default async function SiteFooter({ widget = true }: { widget?: boolean }
         <p>© {new Date().getFullYear()} {BRAND.name}. All rights reserved.{LEGAL.abn && ` ABN ${LEGAL.abn}`}</p>
         <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2">
           <Link href="/pricing" className="hover:text-ink">Pricing</Link>
-          <Link href="/help" className="hover:text-ink">Help</Link>
+          {/* Help is the chat and contact details, FAQ the written answers: named so it's clear which is which (V26). */}
+          <Link href="/help" className="hover:text-ink">Help &amp; contact</Link>
           <Link href="/faq" className="hover:text-ink">FAQ</Link>
           <Link href="/about" className="hover:text-ink">About</Link>
           <Link href="/legal/privacy" className="hover:text-ink">Privacy</Link>

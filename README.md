@@ -80,7 +80,7 @@ Live at **https://sureframe.app** (bought through Vercel). `www.sureframe.app`, 
 
 Without `S3_BUCKET`, videos are stored in Postgres (`StoredPart`) in 2 MB parts, under Vercel's 4.5 MB request limit. That suits a preview. For launch, use R2/S3 with direct-to-bucket (presigned) part uploads.
 
-Sign-in links and reminder emails need `RESEND_API_KEY` and `MAIL_FROM`; without them they are only logged. Reminders, team digests and expiry warnings (recordings, and removed clients 3 days before they're deleted) are checked every 5 minutes, and expired copies and removed clients deleted, by `/api/cron/reminders`; `/api/cron/purge` does the daily clean-up (`vercel.json`, needs Vercel Pro).
+Sign-in links and reminder emails need `RESEND_API_KEY` and `MAIL_FROM`; without them they are only logged. Reminders, team digests and expiry warnings (recordings, and removed clients 3 days before they're deleted) are checked every 5 minutes, and expired copies and removed clients deleted, by `/api/cron/reminders`; `/api/cron/purge` does the daily clean-up (`vercel.json`, needs Vercel Pro). The daily job also emails `SUPPORT_EMAIL`, once a week, a digest of the questions clients asked the help chat on their pages (the chat itself never reaches support), grouped and counted with the business's name.
 
 ### Production storage (Cloudflare R2)
 

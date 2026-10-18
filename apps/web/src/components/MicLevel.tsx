@@ -105,7 +105,7 @@ export default function MicLevel({ deviceId, stream: given }: { deviceId?: strin
       <span className={`text-xs ${warn ? "text-warn-fg" : "text-dim"}`} aria-live="polite">
         {state === "starting" && "Checking your microphone…"}
         {state === "listening" && "Say something. The bar should move when you speak."}
-        {state === "hearing" && "Picking up sound. Make sure the bar moves with your voice, not just background noise."}
+        {state === "hearing" && "Picking up sound. Check the bar moves when you speak, not just with background noise."}
         {state === "silent" && "No sound right now. Speak to check it's still picking you up."}
         {state === "quiet" && `We can't hear anything yet. Check the microphone is switched on and not muted${given ? "" : ", and the right one is selected above"}.`}
         {state === "stopped" && `This microphone has stopped sending sound. Check it's switched on and connected${given ? "" : ", or choose another one above"}.`}

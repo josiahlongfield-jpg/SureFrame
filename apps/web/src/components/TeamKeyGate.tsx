@@ -65,10 +65,19 @@ export default function TeamKeyGate({
   workspaceId,
   fingerprint,
   children,
+  loading,
+  lockedNote,
+  onUnlock,
 }: {
   workspaceId: string;
   fingerprint: string | null;
   children: (key: CryptoKey) => React.ReactNode;
+  /** Shown while checking this device's key (default: "Unlocking…"). */
+  loading?: React.ReactNode;
+  /** Shown instead of the unlock form when another gate on the page has it (components/LibraryUnlock). */
+  lockedNote?: React.ReactNode;
+  /** Called after the recovery key was entered here. */
+  onUnlock?: () => void;
 }) {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [input, setInput] = useState("");
@@ -118,14 +127,17 @@ export default function TeamKeyGate({
       await saveKey(teamKeyName(workspaceId), key);
       setState({ kind: "ready", key });
       window.dispatchEvent(new CustomEvent(UNLOCKED, { detail: workspaceId }));
+      onUnlock?.();
     } catch (err) {
       setState({ kind: "recover", error: (err as Error).message });
     }
   }
 
   if (state.kind === "loading") {
-    return <div className="grid h-40 place-items-center text-sm text-dim">Unlocking…</div>;
+    return loading !== undefined ? <>{loading}</> : <div className="grid h-40 place-items-center text-sm text-dim">Unlocking…</div>;
   }
+
+  if (state.kind === "recover" && lockedNote !== undefined) return <>{lockedNote}</>;
 
   if (state.kind === "recover") {
     return (
@@ -152,4 +164,19 @@ export default function TeamKeyGate({
   }
 
   return <>{children(state.key)}</>;
+}
+
+/**
+ * The library's unlock box, at the top of the page so a new device meets it
+ * before the locked tiles. Shows nothing once this device has the key; after
+ * unlocking, the page reloads so the stills and lists open.
+ */
+export function LibraryUnlock({ workspaceId, fingerprint }: { workspaceId: string; fingerprint: string | null }) {
+  return (
+    <div id="unlock" className="scroll-mt-6 empty:hidden [&>div]:mb-8 [&>div]:mt-0" data-testid="library-unlock">
+      <TeamKeyGate workspaceId={workspaceId} fingerprint={fingerprint} loading={null} onUnlock={() => window.location.reload()}>
+        {() => null}
+      </TeamKeyGate>
+    </div>
+  );
 }

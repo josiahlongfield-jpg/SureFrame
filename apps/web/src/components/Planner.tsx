@@ -5,6 +5,7 @@ import { decryptText, encryptText, fingerprint } from "@/lib/e2e/crypto";
 import type { ItemDTO } from "@/lib/items";
 import { browserTimeZone, DEFAULT_REMINDERS, repeatLabel, ruleLabel, sortRules, type ReminderRule } from "@/lib/schedule";
 import ScheduleFields, { toLocalInput, type Schedule } from "./ScheduleFields";
+import ConfirmDialog from "./ConfirmDialog";
 
 type Decrypted = ItemDTO & { text: string };
 
@@ -16,6 +17,12 @@ const ME: TeamWho = { label: "Email me", tag: "you" };
 
 const RepeatIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M17 2l4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg>
+);
+const LockIcon = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+);
+const EyeIcon = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
 );
 const BellIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
@@ -73,6 +80,12 @@ export default function Planner({
   const [showDone, setShowDone] = useState(false);
   const [editing, setEditing] = useState<string>();
   const [error, setError] = useState<string>();
+  // Sharing asks first (a private note about a client must not reach them by a stray click); making private doesn't.
+  const [asking, setAsking] = useState<Decrypted>();
+  const [deleting, setDeleting] = useState<Decrypted>();
+  const [busy, setBusy] = useState(false);
+  // The last share change, with an Undo.
+  const [changed, setChanged] = useState<{ id: string; shared: boolean; text: string }>();
 
   // Sent with re-sealed text so a write made with keys that were just reset is refused.
   const [keyFingerprint, setKeyFingerprint] = useState<string>();
@@ -162,21 +175,37 @@ export default function Planner({
     return true;
   }
 
-  async function toggleShare(i: Decrypted) {
-    const key = keyFor(!i.shared);
-    if (!key) return;
+  async function setShared(i: Decrypted, shared: boolean) {
+    const key = keyFor(shared);
+    if (!key) return false;
     // Re-seal the text with the other key so the right people can read it.
-    await patch(i, { shared: !i.shared, body: await encryptText(i.text, key) });
+    const ok = await patch(i, { shared, body: await encryptText(i.text, key) });
+    if (ok) setChanged({ id: i.id, shared, text: i.text });
+    return ok;
+  }
+
+  async function confirmShare() {
+    if (!asking) return;
+    setBusy(true);
+    setError(undefined);
+    if (await setShared(asking, true)) setAsking(undefined);
+    setBusy(false);
+  }
+
+  async function undo() {
+    const i = changed && items.find((x) => x.id === changed.id);
+    if (!i) return setChanged(undefined);
+    // Undoing a share is making it private again, which needs no question.
+    if (await setShared(i, !changed.shared)) setChanged(undefined);
   }
 
   async function remove(i: Decrypted) {
-    const what = i.kind === "NOTE" ? "note" : "to-do";
-    const ask = i.repeat
-      ? "Delete this to-do? Only this one goes: the next repeat still comes round. To stop it repeating, edit it and turn off Repeat."
-      : `Delete this ${what}? This can't be undone.`;
-    if (!confirm(ask)) return;
+    setBusy(true);
     const res = await fetch(`/api/items/${i.id}`, { method: "DELETE" });
-    if (res.ok) setItems((cur) => cur.filter((x) => x.id !== i.id));
+    setBusy(false);
+    if (!res.ok) return setError("Couldn't delete it. Try again.");
+    setItems((cur) => cur.filter((x) => x.id !== i.id));
+    setDeleting(undefined);
   }
 
   const now = Date.now();
@@ -245,9 +274,11 @@ export default function Planner({
               </span>
             )}
             {role === "member" && clientId && (
-              <button onClick={() => toggleShare(i)} className={`rounded px-1.5 ${i.shared ? "bg-primary-soft text-accent" : "bg-surface-2 text-muted"} hover:underline`}>
+              // A label, not a button: changing who sees it is the Share / Make private action beside Edit.
+              <span data-testid="share-state" className={`inline-flex items-center gap-1 rounded px-1.5 ${i.shared ? "bg-primary-soft text-accent" : "bg-surface-2 text-muted"}`}>
+                {i.shared ? <EyeIcon /> : <LockIcon />}
                 {i.shared ? `Shared with ${who}` : "Private to your team"}
-              </button>
+              </span>
             )}
           </div>
         </div>
@@ -257,7 +288,17 @@ export default function Planner({
             <button onClick={() => setEditing(i.id)} aria-label={`Edit "${i.text}"`} className="hover:text-ink">
               Edit
             </button>
-            <button onClick={() => remove(i)} aria-label="Delete" className="hover:text-danger-fg">
+            {clientId &&
+              (i.shared ? (
+                <button onClick={() => setShared(i, false)} aria-label={`Make "${i.text}" private`} className="hover:text-ink">
+                  Make private
+                </button>
+              ) : (
+                <button onClick={() => setAsking(i)} aria-label={`Share "${i.text}" with ${who}`} className="hover:text-ink">
+                  Share…
+                </button>
+              ))}
+            <button onClick={() => setDeleting(i)} aria-label="Delete" className="hover:text-danger-fg">
               Delete
             </button>
           </div>
@@ -328,6 +369,56 @@ export default function Planner({
         </form>
       )}
 
+      {changed && items.some((x) => x.id === changed.id) && (
+        <p role="status" data-testid="share-undo" className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-muted">
+          <span className="min-w-0 break-words">
+            {changed.shared ? `Shared with ${who}: “${changed.text}”. They can see it on their page now.` : `Private again: “${changed.text}”. Only your team sees it.`}
+          </span>
+          <span className="ml-auto flex gap-3">
+            <button onClick={undo} className="font-medium text-accent hover:underline">Undo</button>
+            <button onClick={() => setChanged(undefined)} aria-label="Dismiss" className="text-dim hover:text-ink">✕</button>
+          </span>
+        </p>
+      )}
+      {asking && (
+        <ConfirmDialog
+          title={`Share this ${asking.kind === "NOTE" ? "note" : "to-do"} with ${who}?`}
+          body={
+            <>
+              <p className="break-words font-medium text-ink">“{asking.text}”</p>
+              <p>
+                {who} will see it on their page{asking.kind === "TASK" ? " and can tick it off" : ""}. Your other private to-dos and notes stay private. You can undo this straight after, or make it private again later.
+              </p>
+            </>
+          }
+          confirmLabel={`Share with ${who}`}
+          cancelLabel="Keep it private"
+          busy={busy}
+          error={error}
+          onConfirm={confirmShare}
+          onCancel={() => setAsking(undefined)}
+          testId="share-confirm"
+        />
+      )}
+      {deleting && (
+        <ConfirmDialog
+          title={`Delete this ${deleting.kind === "NOTE" ? "note" : "to-do"}?`}
+          body={
+            <>
+              <p className="break-words font-medium text-ink">“{deleting.text}”</p>
+              <p>{deleting.repeat && !deleting.done ? "Only this one goes: the next repeat still comes round. To stop it repeating, edit it and turn off Repeat." : "This can't be undone."}</p>
+            </>
+          }
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          danger
+          busy={busy}
+          error={error}
+          onConfirm={() => remove(deleting)}
+          onCancel={() => setDeleting(undefined)}
+          testId="delete-confirm"
+        />
+      )}
       {!loaded ? (
         <p className="mt-4 text-sm text-dim">Loading…</p>
       ) : loadError ? (

@@ -1,10 +1,13 @@
 import Link from "next/link";
+import { auth } from "@/auth";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import FeatureFrames from "@/components/home/FeatureFrames";
 import { Icon } from "@/components/home/icons";
 import { points } from "@/components/home/points";
 import { BRAND } from "@/lib/brand";
+import { MAX_TRANSCRIBE_MINUTES } from "@/lib/ai/limits";
+import { DATA_LOCATIONS, LEGAL } from "@/lib/legal";
 import { RETENTION_DAYS } from "@/lib/retention";
 
 const AUDIENCES = "Coaches, personal trainers, consultants, tutors, agencies, clinics and many more.";
@@ -21,7 +24,9 @@ const STEPS = [
   ["Reply", "Clients answer with their own video, a voice note or a message. No account needed."],
 ];
 
-export default function Home() {
+export default async function Home() {
+  // "Free" buttons open sign-up; someone already signed in goes straight to the recorder (V8).
+  const start = (await auth())?.user ? "/record" : "/signup";
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
       <SiteHeader navy />
@@ -36,7 +41,7 @@ export default function Home() {
             </h1>
             <p className="max-w-[30em] text-[0.9375rem] leading-relaxed text-muted sm:text-[1.0625rem]">Record it once, send it privately, and keep every client on track.</p>
             <div className="flex flex-wrap items-center gap-2.5">
-              <Link href="/record" className="rounded-[0.625rem] bg-primary px-4 py-3 text-sm font-medium text-on-primary hover:bg-primary-hover sm:px-[1.125rem] sm:text-[0.9375rem]">
+              <Link href={start} className="rounded-[0.625rem] bg-primary px-4 py-3 text-sm font-medium text-on-primary hover:bg-primary-hover sm:px-[1.125rem] sm:text-[0.9375rem]">
                 Record your first video, free
               </Link>
               <Link href="/pricing" className="rounded-[0.625rem] border border-line bg-solid px-4 py-3 text-sm font-medium text-on-solid hover:bg-solid-hover sm:px-[1.125rem] sm:text-[0.9375rem]">
@@ -73,7 +78,12 @@ export default function Home() {
                 </li>
               ))}
             </ol>
-            <p className="mx-auto mt-10 max-w-2xl text-center text-sm text-muted">{AUDIENCES}</p>
+            {/* Said up front as well as by the plans (V6): it's the limit a visitor most needs to know. */}
+            <p className="mx-auto mt-10 max-w-2xl text-center text-sm text-muted" data-testid="home-storage">
+              Videos are kept on our servers for {RETENTION_DAYS} days after they&rsquo;re recorded, unless you add Cloud backup on a paid plan. Save any video to
+              your device to keep your own copy.
+            </p>
+            <p className="mx-auto mt-4 max-w-2xl text-center text-sm text-muted">{AUDIENCES}</p>
           </div>
         </section>
 
@@ -89,6 +99,12 @@ export default function Home() {
                 </div>
               ))}
             </div>
+            {/* Who's behind it and where data lives, the two things visitors asked about trust (V9, V23). */}
+            <p className="mx-auto mt-10 max-w-3xl text-center text-sm leading-6 text-muted" data-testid="home-trust">
+              {LEGAL.product} is run from {LEGAL.state}, {LEGAL.country}
+              {LEGAL.abn && <> (ABN {LEGAL.abn})</>}. {DATA_LOCATIONS}{" "}
+              <Link href="/about" className="font-medium text-ink underline hover:text-highlight">Who runs it and where data is kept</Link>
+            </p>
           </div>
         </section>
 
@@ -97,7 +113,8 @@ export default function Home() {
             <p className="kicker">AI add-on</p>
             <h2 className="display mt-3 text-3xl sm:text-4xl">Transcripts made on your device.</h2>
             <p className="mt-4 text-muted">
-              With the optional AI add-on, videos up to 30 minutes can get a written transcript and a short summary with key points and action items. The
+              With the optional AI add-on, videos up to {MAX_TRANSCRIBE_MINUTES} minutes long can get a written transcript and a short summary with key points and
+              action items; longer videos don&rsquo;t get one. The
               transcript is made on your own device (it works best on a computer); only its text is sent to write the summary, and both are stored encrypted.
               Available on paid plans. AI summaries can contain mistakes.
             </p>
@@ -116,10 +133,6 @@ export default function Home() {
               Studio includes 3 staff logins and Agency includes 10, the owner&rsquo;s own login included. Assign clients to staff, choose what each person can see and do, see how the team is keeping up with clients, and keep billing with the owner. Clients never need an account.
             </p>
             <p className="mt-6 font-medium">Free for 3 clients. Paid plans from US$15 a month.</p>
-            <p className="mt-2 text-sm text-muted" data-testid="home-storage">
-              Videos are kept on our servers for {RETENTION_DAYS} days after they&rsquo;re recorded, unless you add Cloud backup on a paid plan. Save any video to
-              your device to keep your own copy.
-            </p>
             <Link href="/pricing" className="mt-6 inline-block rounded-[0.625rem] bg-primary px-6 py-3 font-medium text-on-primary hover:bg-primary-hover">
               Compare plans
             </Link>

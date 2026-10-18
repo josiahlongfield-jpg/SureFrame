@@ -144,6 +144,13 @@ ok("one welcome email, with first steps and where to get help", welcome.length =
 await owner.goto(`${BASE}/welcome`);
 await owner.waitForURL((u) => u.pathname === "/library");
 ok("the welcome step doesn't come back", path(owner) === "/library");
+await owner.setViewportSize({ width: 390, height: 800 });
+const pill = owner.locator("[data-testid=plan-pill]");
+await pill.waitFor({ state: "visible", timeout: 15000 }).catch(() => {});
+ok("phone header shows the plan, linking to Billing", (await pill.isVisible()) && (await pill.getAttribute("href")) === "/settings/billing");
+await owner.setViewportSize({ width: 320, height: 700 });
+ok("and the library still fits 320px", await noSideways(owner));
+await owner.setViewportSize({ width: 1280, height: 900 });
 
 // "Close the browser": only cookies with an expiry date come back. Kept, so still signed in.
 const kept = (await ownerCtx.cookies()).filter((c) => c.expires !== -1);
@@ -174,13 +181,17 @@ ok("Print is offered too", await owner.isVisible("[data-testid=first-steps] butt
 await owner.screenshot({ path: `${shots}/fx-shell-first-steps.png`, fullPage: true });
 await owner.reload();
 ok("still there after a reload", !!(await owner.waitForSelector("[data-testid=first-steps] [data-recovery-key]", { timeout: 15000 }).catch(() => null)));
-// Elsewhere it's one line that opens the key, until "I've saved it".
+// Elsewhere it's shown in full until "I've saved it" (not lost after a reload); "Remind me later" folds it to one line.
 await owner.goto(`${BASE}/settings/reminders`);
+ok("on other pages: the full key, still there after a reload", !!(await owner.waitForSelector("[data-testid=recovery-key-reminder] [data-recovery-key]", { timeout: 15000 }).catch(() => null)));
+await owner.click("[data-testid=recovery-key-later]");
+await owner.reload();
 const line = await owner.waitForSelector("[data-testid=recovery-key-reminder] >> text=Show recovery key", { timeout: 15000 }).catch(() => null);
-ok("on other pages: a one-line reminder", !!line);
+ok("Remind me later: a one-line reminder for this session", !!line);
 await line?.click();
 ok("which opens the key", (await owner.getAttribute("[data-testid=recovery-key-reminder] [data-recovery-key]", "data-recovery-key")) === key);
 await owner.click("[data-testid=recovery-key-reminder] >> text=I've saved it");
+ok("I've saved it answers at once", await owner.isVisible("[data-testid=recovery-key-saved]").catch(() => false) || (await owner.locator("[data-testid=recovery-key-reminder]").count()) === 0);
 await waitFor(async () => !!(await prisma.workspace.findUnique({ where: { id: ws.id } })).recoveryKeySavedAt);
 ok("I've saved it is remembered", !!(await prisma.workspace.findUnique({ where: { id: ws.id } })).recoveryKeySavedAt);
 await owner.goto(`${BASE}/library`);
@@ -194,7 +205,7 @@ ok("a business with no time zone gets the owner's", (await waitFor(async () => (
 
 // ---- Menus: one Settings item, no team pages for one person ----------------------------------------------
 const navHrefs = await owner.locator("header nav a").evaluateAll((els) => els.map((e) => e.getAttribute("href")));
-ok("desktop bar: Clients, Library and Settings only (no Overview or Team for one person)", navHrefs.join("|") === "/clients|/library", navHrefs.join("|"));
+ok("desktop bar: Clients, Library, To-dos and Settings only (no Overview or Team for one person)", navHrefs.join("|") === "/clients|/library|/library#todos", navHrefs.join("|"));
 await owner.click("[data-testid=settings-menu-button]");
 const settingsLinks = await owner.locator("[data-testid=settings-menu] a").evaluateAll((els) => els.map((e) => e.innerText.trim()));
 ok("Settings menu: Reminders, Branding, Invite staff, Billing, Account", settingsLinks.join("|") === "Reminders|Branding|Invite staff|Billing|Account", settingsLinks.join("|"));
@@ -304,6 +315,8 @@ ok("they're with the owner's own settings", (await owner.locator("#emails input[
 const teamNav = await owner.locator("header nav a").evaluateAll((els) => els.map((e) => e.getAttribute("href")));
 ok("with staff, the bar has Team", teamNav.includes("/team"));
 
+// Both had opened their personal links (only those are emailed a new one after a key reset, lib/rekey.ts).
+await prisma.client.updateMany({ where: { workspaceId: ws.id }, data: { linkOpenedAt: new Date() } });
 await owner.goto(`${BASE}/settings/team`);
 await owner.click("[data-testid=remove-member]");
 await owner.waitForSelector("[data-testid=team-dialog]");

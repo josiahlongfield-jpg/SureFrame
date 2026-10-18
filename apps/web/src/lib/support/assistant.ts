@@ -11,7 +11,7 @@ import { SUPPORT_GUIDE } from "@/lib/support/knowledge";
 import { handToHuman } from "@/lib/support/tickets";
 import { hasAgreed } from "@/lib/terms";
 
-const MODEL = "claude-opus-5-5";
+export const MODEL = "claude-opus-5-5";
 
 const SYSTEM = `You are ${BRAND.name}'s support assistant, the first point of contact for customers on the ${BRAND.name} website and app. ${BRAND.name} is run by a small team, so you resolve what you can and hand the rest to a person.
 
@@ -66,8 +66,8 @@ const HANDOVER_TOOL: Anthropic.Beta.BetaTool = {
 };
 
 let client: Anthropic | undefined;
-// A slow reply must still leave time to hand over before the request is cut off.
-const anthropic = () => (client ??= new Anthropic({ timeout: 45_000, maxRetries: 1 }));
+// A slow reply must still leave time to hand over before the request is cut off. Shared with the client help chat (clientHelp.ts).
+export const anthropic = () => (client ??= new Anthropic({ timeout: 45_000, maxRetries: 1 }));
 
 export const assistantEnabled = () => !!process.env.ANTHROPIC_API_KEY;
 

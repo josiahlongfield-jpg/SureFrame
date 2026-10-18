@@ -107,10 +107,46 @@ ok("client cannot touch private items (404)", peek === 404);
 await pro.reload();
 await pro.waitForSelector("text=Done (1)");
 ok("business sees the to-do ticked off", true);
-await pro.click("li:has-text('Prefers morning calls') >> button:has-text('Private to your team')");
+// The "Private to your team" label isn't a button: sharing is its own action, which asks first and can be undone.
+const label = pro.locator("li:has-text('Prefers morning calls') [data-testid=share-state]");
+ok("the private label is a label, not a button", (await label.textContent()).includes("Private to your team") && (await label.evaluate((el) => el.tagName)) === "SPAN");
+await label.click();
+await pro.waitForTimeout(500);
+ok("clicking the label shares nothing", sql(`select shared from "Item" where id='${privateId}'`) === "f" && (await pro.locator("[data-testid=share-confirm]").count()) === 0);
+await pro.click("li:has-text('Prefers morning calls') >> button:has-text('Share…')");
+await pro.waitForSelector("[data-testid=share-confirm]");
+ok("Share asks first, naming the client and the item", (await pro.textContent("[data-testid=share-confirm]")).includes("Share this note with Riley Client?") && (await pro.textContent("[data-testid=share-confirm]")).includes("Prefers morning calls"));
+await pro.click("[data-testid=share-confirm] >> button:has-text('Keep it private')");
+ok("Keep it private shares nothing", sql(`select shared from "Item" where id='${privateId}'`) === "f");
+await pro.click("li:has-text('Prefers morning calls') >> button:has-text('Share…')");
+await pro.click("[data-testid=share-confirm-yes]");
+await pro.waitForSelector("li:has-text('Prefers morning calls') >> text=Shared with Riley");
+ok("after sharing: a line with Undo", (await pro.textContent("[data-testid=share-undo]")).includes("Shared with Riley Client"));
+await pro.click("[data-testid=share-undo] >> button:has-text('Undo')");
+await pro.waitForSelector("li:has-text('Prefers morning calls') >> text=Private to your team");
+ok("Undo makes it private again", sql(`select shared from "Item" where id='${privateId}'`) === "f");
+await phone.reload();
+await phone.waitForSelector("text=Remember to stretch before sessions", { timeout: 15000 });
+ok("after Undo the client doesn't see it", !(await phone.isVisible("text=Prefers morning calls")));
+await pro.click("li:has-text('Prefers morning calls') >> button:has-text('Share…')");
+await pro.click("[data-testid=share-confirm-yes]");
 await pro.waitForSelector("li:has-text('Prefers morning calls') >> text=Shared with Riley");
 await phone.reload();
 await phone.waitForSelector("text=Prefers morning calls", { timeout: 15000 });
 ok("note shared later is readable by client", true);
+await pro.click("li:has-text('Prefers morning calls') >> button:has-text('Make private')");
+await pro.waitForSelector("li:has-text('Prefers morning calls') >> text=Private to your team");
+ok("Make private needs no question", sql(`select shared from "Item" where id='${privateId}'`) === "f");
+
+// Repeats and reminders are offered while adding, greyed until there's a due date.
+await pro.click("role=tab[name='To-do']");
+ok("add form shows Repeat and Remind before a due date, greyed", (await pro.isVisible("[data-testid=schedule-extras] >> text=Pick a due date")) && (await pro.isDisabled("form select[aria-label=Repeat]")));
+await pro.fill('textarea[aria-label="New to-do"]', "Weekly review");
+await pro.fill('input[aria-label="Due date"]', "2027-01-05T09:00");
+ok("with a due date they can be set", !(await pro.isDisabled("form select[aria-label=Repeat]")));
+await pro.selectOption("form select[aria-label=Repeat]", "week");
+await pro.click("form >> button:has-text('Add privately')");
+await pro.waitForSelector("li:has-text('Weekly review') >> text=/Every week/");
+ok("repeat set while adding", true);
 
 await browser.close();

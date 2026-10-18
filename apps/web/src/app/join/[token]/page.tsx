@@ -22,7 +22,10 @@ export default async function Join({ params }: { params: Promise<{ token: string
     pendingDeletion(),
   ]);
   const userId = session?.user?.id;
-  const me = userId ? await db.user.findUnique({ where: { id: userId }, select: { email: true, suspendedAt: true, closedAt: true } }) : null;
+  const me = userId ? await db.user.findUnique({ where: { id: userId }, select: { email: true, name: true, suspendedAt: true, closedAt: true } }) : null;
+  // Their own invite, used, and they're no longer on that team: an owner or admin removed them.
+  const removedFrom =
+    !!invite?.acceptedAt && !!userId && invite.acceptedById === userId && !(await db.membership.findUnique({ where: { userId_workspaceId: { userId, workspaceId: invite.workspaceId } } }));
   // Support's actions on this login (lib/support/admin.ts): only support can help, not whoever sent the invite.
   const bySupport = me?.closedAt ? ACCOUNT_CLOSED_BY_SUPPORT : me?.suspendedAt ? ACCOUNT_SUSPENDED : me && (await isEmailBlocked(me.email)) ? EMAIL_BLOCKED : null;
   const problem = !invite || invite.revokedAt
@@ -35,6 +38,8 @@ export default async function Join({ params }: { params: Promise<{ token: string
         ? bySupport
       : closed
         ? ACCOUNT_CLOSED_JOIN
+        : removedFrom
+          ? `You're no longer on ${invite.workspace.name}'s team`
         : invite.acceptedAt && invite.acceptedById !== userId
           ? "This invite has already been used."
           : !invite.acceptedAt && invite.expiresAt < new Date()
@@ -52,7 +57,12 @@ export default async function Join({ params }: { params: Promise<{ token: string
               <a href={closed.fresh ? "/account/restore" : "/login?next=/account/restore"} className="mt-4 inline-block text-sm font-medium text-accent hover:underline">
                 Keep my account
               </a>
-            ) : bySupport && problem === bySupport ? null : (
+            ) : bySupport && problem === bySupport ? null : removedFrom ? (
+              <p className="mt-2 text-sm text-muted" data-testid="join-removed">
+                An owner or admin removed you, so this invite no longer works. If that&apos;s a mistake, ask them for a new invite link.{" "}
+                <a href="/library" className="font-medium text-accent hover:underline">Go to your own account</a>
+              </p>
+            ) : (
               <p className="mt-2 text-sm text-muted">Ask whoever invited you to send a new link.</p>
             )}
           </>
@@ -63,7 +73,7 @@ export default async function Join({ params }: { params: Promise<{ token: string
               {invite.invitedBy.name ?? invite.invitedBy.email} invited you to record and reply to clients on SureFrame
               {invite.role === "ADMIN" ? " as an admin" : ""}.
             </p>
-            <JoinTeam token={token} signedIn={!!userId} agreed={!!userId && (await hasAgreed(userId))} />
+            <JoinTeam token={token} signedIn={!!userId} agreed={!!userId && (await hasAgreed(userId))} needsName={!!me && !me.name} business={invite.workspace.name} />
           </>
         )}
       </div>

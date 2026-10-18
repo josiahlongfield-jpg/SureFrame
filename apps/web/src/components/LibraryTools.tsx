@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 /** One conversation about a recording: when each of the client's replies came, newest first. */
 export type Conv = { id: string; fromClient: string[] };
@@ -45,19 +47,51 @@ export function ReplyBadges({ convs, onlyNew = false }: { convs: Conv[]; onlyNew
 }
 
 /**
- * Search the library by title or client, and narrow it to one client. A plain
- * form: the search is in the address, so Back returns to the same results.
+ * Search the library by title or client, and narrow it to one client. The
+ * search is in the address, so Back returns to the same results; typing
+ * searches as you go (after a short pause), like the client filter. Without
+ * scripts it's a plain form with a Search button.
  */
 export function LibrarySearch({ q, client, clients, keep }: { q: string; client: string; clients: { id: string; name: string }[]; keep: Record<string, string | undefined> }) {
+  const router = useRouter();
   const kept = Object.entries(keep).filter((e): e is [string, string] => !!e[1]);
   const rest = new URLSearchParams(kept);
+  const [text, setText] = useState(q);
+  const box = useRef<HTMLInputElement>(null);
+  // Back and Forward change the address under us: show what it searched for, unless they're typing.
+  useEffect(() => {
+    if (document.activeElement !== box.current) setText(q);
+  }, [q]);
+  const urlFor = (words: string, who: string) => {
+    const p = new URLSearchParams(kept);
+    if (words.trim()) p.set("q", words.trim());
+    if (who) p.set("client", who);
+    return p.size ? `/library?${p}` : "/library";
+  };
+  useEffect(() => {
+    if (text.trim() === q) return;
+    const t = setTimeout(() => router.replace(urlFor(text, client), { scroll: false }), 400);
+    return () => clearTimeout(t);
+    // urlFor only reads props that are already deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, q, client, router]);
   return (
-    <form role="search" action="/library" className="mb-6 flex flex-wrap gap-2">
+    <form
+      role="search"
+      action="/library"
+      className="mb-6 flex flex-wrap gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        router.push(urlFor(text, client), { scroll: false });
+      }}
+    >
       {kept.map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
       <input
+        ref={box}
         type="search"
         name="q"
-        defaultValue={q}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
         placeholder="Search titles and clients"
         aria-label="Search videos"
         data-testid="library-search"
@@ -66,8 +100,8 @@ export function LibrarySearch({ q, client, clients, keep }: { q: string; client:
       {clients.length > 0 && (
         <select
           name="client"
-          defaultValue={client}
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          value={client}
+          onChange={(e) => router.push(urlFor(text, e.target.value), { scroll: false })}
           aria-label="Client"
           data-testid="library-client"
           className="min-w-0 max-w-full rounded-lg border border-line-strong bg-surface px-2 py-2 text-sm"
@@ -80,10 +114,9 @@ export function LibrarySearch({ q, client, clients, keep }: { q: string; client:
       )}
       <button className="rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-hover">Search</button>
       {(q || client) && (
-        // A full load, like the form itself.
-        <a href={rest.size ? `/library?${rest}` : "/library"} className="px-2 py-2 text-sm text-dim hover:text-ink" data-testid="library-clear">
+        <Link href={rest.size ? `/library?${rest}` : "/library"} onClick={() => setText("")} className="px-2 py-2 text-sm text-dim hover:text-ink" data-testid="library-clear">
           Clear
-        </a>
+        </Link>
       )}
     </form>
   );

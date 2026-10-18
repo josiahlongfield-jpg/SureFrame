@@ -40,7 +40,7 @@ export async function teamStats(workspaceId: string, o: { days: number; staleDay
     db.video.findMany({
       where: { workspaceId, replyToId: null, clientId: { not: null }, OR: [{ sentAt: { gte: since } }, { createdAt: { gte: since } }, { replies: { some: recentReplies } }] },
       select: {
-        id: true, title: true, ownerId: true, clientId: true, createdAt: true, sentAt: true,
+        id: true, title: true, ownerId: true, clientId: true, createdAt: true, sentAt: true, formerStaffAt: true,
         replies: { where: recentReplies, select: { authorUserId: true, createdAt: true }, orderBy: { createdAt: "asc" } },
       },
     }),
@@ -70,11 +70,13 @@ export async function teamStats(workspaceId: string, o: { days: number; staleDay
     const clientId = v.clientId!;
     // Counted from when it was sent, so an older recording sent today counts today.
     const sentAt = v.sentAt ?? v.createdAt;
-    if (sentAt >= since) sent.set(v.ownerId, (sent.get(v.ownerId) ?? 0) + 1);
+    // A former team member's sends count for the whole business only, not for the owner who now keeps them.
+    const recorder = v.formerStaffAt ? null : v.ownerId;
+    if (sentAt >= since) sent.set(recorder ?? "former", (sent.get(recorder ?? "former") ?? 0) + 1);
     const client = clientById.get(clientId);
     if (!client) continue; // removed client
     // Whoever looks after the client, else whoever recorded the video.
-    const staff = staffOf(clientId) ?? (memberIds.has(v.ownerId) ? v.ownerId : null);
+    const staff = staffOf(clientId) ?? (recorder && memberIds.has(recorder) ? recorder : null);
     let waiting: Date | null = null;
     for (const r of v.replies) {
       if (!r.authorUserId) {

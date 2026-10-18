@@ -64,8 +64,8 @@ export type SendMany = {
   /** Set when this page is one client's copy of another video. */
   sourceId: string | null;
   staff: { id: string; name: string }[];
-  /** Copies already sent to other clients. */
-  copies: { id: string; clientId: string }[];
+  /** Copies already sent to other clients; `opened` once that client has watched theirs. */
+  copies: { id: string; clientId: string; opened?: boolean }[];
 };
 
 export type WatchViewer = { kind: "member"; workspaceId: string; fingerprint: string | null } | { kind: "client"; clientId: string };
@@ -770,7 +770,7 @@ function WatchBody({
         )}
         {canEdit && teamKey && !expired && (
           <SendPanel
-            video={{ id: video.id, title, status: video.status, encrypted: video.encrypted, sourceId }}
+            video={{ id: video.id, title, status: video.status, encrypted: video.encrypted, sourceId, viewCount: video.viewCount }}
             clients={clients}
             sentToId={sentToId}
             sendMany={sendMany}
@@ -813,6 +813,12 @@ function WatchBody({
                 {replies.length === 0 ? "No messages yet" : `${replies.length} ${replies.length === 1 ? "message" : "messages"}`}
                 {unread > 0 && <span className="font-medium text-accent"> · {unread} new</span>}
               </p>
+              {/* An unsent recording waits inside the conversation; say so before it's opened. */}
+              {held.length > 0 && (
+                <p className="text-xs font-medium text-warn-fg" data-testid="held-hint">
+                  You have an unsent reply. Open the conversation to send or delete it.
+                </p>
+              )}
             </div>
             {unread > 0 && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" aria-hidden data-testid="inline-unread" />}
           </div>
