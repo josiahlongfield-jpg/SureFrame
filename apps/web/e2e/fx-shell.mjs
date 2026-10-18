@@ -144,6 +144,13 @@ ok("one welcome email, with first steps and where to get help", welcome.length =
 await owner.goto(`${BASE}/welcome`);
 await owner.waitForURL((u) => u.pathname === "/library");
 ok("the welcome step doesn't come back", path(owner) === "/library");
+await owner.setViewportSize({ width: 390, height: 800 });
+const pill = owner.locator("[data-testid=plan-pill]");
+await pill.waitFor({ state: "visible", timeout: 15000 }).catch(() => {});
+ok("phone header shows the plan, linking to Billing", (await pill.isVisible()) && (await pill.getAttribute("href")) === "/settings/billing");
+await owner.setViewportSize({ width: 320, height: 700 });
+ok("and the library still fits 320px", await noSideways(owner));
+await owner.setViewportSize({ width: 1280, height: 900 });
 
 // "Close the browser": only cookies with an expiry date come back. Kept, so still signed in.
 const kept = (await ownerCtx.cookies()).filter((c) => c.expires !== -1);

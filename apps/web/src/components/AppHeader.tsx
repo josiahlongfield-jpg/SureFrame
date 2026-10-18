@@ -64,12 +64,13 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
           </nav>
         </div>
         <div className="flex items-center gap-2 text-sm min-[24rem]:gap-3">
+          {/* Shown on phones too (from 384px wide), so the plan is one glance away. */}
           <Link
             href={planHref}
             title={`Your plan: ${plan}. ${manager ? "Open Billing" : "See plans"}`}
             aria-label={`Your plan: ${plan}. ${manager ? "Open Billing" : "See plans"}`}
             data-testid="plan-pill"
-            className="hidden rounded-full border border-line px-2.5 py-1 font-mono text-[0.6875rem] font-medium uppercase tracking-wider text-muted hover:border-line-strong hover:text-ink lg:inline"
+            className="hidden rounded-full border border-line px-2.5 py-1 font-mono text-[0.6875rem] font-medium uppercase tracking-wider text-muted hover:border-line-strong hover:text-ink min-[24rem]:inline"
           >
             {plan}
           </Link>
