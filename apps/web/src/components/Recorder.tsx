@@ -138,13 +138,20 @@ export default function Recorder({
   const previewRef = useCallback(
     (v: HTMLVideoElement | null) => {
       preview.current = v;
-      // The preview moves between the big frame and the small circle while recording.
-      if (v && camStream.current && !v.srcObject) v.srcObject = camStream.current;
+      // The preview moves between the big frame and the small circle while recording, and is a new element for each
+      // new stream (previewKey). Pictures only: when recording, the stream also carries the mic.
+      if (v && camStream.current && !v.srcObject) v.srcObject = new MediaStream(camStream.current.getVideoTracks());
       frameRef(v);
     },
     [frameRef],
   );
   const camStream = useRef<MediaStream | null>(null);
+  /**
+   * A new preview <video> for each new camera stream. Safari keeps drawing a replaced stream at the old one's size
+   * (after another quality or camera, a small picture with a wide border, all through the recording), so the preview
+   * is drawn fresh instead: previewRef gives the new element the stream and the frame measures its shape again.
+   */
+  const [previewKey, setPreviewKey] = useState(0);
   /** The latest ask for the camera preview; the next waits for it, so the camera is never opened twice at once. */
   const cameraAsk = useRef<Promise<unknown>>(Promise.resolve());
   /** Why a recording ended on its own, if it did. */
@@ -208,7 +215,7 @@ export default function Recorder({
         if (cancelled) return stopAll(s);
         stopAll(camStream.current);
         camStream.current = s;
-        if (preview.current) preview.current.srcObject = s;
+        setPreviewKey((k) => k + 1);
         setError((e) => (e && CAMERA_ERRORS.includes(e) ? undefined : e));
         await loadDevices();
       })
@@ -329,7 +336,8 @@ export default function Recorder({
         stopAll(camStream.current);
         const both = await getCameraAndMic(camPick, micId, quality);
         camStream.current = both;
-        if (preview.current) preview.current.srcObject = new MediaStream(both.getVideoTracks());
+        // A fresh preview for the new stream.
+        setPreviewKey((k) => k + 1);
         streams.push(new MediaStream(both.getAudioTracks()));
         video = both.getVideoTracks()[0];
       } else {
@@ -584,7 +592,7 @@ export default function Recorder({
         className={`relative mx-auto overflow-hidden rounded-2xl border border-line bg-solid shadow-sm ${bigCamera ? "" : "aspect-video w-full"}`}
       >
         {bigCamera ? (
-          <video ref={previewRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full ${mirror} object-cover`} />
+          <video key={previewKey} ref={previewRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full ${mirror} object-cover`} />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-dim" data-testid="screen-panel">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="20" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
@@ -605,7 +613,7 @@ export default function Recorder({
         )}
         {mode === "screen+camera" && (
           <CameraCircle corner={corner} onCorner={setCorner}>
-            <video ref={previewRef} autoPlay muted playsInline className={`h-full w-full ${mirror} rounded-full object-cover`} />
+            <video key={previewKey} ref={previewRef} autoPlay muted playsInline className={`h-full w-full ${mirror} rounded-full object-cover`} />
           </CameraCircle>
         )}
         {phase === "countdown" && (

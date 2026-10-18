@@ -162,17 +162,30 @@ for (const [name, opts, phone] of [["computer", { viewport: { width: 1360, heigh
   const seen = [];
   // Each other quality in turn, then back to the first.
   for (const q of [...qualities.filter((q) => q !== start), start]) {
+    // Marks the preview, so a new stream can be seen to get a new one (Safari draws a reused one at the old size).
+    await page.evaluate(() => (document.querySelector("main video").dataset.old = "1"));
     const n = await page.evaluate(() => window.__asks.length);
     await page.selectOption("select:has(option[value='720'])", q);
     await page.waitForFunction((n) => window.__asks.length > n, n, { timeout: 10000 }).catch(() => {});
     const after = await settled(page);
+    after.fresh = await page.evaluate(() => !document.querySelector("main video").dataset.old);
     seen.push({ q, ...after });
+    if (!after.fresh) same = false;
     if (!fills(after) || after.fw !== before.fw || after.fh !== before.fh || after.vw !== before.vw || after.vh !== before.vh) same = false;
   }
   ok(`${name}: Quality offers more than one choice here`, qualities.length > 1, JSON.stringify(qualities));
   ok(`${name}: changing Quality keeps the picture's size and fill`, same, JSON.stringify({ before, seen }));
   const shared = await page.evaluate(() => window.__asks.filter((a) => a.shared).length);
   ok(`${name}: the camera is let go before it's asked for again`, shared === 0, `${shared} asks while the camera was still open`);
+  if (phone) {
+    // After a quality change the preview keeps filling its frame while recording, too.
+    await page.selectOption("select:has(option[value='720'])", qualities.find((q) => q !== start));
+    await settled(page);
+    await page.click("text=Start recording");
+    await page.waitForSelector("text=/Recording · \\d/", { timeout: 20000 });
+    const rec = await settled(page);
+    ok(`${name}: recording after a quality change, the preview still fills its frame`, fills(rec) && rec.fw === before.fw && rec.fh === before.fh, JSON.stringify({ before, rec }));
+  }
   await ctx.close();
 }
 
