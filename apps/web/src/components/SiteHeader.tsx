@@ -11,8 +11,8 @@ export default async function SiteHeader({ navy = false }: { navy?: boolean } = 
       <div className={`mx-auto flex items-center justify-between px-4 sm:px-6 ${navy ? "h-[3.75rem] max-w-[90rem] sm:h-[4.5rem] xl:px-16" : "h-16 max-w-6xl"}`}>
         <Logo tone="dark" />
         <nav className="flex items-center gap-1 text-sm sm:gap-3">
-          {/* Left to the footer on the narrowest phones (under 360px), so the bar never scrolls sideways. */}
-          <Link href="/pricing" className={`${link} max-[359px]:hidden`}>Pricing</Link>
+          {/* Left to the footer on the narrowest phones (under 375px), so the bar never scrolls sideways. */}
+          <Link href="/pricing" className={`${link} max-[374px]:hidden`}>Pricing</Link>
           {signedIn ? (
             <Link href="/library" className={link}>Library</Link>
           ) : (

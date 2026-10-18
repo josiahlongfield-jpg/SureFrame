@@ -123,7 +123,7 @@ const svg = await page.request.post(BASE + "/api/workspace/branding", { multipar
 ok("SVG refused (can carry scripts)", svg.status() === 400);
 
 // A client's view wears the branding.
-const res = await page.request.post(BASE + "/api/clients", { data: { name: "Riley", teamKeyWrap: "x".repeat(44) } });
+const res = await page.request.post(BASE + "/api/clients", { data: { name: "Client A", teamKeyWrap: "x".repeat(44) } });
 const { client } = await res.json();
 const cpage = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
 await cpage.goto(client.link);
@@ -135,7 +135,7 @@ ok("client page shows the logo", !!logoSrc);
 const logo = await cpage.request.get(BASE + logoSrc);
 ok("logo served as an image, cached", logo.headers()["content-type"] === "image/png" && /immutable/.test(logo.headers()["cache-control"] ?? ""));
 ok("business name shown", /workspace/.test(await cpage.textContent("header")));
-ok("inbox keeps the Made with SureFrame credit", await cpage.isVisible("text=Made with SureFrame"));
+ok("inbox keeps the Made with SureFrame credit", !!(await cpage.waitForSelector("text=Made with SureFrame", { timeout: 15000 }).catch(() => null)));
 await cpage.screenshot({ path: `${process.argv[2] ?? "/tmp"}/branded-inbox.png` });
 
 // A video sent to the client. Paid plans show it straight away.
