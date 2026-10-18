@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useVideoFrame } from "@/lib/videoFrame";
 import { useRouter } from "next/navigation";
 import MicLevel from "./MicLevel";
@@ -20,6 +20,8 @@ import {
   openCameraBubble,
   pickMimeType,
   stopAll,
+  type CameraPick,
+  type Facing,
   type Mode,
   type Quality,
 } from "@/lib/recorder/media";
@@ -61,6 +63,10 @@ export default function Recorder({
   const [cams, setCams] = useState<MediaDeviceInfo[]>([]);
   const [mics, setMics] = useState<MediaDeviceInfo[]>([]);
   const [camId, setCamId] = useState<string>();
+  // Phones and tablets pick Front or Rear camera rather than one of every lens they list (Josiah, 18 October 2026).
+  const [frontBack, setFrontBack] = useState(false);
+  const [facing, setFacing] = useState<Facing>("user");
+  const camPick = useMemo<CameraPick>(() => (frontBack ? { facing } : camId ? { deviceId: camId } : undefined), [frontBack, facing, camId]);
   const [micId, setMicId] = useState<string>();
   const [phase, setPhase] = useState<Phase>("setup");
   const [count, setCount] = useState(3);
@@ -112,6 +118,7 @@ export default function Recorder({
     setCameraWithScreen(canComposeCamera() || "documentPictureInPicture" in window || document.pictureInPictureEnabled === true);
   }, []);
   useEffect(() => {
+    setFrontBack(hasFrontAndBack());
     if (!navigator.mediaDevices?.getDisplayMedia) {
       setCanShareScreen(false);
       setMode("camera");
@@ -138,6 +145,8 @@ export default function Recorder({
     [frameRef],
   );
   const camStream = useRef<MediaStream | null>(null);
+  /** The latest ask for the camera preview; the next waits for it, so the camera is never opened twice at once. */
+  const cameraAsk = useRef<Promise<unknown>>(Promise.resolve());
   /** Why a recording ended on its own, if it did. */
   const failure = useRef<string>(undefined);
   /** Cancel pressed during the countdown. */
@@ -182,8 +191,20 @@ export default function Recorder({
       return;
     }
     let cancelled = false;
-    getCamera(camId, quality)
+    // Let go of the camera before asking again (another quality or camera), once any earlier ask has settled. A
+    // camera that's still open is shared with the new request, which gets the picture it's already making cut to
+    // the new size: smaller, and on a phone no longer upright. Opened fresh, it starts at the new size the way it
+    // did the first time. Phones also cope badly with the camera opened twice at once.
+    const asked = cameraAsk.current.then(() => {
+      if (cancelled) return null;
+      stopAll(camStream.current);
+      camStream.current = null;
+      return getCamera(camPick, quality);
+    });
+    cameraAsk.current = asked.catch(() => {});
+    asked
       .then(async (s) => {
+        if (!s) return;
         if (cancelled) return stopAll(s);
         stopAll(camStream.current);
         camStream.current = s;
@@ -211,7 +232,7 @@ export default function Recorder({
     return () => {
       cancelled = true;
     };
-  }, [mode, camId, quality, phase, loadDevices, canShareScreen, camRetry]);
+  }, [mode, camPick, quality, phase, loadDevices, canShareScreen, camRetry]);
 
   // A camera plugged in (or freed by another app) after the page opened: pick it up without a reload.
   useEffect(() => {
@@ -306,7 +327,7 @@ export default function Recorder({
       if (mode === "camera") {
         // One request for both, replacing the preview (see getCameraAndMic).
         stopAll(camStream.current);
-        const both = await getCameraAndMic(camId, micId, quality);
+        const both = await getCameraAndMic(camPick, micId, quality);
         camStream.current = both;
         if (preview.current) preview.current.srcObject = new MediaStream(both.getVideoTracks());
         streams.push(new MediaStream(both.getAudioTracks()));
@@ -551,6 +572,9 @@ export default function Recorder({
   const recordingish = phase === "recording" || phase === "paused";
   // Only Camera only shows the camera full size. Screen + camera shows it where the video will: a circle in its corner.
   const bigCamera = mode === "camera";
+  // Shown like a mirror, except the rear camera, which shows what's in front of you the right way round.
+  const mirror = frontBack && facing === "environment" ? "" : "-scale-x-100";
+  const sides = cameraSides(cams);
   const allowedQualities = ([720, 1080, 2160] as Quality[]).filter((q) => q <= maxResolution);
 
   return (
@@ -560,7 +584,7 @@ export default function Recorder({
         className={`relative mx-auto overflow-hidden rounded-2xl border border-line bg-solid shadow-sm ${bigCamera ? "" : "aspect-video w-full"}`}
       >
         {bigCamera ? (
-          <video ref={previewRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full -scale-x-100 object-cover" />
+          <video ref={previewRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full ${mirror} object-cover`} />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-dim" data-testid="screen-panel">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="20" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
@@ -581,7 +605,7 @@ export default function Recorder({
         )}
         {mode === "screen+camera" && (
           <CameraCircle corner={corner} onCorner={setCorner}>
-            <video ref={previewRef} autoPlay muted playsInline className="h-full w-full -scale-x-100 rounded-full object-cover" />
+            <video ref={previewRef} autoPlay muted playsInline className={`h-full w-full ${mirror} rounded-full object-cover`} />
           </CameraCircle>
         )}
         {phase === "countdown" && (
@@ -654,13 +678,21 @@ export default function Recorder({
             {mode === "screen+camera" && <CornerPicker corner={corner} onCorner={setCorner} />}
 
             <div className="grid gap-3 text-sm">
-              {mode !== "screen" && (
+              {mode !== "screen" && (!frontBack || sides.length > 1) && (
                 <label className="grid gap-1">
                   <span className="font-medium text-muted">Camera</span>
-                  <select className="w-full min-w-0 rounded-lg border border-line-strong bg-surface px-3 py-2" value={camId ?? ""} onChange={(e) => setCamId(e.target.value || undefined)}>
-                    <option value="">Default camera</option>
-                    {cams.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || "Camera"}</option>)}
-                  </select>
+                  {frontBack ? (
+                    // One camera per side: the browser picks that side's main camera, so the picture is sized as usual.
+                    <select className="w-full min-w-0 rounded-lg border border-line-strong bg-surface px-3 py-2" value={facing} onChange={(e) => setFacing(e.target.value as Facing)} data-testid="camera-select">
+                      <option value="user">Front camera</option>
+                      <option value="environment">Rear camera</option>
+                    </select>
+                  ) : (
+                    <select className="w-full min-w-0 rounded-lg border border-line-strong bg-surface px-3 py-2" value={camId ?? ""} onChange={(e) => setCamId(e.target.value || undefined)} data-testid="camera-select">
+                      <option value="">Default camera</option>
+                      {cams.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || "Camera"}</option>)}
+                    </select>
+                  )}
                 </label>
               )}
               <label className="grid gap-1">
@@ -833,6 +865,34 @@ function isPhone() {
   const ua = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
   if (ua.userAgentData?.mobile) return true;
   return /iPhone|Android.+Mobile|Mobi/i.test(navigator.userAgent) || (matchMedia("(pointer: coarse) and (hover: none)").matches && Math.min(screen.width, screen.height) < 600);
+}
+
+/**
+ * A phone or tablet: a touch screen and a mobile browser. These list every lens (wide, ultra-wide, zoom) as its own
+ * camera, so they choose a side instead. iPads say they're a Mac, so a Mac with a touch screen counts too.
+ */
+function hasFrontAndBack() {
+  const ua = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
+  if (ua.userAgentData?.mobile) return true;
+  const mobile = /iPhone|iPad|iPod|Android|Mobi/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  return mobile && matchMedia("(any-pointer: coarse)").matches;
+}
+
+/**
+ * The sides a phone or tablet has cameras on, when there's a choice to make. With one camera there's nothing to
+ * choose; a browser that doesn't say which way its cameras face is taken to have both.
+ */
+function cameraSides(cams: MediaDeviceInfo[]): Facing[] {
+  if (cams.length < 2) return [];
+  const said = cams.map((d) => {
+    try {
+      return (d as InputDeviceInfo).getCapabilities?.().facingMode ?? [];
+    } catch {
+      return [];
+    }
+  });
+  if (said.some((f) => f.length === 0)) return ["user", "environment"];
+  return (["user", "environment"] as const).filter((side) => said.some((f) => f.includes(side)));
 }
 
 function UploadBadge({ s }: { s: UploadState }) {
