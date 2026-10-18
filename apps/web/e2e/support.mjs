@@ -88,6 +88,13 @@ await other.waitForURL("**/support");
 await other.waitForSelector("text=Page not found");
 ok("inbox hidden from customers", !(await other.textContent("body")).includes("visitor@example.com"));
 ok("with a real 404", (await other.request.get(BASE + "/support/accounts")).status() === 404);
+// ...and isn't offered to them: no Support in their Settings menu or on the Settings page.
+await other.goto(BASE + "/library");
+await other.click("[data-testid=settings-menu-button]");
+await other.waitForSelector("[data-testid=settings-menu]");
+ok("customers' Settings menu has no Support", (await other.locator("[data-testid=settings-menu] a[href='/support']").count()) === 0);
+await other.goto(BASE + "/settings");
+ok("nor does their Settings page", (await other.locator("main a[href='/support']").count()) === 0);
 
 // 5. The agent answers from the inbox
 const agentCtx = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
