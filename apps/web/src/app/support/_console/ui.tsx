@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { PLANS } from "@/lib/plans";
 import { requirePageUser } from "@/lib/session";
 import { isNoticeReason, isSupportAdmin, NOTICE_REASONS, type SupportAdmin } from "@/lib/support/admin";
+import { qldDay, qldTime } from "@/lib/support/when";
 
 /** The signed-in support admin for a console page (works while their own workspace is paused or suspended); anyone else gets a 404. */
 export async function consoleAdmin(next: string): Promise<SupportAdmin> {
@@ -12,10 +13,6 @@ export async function consoleAdmin(next: string): Promise<SupportAdmin> {
   if (!isSupportAdmin(me.user.email)) notFound();
   return { userId: me.user.id, email: me.user.email, workspaceIds: me.user.memberships.map((m) => m.workspaceId) };
 }
-
-/** Times in the console are UTC, like the support inbox. */
-export const utc = (d: Date | null | undefined) => (d ? `${d.toISOString().slice(0, 16).replace("T", " ")} UTC` : "");
-export const day = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : "");
 
 /** Stripe Dashboard links (test-mode ones when the server uses test keys). */
 export function stripeLink(kind: "customers" | "subscriptions", id: string) {
@@ -38,30 +35,6 @@ export function Badge({ tone = "slate", children, testId }: { tone?: keyof typeo
     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${TONES[tone]}`} data-testid={testId}>
       {children}
     </span>
-  );
-}
-
-/** The console's own navigation, under the page title. */
-export function ConsoleNav() {
-  const link = "text-sm text-accent hover:underline";
-  return (
-    <nav className="flex flex-wrap gap-x-4 gap-y-1">
-      <Link href="/support" className={link}>
-        ← Support inbox
-      </Link>
-      <Link href="/support/lookup" className={link}>
-        Look up
-      </Link>
-      <Link href="/support/log" className={link}>
-        Support log
-      </Link>
-      <Link href="/support/accounts" className={link}>
-        Free plans
-      </Link>
-      <Link href="/support/offers" className={link}>
-        Discounts
-      </Link>
-    </nav>
   );
 }
 
@@ -88,7 +61,7 @@ export function Section({ title, id, children }: { title: string; id?: string; c
   );
 }
 
-const LABELS: Record<string, string> = {
+export const ACTION_LABELS: Record<string, string> = {
   "account.warn": "Warning sent",
   "workspace.suspend": "Workspace suspended",
   "workspace.unsuspend": "Workspace unsuspended",
@@ -118,7 +91,7 @@ const LABELS: Record<string, string> = {
   "offer.end": "Discount code cancelled",
   "offer.automatic": "Automatic offer changed",
 };
-export const actionLabel = (action: string) => LABELS[action] ?? action;
+export const actionLabel = (action: string) => ACTION_LABELS[action] ?? action;
 
 type Details = Record<string, unknown> & {
   status?: string;
@@ -129,7 +102,7 @@ type Details = Record<string, unknown> & {
   before?: Record<string, unknown>;
   after?: Record<string, unknown>;
 };
-const isoDay = (v: unknown) => (typeof v === "string" ? v.slice(0, 10) : "");
+const isoDay = (v: unknown) => (typeof v === "string" ? qldDay(v) : "");
 
 /** The facts worth showing about a logged action, in short phrases. */
 export function actionFacts(row: Pick<AdminAction, "action" | "details">): string[] {
@@ -256,7 +229,7 @@ export async function History({ rows, links = false, empty = "Nothing yet." }: {
               {actionLabel(r.action)}
               {(r.details as Details | null)?.status === "failed" && <span className="text-danger-fg"> (didn&rsquo;t finish)</span>}
             </p>
-            <p className="text-xs text-dim">{utc(r.createdAt)}</p>
+            <p className="text-xs text-dim">{qldTime(r.createdAt)}</p>
           </div>
           {r.target && <p className="mt-1 break-words text-muted">{r.target}</p>}
           {r.reason && <p className="mt-1 whitespace-pre-wrap break-words text-muted">Reason: {r.reason}</p>}

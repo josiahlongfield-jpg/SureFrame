@@ -7,13 +7,14 @@ import type { Offer } from "@/lib/offers";
 import { appUrl } from "@/lib/stripe";
 import { isFounder } from "@/lib/support/admin";
 import { listOffers, MAX_OFFER_MONTHS, type GivenOffer } from "@/lib/support/offers";
+import { qldDay } from "@/lib/support/when";
 import PowerForm from "../_console/PowerForm";
-import { Badge, ConsoleNav, consoleAdmin, Done, Facts, Section } from "../_console/ui";
+import OfferTerms from "./OfferTerms";
+import { Badge, consoleAdmin, Done, Facts, Section } from "../_console/ui";
 
 export const metadata: Metadata = { title: "Discounts", robots: { index: false } };
 
 const field = "w-full rounded-xl border border-line-strong px-3 py-2 text-sm";
-const qldDay = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "Australia/Brisbane" });
 
 function status(o: Offer) {
   if (!o.active) return <Badge>Ended</Badge>;
@@ -38,6 +39,19 @@ function whoCanUse(o: GivenOffer) {
   return "Anyone (an older code, made before codes were tied to one business)";
 }
 
+/** A ready-to-send email with the code, what it gives and how to use it. */
+function mailto(o: GivenOffer, link: string) {
+  const body = [
+    "Hi,",
+    "",
+    `Here's a discount code for ${o.business?.name ?? "your business"} on SureFrame: ${o.code}`,
+    `${o.summary}.${o.expiresAt ? ` Use it by ${qldDay(o.expiresAt)}.` : ""}`,
+    "",
+    `To use it, open this link (sign in first if asked): ${link}`,
+  ].join("\n");
+  return `mailto:${o.business!.ownerEmail}?subject=${encodeURIComponent("Your SureFrame discount code")}&body=${encodeURIComponent(body)}`;
+}
+
 function OfferCard({ o }: { o: GivenOffer }) {
   const link = appUrl(`/offer/${o.code}`);
   return (
@@ -60,9 +74,15 @@ function OfferCard({ o }: { o: GivenOffer }) {
         />
       </div>
       {o.active && o.usable && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <CopyText text={o.code} label="Copy code" testId={`copy-code-${o.code}`} />
           <CopyText text={link} label="Copy link" testId={`copy-link-${o.code}`} />
+          {o.business?.ownerEmail && (
+            // A draft in the founder's own email app, to check and send.
+            <a href={mailto(o, link)} className="px-2 text-sm font-medium text-accent hover:underline" data-testid={`email-code-${o.code}`}>
+              Email it to {o.business.ownerEmail}
+            </a>
+          )}
         </div>
       )}
       {o.active && (
@@ -97,17 +117,17 @@ export default async function Discounts({ searchParams }: { searchParams: Promis
   const ended = offers.filter((o) => !(o.active && o.usable));
   const founding = foundingOpen() ? foundingLastDay() : null;
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <ConsoleNav />
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">Discounts</h1>
+    <div>
+      <h1 className="text-2xl font-semibold tracking-tight text-ink">Discounts</h1>
       <p className="mt-2 text-sm text-muted">
         Discount codes you give to one business at a time. Each code works once and only for the business it&rsquo;s given to: Stripe refuses it for anyone
-        else, so passing it on does nothing. Only you can give or cancel codes. Send the business its code or link yourself; they use it when they start a
+        else, so passing it on does nothing. A business can hold more than one code, but a subscription takes only one discount, so only one of them can be
+        used. Only you can give or cancel codes. Send the business its code or link yourself; they use it when they start a
         paid plan, or when they move up to a bigger plan as long as it doesn&rsquo;t bring the new plan below what they pay now. Referral codes (REF-) are
         separate and work by themselves.
       </p>
       <p className="mt-2 text-sm text-muted" data-testid="founding-status">
-        Founding prices: {founding ? `running, for subscriptions started by ${founding}.` : "not running. Ask Claude to start them with an end date."}
+        Founding prices: {founding ? `running, for subscriptions started by ${founding}.` : "not running. They're started with an end date in the site's settings, not from this page."}
       </p>
       <Done id={done} />
       {error && (
@@ -124,7 +144,7 @@ export default async function Discounts({ searchParams }: { searchParams: Promis
           </label>
           <label className="grid gap-1 text-sm text-muted">
             Code (optional: leave empty and one is made up, like SF-7KQ2MX4P)
-            <input name="code" maxLength={40} pattern="[A-Za-z0-9-]{3,40}" autoCapitalize="characters" autoComplete="off" spellCheck={false} className={`${field} uppercase`} />
+            <input name="code" maxLength={40} pattern="[A-Za-z0-9\-]{3,40}" autoCapitalize="characters" autoComplete="off" spellCheck={false} className={`${field} uppercase`} />
           </label>
           <label className="grid gap-1 text-sm text-muted">
             Percentage off
@@ -138,26 +158,7 @@ export default async function Discounts({ searchParams }: { searchParams: Promis
               <option value="all">Everything, add-ons included</option>
             </select>
           </label>
-          <label className="grid gap-1 text-sm text-muted">
-            How long it lasts
-            <select name="duration" required defaultValue="repeating" className={field}>
-              <option value="once">The first bill only (new subscriptions only)</option>
-              <option value="repeating">A number of months (enter below)</option>
-              <option value="forever">For as long as they stay subscribed</option>
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm text-muted">
-            Months (for &ldquo;a number of months&rdquo;)
-            <input name="months" type="number" min={1} max={MAX_OFFER_MONTHS} step={1} inputMode="numeric" className={field} />
-            <span className="text-xs text-dim">
-              Up to {MAX_OFFER_MONTHS}. It comes off every bill that starts within those months. On yearly billing that&rsquo;s the whole first yearly bill, so 3
-              months at 20% saves 20% of a year, and at 12 months it may come off the second yearly bill too.
-            </span>
-          </label>
-          <label className="grid gap-1 text-sm text-muted">
-            Last day it can be used, Queensland time (empty for no end date)
-            <input name="lastDay" type="date" className={field} />
-          </label>
+          <OfferTerms maxMonths={MAX_OFFER_MONTHS} />
           <p className="text-xs text-dim">
             Tell them exactly what the discount is, including any last day, and don&rsquo;t cancel a code early that you promised would last to a date.
           </p>
@@ -176,6 +177,6 @@ export default async function Discounts({ searchParams }: { searchParams: Promis
           </div>
         </Section>
       )}
-    </main>
+    </div>
   );
 }

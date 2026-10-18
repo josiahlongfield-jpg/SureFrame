@@ -6,7 +6,7 @@ import { isEmailBlocked } from "@/lib/blockedEmail";
 import { BRAND } from "@/lib/brand";
 import { CLIENT_KEEP_DAYS, purgeClient, restoreClient } from "@/lib/clientRemoval";
 import { seatUsage } from "@/lib/clients";
-import { zoned } from "@/lib/dates";
+import { qldDay } from "@/lib/support/when";
 import { db, type Workspace } from "@/lib/db";
 import { LEGAL } from "@/lib/legal";
 import { sendMail } from "@/lib/mail";
@@ -297,7 +297,7 @@ export async function keepRemovedClientLonger(actor: SupportAdmin, o: { clientId
   });
   let emailed = false;
   if (notify) {
-    const until = zoned(ws.timezone).longDay(purgeAt);
+    const until = qldDay(purgeAt);
     emailed = await sendNotice(
       row.id,
       own?.user.email,
@@ -522,8 +522,7 @@ export async function unblockEmailAndTell(actor: SupportAdmin, o: { email: strin
   await db.adminAction.update({ where: { id: actionId }, data: { userId: user?.id ?? null, details: { notify } } });
   let emailed = false;
   if (notify) {
-    const tz = user ? (await db.workspace.findFirst({ where: { members: { some: { userId: user.id, role: "OWNER" } } }, select: { timezone: true } }))?.timezone : null;
-    const closedUntil = user?.closedAt && user.deleteAt ? zoned(tz).longDay(user.deleteAt) : null;
+    const closedUntil = user?.closedAt && user.deleteAt ? qldDay(user.deleteAt) : null;
     emailed = await sendNotice(
       actionId,
       email,

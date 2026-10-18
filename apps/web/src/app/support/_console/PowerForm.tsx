@@ -57,6 +57,8 @@ function Power({ power, hidden, title, intro, submit, danger = false, category =
         {title}
       </summary>
       <form
+        // Missing or wrong fields are said here, from the server's checks, not in the browser's own pop-ups.
+        noValidate
         className="grid gap-3 border-t border-line p-4"
         // Sent by hand, not with <form action>, so a refusal doesn't clear the reason the admin typed.
         onSubmit={(e) => {
@@ -87,7 +89,7 @@ function Power({ power, hidden, title, intro, submit, danger = false, category =
           </label>
         )}
         <label className="grid gap-1 text-sm text-muted">
-          Reason (internal: kept in the support log, never shown to the customer)
+          Reason, needed (internal: kept in the support log, never shown to the customer)
           <textarea name="reason" required maxLength={500} rows={2} className={field} />
         </label>
         {confirm && (

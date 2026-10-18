@@ -34,6 +34,12 @@ export const POST = handle(async (req: Request) => {
     return Response.json({ revision: manifest.revision, files: Object.keys(manifest.files).length, bytes, installedAt: manifest.installedAt });
   } catch (err) {
     if (err instanceof InstallError) throw new HttpError(502, err.message);
-    throw err;
+    if (err instanceof HttpError) throw err;
+    // Usually Hugging Face or our storage couldn't be reached. Say so, rather than "Internal error".
+    console.error(JSON.stringify({ level: "error", route: "/api/support/speech-model", message: String((err as Error)?.message ?? err).slice(0, 500) }));
+    throw new HttpError(
+      502,
+      `The download didn't work (${String((err as Error)?.message ?? err).slice(0, 120)}). Usually this server couldn't reach huggingface.co, or the storage bucket refused the file. Nothing was switched on, so any version installed before stays in use. Try again in a few minutes; if it keeps failing, check that the server can reach huggingface.co and that the storage bucket settings (S3_BUCKET) are right.`,
+    );
   }
 });

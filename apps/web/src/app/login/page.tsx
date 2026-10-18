@@ -45,7 +45,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   const keep = (
     <div className="grid gap-2" data-testid="keep-block">
       <p className="text-xs text-dim" data-testid="signout-default">
-        For your security, you&apos;re signed out when you close your browser or after 8 hours without using {BRAND.name}.
+        For your security, you&apos;re usually signed out when you close your browser or after 8 hours without using {BRAND.name}.
       </p>
       <KeepSignedIn />
     </div>

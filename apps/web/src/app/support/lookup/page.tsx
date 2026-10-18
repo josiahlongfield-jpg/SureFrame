@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { isEmailBlocked } from "@/lib/blockedEmail";
 import { db } from "@/lib/db";
+import { qldDay } from "@/lib/support/when";
 import PowerForm from "../_console/PowerForm";
-import { Badge, ConsoleNav, consoleAdmin, Done, planName, Section } from "../_console/ui";
+import { Badge, consoleAdmin, Done, planName, Section } from "../_console/ui";
 
 export const metadata: Metadata = { title: "Look up an account", robots: { index: false } };
 
@@ -49,9 +50,8 @@ export default async function Lookup({ searchParams }: { searchParams: Promise<{
   const nothing = searching && !users.length && !workspaces.length && !clients.length && !video;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <ConsoleNav />
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">Look up an account</h1>
+    <div>
+      <h1 className="text-2xl font-semibold tracking-tight text-ink">Look up an account</h1>
       <Done id={done} />
       <form method="get" className="mt-6 flex flex-col gap-2 sm:flex-row">
         <input
@@ -84,7 +84,7 @@ export default async function Lookup({ searchParams }: { searchParams: Promise<{
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
                     {u.name && <span className="break-words">{u.name}</span>}
                     {u.closedAt ? <Badge tone="red">Closed by support</Badge> : u.suspendedAt && <Badge tone="red">Login suspended</Badge>}
-                    {u.deleteAt && <Badge tone="amber">Deletion {u.deleteAt.toISOString().slice(0, 10)}</Badge>}
+                    {u.deleteAt && <Badge tone="amber">Deletion {qldDay(u.deleteAt)}</Badge>}
                   </div>
                 </Link>
               </li>
@@ -105,7 +105,7 @@ export default async function Lookup({ searchParams }: { searchParams: Promise<{
                     <Badge>{planName(w.plan)}</Badge>
                     {w.closedAt ? <Badge tone="red">Closed</Badge> : w.suspendedAt && <Badge tone="red">Suspended</Badge>}
                     {w.legalHoldAt && <Badge tone="purple">Legal hold</Badge>}
-                    {w.deleteAt && <Badge tone="amber">Deletion {w.deleteAt.toISOString().slice(0, 10)}</Badge>}
+                    {w.deleteAt && <Badge tone="amber">Deletion {qldDay(w.deleteAt)}</Badge>}
                   </div>
                 </Link>
               </li>
@@ -194,6 +194,6 @@ export default async function Lookup({ searchParams }: { searchParams: Promise<{
           </div>
         </Section>
       )}
-    </main>
+    </div>
   );
 }

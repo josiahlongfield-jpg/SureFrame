@@ -31,7 +31,8 @@ export async function setComplimentary(_prev: CompResult, form: FormData): Promi
   if (!(await activeSupportAgent())) redirect("/library");
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const choice = String(form.get("plan") ?? "");
-  if (!email.includes("@") || !(choice in PLANS)) return { ok: false, message: "Enter an email address and pick a plan." };
+  if (!email.includes("@")) return { ok: false, message: "Enter their sign-in email address." };
+  if (!(choice in PLANS)) return { ok: false, message: "Choose a plan, or Back to Free to end one." };
   const plan = choice as Plan;
   const reason = reasonIn(form);
   if (!reason || reason.length > 500) return { ok: false, message: REASON_NEEDED };
@@ -101,7 +102,7 @@ export async function setComplimentaryAi(_prev: CompResult, form: FormData): Pro
   if (!(await activeSupportAgent())) redirect("/library");
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const on = form.get("ai") === "on";
-  if (!email.includes("@")) return { ok: false, message: "Enter an email address." };
+  if (!email.includes("@")) return { ok: false, message: "Enter their sign-in email address." };
   const reason = reasonIn(form);
   if (!reason || reason.length > 500) return { ok: false, message: REASON_NEEDED };
 

@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { exportAccount, leaveTeam, leaverName } from "@/lib/account";
 import { blockedEmailHash } from "@/lib/blockedEmail";
 import { BRAND } from "@/lib/brand";
-import { zoned } from "@/lib/dates";
+import { qldDay } from "@/lib/support/when";
 import { db, type Workspace } from "@/lib/db";
 import { alertFounder } from "@/lib/founderAlert";
 import { LEGAL } from "@/lib/legal";
@@ -331,7 +331,7 @@ export async function suspendWorkspace(
     // Set to end, whether this suspension stopped renewal or it already was (cancelled in Manage subscription, a dispute, closing the account).
     const ending = billing?.renewal === "stopped" || billing?.renewal === "already ending" || (!billing && !!w.stripeSubscriptionId && !!w.cancelsAt);
     const endsAt = billing?.endsAt ? new Date(billing.endsAt) : w.cancelsAt;
-    const ends = endsAt ? zoned(w.timezone).longDay(endsAt) : null;
+    const ends = endsAt ? qldDay(endsAt) : null;
     const lines = [
       { text: "Nobody on your team can use it while it's suspended, and your clients see that your videos are unavailable right now. Nothing has been deleted." },
       { text: "Reminders and other emails from SureFrame to you, your team and your clients are paused." },
@@ -626,7 +626,9 @@ export async function closeAccount(
   let emailed = false;
   if (notify) {
     const w = closing[0];
-    const when = zoned(w?.timezone).longDay(deleteAt);
+    const when = qldDay(deleteAt);
+    // The Terms give 30 days from the closure both to ask for a review and for a copy of the data: one date for both.
+    const reviewBy = qldDay(new Date(now.getTime() + REVIEW_DAYS * 86_400_000));
     const cancelled = Object.values(billing).some(Boolean);
     const lines = [
       { text: "You can't sign in to it any more, and you've been signed out on every device." },
@@ -640,7 +642,7 @@ export async function closeAccount(
           (selfDeleted ? ", the date set when you deleted your account" : "") +
           `, unless the law requires us to keep ${w ? "them" : "it"} longer.`,
       },
-      { text: `To get a copy of your account data, email ${LEGAL.email} within ${REVIEW_DAYS} days, by ${zoned(w?.timezone).longDay(new Date(Date.now() + REVIEW_DAYS * 86_400_000))}.` },
+      { text: `To get a copy of your account data, email ${LEGAL.email} by ${reviewBy}.` },
       ...(teamsLeft.length ? [{ text: `You're no longer on the team${teamsLeft.length === 1 ? "" : "s"} of ${teamsLeft.join(", ")}.` }] : []),
       ...(o.blockEmail ? [{ text: `This email address can't be used to sign up to ${BRAND.name} again.` }] : []),
       termsLine(),
@@ -652,7 +654,7 @@ export async function closeAccount(
         subject: `Your ${BRAND.name} account has been closed`,
         lead: `We've closed your ${BRAND.name} account (${user.email})${w ? ` and ${w.name}` : ""} ${NOTICE_REASONS[o.category]}. This is permanent.`,
         lines,
-        footer: REVIEW,
+        footer: `If you think this is a mistake, reply to this email or email ${LEGAL.email} by ${reviewBy} and we'll review it.`,
       }),
     );
     for (const s of staffNotices) {
@@ -667,6 +669,28 @@ export async function closeAccount(
     }
   }
   return { actionId: row.id, emailed, deleteAt, workspaces: closing.map((w) => w.id), teamsLeft, staffRemoved: staffNotices.length };
+}
+
+/**
+ * Sent in place of a sign-in link when someone asks to sign in to an account support closed: its closure email
+ * says it can't be signed in to. The sign-in page shows its usual "Check your email", so only whoever reads this
+ * inbox learns the account is closed.
+ */
+export async function sendClosedAccountSignIn(user: { email: string; closedAt: Date; deleteAt: Date | null }) {
+  const reviewBy = new Date(user.closedAt.getTime() + REVIEW_DAYS * 86_400_000);
+  const mail = notice({
+    subject: `Your ${BRAND.name} account is closed`,
+    lead: `Someone asked to sign in to ${BRAND.name} as ${user.email}. ${BRAND.name} support closed this account on ${qldDay(user.closedAt)}, so it can't be signed in to, and no sign-in link was sent.`,
+    lines: [
+      ...(user.deleteAt ? [{ text: `It will be deleted for good on ${qldDay(user.deleteAt)}, unless the law requires us to keep it longer.` }] : []),
+      { text: "If you didn't ask to sign in, you can ignore this email." },
+    ],
+    footer:
+      reviewBy > new Date()
+        ? `If you think the closure is a mistake, reply to this email or email ${LEGAL.email} by ${qldDay(reviewBy)} and we'll review it.`
+        : QUESTIONS,
+  });
+  await sendMail({ to: user.email, ...mail, replyTo: supportInbox() ?? LEGAL.email });
 }
 
 /**
@@ -730,7 +754,7 @@ export async function reopenAccount(actor: SupportAdmin, o: { userId: string; re
   if (notify) {
     const hadSub = closed.some((w) => w.stripeSubscriptionId);
     const subLine = hadSub ? [{ text: "Your subscription was cancelled when the account was closed. Choose a plan in Settings > Billing to subscribe again." }] : [];
-    const when = user.deleteAt ? zoned(closed[0]?.timezone).longDay(user.deleteAt) : "";
+    const when = user.deleteAt ? qldDay(user.deleteAt) : "";
     emailed = await sendNotice(
       row.id,
       user.email,

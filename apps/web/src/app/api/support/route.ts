@@ -4,6 +4,7 @@ import { LEGAL } from "@/lib/legal";
 import { handle, HttpError, currentUser } from "@/lib/session";
 import { clientIp, limitByIp, rateLimit } from "@/lib/rateLimit";
 import { answer, assistantEnabled } from "@/lib/support/assistant";
+import { TALK_TO_PERSON } from "@/lib/support/person";
 import { handToHuman, newAccessToken, publicTicket } from "@/lib/support/tickets";
 
 // The assistant can take a few turns; leave room to hand over if it's slow.
@@ -14,6 +15,8 @@ const Body = z.object({
   token: z.string().min(20).max(64).optional(),
   body: z.string().trim().min(1).max(4000),
   email: z.string().trim().email().max(254).optional(),
+  /** "Talk to a person": hand over straight away, without the assistant (Decision 3, 18 October 2026). */
+  person: z.boolean().optional(),
 });
 
 async function load(token: string) {
@@ -44,7 +47,7 @@ export const POST = handle(async (req: Request) => {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) throw new HttpError(400, "Please write a message (up to 4,000 characters) and check the email address.");
   await limitByIp("support", 30, 3600);
-  const { token, body, email } = parsed.data;
+  const { token, body, email, person } = parsed.data;
   const me = await currentUser().catch(() => null);
   // Daily allowances, so one person (signed in or not) can't run up AI costs or flood the inbox.
   await dailyAllowance(me ? `support-day:user:${me.user.id}` : `support-day:ip:${await clientIp()}`, me ? 80 : 25);
@@ -67,7 +70,12 @@ export const POST = handle(async (req: Request) => {
 
   const say = (body: string) => db.supportMessage.create({ data: { ticketId: ticket.id, author: "ASSISTANT", body } });
 
-  if (ticket.status === "ANSWERED") {
+  if (person) {
+    // The button hands over itself: the conversation goes to the inbox's "Needs you" list and the team is emailed,
+    // whatever the assistant would have made of it. The chat then shows "Passed to a person".
+    if (ticket.status === "NEEDS_HUMAN" || ticket.status === "ANSWERED") await handToHuman(ticket.id, null, ticket.urgent);
+    else await handToHuman(ticket.id, personSummary(ticket.messages, body, !!me), false);
+  } else if (ticket.status === "ANSWERED") {
     // A person is talking with them now: pass it on rather than have the assistant cut in.
     await handToHuman(ticket.id, null, ticket.urgent);
     await say("Thanks, I've added that to your conversation with the team. They'll reply here and by email.");
@@ -93,6 +101,16 @@ export const POST = handle(async (req: Request) => {
   const fresh = await load(ticket.accessToken);
   return Response.json({ token: fresh.accessToken, ...publicTicket(fresh) });
 });
+
+/** What the team reads first when the customer pressed "Talk to a person": their own words, never the assistant's. */
+function personSummary(earlier: { author: string; body: string }[], body: string, signedIn: boolean) {
+  const asked = [...earlier.filter((m) => m.author === "CUSTOMER").map((m) => m.body), body].filter((b) => b !== TALK_TO_PERSON);
+  const quote = (s: string) => `"${s.length > 300 ? `${s.slice(0, 300)}…` : s}"`;
+  return [
+    `Asked for a person with the "Talk to a person" button${signedIn ? "" : " (a website visitor, not signed in)"}.`,
+    asked.length ? `${asked.length === 1 ? "What they wrote" : "What they wrote first and last"}: ${asked.length === 1 ? quote(asked[0]) : `${quote(asked[0])} … ${quote(asked.at(-1)!)}`}` : "They haven't said what it's about yet.",
+  ].join(" ");
+}
 
 /** A ceiling on assistant answers per day across everyone, so a flood of new chats can't run up the AI bill. */
 const underDailyAiCap = () => rateLimit("support-ai:global", Number(process.env.SUPPORT_AI_DAILY_CAP ?? 2000), 86400).then(() => true, () => false);

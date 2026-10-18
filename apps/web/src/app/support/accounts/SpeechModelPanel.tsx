@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { qldDay } from "@/lib/support/when";
 
 export type ModelStatus = { revision: string; bytes: number; files: number; installedAt: string } | null;
 type PlanFile = { name: string; bytes: number | null; done: boolean };
@@ -17,12 +18,12 @@ async function step<T>(body: object): Promise<T> {
       res = await fetch("/api/support/speech-model", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     } catch (err) {
       if (attempt < 2) continue;
-      throw new Error(`Lost the connection (${(err as Error).message}). Press Install again to carry on.`);
+      throw new Error(`Lost the connection to SureFrame (${(err as Error).message}). Press Install again to carry on from where it stopped.`);
     }
     const data = await res.json().catch(() => ({}));
     if (res.ok) return data as T;
     if (res.status >= 500 && res.status !== 502 && attempt < 2) continue;
-    throw new Error(data.error ?? `Something went wrong (HTTP ${res.status}). Press Install again to carry on.`);
+    throw new Error(data.error ?? `Something went wrong on our server (HTTP ${res.status}). Nothing was switched on. Press Install again in a few minutes to carry on.`);
   }
 }
 
@@ -45,6 +46,7 @@ export default function SpeechModelPanel({ status, canInstall }: { status: Model
       const total = plan.files.reduce((n, f) => n + (f.bytes ?? 0), 0) || 1;
       let copied = plan.files.filter((f) => f.done).reduce((n, f) => n + (f.bytes ?? 0), 0);
       const todo = plan.files.filter((f) => !f.done);
+      setProgress({ label: `Copying ${todo.length} file${todo.length === 1 ? "" : "s"}, ${mb(total - copied)} in all…`, fraction: copied / total });
       for (const [i, f] of todo.entries()) {
         setProgress({ label: `Copying file ${i + 1} of ${todo.length}: ${f.name}${f.bytes ? ` (${mb(f.bytes)})` : ""}…`, fraction: copied / total });
         await step({ step: "file", revision: plan.revision, name: f.name });
@@ -55,7 +57,7 @@ export default function SpeechModelPanel({ status, canInstall }: { status: Model
       setNote({ ok: true, text: `Installed version ${done.revision.slice(0, 7)} (${mb(done.bytes)}). Transcripts can be made now.` });
       router.refresh();
     } catch (err) {
-      setNote({ ok: false, text: (err as Error).message });
+      setNote({ ok: false, text: `The install didn't finish. ${(err as Error).message}` });
     } finally {
       setBusy(false);
       setProgress(null);
@@ -66,12 +68,13 @@ export default function SpeechModelPanel({ status, canInstall }: { status: Model
     <section className="mt-4 rounded-2xl border border-line bg-surface p-6" data-testid="speech-model">
       <h2 className="font-semibold text-ink">AI speech model</h2>
       <p className="mt-1 text-sm text-muted">
-        The model that makes transcripts on people&apos;s own devices. Install it once; it&apos;s copied into our storage so browsers never download it from anyone else.
-        Pressing it again updates to the newest version (and finishes an install that was interrupted).
+        The model that makes transcripts on people&apos;s own devices. Installing copies the model from Hugging Face into our own storage, so browsers never
+        download it from anyone else. It takes a few minutes, with its size and progress shown here; keep this page open. Installing again later updates the model
+        to its newest version, or finishes an install that was interrupted.
       </p>
       <p className="mt-3 text-sm text-ink" data-testid="speech-model-status">
         {status
-          ? `Installed: version ${status.revision.slice(0, 7)}, ${status.files} files, ${mb(status.bytes)}, on ${new Date(status.installedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`
+          ? `Installed: version ${status.revision.slice(0, 7)}, ${status.files} files, ${mb(status.bytes)}, on ${qldDay(status.installedAt)}.`
           : "Not installed. Transcripts can't be made until it is."}
       </p>
       {!canInstall && <p className="mt-2 text-sm text-warn-fg">Connect the storage bucket first (S3_BUCKET); the model is too big for the database.</p>}

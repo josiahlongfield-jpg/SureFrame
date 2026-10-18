@@ -10,7 +10,8 @@ import { isFounder, renewalStoppedBySuspension } from "@/lib/support/admin";
 import { clientDeleteConfirmation } from "@/lib/support/console";
 import { videosUsed } from "@/lib/videoAllowance";
 import PowerForm, { Check } from "../../_console/PowerForm";
-import { Badge, ConsoleNav, consoleAdmin, day, Done, Facts, History, planName, Section, stripeLink, utc } from "../../_console/ui";
+import { Badge, consoleAdmin, Done, Facts, History, planName, Section, stripeLink } from "../../_console/ui";
+import { qldDay, qldTime } from "@/lib/support/when";
 
 export const metadata: Metadata = { title: "Workspace (support)", robots: { index: false } };
 
@@ -32,6 +33,8 @@ export default async function SupportWorkspace({ params, searchParams }: { param
     },
   });
   if (!w) notFound();
+  // closeAccount suspends and closes in one go; a suspension from before the closure is shown on its own.
+  const closedTogether = !!w.closedAt && !!w.suspendedAt && w.suspendedAt.getTime() >= w.closedAt.getTime() - 60_000;
   const [clients, used, seats, history, tickets, stoppedBySuspension] = await Promise.all([
     db.client.findMany({ where: { workspaceId: id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
     videosUsed(id),
@@ -50,14 +53,14 @@ export default async function SupportWorkspace({ params, searchParams }: { param
       ? `Own code ${ownCode.code}: ${
           !ownCode.usedAt
             ? "not used yet"
-            : `used ${day(ownCode.usedAt)}; reward ${
+            : `used ${qldDay(ownCode.usedAt)}; reward ${
                 ownCode.rewardEndedAt
-                  ? `ended ${day(ownCode.rewardEndedAt)}`
+                  ? `ended ${qldDay(ownCode.rewardEndedAt)}`
                   : ownCode.rewardLapsedAt
-                    ? `not given (${day(ownCode.rewardLapsedAt)})`
+                    ? `not given (${qldDay(ownCode.rewardLapsedAt)})`
                     : ownCode.rewardAppliedAt
-                      ? `active since ${day(ownCode.rewardAppliedAt)}`
-                      : `due ${ownCode.rewardDueAt ? day(ownCode.rewardDueAt) : "soon"}`
+                      ? `active since ${qldDay(ownCode.rewardAppliedAt)}`
+                      : `due ${ownCode.rewardDueAt ? qldDay(ownCode.rewardDueAt) : "soon"}`
               }`
         }`
       : null,
@@ -74,16 +77,26 @@ export default async function SupportWorkspace({ params, searchParams }: { param
   const now = new Date();
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <ConsoleNav />
-      <h1 className="mt-3 break-words text-2xl font-semibold tracking-tight text-ink">{w.name}</h1>
+    <div>
+      <h1 className="break-words text-2xl font-semibold tracking-tight text-ink">{w.name}</h1>
       <p className="mt-1 break-all text-xs text-dim">Workspace {w.id}</p>
+      {owner && (
+        // Support powers live on two pages: the business's here, the person's on their login page.
+        <p className="mt-2 text-sm text-muted" data-testid="ws-powers-elsewhere">
+          This page has the business&rsquo;s powers (legal hold, suspend the workspace, free videos, billing). For the owner&rsquo;s login (suspend it, close the
+          account for good, delete it, block the address), open{" "}
+          <Link href={`/support/users/${owner.user.id}`} className="break-all text-accent hover:underline">
+            {owner.user.email}
+          </Link>
+          .
+        </p>
+      )}
       <div className="mt-3 flex flex-wrap gap-2" data-testid="ws-badges">
         <Badge>{planName(w.plan)}</Badge>
         {w.complimentaryPlan && <Badge tone="green">Complimentary</Badge>}
         {w.closedAt ? <Badge tone="red">Closed by support</Badge> : w.suspendedAt && <Badge tone="red">Suspended</Badge>}
         {w.legalHoldAt && <Badge tone="purple">Legal hold</Badge>}
-        {w.deleteAt && <Badge tone="amber">Deletion {day(w.deleteAt)}</Badge>}
+        {w.deleteAt && <Badge tone="amber">Deletion {qldDay(w.deleteAt)}</Badge>}
       </div>
       <Done id={done} />
 
@@ -104,7 +117,7 @@ export default async function SupportWorkspace({ params, searchParams }: { param
               ["Owner's email blocked", ownerBlocked ? "Yes: it can't sign in or sign up" : "No"],
               ["Plan", `${planName(w.plan)}${w.billingInterval ? `, billed every ${w.billingInterval}` : ""}`],
               ["Complimentary plan", w.complimentaryPlan ? `${planName(w.complimentaryPlan)}${w.stripeSubscriptionId ? " (replaced while they pay)" : " (free of charge)"}` : "No"],
-              ["Pricing", `${w.foundingPrices ? "Founding prices" : "Standard prices"}${w.discountLabel ? `; discount ${w.discountLabel}${w.discountEndsAt ? ` until ${day(w.discountEndsAt)}` : ""}` : ""}`],
+              ["Pricing", `${w.foundingPrices ? "Founding prices" : "Standard prices"}${w.discountLabel ? `; discount ${w.discountLabel}${w.discountEndsAt ? ` until ${qldDay(w.discountEndsAt)}` : ""}` : ""}`],
               [
                 "Referrals",
                 referralFacts.length ? (
@@ -155,8 +168,8 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                   "Not a Stripe customer"
                 ),
               ],
-              ["Renewal", w.cancelsAt ? `Ends ${day(w.cancelsAt)} (won't renew)` : w.currentPeriodEnd ? `Renews ${day(w.currentPeriodEnd)}` : "None"],
-              ...(w.renewalStoppedAt ? ([["Renewal stopped", `${day(w.renewalStoppedAt)}, when the owner closed the account`]] as [string, string][]) : []),
+              ["Renewal", w.cancelsAt ? `Ends ${qldDay(w.cancelsAt)} (won't renew)` : w.currentPeriodEnd ? `Renews ${qldDay(w.currentPeriodEnd)}` : "None"],
+              ...(w.renewalStoppedAt ? ([["Renewal stopped", `${qldDay(w.renewalStoppedAt)}, when the owner closed the account`]] as [string, string][]) : []),
               ["Client seats", `${seats.used} of ${seats.limit} used${w.extraClientSeats ? ` (${w.extraClientSeats} extra bought)` : ""}`],
               ["Staff", `${w.members.length} of ${staffSeatLimit(w)}${w.extraStaffSeats ? ` (${w.extraStaffSeats} extra bought)` : ""}`],
               ["Add-ons", [w.cloudBackup && "Cloud backup", w.aiAssist && `AI summaries${w.aiAssistComplimentary ? " (complimentary)" : ""}`].filter(Boolean).join(", ") || "None"],
@@ -170,9 +183,12 @@ export default async function SupportWorkspace({ params, searchParams }: { param
               ],
               [
                 "Suspended",
-                w.suspendedAt ? (
+                // Closing suspends too, at the same moment: one event, so its reason shows once, under Closed.
+                closedTogether ? (
+                  "Yes, as part of the closure"
+                ) : w.suspendedAt ? (
                   <span key="s" className="flex flex-col gap-1">
-                    <span>Since {utc(w.suspendedAt)}</span>
+                    <span>Since {qldTime(w.suspendedAt)}</span>
                     {w.suspendedReason && <span className="whitespace-pre-wrap text-muted">Reason: {w.suspendedReason}</span>}
                     {w.suspendedNote && <span className="whitespace-pre-wrap text-muted">Note to members: {w.suspendedNote}</span>}
                   </span>
@@ -180,12 +196,22 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                   "No"
                 ),
               ],
-              ["Closed by support", w.closedAt ? utc(w.closedAt) : "No"],
+              [
+                "Closed by support",
+                w.closedAt ? (
+                  <span key="c" className="flex flex-col gap-1">
+                    <span>{qldTime(w.closedAt)}</span>
+                    {closedTogether && w.suspendedReason && <span className="whitespace-pre-wrap text-muted">Reason: {w.suspendedReason}</span>}
+                  </span>
+                ) : (
+                  "No"
+                ),
+              ],
               [
                 "Legal hold",
                 w.legalHoldAt ? (
                   <span key="l" className="flex flex-col gap-1">
-                    <span>On since {utc(w.legalHoldAt)}: nothing of it is deleted</span>
+                    <span>On since {qldTime(w.legalHoldAt)}: nothing of it is deleted</span>
                     {w.legalHoldReason && <span className="whitespace-pre-wrap text-muted">Reason: {w.legalHoldReason}</span>}
                   </span>
                 ) : (
@@ -195,11 +221,11 @@ export default async function SupportWorkspace({ params, searchParams }: { param
               [
                 "Deletion",
                 w.deleteAt
-                  ? `Scheduled for ${day(w.deleteAt)}${w.closedAt ? " (closed by support)" : " (the owner closed the account)"}${w.legalHoldAt ? ", held while legal hold is on" : ""}`
+                  ? `Scheduled for ${qldDay(w.deleteAt)}${w.closedAt ? " (closed by support)" : " (the owner closed the account)"}${w.legalHoldAt ? ", held while legal hold is on" : ""}`
                   : "Not scheduled",
               ],
               ...(w.keyResetNeeded ? ([["Key reset needed", `${w.keyResetNeeded} left holding the team's keys`]] as [string, string][]) : []),
-              ["Created", utc(w.createdAt)],
+              ["Created", qldTime(w.createdAt)],
             ]}
           />
         </div>
@@ -215,7 +241,7 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                   <span>{m.role === "OWNER" ? "Owner" : m.role === "ADMIN" ? "Admin" : "Member"}</span>
                   {m.pausedAt && <Badge>Paused by the plan</Badge>}
                   {m.user.closedAt ? <Badge tone="red">Login closed</Badge> : m.user.suspendedAt && <Badge tone="red">Login suspended</Badge>}
-                  {m.user.deleteAt && !m.user.closedAt && <Badge tone="amber">Closing {day(m.user.deleteAt)}</Badge>}
+                  {m.user.deleteAt && !m.user.closedAt && <Badge tone="amber">Closing {qldDay(m.user.deleteAt)}</Badge>}
                 </div>
               </Link>
             </li>
@@ -378,14 +404,14 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                 {c.email && <p className="break-all text-sm text-muted">{c.email}</p>}
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
                   {c.linkDisabledAt ? (
-                    <Badge tone="red">Link off since {day(c.linkDisabledAt)}</Badge>
+                    <Badge tone="red">Link off since {qldDay(c.linkDisabledAt)}</Badge>
                   ) : c.pausedAt ? (
                     <Badge>Paused</Badge>
                   ) : (
                     <Badge tone="green">Link works</Badge>
                   )}
                   {c.linkOpenedAt ? (
-                    <span className="text-xs text-dim">Opened their link {day(c.linkOpenedAt)}</span>
+                    <span className="text-xs text-dim">Opened their link {qldDay(c.linkOpenedAt)}</span>
                   ) : (
                     <span className="text-xs text-dim">Hasn&rsquo;t opened their link</span>
                   )}
@@ -436,11 +462,11 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                   <p className="break-words font-medium text-ink">{c.name}</p>
                   {c.email && <p className="break-all text-sm text-muted">{c.email}</p>}
                   <p className="mt-1 text-sm text-muted">
-                    Removed {day(c.removedAt)}.{" "}
+                    Removed {qldDay(c.removedAt)}.{" "}
                     {c.purgeAt
                       ? due
                         ? "Being deleted now."
-                        : `Deleted for good on ${day(c.purgeAt)}${w.legalHoldAt ? " (held while legal hold is on)" : ""}.`
+                        : `Deleted for good on ${qldDay(c.purgeAt)}${w.legalHoldAt ? " (held while legal hold is on)" : ""}.`
                       : "No deletion date yet (the clean-up job gives one and tells the owner)."}
                   </p>
                   {c.linkDisabledAt && <p className="mt-1 text-xs text-dim">Their link was turned off by support before they were removed.</p>}
@@ -471,7 +497,7 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                           hidden={{ clientId: c.id }}
                           testId={`power-keepClient-${c.id}`}
                           title={`Keep ${CLIENT_KEEP_DAYS} more days`}
-                          intro={`Moves their deletion from ${day(c.purgeAt)} to ${day(new Date(c.purgeAt.getTime() + CLIENT_KEEP_DAYS * D))}, so the business has longer to restore them.`}
+                          intro={`Moves their deletion from ${qldDay(c.purgeAt)} to ${qldDay(new Date(c.purgeAt.getTime() + CLIENT_KEEP_DAYS * D))}, so the business has longer to restore them.`}
                           notify={emailOwner}
                           submit={`Keep ${CLIENT_KEEP_DAYS} more days`}
                         />
@@ -506,7 +532,7 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                 <Link href={`/support/${t.id}`} className="block p-4 text-sm hover:bg-hover">
                   <p className="line-clamp-2 break-words text-ink">{t.summary ?? "Conversation"}</p>
                   <p className="mt-1 text-xs text-dim">
-                    {t.status.replace("_", " ").toLowerCase()} · {utc(t.updatedAt)}
+                    {t.status.replace("_", " ").toLowerCase()} · {qldTime(t.updatedAt)}
                   </p>
                 </Link>
               </li>
@@ -518,6 +544,6 @@ export default async function SupportWorkspace({ params, searchParams }: { param
       <Section title="Support log">
         <History rows={history} />
       </Section>
-    </main>
+    </div>
   );
 }

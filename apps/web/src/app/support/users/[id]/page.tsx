@@ -8,7 +8,8 @@ import { CLOSURE_DELETE_DAYS } from "@/lib/periods";
 import { closeConfirmation } from "@/lib/support/admin";
 import { deleteConfirmation } from "@/lib/support/console";
 import PowerForm, { Check } from "../../_console/PowerForm";
-import { Badge, ConsoleNav, consoleAdmin, day, Done, Facts, History, planName, Section, utc } from "../../_console/ui";
+import { Badge, consoleAdmin, Done, Facts, History, planName, Section } from "../../_console/ui";
+import { qldDay, qldTime } from "@/lib/support/when";
 
 export const metadata: Metadata = { title: "Login (support)", robots: { index: false } };
 
@@ -46,15 +47,29 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
   const emailThem = `Email ${u.email}`;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <ConsoleNav />
-      <h1 className="mt-3 break-all text-2xl font-semibold tracking-tight text-ink">{u.email}</h1>
+    <div>
+      <h1 className="break-all text-2xl font-semibold tracking-tight text-ink">{u.email}</h1>
       <p className="mt-1 break-all text-xs text-dim">
         {u.name ? `${u.name} · ` : ""}Login {u.id}
       </p>
+      {owned.length > 0 && (
+        <p className="mt-2 text-sm text-muted" data-testid="user-powers-elsewhere">
+          This page has the login&rsquo;s powers (suspend it, close the account for good, delete it, block the address). For the business (legal hold, suspend the
+          workspace, free videos, billing), open{" "}
+          {owned.map((m, i) => (
+            <span key={m.id}>
+              {i > 0 && ", "}
+              <Link href={`/support/workspaces/${m.workspaceId}`} className="text-accent hover:underline">
+                {m.workspace.name}
+              </Link>
+            </span>
+          ))}
+          .
+        </p>
+      )}
       <div className="mt-3 flex flex-wrap gap-2" data-testid="user-badges">
         {u.closedAt ? <Badge tone="red">Closed by support</Badge> : u.suspendedAt ? <Badge tone="red">Login suspended</Badge> : <Badge tone="green">Active</Badge>}
-        {u.deleteAt && <Badge tone="amber">Deletion {day(u.deleteAt)}</Badge>}
+        {u.deleteAt && <Badge tone="amber">Deletion {qldDay(u.deleteAt)}</Badge>}
         {blocked && <Badge tone="red">Email blocked</Badge>}
         {held && <Badge tone="purple">Legal hold</Badge>}
       </div>
@@ -67,10 +82,10 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
               [
                 "Login",
                 u.closedAt ? (
-                  `Closed by support on ${utc(u.closedAt)}`
+                  `Closed by support on ${qldTime(u.closedAt)}`
                 ) : u.suspendedAt ? (
                   <span key="s" className="flex flex-col gap-1">
-                    <span>Suspended since {utc(u.suspendedAt)}</span>
+                    <span>Suspended since {qldTime(u.suspendedAt)}</span>
                     {u.suspendedReason && <span className="whitespace-pre-wrap text-muted">Reason: {u.suspendedReason}</span>}
                   </span>
                 ) : (
@@ -80,13 +95,13 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
               [
                 "Deletion",
                 u.deleteAt
-                  ? `Scheduled for ${day(u.deleteAt)}${u.closedAt ? ` (closed by support: they can't keep it${selfDeleted ? `; they had closed it themselves on ${day(u.deletionRequestedAt)}` : ""})` : `, they closed it on ${day(u.deletionRequestedAt)} and can keep it by signing in before then`}${held ? "; held while legal hold is on" : ""}`
+                  ? `Scheduled for ${qldDay(u.deleteAt)}${u.closedAt ? ` (closed by support: they can't keep it${selfDeleted ? `; they had closed it themselves on ${qldDay(u.deletionRequestedAt)}` : ""})` : `, they closed it on ${qldDay(u.deletionRequestedAt)} and can keep it by signing in before then`}${held ? "; held while legal hold is on" : ""}`
                   : "Not scheduled",
               ],
               ["Email blocked", blocked ? "Yes: it can't sign in or sign up" : "No"],
-              ["Signed out everywhere", u.sessionsValidAfter ? utc(u.sessionsValidAfter) : "Never"],
+              ["Signed out everywhere", u.sessionsValidAfter ? qldTime(u.sessionsValidAfter) : "Never"],
               ["Google sign-in linked", u.accounts.some((a) => a.provider === "google") ? "Yes" : "No"],
-              ["Created", utc(u.createdAt)],
+              ["Created", qldTime(u.createdAt)],
             ]}
           />
         </div>
@@ -196,7 +211,7 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
                 title="Cancel the scheduled deletion"
                 intro={
                   <>
-                    Only on a request from {u.email} itself. The account opens again and won&rsquo;t be deleted on {day(u.deleteAt)}; clients the plan covers get their links back,
+                    Only on a request from {u.email} itself. The account opens again and won&rsquo;t be deleted on {qldDay(u.deleteAt)}; clients the plan covers get their links back,
                     and renewal is turned back on if closing stopped it and the plan is still running. Teams they left don&rsquo;t take them back.
                     {u.suspendedAt && <span className="mt-1 block font-medium text-warn-fg">The login is suspended: unsuspend it first.</span>}
                   </>
@@ -213,8 +228,8 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
                 title="Reopen after a review"
                 intro={
                   selfDeleted
-                    ? `Only when a review finds the closure was wrong, before ${day(u.deleteAt)}. They had closed the account themselves first, so it goes back to that: still deleted on ${day(u.deleteAt)} unless they sign in and keep it, with its clients paused until then. The address is unblocked. The cancelled subscription doesn't come back.`
-                    : `Only when a review finds the closure was wrong, before ${day(u.deleteAt)}. The login and its workspaces work again and the address is unblocked. The cancelled subscription and the staff taken off the team don't come back.`
+                    ? `Only when a review finds the closure was wrong, before ${qldDay(u.deleteAt)}. They had closed the account themselves first, so it goes back to that: still deleted on ${qldDay(u.deleteAt)} unless they sign in and keep it, with its clients paused until then. The address is unblocked. The cancelled subscription doesn't come back.`
+                    : `Only when a review finds the closure was wrong, before ${qldDay(u.deleteAt)}. The login and its workspaces work again and the address is unblocked. The cancelled subscription and the staff taken off the team don't come back.`
                 }
                 notify={emailThem}
                 submit="Reopen account"
@@ -234,7 +249,7 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
                     {ownsTeam ? ` ${staffOn} staff ${staffOn === 1 ? "member is" : "members are"} taken off the team (they keep their own logins).` : ""} It leaves any team
                     it&rsquo;s staff on.{" "}
                     {u.deleteAt
-                      ? `Everything is deleted for good on ${day(u.deleteAt)}, the date already set when they closed it themselves, unless legal hold is on.`
+                      ? `Everything is deleted for good on ${qldDay(u.deleteAt)}, the date already set when they closed it themselves, unless legal hold is on.`
                       : `Everything is deleted for good ${CLOSURE_DELETE_DAYS} days later unless legal hold is on.`}{" "}
                     The account holder can&rsquo;t undo it; you can reopen it after a review before then.
                   </>
@@ -306,7 +321,7 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
                 <Link href={`/support/${t.id}`} className="block p-4 text-sm hover:bg-hover">
                   <p className="line-clamp-2 break-words text-ink">{t.summary ?? "Conversation"}</p>
                   <p className="mt-1 text-xs text-dim">
-                    {t.status.replace("_", " ").toLowerCase()} · {utc(t.updatedAt)}
+                    {t.status.replace("_", " ").toLowerCase()} · {qldTime(t.updatedAt)}
                   </p>
                 </Link>
               </li>
@@ -318,6 +333,6 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
       <Section title="Support log">
         <History rows={history} links />
       </Section>
-    </main>
+    </div>
   );
 }
