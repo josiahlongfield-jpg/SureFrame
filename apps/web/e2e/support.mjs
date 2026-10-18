@@ -282,16 +282,38 @@ await kb.keyboard.press("Escape");
 const backOnHelp = await kb.waitForFunction(() => document.activeElement?.dataset.testid === "help-button", null, { timeout: 5000 }).then(() => true, () => false);
 ok("panel: Escape closes it and focus goes back to Help", (await kb.locator("role=dialog[name='SureFrame help']").count()) === 0 && backOnHelp);
 
-// 8f. Phones: the Help button never sits over the page; the panel leaves room for the conversation
+// 8f. Phones: the Help button floats in the corner without scrolling to the end, steps aside while scrolling down
+// or typing, and the page keeps room at its end; the panel leaves room for the conversation
 const small = await (await browser.newContext({ viewport: { width: 320, height: 568 }, isMobile: true, hasTouch: true })).newPage();
 await small.goto(BASE + "/");
-await small.waitForSelector("[data-testid=help-button]", { state: "attached" });
+await small.waitForSelector("[data-testid=help-button]");
 const place = await small.evaluate(() => {
-  const b = document.querySelector("[data-testid=help-button]");
-  const r = b.getBoundingClientRect();
-  return { position: getComputedStyle(b).position, top: r.top + scrollY, page: document.documentElement.scrollHeight, inView: r.top < innerHeight };
+  const r = document.querySelector("[data-testid=help-button]").getBoundingClientRect();
+  return { position: getComputedStyle(document.querySelector("[data-testid=help-button]")).position, bottom: innerHeight - r.bottom, right: innerWidth - r.right, top: r.top };
 });
-ok("320px: Help sits at the end of the page, not over it", place.position === "absolute" && !place.inView && place.page - place.top < 80, JSON.stringify(place));
+ok("320px: Help floats in the bottom-right corner on the first screen", place.position === "fixed" && place.top < 568 && place.bottom >= 8 && place.bottom <= 24 && place.right >= 8 && place.right <= 24, JSON.stringify(place));
+const shown = () => small.evaluate(() => { const b = document.querySelector("[data-testid=help-button]"); return getComputedStyle(b).opacity === "1" && !b.dataset.tucked; });
+await small.mouse.wheel(0, 400);
+await small.evaluate(() => window.scrollBy(0, 300));
+ok("320px: it steps aside while the page is scrolled down", await small.waitForFunction(() => document.querySelector("[data-testid=help-button]").dataset.tucked === "true", null, { timeout: 3000 }).then(() => true, () => false));
+ok("320px: and comes back once scrolling stops", await small.waitForFunction(() => !document.querySelector("[data-testid=help-button]").dataset.tucked, null, { timeout: 4000 }).then(() => true, () => false));
+await small.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+await small.waitForTimeout(1600);
+const end = await small.evaluate(() => {
+  const b = document.querySelector("[data-testid=help-button]").getBoundingClientRect();
+  // The last thing on the page (the footer's links) is clear of the button at the end of the page.
+  const links = [...document.querySelectorAll("footer a")].map((a) => a.getBoundingClientRect());
+  return { overlaps: links.filter((l) => l.right > b.left && l.left < b.right && l.bottom > b.top && l.top < b.bottom).length };
+});
+ok("320px: at the end of the page it covers none of the footer's links", end.overlaps === 0, JSON.stringify(end));
+ok("320px: it's showing at the end of the page", await shown());
+// Typing in a field (on-screen keyboard up) tucks it away too, and leaving the field brings it back.
+await small.evaluate(() => { const i = document.createElement("input"); i.id = "probe"; document.querySelector("main").prepend(i); });
+await small.focus("#probe");
+ok("320px: it steps aside while a field is being typed in", await small.waitForFunction(() => document.querySelector("[data-testid=help-button]").dataset.tucked === "true", null, { timeout: 3000 }).then(() => true, () => false));
+await small.evaluate(() => document.getElementById("probe").blur());
+ok("320px: and is back when the field is left", await small.waitForFunction(() => !document.querySelector("[data-testid=help-button]").dataset.tucked, null, { timeout: 3000 }).then(() => true, () => false));
+await small.evaluate(() => document.getElementById("probe").remove());
 await small.click("[data-testid=help-button]");
 await small.waitForSelector("role=dialog[name='SureFrame help']");
 const room = await small.evaluate(() => document.querySelector("[role=dialog] [aria-live=polite]").clientHeight);

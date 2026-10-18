@@ -273,9 +273,11 @@ export const openHelp = () => window.dispatchEvent(new Event(OPEN_HELP_EVENT));
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * A Help button that opens the chat in a panel. On computers it's fixed to the corner. On phones it sits
- * at the very end of the page, in room kept free for it, so it never covers the page's own buttons or text
- * (the app's phone menu has a Help item too). The open panel holds the keyboard until Escape or ✕ closes it.
+ * A Help button that opens the chat in a panel, fixed to the bottom-right corner so it's there without scrolling to
+ * the end (Josiah, 18 October 2026). On phones it's a small round button that steps out of the way while the page is
+ * scrolled down or a field is being typed in, so it never sits over what someone is reading or filling in, and the
+ * page keeps room at its end so the last line or button can always be scrolled clear of it (the app's phone menu has
+ * a Help item too). The open panel holds the keyboard until Escape or ✕ closes it.
  */
 export default function SupportWidget({ signedIn }: { signedIn: boolean }) {
   const [open, setOpen] = useState(false);
@@ -291,7 +293,7 @@ export default function SupportWidget({ signedIn }: { signedIn: boolean }) {
   const close = useCallback(() => {
     setOpen(false);
     // Back to what opened it; the phone menu's Help item has gone with the menu, so then the Help button (shown
-    // again by then). No scrolling: on a phone the button is at the end of the page.
+    // again by then).
     requestAnimationFrame(() => (opener.current?.isConnected ? opener.current : button.current)?.focus({ preventScroll: true }));
   }, []);
 
@@ -318,10 +320,38 @@ export default function SupportWidget({ signedIn }: { signedIn: boolean }) {
     (field ?? box)?.focus();
   }, [open]);
 
-  // On phones the page keeps room at its end for the button, which is placed there (see the portal below).
+  // On phones the page keeps room at its end, so the last of it can be scrolled clear of the button.
   useEffect(() => {
-    document.body.classList.add("max-sm:pb-20", "max-sm:relative");
-    return () => document.body.classList.remove("max-sm:pb-20", "max-sm:relative");
+    document.body.classList.add("max-sm:pb-20");
+    return () => document.body.classList.remove("max-sm:pb-20");
+  }, []);
+
+  // On phones the button steps aside while the page is scrolled down (back on scrolling up, or once scrolling
+  // stops) and while a field has the on-screen keyboard up. Computers keep it in the corner all the time.
+  const [tucked, setTucked] = useState(false);
+  useEffect(() => {
+    const typing = () => matchMedia("(pointer: coarse)").matches && !!document.activeElement?.matches("input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable=true]");
+    let last = scrollY;
+    let timer: number | undefined;
+    const scrolled = () => {
+      const y = scrollY;
+      if (y > last + 4) setTucked(true);
+      else if (y < last - 4) setTucked(typing());
+      last = y;
+      clearTimeout(timer);
+      timer = window.setTimeout(() => setTucked(typing()), 1200);
+    };
+    // After focus has moved, so leaving one field for another doesn't flash the button.
+    const focusChanged = () => setTimeout(() => setTucked(typing()));
+    addEventListener("scroll", scrolled, { passive: true });
+    document.addEventListener("focusin", focusChanged);
+    document.addEventListener("focusout", focusChanged);
+    return () => {
+      clearTimeout(timer);
+      removeEventListener("scroll", scrolled);
+      document.removeEventListener("focusin", focusChanged);
+      document.removeEventListener("focusout", focusChanged);
+    };
   }, []);
 
   // Tab and Shift+Tab go round the panel's own controls.
@@ -374,7 +404,8 @@ export default function SupportWidget({ signedIn }: { signedIn: boolean }) {
             aria-expanded={open}
             aria-label="Help"
             data-testid="help-button"
-            className="absolute bottom-4 right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-line-strong bg-solid text-sm font-semibold text-on-solid shadow-lg hover:bg-solid-hover sm:fixed sm:bottom-5 sm:right-6 sm:z-50 sm:h-auto sm:w-auto sm:gap-2 sm:px-4 sm:py-3"
+            data-tucked={tucked || undefined}
+            className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-line-strong bg-solid text-sm font-semibold text-on-solid shadow-lg transition duration-200 hover:bg-solid-hover sm:bottom-5 sm:right-6 sm:z-50 sm:h-auto sm:w-auto sm:gap-2 sm:px-4 sm:py-3 ${tucked ? "max-sm:pointer-events-none max-sm:translate-y-24 max-sm:opacity-0 max-sm:focus-visible:pointer-events-auto max-sm:focus-visible:translate-y-0 max-sm:focus-visible:opacity-100" : ""}`}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
             <span className="max-sm:sr-only">Help</span>
