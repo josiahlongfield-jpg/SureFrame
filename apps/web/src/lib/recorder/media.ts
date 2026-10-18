@@ -26,12 +26,23 @@ export function bitrateFor(q: Quality) {
 
 const dims = (q: Quality) => ({ width: Math.round((q * 16) / 9), height: q });
 
-export async function getCamera(deviceId: string | undefined, q: Quality) {
+/** Front or rear: how a phone or tablet picks its camera. */
+export type Facing = "user" | "environment";
+/** A camera from the list (computers), the front or rear one (phones and tablets), or none for the browser's default. */
+export type CameraPick = { deviceId: string } | { facing: Facing } | undefined;
+
+/**
+ * The camera part of a request; every pick gets the same size settings, so the picture is sized the same.
+ * A side gets the browser's main camera on that side, not an ultra-wide or zoom lens.
+ */
+function cameraConstraints(cam: CameraPick, q: Quality): MediaTrackConstraints {
   const { width, height } = dims(Math.min(q, 1080) as Quality);
-  return navigator.mediaDevices.getUserMedia({
-    video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: { ideal: width }, height: { ideal: height }, frameRate: { ideal: 30 } },
-    audio: false,
-  });
+  const which = !cam ? {} : "deviceId" in cam ? { deviceId: { exact: cam.deviceId } } : { facingMode: { ideal: cam.facing } };
+  return { ...which, width: { ideal: width }, height: { ideal: height }, frameRate: { ideal: 30 } };
+}
+
+export async function getCamera(cam: CameraPick, q: Quality) {
+  return navigator.mediaDevices.getUserMedia({ video: cameraConstraints(cam, q), audio: false });
 }
 
 /**
@@ -39,10 +50,9 @@ export async function getCamera(deviceId: string | undefined, q: Quality) {
  * time, and asking for the mic separately while the camera is live can end
  * the camera track or crash the page.
  */
-export async function getCameraAndMic(camId: string | undefined, micId: string | undefined, q: Quality) {
-  const { width, height } = dims(Math.min(q, 1080) as Quality);
+export async function getCameraAndMic(cam: CameraPick, micId: string | undefined, q: Quality) {
   return navigator.mediaDevices.getUserMedia({
-    video: { deviceId: camId ? { exact: camId } : undefined, width: { ideal: width }, height: { ideal: height }, frameRate: { ideal: 30 } },
+    video: cameraConstraints(cam, q),
     audio: { deviceId: micId ? { exact: micId } : undefined, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
   });
 }
