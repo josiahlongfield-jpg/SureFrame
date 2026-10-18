@@ -12,7 +12,8 @@ import CantOpen from "@/components/CantOpen";
 import Logo from "@/components/Logo";
 import { aiAssistActive, PLANS } from "@/lib/plans";
 import { db } from "@/lib/db";
-import { clientBlock, clientCookie, clientGate, viewerFor } from "@/lib/access";
+import { clientBlock, clientCookie, clientGate } from "@/lib/access";
+import { loadVideo } from "./load";
 import { agreePath, currentUser } from "@/lib/session";
 import { reactionsBy } from "@/lib/reactions";
 import { clientLink } from "@/lib/clients";
@@ -23,22 +24,18 @@ import { zoned } from "@/lib/dates";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ team?: string }> };
 
-async function load(id: string) {
-  const video = await db.video.findUnique({ where: { id }, include: { owner: { select: { name: true, email: true } } } });
-  if (!video || video.replyToId) return null;
-  return { video, viewer: await viewerFor(video) };
-}
-
 // Titles and thumbnails are never put in link previews: videos are private.
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const found = await load(id);
-  return { title: found?.viewer ? found.video.title : "Private video", robots: { index: false } };
+  const found = await loadVideo(id);
+  // No video: the layout shows the not-found page, and this is its tab title.
+  return { title: !found ? "Page not found" : found.viewer ? found.video.title : "Private video", robots: { index: false } };
 }
 
 export default async function Watch({ params, searchParams }: Props) {
   const { id } = await params;
-  const found = await load(id);
+  // A missing video is turned away by the layout; this is for TypeScript.
+  const found = await loadVideo(id);
   if (!found) notFound();
   const { video, viewer } = found;
 
