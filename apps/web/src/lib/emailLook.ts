@@ -1,3 +1,4 @@
+import { appUrl } from "@/lib/appUrl";
 import { brandText } from "@/lib/branding";
 
 /**
@@ -28,13 +29,14 @@ export const emailButton = (href: string, label: string, { fill, on }: { fill: s
   `<p style="margin:24px 0"><a href="${esc(href)}" style="background:${fill};color:${on};text-decoration:none;font-size:15px;padding:11px 20px;border-radius:10px;font-weight:600;display:inline-block">${esc(label)}</a></p>`;
 
 /**
- * The small SureFrame mark (the frame's padlock and the wordmark), drawn in
- * HTML so it shows even when a mail app blocks images.
+ * The small SureFrame mark: the logo's navy tile (public/brand/email-mark.png, drawn by scripts/brand-assets.mjs,
+ * so dark-mode mail apps can't recolour it) and the wordmark as text, which still shows when images are blocked.
+ * In-app previews load the tile from the page's own address.
  */
 export const emailMark = (margin = "0 0 20px") =>
   `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:${margin}"><tr>` +
-  `<td width="22" height="22" bgcolor="${EMAIL.ink}" style="width:22px;height:22px;background:${EMAIL.ink};border-radius:6px;text-align:center;vertical-align:middle;line-height:0"><span style="display:inline-block;width:10px;height:8px;margin-top:3px;border-radius:2px;background:#ff6f61"></span></td>` +
-  `<td style="padding-left:8px;font-family:${EMAIL.font};font-size:17px;line-height:22px;color:${EMAIL.ink};letter-spacing:-0.02em"><span style="font-weight:700">Sure</span><span style="font-weight:300">Frame</span></td>` +
+  `<td width="24" height="24" style="width:24px;height:24px;line-height:0"><img src="${typeof window === "undefined" ? appUrl() : window.location.origin}/brand/email-mark.png" width="24" height="24" alt="" style="display:block;width:24px;height:24px;border:0;border-radius:6px"></td>` +
+  `<td style="padding-left:8px;font-family:${EMAIL.font};font-size:17px;line-height:24px;color:${EMAIL.ink};letter-spacing:-0.02em"><span style="font-weight:700">Sure</span><span style="font-weight:200">Frame</span></td>` +
   `</tr></table>`;
 
 /** The business's logo on branded emails, otherwise the SureFrame mark, so every email has a recognisable top. */

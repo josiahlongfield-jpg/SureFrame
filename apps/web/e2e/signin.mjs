@@ -36,6 +36,10 @@ const mail = readdirSync(outbox)
   .find((m) => m.to === email);
 ok("sign-in email sent", !!mail);
 ok("email is branded", /SureFrame sign-in link/.test(mail?.subject ?? ""));
+// The logo is the real mark (a navy tile image dark-mode mail apps can't recolour), not shapes drawn in HTML.
+const markUrl = mail?.html.match(/<img src="([^"]+\/brand\/email-mark\.png)"/)?.[1];
+const markRes = markUrl && (await fetch(markUrl));
+ok("email shows the SureFrame logo image, served by the site", !!markRes?.ok && markRes.headers.get("content-type") === "image/png", markUrl);
 const link = mail.text.match(/https?:\/\/\S+/)[0];
 
 // Opening the link (as a mail scanner would) doesn't use it up.

@@ -75,6 +75,11 @@ watch(visitor);
 await visitor.goto(BASE + "/pricing");
 await seen(visitor, "[data-testid=free-in-full]");
 const cards = await visitor.$$eval("[data-testid=video-storage]", (els) => els.map((e) => e.textContent));
+// Every logo image is drawn from the site's mark (navy corners or navy tile), none in the first logo's blue.
+const iconSvg = await (await fetch(`${BASE}/icon.svg`)).text();
+ok("the tab icon is the navy logo tile", iconSvg.includes("#0f2747") && !iconSvg.includes("#3b55e6"));
+const images = await Promise.all(["/apple-icon.png", "/favicon.ico", "/opengraph-image.png", "/twitter-image.png", "/brand/email-mark.png"].map((p) => fetch(BASE + p).then((r) => r.ok)));
+ok("the phone, link-preview and email logo images are served", images.every(Boolean), JSON.stringify(images));
 ok("every plan card has a Video storage line", cards.length === 4 && cards.every((t) => t.startsWith("Video storage") && t.includes("30 days")), JSON.stringify(cards));
 ok("Free's says cloud backup isn't on Free; paid ones say unless Cloud backup is on", cards[0].includes("isn't available on Free") && cards.slice(1).every((t) => t.includes("unless Cloud backup is on")));
 const fullFree = norm(await visitor.textContent("[data-testid=free-in-full]"));
