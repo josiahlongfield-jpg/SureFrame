@@ -1,9 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { BRAND } from "@/lib/brand";
-import { LEGAL } from "@/lib/legal";
+import { DATA_LOCATIONS, LEGAL } from "@/lib/legal";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
-import { CLOUD_BACKUP_PRICE, EXTRA_SEAT_PRICE, EXTRA_SEAT_PRICE_YEARLY, MAX_REPLY_MINUTES, PLANS } from "@/lib/plans";
+import { CLOUD_BACKUP_PRICE, CLOUD_BACKUP_PRICE_YEARLY, EXTRA_SEAT_PRICE, EXTRA_SEAT_PRICE_YEARLY, MAX_REPLY_MINUTES, PLANS } from "@/lib/plans";
 import { RETENTION_DAYS } from "@/lib/retention";
 
 type Qa = { id: string; q: string; a: ReactNode };
@@ -28,7 +28,7 @@ export const BUSINESS_FAQ: Qa[] = [
           that it can&rsquo;t be watched from its link. Video and voice replies follow the same rule, and one that&rsquo;s recorded but never sent is deleted after {HELD_REPLY_DAYS} days. Text replies, to-dos and notes stay until they&rsquo;re deleted.
         </p>
         <p>
-          Cloud backup (US${CLOUD_BACKUP_PRICE} a month, on paid plans) keeps our encrypted copies until you delete them. To keep your own copy, open a video and
+          Cloud backup (US${CLOUD_BACKUP_PRICE} a month, or US${CLOUD_BACKUP_PRICE_YEARLY} a year on yearly billing, on paid plans) keeps our encrypted copies until you delete them. To keep your own copy, open a video and
           choose Save to device. We try to email whoever recorded a video about a day before it&rsquo;s deleted, but please don&rsquo;t rely on that email alone.
         </p>
       </>
@@ -117,6 +117,18 @@ export const BUSINESS_FAQ: Qa[] = [
     ),
   },
   {
+    id: "smaller-plan",
+    q: "What happens if I move to a smaller plan?",
+    a: (
+      <p>
+        First remove the clients and staff the smaller plan doesn&rsquo;t include, then switch. If your plan drops on its own instead (you cancel, or a payment
+        fails and isn&rsquo;t fixed), the clients and staff beyond the new plan&rsquo;s limits are paused: they can&rsquo;t open or be sent anything until you
+        upgrade or remove others. Your longest-standing clients keep access, and a pause deletes nothing, though recordings still leave our servers on the usual
+        schedule. <Link href="/legal/terms#5-plans-billing-and-cancelling">Terms, section 5</Link>.
+      </p>
+    ),
+  },
+  {
     id: "cancel",
     q: "How do I cancel, and do you give refunds?",
     a: (
@@ -142,8 +154,7 @@ export const BUSINESS_FAQ: Qa[] = [
     q: "Where is my data stored?",
     a: (
       <p>
-        Our providers store and process information outside Australia, mainly in the United States; encrypted recordings are stored in Oceania. Videos, replies,
-        to-dos and notes stay end-to-end encrypted wherever they&rsquo;re stored. If your business has its own rules about client information (a health practice,
+        {DATA_LOCATIONS} Videos, replies, to-dos and notes stay end-to-end encrypted wherever they&rsquo;re stored. If your business has its own rules about client information (a health practice,
         say), check them against our <Link href="/legal/privacy">Privacy Policy</Link> and <Link href="/legal/dpa">Data Processing Agreement</Link>.{" "}
         <Link href="/about#data">More on where data is kept</Link>.
       </p>
@@ -184,7 +195,7 @@ export const CLIENT_FAQ: Qa[] = [
       <p>
         If the business deletes the video, the conversation goes with it. Video and voice replies also leave our servers {RETENTION_DAYS} days after
         they&rsquo;re recorded, unless the business has Cloud backup. Text replies stay until they&rsquo;re deleted. Video and voice replies can be up to{" "}
-        {MAX_REPLY_MINUTES} minutes long.
+        {MAX_REPLY_MINUTES} minutes long, whichever plan the business is on.
       </p>
     ),
   },

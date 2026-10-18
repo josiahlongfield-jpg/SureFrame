@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import UpgradeButton from "@/components/UpgradeButton";
-import { PLANS, storageLine, type Interval, type PaidPlan } from "@/lib/plans";
+import { CLOUD_BACKUP_PRICE, CLOUD_BACKUP_PRICE_YEARLY, PLANS, planCardLines, storageLine, type Interval, type PaidPlan } from "@/lib/plans";
 import type { Plan } from "@prisma/client";
 
 const ORDER = ["FREE", "SOLO", "STUDIO", "AGENCY"] as const;
@@ -35,15 +35,25 @@ export default function PricingTable({
 }) {
   const [interval, setInterval] = useState<Interval>(start?.interval ?? current?.interval ?? "month");
   const subscribed = !!current?.interval;
+  // A radio group: arrow keys move between the two, and only the chosen one is a tab stop.
+  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+    e.preventDefault();
+    const next = interval === "month" ? "year" : "month";
+    setInterval(next);
+    e.currentTarget.querySelector<HTMLButtonElement>(`[data-interval=${next}]`)?.focus();
+  };
   return (
     <>
       <div className="mt-10 flex justify-center">
-        <div role="radiogroup" aria-label="Billing period" className="inline-flex rounded-xl border border-line bg-surface p-1 text-sm font-medium">
+        <div role="radiogroup" aria-label="Billing period" onKeyDown={onKey} className="inline-flex rounded-xl border border-line bg-surface p-1 text-sm font-medium">
           {(["month", "year"] as const).map((i) => (
             <button
               key={i}
               role="radio"
               aria-checked={interval === i}
+              tabIndex={interval === i ? 0 : -1}
+              data-interval={i}
               onClick={() => setInterval(i)}
               className={`rounded-lg px-3 py-2 sm:px-4 ${interval === i ? "bg-solid text-white" : "text-muted hover:text-ink"}`}
             >
@@ -58,6 +68,8 @@ export default function PricingTable({
           const featured = id === FEATURED;
           const mine = current?.plan === id;
           const price = interval === "year" ? p.priceYearly : p.priceMonthly;
+          const backup = interval === "year" ? CLOUD_BACKUP_PRICE_YEARLY : CLOUD_BACKUP_PRICE;
+          const lines = planCardLines(id, interval);
           return (
             <div
               key={id}
@@ -73,22 +85,37 @@ export default function PricingTable({
               )}
               <h2 className="text-lg font-semibold text-ink">{p.name}</h2>
               <p className="mt-4 flex items-baseline gap-1">
-                {/* US$ on every price, Free included, as at checkout. */}
+                {/* US$ on every price, Free included, as at checkout. Free has no period: it's never billed. */}
                 <span className="text-4xl font-semibold text-ink"><span className="text-xl align-top">US</span>${price}</span>
-                <span className="text-sm text-dim">/ {interval}</span>
+                {price > 0 && <span className="text-sm text-dim">/ {interval}</span>}
               </p>
               {interval === "year" && price > 0 && <p className="mt-1 text-xs text-dim">US${(price / 12).toFixed(2)} a month, billed yearly</p>}
+              {price === 0 && <p className="mt-1 text-xs text-dim">No card needed</p>}
+              {/* What it really costs with backup, the add-on most people want once they see the 30-day limit (V19). */}
+              {price > 0 && (
+                <p className="mt-1 text-xs text-dim" data-testid="with-backup">
+                  With cloud backup: US${price + backup} a {interval}
+                </p>
+              )}
               <ul className="mt-6 flex-1 space-y-3 text-sm text-muted">
-                {p.features.map((f) => (
-                  <li key={f} className="flex gap-2">
+                {lines.filter((l) => !l.note).map((l) => (
+                  <li key={l.text} className="flex gap-2">
                     <svg className="mt-0.5 shrink-0 text-accent" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>
-                    {f}
+                    {l.text}
                   </li>
                 ))}
               </ul>
+              {/* Limits and prices, so they don't read as features. */}
+              {lines.some((l) => l.note) && (
+                <ul className="mt-4 space-y-2 border-t border-line pt-4 text-xs text-dim" data-testid="plan-notes">
+                  {lines.filter((l) => l.note).map((l) => (
+                    <li key={l.text}>{l.text}</li>
+                  ))}
+                </ul>
+              )}
               <div className="mt-6 rounded-xl bg-canvas p-3 text-xs leading-5 text-muted" data-testid="video-storage">
                 <p className="font-semibold text-ink">Video storage</p>
-                <p className="mt-0.5">{storageLine(id, retentionDays)}</p>
+                <p className="mt-0.5">{storageLine(id, retentionDays, interval)}</p>
               </div>
               <div className="mt-6">
                 <PlanAction id={id} interval={interval} featured={featured} current={current} signedIn={signedIn} subscribed={subscribed} start={start} />
@@ -121,7 +148,7 @@ function PlanAction({
 }) {
   const mine = current?.plan === id;
   if (id === "FREE") {
-    if (!signedIn) return <Link href="/record" className={outline}>Start free</Link>;
+    if (!signedIn) return <Link href="/signup" className={outline}>Start free</Link>;
     if (mine) return <span className={staticBox}>You&rsquo;re on Free</span>;
     if (!subscribed || !current?.owner) return null;
     // Paying: Free is what's left when the plan ends, so this is where cancelling lives.

@@ -18,11 +18,18 @@ export default async function SiteHeader({ navy = false }: { navy?: boolean } = 
           ) : (
             <Link href="/login" className={link}>Sign in</Link>
           )}
-          {/* Short on phones, as in the app's header, so the bar fits a 360px screen. "Start free" is only for people without an account. */}
-          <Link href="/record" className={`whitespace-nowrap rounded-[0.625rem] bg-primary px-3 py-2 font-medium text-on-primary hover:bg-primary-hover sm:px-4`}>
-            <span className="sm:hidden">Record</span>
-            <span className="hidden sm:inline">{signedIn ? "New recording" : navy ? "Start free" : "Start recording"}</span>
-          </Link>
+          {/* "Start free" (sign-up) is only for people without an account, and says the same on a phone (V66, V8). Signed in it's
+              the app's own button, short on phones, so the bar fits a 360px screen. */}
+          {signedIn ? (
+            <Link href="/record" className="whitespace-nowrap rounded-[0.625rem] bg-primary px-3 py-2 font-medium text-on-primary hover:bg-primary-hover sm:px-4">
+              <span className="sm:hidden">Record</span>
+              <span className="hidden sm:inline">New recording</span>
+            </Link>
+          ) : (
+            <Link href="/signup" className="whitespace-nowrap rounded-[0.625rem] bg-primary px-3 py-2 font-medium text-on-primary hover:bg-primary-hover sm:px-4">
+              Start free
+            </Link>
+          )}
         </nav>
       </div>
     </header>

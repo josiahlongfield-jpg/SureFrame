@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import AuthLinks from "@/components/AuthLinks";
 import Logo from "@/components/Logo";
 import { safeNext } from "@/lib/secrets";
 import { emailLink } from "../actions";
@@ -22,7 +23,17 @@ export default async function CheckEmail({ searchParams }: { searchParams: Promi
         <h1 className="mt-6 short:mt-3 text-xl font-semibold text-ink">Check your email</h1>
         <p className="mt-3 text-sm text-muted" data-testid="sent-to">
           {again ? "We sent another sign-in link" : "We sent a sign-in link"}
-          {email ? <> to <span className="break-all font-semibold text-ink">{email}</span></> : null}. Open it on this device to continue. It works once and expires in 24 hours.
+          {email ? (
+            <>
+              {" "}to{" "}
+              {/* Breaks only before the @ when it must, never mid-word (O2). */}
+              <span className="font-semibold text-ink [overflow-wrap:anywhere]" data-testid="sent-to-address">
+                {email.split("@")[0]}
+                <wbr />@{email.split("@").slice(1).join("@")}
+              </span>
+            </>
+          ) : null}
+          . Open it on this device to continue. It works once and expires in 24 hours.
         </p>
         {error && <p role="alert" className="mt-3 text-sm text-danger-fg">{errorText(error)}</p>}
         <p className="mt-4 text-sm text-dim">Nothing there? Check your spam or junk folder.</p>
@@ -38,6 +49,7 @@ export default async function CheckEmail({ searchParams }: { searchParams: Promi
         <p className="mt-4 text-sm text-dim">
           Wrong address? <Link href={startOver} className="font-medium text-accent underline">Use a different email</Link>
         </p>
+        <AuthLinks />
       </div>
     </main>
   );

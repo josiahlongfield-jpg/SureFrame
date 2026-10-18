@@ -298,7 +298,7 @@ export default function Page() {
           accounts, and we record each action taken with them.
         </li>
         <li>
-          <strong>Sign-in:</strong> passwordless sign-in links that work once and expire after 24 hours, or Google (verified email addresses only). Sessions usually
+          <strong>Sign-in:</strong> passwordless sign-in links that work once and expire after 24 hours. Sessions usually
           end when the browser closes, and after 8 hours without use; someone who ticks &ldquo;Keep me signed in&rdquo; stays signed in on that device for 30
           days from when they sign in. We can sign a login out on every device. Repeated attempts are rate-limited, and
           scheduled jobs need a secret to run.

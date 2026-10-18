@@ -11,7 +11,7 @@ import { NotifyPrefs } from "@/components/TeamOverview";
 import { permsOf } from "@/lib/permissions";
 import Link from "next/link";
 import { signOut } from "@/auth";
-import { deletionDate, requestAccountDeletion } from "@/lib/accountDeletion";
+import { DELETION_GRACE_DAYS, deletionDate, requestAccountDeletion } from "@/lib/accountDeletion";
 import { zoned } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { LEGAL } from "@/lib/legal";
@@ -146,7 +146,9 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
         <section className="mt-6 rounded-2xl border border-danger-line bg-surface p-6">
           <h2 className="font-semibold text-danger-fg">Delete account</h2>
           <p className="mt-1 text-sm text-muted" data-testid="delete-explainer">
-            Your account is closed straight away and permanently deleted on {deletesOn}. Until then, sign in to keep it with everything as it was.
+            {/* Said as what would happen, since nothing is scheduled until they confirm (V55). */}
+            If you delete it, your account is closed straight away and permanently deleted {DELETION_GRACE_DAYS} days later ({deletesOn} if you delete it today).
+            Until then, sign in to keep it with everything as it was.
             {ownsAlone && (
               <> Your workspace goes with it: its recordings, clients, to-dos and notes. Your clients&apos; links stop working now{ownWorkspace.stripeSubscriptionId ? <>, your plan won&apos;t renew</> : null}, recordings without cloud backup still expire on their usual dates, and removed clients are still deleted on their dates.</>
             )}

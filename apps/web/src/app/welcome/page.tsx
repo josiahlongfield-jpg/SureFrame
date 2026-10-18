@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Logo from "@/components/Logo";
+import RequiredField from "@/components/RequiredField";
 import { db } from "@/lib/db";
 import { sendMail } from "@/lib/mail";
 import { safeNext } from "@/lib/secrets";
@@ -83,7 +84,7 @@ export default async function Welcome({ searchParams }: { searchParams: Promise<
         <input type="hidden" name="next" value={to} />
         <label className="grid gap-1.5">
           <span className="text-sm font-medium text-muted">Your business name</span>
-          <input name="business" required maxLength={80} autoComplete="organization" placeholder="e.g. Business A" autoFocus
+          <RequiredField name="business" message="Enter your business name." maxLength={80} autoComplete="organization" placeholder="e.g. Business A" autoFocus
             defaultValue={isPlaceholderName(me.workspace.name) ? "" : me.workspace.name} className={field} data-testid="welcome-business" />
           <span className="text-xs text-dim">Work under your own name? Use that. You can change it later in Settings, Branding.</span>
         </label>

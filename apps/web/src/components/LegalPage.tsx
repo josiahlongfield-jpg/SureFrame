@@ -56,7 +56,7 @@ function withContents(children: ReactNode) {
  */
 export default function LegalPage({ title, version, updated = LEGAL.updated, children }: { title: string; version?: string; updated?: string; children: ReactNode }) {
   const { toc, body } = withContents(children);
-  const since = version ? LEGAL_VERSIONS.find((v) => v.terms === version || v.privacy === version)?.date : undefined;
+  const since = version ? (LEGAL_VERSIONS.find((v) => v.terms === version || v.privacy === version)?.date ?? (version === LEGAL.dpaVersion ? LEGAL.dpaSince : undefined)) : undefined;
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
       <SiteHeader navy />
@@ -70,7 +70,8 @@ export default function LegalPage({ title, version, updated = LEGAL.updated, chi
             </>
           )}
           Last updated {updated}
-          {since && since !== updated && (
+          {/* The same line on all three documents (V29): version, when it took effect, last updated, all versions. */}
+          {version && (
             <>
               {" "}
               · <Link href="/legal/archive" className="underline hover:text-ink">All versions</Link>

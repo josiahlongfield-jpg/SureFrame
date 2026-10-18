@@ -1,6 +1,6 @@
 import Link from "next/link";
 import LegalPage, { SubprocessorList } from "@/components/LegalPage";
-import { LEGAL, operatorLine } from "@/lib/legal";
+import { DATA_LOCATIONS, LEGAL, operatorLine } from "@/lib/legal";
 
 export const metadata = { title: "Privacy Policy" };
 
@@ -225,7 +225,6 @@ export default function Page() {
           Link, Stripe&rsquo;s merchant-of-record service, which sells subscriptions, collects tax and sends receipts, and Stripe, which processes payments and
           manages subscriptions.
         </li>
-        <li>Google, if you choose Continue with Google to sign in. Google tells us your name and email address.</li>
       </ul>
       <p>
         We may also disclose information to law enforcement agencies, regulators, courts or others where the law requires or permits it, for example to respond to
@@ -237,8 +236,7 @@ export default function Page() {
 
       <h2>Overseas storage</h2>
       <p>
-        We run {LEGAL.product} from Australia, and we may access information from there. Our providers store and process information outside Australia, mainly in
-        the United States. We choose providers with strong security and privacy practices. Your encrypted content stays encrypted wherever it&rsquo;s stored. The
+        We run {LEGAL.product} from Australia, and we may access information from there. {DATA_LOCATIONS} We choose providers with strong security and privacy practices. Your encrypted content stays encrypted wherever it&rsquo;s stored. The
         exception is transcript text sent for AI summaries (only for businesses that switch them on), which Anthropic must be able to read to write the summary;
         it&rsquo;s sent over an encrypted connection and processed mainly in the United States. If you&rsquo;re in the EU or UK, see{" "}
         <a href="#eu-uk">below</a> for how we protect these transfers.
@@ -331,8 +329,7 @@ export default function Page() {
       <p>We only use cookies needed to run {LEGAL.product}:</p>
       <ul>
         <li>
-          <strong>Sign-in cookie:</strong> keeps you signed in to your account. It holds your account&rsquo;s id, your name and email address (and, if you sign in with Google, the link to your Google
-          profile picture), and when you signed in, so a sign-in from before
+          <strong>Sign-in cookie:</strong> keeps you signed in to your account. It holds your account&rsquo;s id, your name and email address, and when you signed in, so a sign-in from before
           you closed your account, or before we signed your account out everywhere, no longer works.
         </li>
         <li>
@@ -443,8 +440,7 @@ export default function Page() {
           terms and this policy, and the technical information we use to keep {LEGAL.product} secure for everyone who uses it, including clients.
         </li>
         <li>
-          <strong>Others:</strong> Link and Stripe are separate controllers for the payment and tax details they collect at checkout. Google is a separate controller
-          for your Google account if you choose Continue with Google.
+          <strong>Others:</strong> Link and Stripe are separate controllers for the payment and tax details they collect at checkout.
         </li>
       </ul>
 
