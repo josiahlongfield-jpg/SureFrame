@@ -2,7 +2,8 @@ import { decryptText, encryptText, fingerprint, generateKey, unwrapKey, wrapKey 
 
 export type Bundle = {
   fingerprint: string;
-  clients: { id: string; name: string; hasEmail: boolean; teamKeyWrap: string; active: boolean }[];
+  /** `opened`: they opened their personal link; `held`: paused, or link turned off by support (not emailed either way). */
+  clients: { id: string; name: string; hasEmail: boolean; opened?: boolean; held?: boolean; teamKeyWrap: string; active: boolean }[];
   videos: { id: string; teamKeyWrap: string; clientKeyWrap: string | null; clientId: string | null }[];
   items: { id: string; body: string; clientId: string | null; shared: boolean }[];
 };

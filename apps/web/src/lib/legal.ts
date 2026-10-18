@@ -76,7 +76,9 @@ export const LEGAL = {
    * (16 October 2026) only explains more of what we already do, so it keeps privacyVersion. So do a short section for
    * clients, the intro shown once per device, "Keep me signed in" and its cookies, and clients deleting their own replies
    * (17 October 2026): they explain what we do or add choices, and take nothing away. Unsent video and voice replies
-   * being deleted after 7 days (18 October 2026) keeps less, for less time, so it keeps privacyVersion too.
+   * being deleted after 7 days (18 October 2026) keeps less, for less time, so it keeps privacyVersion too. So does
+   * saying that an invited team member is emailed to expect their link, and that a replaced client link is kept only as
+   * a one-way fingerprint (18 October 2026): both explain what the service does, and the fingerprint holds nothing usable.
    */
   privacyUpdated: "18 October 2026",
 };

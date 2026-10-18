@@ -179,16 +179,21 @@ export function RecoveryKeyStep({ workspaceId, fingerprint, business }: { worksp
 }
 
 /**
- * Under the header until the owner presses "I've saved it", on every page:
- * in full where the key has just been made, else as one line that opens it.
- * Not lost after a reload or a recording.
+ * Under the header until its person presses "I've saved it", on every page:
+ * in full where the key has just been made (or staff have just joined), else
+ * as one line that opens it. Not lost after a reload or a recording. Asked
+ * again after the team's keys are reset (`note` then says why).
  */
-export default function RecoveryKeyReminder({ workspaceId, fingerprint, business, hiddenOn }: { workspaceId: string; fingerprint: string | null; business: string; hiddenOn: string | null }) {
+export default function RecoveryKeyReminder({ workspaceId, fingerprint, business, hiddenOn, note }: { workspaceId: string; fingerprint: string | null; business: string; hiddenOn: string | null; note?: string }) {
   const router = useRouter();
   const hidden = usePathname() === hiddenOn;
   const { value, fresh } = useDeviceKey(workspaceId, fingerprint);
   const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState(false);
+  // Staff land here straight after joining (components/JoinTeam.tsx): the key is shown in full once.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("joined")) setOpen(true);
+  }, []);
   if (hidden || saved || !value) return null;
   return (
     <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6" data-testid="recovery-key-reminder">
@@ -196,7 +201,7 @@ export default function RecoveryKeyReminder({ workspaceId, fingerprint, business
         <RecoveryKeyBox value={value} business={business} onSaved={() => { setSaved(true); router.refresh(); }} />
       ) : (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warn-line bg-warn-bg px-4 py-2.5 text-sm text-warn-fg">
-          <p>You haven&apos;t saved your recovery key yet. You need it to open your videos on another device.</p>
+          <p>{note ?? "You haven't saved your recovery key yet. You need it to open your videos on another device."}</p>
           <button type="button" onClick={() => setOpen(true)} className="font-medium underline">Show recovery key</button>
         </div>
       )}

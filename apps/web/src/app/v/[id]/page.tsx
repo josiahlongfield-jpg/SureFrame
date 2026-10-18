@@ -20,6 +20,8 @@ import { publicVideo } from "@/lib/videos";
 import { heldRepliesOf, replyDTO, replyViewer, visibleReplies } from "@/lib/replies";
 import { accessOf, canDeleteVideo, canSeeVideo, clientScopeWhere, effectivePerms } from "@/lib/permissions";
 import { zoned } from "@/lib/dates";
+import { formerTeams, senderName } from "@/lib/team";
+import { replacedLinks } from "@/lib/replacedLinks";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ team?: string }> };
 
@@ -129,10 +131,8 @@ export default async function Watch({ params, searchParams }: Props) {
         ) : (
           <WatchView
             video={{ ...publicVideo(video), viewCount: video.viewCount + copyViews }}
-            ownerName={
-              // Clients see "Sam from Business" (never an email); the team sees the name or email.
-              isMember ? (video.owner.name ?? video.owner.email.split("@")[0]) : video.owner.name ? `${video.owner.name} from ${workspace.name}` : workspace.name
-            }
+            // Clients see "Sam from Business" (never an email); the team sees the name or email (lib/team.ts).
+            ownerName={senderName(video, workspace.name, isMember ? "team" : "client")}
             canDelete={!!access && canDeleteVideo(access, video)}
             // Only a finished original counts (a refused upload never got a duration).
             freeVideoLimit={isMember && !video.sourceId && !video.replyToId && video.status !== "RECORDING" && video.durationMs !== null ? PLANS[workspace.plan].maxVideos : null}
@@ -227,6 +227,21 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
     );
   }
 
+  // This device holds a link the business replaced when it reset its keys (someone left their team).
+  const [replaced] = token && !mine ? await replacedLinks([token]) : [];
+  if (replaced) {
+    return (
+      <CantOpenShell brand={null}>
+        <CantOpen title="Your personal link was replaced" testId="video-link-replaced">
+          <p>
+            {replaced.business} replaced your personal link to keep your videos secure, so this device needs the new one.{" "}
+            {replaced.emailed ? "We've emailed it to you: open it here and this video opens too." : `Ask ${replaced.business} for your new link.`}
+          </p>
+        </CantOpen>
+      </CantOpenShell>
+    );
+  }
+
   if (me) {
     // Signed in to the team: say what's actually in the way rather than "sign in".
     const membership = me.user.memberships.find((m) => m.workspaceId === video.workspaceId);
@@ -254,6 +269,17 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
                   : "Your access in this team doesn't include it."}{" "}
               Ask the owner or an admin if you need it.
             </p>
+          </CantOpen>
+        </CantOpenShell>
+      );
+    }
+    // Taken off the team that owns it: the same plain words as on their other pages (components/RemovedNotice.tsx).
+    const former = membership ? null : (await formerTeams(me.user.id)).find((t) => t.id === video.workspaceId);
+    if (former) {
+      return (
+        <CantOpenShell brand={null} team>
+          <CantOpen title={`You're no longer on ${former.name}'s team`} testId="video-former-member">
+            <p>An owner or admin removed you, so you can&apos;t open that team&apos;s videos or clients any more. If that&apos;s a mistake, ask them for a new invite link.</p>
           </CantOpen>
         </CantOpenShell>
       );

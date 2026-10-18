@@ -257,6 +257,9 @@ model Membership {
   /// Paused because the plan no longer covers this many staff (a subscription
   /// ended or lapsed). Lifted automatically when seats free up. Never the owner.
   pausedAt              DateTime?
+  /// This person pressed "I've saved it" for the team's current recovery key. Cleared when the keys are reset,
+  /// so everyone is asked to save the new one (components/RecoveryKey.tsx). Owners also tick workspace.recoveryKeySavedAt.
+  recoveryKeySavedAt    DateTime?
   userId                String
   workspaceId           String
   user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -327,6 +330,9 @@ model Video {
   /// A short message from the business to this conversation's client, shown above the video.
   /// Ciphertext, sealed with the video's key on the team's device (like replies).
   message              String?
+  /// Recorded by someone who has since left or been removed from the team. Their recordings move to the owner
+  /// (ownerId) but are shown as "Former team member", never as the owner's (lib/team.ts senderName).
+  formerStaffAt        DateTime?
   owner                User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   workspace            Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   parts                UploadPart[]
@@ -404,6 +410,8 @@ model Reply {
   heldAt       DateTime?
   /// Written by the client (not the team). Kept apart from authorUserId, which empties if a team member's login is deleted.
   byClient     Boolean   @default(false)
+  /// Written by someone who has since left the team (authorUserId then moves to the owner): shown as "Former team member".
+  formerStaffAt DateTime?
   video        Video     @relation("Conversation", fields: [videoId], references: [id], onDelete: Cascade)
   media        Video?    @relation("ReplyMedia", fields: [mediaId], references: [id], onDelete: Cascade)
   authorUser   User?     @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
@@ -476,6 +484,7 @@ model Client {
   videos             Video[]
   items              Item[]
   keyRotations       KeyRotation[]
+  replacedLinks      ReplacedClientLink[]
 
   @@index([workspaceId, removedAt])
   @@index([assignedToId])
@@ -587,6 +596,20 @@ model KeyRotation {
   client          Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, clientId])
+  @@index([clientId])
+}
+
+/// A client's personal link replaced by a key reset (someone left the team), so an old link can say
+/// "replaced" rather than "mistyped". Only a hash of the old secret is kept. Deleted with the client.
+model ReplacedClientLink {
+  /// sha256 of the old token (lib/team.ts hashToken).
+  tokenHash String   @id
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  /// They were emailed their new link (they had opened the old one and have an email).
+  emailed   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
   @@index([clientId])
 }
 

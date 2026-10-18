@@ -61,9 +61,10 @@ async function clientVideoEmail(videoId: string): Promise<Mail | NotSent> {
   const brand = brandOf(ws, appUrl(""));
   const assigned = c.assignedToId ? await db.membership.findUnique({ where: { userId_workspaceId: { userId: c.assignedToId, workspaceId: ws.id } } }) : null;
   const { replyTo } = clientMailSettings(ws, assigned);
+  // A former team member's recording comes from the business itself (lib/team.ts senderName).
   return {
     to: c.email,
-    ...newVideoEmail({ business: ws.name, sender: video.owner?.name, clientName: c.name, link: clientLink(c.token, video.id), title: video.title, logoUrl: brand.logoUrl, color: brand.color, unsubscribe: unsubscribeUrl(c.id), noReply: !replyTo }),
+    ...newVideoEmail({ business: ws.name, sender: video.formerStaffAt ? null : video.owner?.name, clientName: c.name, link: clientLink(c.token, video.id), title: video.title, logoUrl: brand.logoUrl, color: brand.color, unsubscribe: unsubscribeUrl(c.id), noReply: !replyTo }),
     fromName: ws.name,
     replyTo,
   };
