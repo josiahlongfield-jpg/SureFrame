@@ -51,6 +51,12 @@ export default async function Suspended() {
       <p className="mt-3 text-muted" data-testid="suspended-message">
         {loginSuspended ? <>Your SureFrame login ({user.email}) has been suspended</> : <>{workspace.name} has been suspended</>}. Nothing has been deleted. Contact {support}.
       </p>
+      {(loginSuspended || me.role === "OWNER") && (
+        // The same review route as the email we sent about it (lib/support/admin.ts REVIEW).
+        <p className="mt-3 text-sm text-muted" data-testid="suspended-review">
+          If you think this is a mistake, reply to the email we sent about it, or email {support} within {LEGAL.reviewDays} days of it, and we&apos;ll review it.
+        </p>
+      )}
       {!loginSuspended && workspace.suspendedNote && (
         <p className="mt-3 whitespace-pre-wrap rounded-xl border border-line bg-surface p-3 text-sm text-muted" data-testid="suspended-note">
           {workspace.suspendedNote}

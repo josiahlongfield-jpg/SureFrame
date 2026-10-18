@@ -339,8 +339,10 @@ ok("close logged: block, workspaces, billing, emailed", row?.details?.blockEmail
 const closeMail = await waitMail(ownerEmail, (m) => m.subject === "Your SureFrame account has been closed");
 const cm = norm(closeMail?.text);
 ok("closure email: permanent, why, cancelled, deletion date", cm.includes(`We've closed your SureFrame account (${ownerEmail}) and ${business} because we believe it was used for something unlawful or harmful. This is permanent.`) && cm.includes("Your subscription has been cancelled, so you won't be charged again.") && cm.includes("will be deleted for good on"), cm);
-ok("closure email: blocked, review route, no internal reason", cm.includes("This email address can't be used to sign up to SureFrame again.") && cm.includes("within 30 days") && !cm.includes("Chargeback"), cm);
-ok("closure email: how to get a copy of the data", cm.includes("For a copy of your account data download before then, email support@sureframe.app within 30 days."), cm);
+// Both 30-day deadlines (review, data copy) are written as the one date, in Queensland time, apart from the deletion date.
+const reviewBy = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Brisbane", day: "numeric", month: "short", year: "numeric" }).format(new Date(Date.now() + 30 * 86_400_000));
+ok("closure email: blocked, review route by a date, no internal reason", cm.includes("This email address can't be used to sign up to SureFrame again.") && cm.includes(`email support@sureframe.app by ${reviewBy} and we'll review it`) && !cm.includes("within 30 days") && !cm.includes("Chargeback"), cm);
+ok("closure email: how to get a copy of the data", cm.includes(`To get a copy of your account data, email support@sureframe.app by ${reviewBy}.`), cm);
 const staffNotice = await waitMail(staffEmail, (m) => m.subject === `You're no longer on ${business}'s team`);
 ok("staff are told the account was closed, not why", norm(staffNotice?.text).includes(`${business}'s SureFrame account has been closed, so you're no longer on its team.`) && norm(staffNotice?.text).includes("Your own SureFrame login still works."), staffNotice?.text);
 ok("staff member's own login still works", (await apiStatus(again)).status === 200);

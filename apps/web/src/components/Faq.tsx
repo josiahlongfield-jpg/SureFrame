@@ -132,7 +132,7 @@ export const BUSINESS_FAQ: Qa[] = [
     q: "How long do I stay signed in?",
     a: (
       <p>
-        For your security, you&rsquo;re signed out when you close your browser, or after 8 hours without using {BRAND.name}. If you tick Keep me signed in, you
+        For your security, you&rsquo;re usually signed out when you close your browser, or after 8 hours without using {BRAND.name}. If you tick Keep me signed in, you
         stay signed in on that device for 30 days from when you sign in. Don&rsquo;t tick it on a shared device.
       </p>
     ),

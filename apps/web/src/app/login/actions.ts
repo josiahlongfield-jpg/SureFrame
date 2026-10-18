@@ -4,9 +4,10 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { signIn } from "@/auth";
 import { isEmailBlocked } from "@/lib/blockedEmail";
+import { db } from "@/lib/db";
 import { plainEmail } from "@/lib/emailAddress";
 import { safeNext } from "@/lib/secrets";
-import { signInEmailLimited } from "@/lib/signInGuard";
+import { countSignInEmail, signInEmailLimited } from "@/lib/signInGuard";
 import { SENT_TO_COOKIE } from "./errors";
 
 /**
@@ -27,6 +28,21 @@ export async function emailLink(fd: FormData) {
   const limited = await signInEmailLimited(email!);
   if (limited) back(limited === "network" ? "rate-network" : "rate");
   let failed = false;
+  // Closed by support: the closure email says it can't be signed in to, so no link goes out. The page carries on as for
+  // anyone (it never says which accounts exist or were closed); the email explains, to whoever reads that inbox.
+  const closed = await db.user.findUnique({ where: { email: email! }, select: { email: true, closedAt: true, deleteAt: true } });
+  if (closed?.closedAt) {
+    const { sendClosedAccountSignIn } = await import("@/lib/support/admin");
+    try {
+      await countSignInEmail(email!);
+      await sendClosedAccountSignIn({ email: closed.email, closedAt: closed.closedAt, deleteAt: closed.deleteAt });
+    } catch {
+      failed = true;
+    }
+    if (failed) back("send");
+    (await cookies()).set(SENT_TO_COOKIE, email!, { httpOnly: true, sameSite: "lax", path: "/login", maxAge: 3600 });
+    redirect(`/login/check?next=${encodeURIComponent(redirectTo)}${again ? "&again=1" : ""}${signup}`);
+  }
   try {
     // With redirect off, Auth.js reports a failed send as an error URL instead of throwing.
     const url = await signIn("email", { email, redirectTo, redirect: false });

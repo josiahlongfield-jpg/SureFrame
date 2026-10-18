@@ -66,6 +66,15 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
           </p>
         )}
         <div className="mt-6 grid gap-3 short:mt-3">
+          {/* First, so the keyboard meets the tick box before any sign-in button (it applies to every way of signing in). */}
+          {authProviders.length > 0 && (
+            <div className="grid gap-2 border-b border-line pb-4 short:pb-2">
+              <p className="text-xs text-dim" data-testid="signout-default">
+                For your security, you&apos;re usually signed out when you close your browser or after 8 hours without using {BRAND.name}.
+              </p>
+              <KeepSignedIn />
+            </div>
+          )}
           {authProviders.some((p) => p.id === "google") && (
             <form action={async () => { "use server"; await signIn("google", { redirectTo }); }}>
               <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-line-strong px-4 py-3 font-medium hover:bg-hover">
@@ -118,14 +127,6 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
             </form>
           )}
           {error && <p role="alert" className="text-sm text-danger-fg">{errorText(error)}</p>}
-          {authProviders.length > 0 && (
-            <div className="grid gap-2 border-t border-line pt-4 short:pt-2">
-              <p className="text-xs text-dim" data-testid="signout-default">
-                For your security, you&apos;re signed out when you close your browser or after 8 hours without using {BRAND.name}.
-              </p>
-              <KeepSignedIn />
-            </div>
-          )}
           {authProviders.length === 0 && (
             <p className="text-sm text-muted">No sign-in method is configured. Set RESEND_API_KEY, AUTH_GOOGLE_ID or AUTH_DEV_LOGIN.</p>
           )}

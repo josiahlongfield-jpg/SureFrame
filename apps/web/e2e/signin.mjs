@@ -72,6 +72,24 @@ await closed.click("[data-testid=confirm-sign-in]");
 await closed.waitForURL("**/account/restore", { timeout: 30000 });
 ok("a closed account signing in by email is offered to keep it", await closed.waitForSelector("button:text-is('Keep my account')", { timeout: 15000 }).then(() => true, () => false));
 
+// An account support closed gets no link: the page carries on as for anyone (it doesn't say which accounts are closed),
+// and the email to that inbox says the account is closed, as the closure email did.
+const shutEmail = `link-shut${Date.now()}@example.com`;
+await prisma.user.create({ data: { email: shutEmail, closedAt: new Date(Date.now() - 86_400_000), deleteAt: new Date(Date.now() + 29 * 86_400_000) } });
+const shut = await (await browser.newContext()).newPage();
+await shut.goto(BASE + "/login?next=/library");
+await shut.fill('input[name="email"]', shutEmail);
+await shut.click("text=Email me a sign-in link");
+await shut.waitForURL("**/login/check**");
+ok("a support-closed account sees the usual check page", await shut.isVisible("text=Check your email"));
+const shutMail = readdirSync(outbox)
+  .map((f) => JSON.parse(readFileSync(`${outbox}/${f}`, "utf8")))
+  .filter((m) => m.to === shutEmail);
+ok(
+  "and is emailed that it's closed, with no sign-in link",
+  shutMail.length === 1 && /account is closed/.test(shutMail[0].subject) && /no sign-in link was sent/.test(shutMail[0].text) && !/login\/confirm|api\/auth\/callback/.test(shutMail[0].text),
+);
+
 // Five links per address per hour: the sixth request is refused politely.
 const spam = await (await browser.newContext()).newPage();
 for (let i = 0; i < 5; i++) {
