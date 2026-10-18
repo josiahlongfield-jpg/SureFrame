@@ -23,6 +23,7 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
   const [note, setNote] = useState<string>();
   const [busy, setBusy] = useState(false);
   const nameOf = (id: string | null) => staff.find((s) => s.userId === id)?.name ?? "Unassigned";
+  const unassigned = clients.filter((c) => !c.assignedToId);
 
   async function setPerm(s: OverviewStaff, key: keyof Perms, value: boolean) {
     setNote(undefined);
@@ -80,9 +81,16 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
               )}
               <p className="mt-3 text-sm text-muted">
                 <span className="font-medium">Looks after:</span>{" "}
-                {theirs.length ? theirs.map((c, i) => (
+                {theirs.map((c, i) => (
                   <span key={c.id}>{i > 0 && ", "}<Link href={`/clients/${c.id}`} className="hover:underline">{c.name}</Link></span>
-                )) : <span className="text-dim">no clients yet</span>}
+                ))}
+                {/* The owner and admins look after unassigned clients, so their cards say so rather than "no clients". */}
+                {s.role !== "MEMBER" && unassigned.length > 0 && (
+                  <span data-testid="looks-after-unassigned">
+                    {theirs.length > 0 && ", plus "}unassigned clients ({unassigned.slice(0, 5).map((c) => c.name).join(", ")}{unassigned.length > 5 ? ` and ${unassigned.length - 5} more` : ""})
+                  </span>
+                )}
+                {!theirs.length && (s.role === "MEMBER" || !unassigned.length) && <span className="text-dim">no clients yet</span>}
               </p>
             </li>
           );
