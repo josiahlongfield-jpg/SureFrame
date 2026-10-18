@@ -5,6 +5,7 @@ import Logo from "@/components/Logo";
 import { db } from "@/lib/db";
 import { isFounder, isSupportAdmin } from "@/lib/support/admin";
 import { isSupportAgent } from "@/lib/support/tickets";
+import Fresh from "./_console/Fresh";
 import SupportNav from "./_console/SupportNav";
 
 /**
@@ -56,7 +57,9 @@ export default async function SupportLayout({ children }: { children: React.Reac
           <SupportNav links={links} />
         </div>
       </div>
-      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">{children}</main>
+      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+        <Fresh>{children}</Fresh>
+      </main>
     </>
   );
 }

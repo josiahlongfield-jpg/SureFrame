@@ -1,6 +1,5 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { startTransition, useActionState, type ReactNode } from "react";
 import type { NoticeReason } from "@/lib/support/admin";
 import { runPower } from "./actions";
@@ -40,13 +39,10 @@ type Props = {
  * on a phone), then its own fields, the reason category the email gives, the
  * internal reason, the typed confirmation for destructive ones, and "Email
  * the owner" ticked by default. Errors show here and keep what was typed;
- * success reloads the page with a "Done" banner and starts every form afresh.
+ * success reloads the page with a "Done" banner and starts every form afresh
+ * (the new address does that: ./Fresh.tsx).
  */
-export default function PowerForm(props: Props) {
-  return <Power key={useSearchParams().get("done") ?? ""} {...props} />;
-}
-
-function Power({ power, hidden, title, intro, submit, danger = false, category = false, confirm, notify, children, testId }: Props) {
+export default function PowerForm({ power, hidden, title, intro, submit, danger = false, category = false, confirm, notify, children, testId }: Props) {
   const [state, action, pending] = useActionState(runPower, null);
   return (
     <details className={`group rounded-2xl border bg-surface ${danger ? "border-danger-line" : "border-line"}`} data-testid={testId ?? `power-${power}`}>

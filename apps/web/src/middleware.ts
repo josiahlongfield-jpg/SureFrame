@@ -26,6 +26,12 @@ const IDLE_MS = 8 * 3_600_000;
 const SESSION_COOKIES = ["authjs.session-token", "__Secure-authjs.session-token"];
 /** Sent by background checks (new replies, support answers), which aren't someone using the site. */
 const BACKGROUND_HEADER = "x-sf-background";
+/**
+ * Sent with every server action. Any cookie set on an action's response makes Next draw the whole page
+ * again into the answer, even when the action only says what was wrong, and a form waiting on that redraw
+ * can be left on "Working…" (app/support/_console/Fresh.tsx). Loading the page was the activity.
+ */
+const ACTION_HEADER = "next-action";
 
 const sessionCookies = (req: NextRequest) =>
   req.cookies.getAll().filter((c) => SESSION_COOKIES.some((n) => c.name === n || c.name.startsWith(`${n}.`)));
@@ -98,7 +104,7 @@ function sessionActivity(req: NextRequest) {
   const last = Number(req.cookies.get(MARKER)?.value);
   const idle = req.cookies.get(KEEP_COOKIE)?.value === "1" ? KEEP_DAYS * 86_400_000 : IDLE_MS;
   const fresh = Number.isFinite(last) && last > 0 && Date.now() - last < idle;
-  if (fresh) return req.headers.get(BACKGROUND_HEADER) ? NextResponse.next() : mark(NextResponse.next(), req);
+  if (fresh) return req.headers.get(BACKGROUND_HEADER) || req.headers.has(ACTION_HEADER) ? NextResponse.next() : mark(NextResponse.next(), req);
 
   const names = new Set(session.map((c) => c.name));
   // Completing a new sign-in over an expired one: it goes ahead without the old session and sets
