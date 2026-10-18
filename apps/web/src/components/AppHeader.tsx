@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { firstStepsFor } from "@/lib/firstSteps";
 import { currentUser } from "@/lib/session";
 import { formerTeams } from "@/lib/team";
+import { TEAM_PLANS } from "@/lib/plans";
+import { isSupportAgent } from "@/lib/support/tickets";
 import NamePrompt from "./NamePrompt";
 import StaffNotices from "./StaffNotices";
 import Logo from "./Logo";
@@ -35,9 +37,13 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
   // Clients come first: a business adds them before sending anything. A business of one has no team pages.
   const links: Links = [["/clients", "Clients"], ["/library", "Library"], ...(teamSize > 1 ? [["/team", "Team"] as const] : [])];
   // Everything else is under Settings. Staff don't see Billing or Branding (only owners and admins can change them).
+  // On a team plan the staff page is "Team and staff" even before anyone joins, so it's found under the plan's own word.
+  const teamPlan = !!me && TEAM_PLANS.includes(me.workspace.plan);
   const settings: Links = manager
-    ? [["/settings/reminders", "Reminders"], ["/settings/branding", "Branding"], ["/settings/team", teamSize > 1 ? "Team and staff" : "Invite staff"], ["/settings/billing", "Billing"], ["/settings/account", "Account"]]
+    ? [["/settings/reminders", "Reminders"], ["/settings/branding", "Branding"], ["/settings/team", teamSize > 1 || teamPlan ? "Team and staff" : "Invite staff"], ["/settings/billing", "Billing"], ["/settings/account", "Account"]]
     : [["/settings/reminders", "Reminders"], ["/settings/account", "Account"], ...((me?.user.memberships.length ?? 0) > 1 ? [["/settings/team", "Your workspaces"] as const] : [])];
+  // The support team reaches the support pages from here rather than by typing the address.
+  if (me && isSupportAgent(me.user.email)) settings.push(["/support", "Support"]);
   const signOutForm = (
     <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
       <button className="whitespace-nowrap text-dim hover:text-ink">Sign out</button>

@@ -48,6 +48,12 @@ await pro.waitForURL("**/settings/reminders");
 // 1. Settings, with a live preview of the email
 await pro.waitForFunction((tz) => document.querySelector('select[aria-label="Time zone"]')?.value === tz, TZ, { timeout: 5000 }).catch(() => {});
 ok("time zone picked up from the browser", (await pro.inputValue('select[aria-label="Time zone"]')) === TZ);
+// The list can be searched, one match is picked, and one button goes back to the device's zone.
+await pro.fill("[data-testid=tz-search]", "Reykjavik");
+ok("searching a city picks its time zone", (await pro.inputValue('select[aria-label="Time zone"]')) === "Atlantic/Reykjavik" && /GMT/.test(await pro.textContent('select[aria-label="Time zone"] option:checked')));
+await pro.click("[data-testid=tz-device]");
+ok("Use my device's time zone goes back to it", (await pro.inputValue('select[aria-label="Time zone"]')) === TZ && (await pro.locator("[data-testid=tz-is-device]").count()) === 1);
+await pro.fill("[data-testid=tz-search]", "");
 // The business name lives in Settings > Branding (any plan); Reminders shows it and links there.
 ok("Reminders links to Branding for the business name", (await pro.getAttribute("[data-testid=reminders-business] a", "href")) === "/settings/branding");
 await pro.goto(BASE + "/settings/branding");

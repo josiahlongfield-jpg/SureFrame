@@ -477,6 +477,7 @@ ok("close: the workspace page shows closed, held, the deletion date and the bloc
 await cPage.goto(BASE + "/settings/account");
 await cPage.fill('input[name="confirm"]', cEmail);
 await cPage.click("text=Delete my account");
+await cPage.click("[data-testid=delete-account-yes]");
 await cPage.waitForURL((u) => u.pathname === "/login", { timeout: 60000 });
 ok("C closed their own account", !!(await prisma.user.findUnique({ where: { id: cUser.id } })).deleteAt);
 await open(`/support/users/${cUser.id}`);

@@ -11,7 +11,7 @@ import { NotifyPrefs } from "@/components/TeamOverview";
 import { permsOf } from "@/lib/permissions";
 import Link from "next/link";
 import { signOut } from "@/auth";
-import { deletionDate, requestAccountDeletion } from "@/lib/accountDeletion";
+import { DELETION_GRACE_DAYS, deletionDate, requestAccountDeletion } from "@/lib/accountDeletion";
 import { zoned } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { LEGAL } from "@/lib/legal";
@@ -88,7 +88,7 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
             Clients see it on the videos you send, as &ldquo;{user.name || "Your name"} from {workspace.name}&rdquo;. Your team sees it too.
           </p>
           <form action={rename} className="mt-4 flex flex-wrap gap-2">
-            <input name="name" defaultValue={user.name ?? ""} required maxLength={80} autoComplete="name" aria-label="Your name" placeholder="e.g. Sam Lee"
+            <input name="name" defaultValue={user.name ?? ""} required maxLength={80} autoComplete="name" aria-label="Your name" placeholder="e.g. Sam"
               className="min-w-0 flex-1 rounded-xl border border-line-strong px-3 py-2 text-sm" />
             <button className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">Save name</button>
           </form>
@@ -96,6 +96,12 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
           {error === "name" && <p className="mt-2 text-sm text-danger-fg">Enter your name.</p>}
         </section>}
 
+        {!onTeam && !limited && role === "OWNER" && (
+          <section id="emails" className="mt-6 rounded-2xl border border-line bg-surface p-6">
+            <h2 className="font-semibold text-ink">Emails to you</h2>
+            <MyEmailPrefs initial={{ replyEmails: membership.replyNotify !== "OFF" }} owner />
+          </section>
+        )}
         {onTeam && !limited && (role === "MEMBER" ? (
           <section id="emails" className="mt-6 rounded-2xl border border-line bg-surface p-6">
             <h2 className="font-semibold text-ink">Emails to you</h2>
@@ -132,8 +138,9 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
         <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
           <h2 className="font-semibold text-ink">Download your data</h2>
           <p className="mt-1 text-sm text-muted">
-            A file with your account, clients, videos list, to-dos, notes and replies. To-dos, notes and replies are end-to-end encrypted, so the readable copy opens
-            them here in your browser with your team&apos;s key before saving; nothing readable is sent to us. Download videos themselves from each video&apos;s page.
+            Your account, clients, videos list, to-dos, notes and replies. The readable copy is a web page that opens in any browser and prints: to-dos, notes and
+            replies are end-to-end encrypted, so it&apos;s made here in your browser with your team&apos;s key, and nothing readable is sent to us. The JSON
+            versions are for moving your data to another app. Download videos themselves from each video&apos;s page.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <ReadableExport />
@@ -146,7 +153,8 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
         <section className="mt-6 rounded-2xl border border-danger-line bg-surface p-6">
           <h2 className="font-semibold text-danger-fg">Delete account</h2>
           <p className="mt-1 text-sm text-muted" data-testid="delete-explainer">
-            Your account is closed straight away and permanently deleted on {deletesOn}. Until then, sign in to keep it with everything as it was.
+            Nothing is scheduled yet. If you delete your account, it&apos;s closed straight away and permanently deleted {DELETION_GRACE_DAYS} days later (on{" "}
+            {deletesOn} if you delete it today). Until then, you can sign in to keep it with everything as it was.
             {ownsAlone && (
               <> Your workspace goes with it: its recordings, clients, to-dos and notes. Your clients&apos; links stop working now{ownWorkspace.stripeSubscriptionId ? <>, your plan won&apos;t renew</> : null}, recordings without cloud backup still expire on their usual dates, and removed clients are still deleted on their dates.</>
             )}
@@ -156,14 +164,10 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
             {" "}Want it deleted sooner? Email <a href={`mailto:${LEGAL.email}`} className="font-medium text-accent hover:underline">{LEGAL.email}</a>.
           </p>
           <form action={remove} className="mt-4 space-y-3">
-            <label className="block text-sm text-muted">
-              Type <span className="font-semibold">{user.email}</span> to confirm
-              <input name="confirm" type="email" autoComplete="off" required className="mt-1 block w-full rounded-xl border border-line-strong px-3 py-2 text-sm" />
-            </label>
             {error === "confirm" && <p role="alert" className="text-sm text-danger-fg">That doesn&apos;t match your email.</p>}
             {error === "failed" && <p role="alert" className="text-sm text-danger-fg">Your account couldn&apos;t be closed just now (we must stop any subscription first). Please try again in a few minutes, or ask in Help.</p>}
             {error === "team" && <p role="alert" className="text-sm text-danger-fg">You own a team with other staff. Remove them on the Team page first.</p>}
-            <DeleteAccountButton />
+            <DeleteAccountButton email={user.email} />
           </form>
         </section>
       </main>
