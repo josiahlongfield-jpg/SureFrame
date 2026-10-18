@@ -66,7 +66,7 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
             <SettingsMenu links={settings} />
           </nav>
         </div>
-        <div className="flex items-center gap-2 text-sm min-[24rem]:gap-3">
+        <div className="flex items-center gap-2 text-sm min-[30rem]:gap-3">
           {/* Shown on phones too (from 384px wide), so the plan is one glance away. */}
           <Link
             href={planHref}

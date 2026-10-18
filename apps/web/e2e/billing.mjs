@@ -181,8 +181,16 @@ ok("yearly Studio still shows as Studio", /Studio plan/.test(await planText()));
 ok("billing says it's billed yearly", (await page.textContent("[data-testid=billing-interval]"))?.includes("yearly"));
 await page.goto(BASE + "/clients");
 ok("yearly plans see yearly prices for extra clients", !!(await page.waitForSelector("button:has-text('Add for US$75/year')", { timeout: 15000 }).catch(() => null)));
+// Buying staff logins only comes up once every login is in use: invites waiting to join hold them.
+const owned = await prisma.user.findUnique({ where: { email } });
+const holders = await Promise.all(
+  Array.from({ length: 10 }, (_, i) =>
+    prisma.invite.create({ data: { tokenHash: `billing-hold-${Date.now()}-${i}`, teamKeyWrap: "x", expiresAt: new Date(Date.now() + 86400000), workspaceId, invitedById: owned.id } }),
+  ),
+);
 await page.goto(BASE + "/settings/team");
 ok("and for extra staff", !!(await page.waitForSelector("button:has-text('/year')", { timeout: 15000 }).catch(() => null)));
+await prisma.invite.deleteMany({ where: { id: { in: holders.map((h) => h.id) } } });
 
 // 4c) A switch that also drops something (extra staff, leaving Studio) still only happens once paid.
 res = await api("/api/billing/staff", { extraStaff: 1 });

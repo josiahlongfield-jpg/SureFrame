@@ -4,6 +4,8 @@ import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import { PLANS } from "@/lib/plans";
+import { auth } from "@/auth";
+import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Page not found" };
@@ -14,7 +16,10 @@ export const metadata: Metadata = { title: "Page not found" };
  * (app/v/[id]/not-found.tsx). Someone signed in keeps the app's own menu.
  */
 export default async function NotFound() {
-  const me = await currentUser();
+  // currentUser() makes a personal workspace for someone with none, so it's only asked once they have one:
+  // someone invited to a team who hits a missing page before joining mustn't end up owning a workspace.
+  const userId = (await auth())?.user?.id;
+  const me = userId && (await db.membership.count({ where: { userId } })) > 0 ? await currentUser() : null;
   const inApp = !!me && me.agreed && !me.suspended && !me.paused;
   return (
     <div data-theme="fresh" className="flex min-h-screen flex-col bg-canvas text-ink">
