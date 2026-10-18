@@ -31,7 +31,8 @@ export async function setComplimentary(_prev: CompResult, form: FormData): Promi
   if (!(await activeSupportAgent())) redirect("/library");
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const choice = String(form.get("plan") ?? "");
-  if (!email.includes("@") || !(choice in PLANS)) return { ok: false, message: "Enter an email address and pick a plan." };
+  if (!email.includes("@")) return { ok: false, message: "Enter their sign-in email address." };
+  if (!(choice in PLANS)) return { ok: false, message: "Choose a plan, or Back to Free to end one." };
   const plan = choice as Plan;
   const reason = reasonIn(form);
   if (!reason || reason.length > 500) return { ok: false, message: REASON_NEEDED };
@@ -98,7 +99,7 @@ export async function setComplimentaryAi(_prev: CompResult, form: FormData): Pro
   if (!(await activeSupportAgent())) redirect("/library");
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const on = form.get("ai") === "on";
-  if (!email.includes("@")) return { ok: false, message: "Enter an email address." };
+  if (!email.includes("@")) return { ok: false, message: "Enter their sign-in email address." };
   const reason = reasonIn(form);
   if (!reason || reason.length > 500) return { ok: false, message: REASON_NEEDED };
 
@@ -127,7 +128,7 @@ export async function setComplimentaryAi(_prev: CompResult, form: FormData): Pro
         subject: on ? `AI summaries are on for ${ws.name}, free of charge` : `Your free AI summaries have ended`,
         lead: on
           ? `${BRAND.name} has switched on AI transcripts and summaries for ${ws.name}, free of charge. Your clients see a note that you use AI summaries.`
-          : `The AI transcripts and summaries ${BRAND.name} gave ${ws.name} free of charge have ended, so they're switched off.`,
+          : `${BRAND.name} has switched off the AI transcripts and summaries it gave ${ws.name} free of charge.`,
         lines: [{ text: on ? "You can switch them off in Settings > Billing." : "You can add them to a paid plan in Settings > Billing." }],
         button: { label: "Open Billing", link: appUrl(teamPath("/settings/billing", ws.id)) },
         footer: QUESTIONS,

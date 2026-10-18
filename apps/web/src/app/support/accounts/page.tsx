@@ -13,10 +13,12 @@ import SpeechModelPanel, { type ModelStatus } from "./SpeechModelPanel";
 export const metadata: Metadata = { title: "Free plans" };
 
 /** Founder-only: give a paid plan free of charge, for trials and partners. */
-export default async function Accounts() {
+export default async function Accounts({ searchParams }: { searchParams: Promise<{ email?: string; plan?: string }> }) {
   const { user } = await requirePageUser("/support/accounts", { allowPaused: true, allowSuspended: true, allowTermsPending: true });
   if (!isSupportAgent(user.email)) notFound();
   if (user.suspendedAt && !isSupportAdmin(user.email)) redirect("/suspended");
+  const admin = isSupportAdmin(user.email);
+  const prefill = await searchParams;
   const comped = await db.workspace.findMany({
     where: { complimentaryPlan: { not: null } },
     orderBy: { createdAt: "desc" },
@@ -30,14 +32,17 @@ export default async function Accounts() {
     installedAt: manifest.installedAt,
   };
   return (
-    <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <Link href="/support" className="text-sm text-accent hover:underline">← Support inbox</Link>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Free plans</h1>
+    <div>
+      <h1 className="text-2xl font-semibold tracking-tight text-ink">Free plans</h1>
       <p className="mt-2 text-sm text-muted">
         Give someone a paid plan without a card. They keep everything if they later pay, and nothing changes for them in the meantime. Ask them to sign in once
         first so their workspace exists.
       </p>
-      <CompForm plans={Object.entries(PLANS).map(([id, p]) => ({ id, name: p.name }))} />
+      <p className="mt-2 text-sm text-muted" data-testid="comp-includes">
+        A free plan gives the plan&rsquo;s clients, staff logins, video length and branding. It doesn&rsquo;t include cloud backup (that needs a paid
+        subscription) or AI transcripts and summaries unless you switch those on below; their Billing page says so too.
+      </p>
+      <CompForm key={`${prefill.email ?? ""}|${prefill.plan ?? ""}`} plans={Object.entries(PLANS).map(([id, p]) => ({ id, name: p.name }))} email={prefill.email?.slice(0, 320)} plan={prefill.plan && prefill.plan in PLANS ? prefill.plan : ""} />
       <CompAiForm />
       <h2 className="mt-8 text-lg font-semibold text-ink">Currently free</h2>
       {comped.length === 0 ? (
@@ -45,19 +50,34 @@ export default async function Accounts() {
       ) : (
         <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface">
           {comped.map((w) => (
-            <li key={w.id} className="flex flex-col gap-1 p-4 text-sm sm:flex-row sm:justify-between sm:gap-3">
+            <li key={w.id} className="flex flex-col gap-1 p-4 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               <span className="min-w-0 text-ink">
-                {w.name} <span className="break-all text-dim">({w.members[0]?.user.email})</span>
+                {admin ? (
+                  <Link href={`/support/workspaces/${w.id}`} className="font-medium text-accent hover:underline">
+                    {w.name}
+                  </Link>
+                ) : (
+                  w.name
+                )}{" "}
+                <span className="break-all text-dim">({w.members[0]?.user.email})</span>
               </span>
-              <span className="text-muted sm:shrink-0">
-                {w.stripeSubscriptionId ? `Paying, ${PLANS[w.plan].name}` : PLANS[w.complimentaryPlan!].name}
-                {w.aiAssistComplimentary && (w.aiAssist ? " + AI summaries" : " + AI summaries (switched off)")}
+              <span className="flex flex-wrap items-center gap-x-3 text-muted sm:shrink-0">
+                <span>
+                  {w.stripeSubscriptionId ? `Paying, ${PLANS[w.plan].name}` : PLANS[w.complimentaryPlan!].name}
+                  {w.aiAssistComplimentary && (w.aiAssist ? " + AI summaries" : " + AI summaries (switched off)")}
+                </span>
+                {!w.stripeSubscriptionId && w.members[0] && (
+                  // Fills in the form above; the reason is still needed.
+                  <Link href={`/support/accounts?email=${encodeURIComponent(w.members[0].user.email)}&plan=FREE#comp`} className="text-accent hover:underline" data-testid="end-comp">
+                    End
+                  </Link>
+                )}
               </span>
             </li>
           ))}
         </ul>
       )}
       <SpeechModelPanel status={model} canInstall={canInstall()} />
-    </main>
+    </div>
   );
 }

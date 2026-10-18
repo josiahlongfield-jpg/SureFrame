@@ -35,6 +35,11 @@ const owner = await signIn("owner@test.dev", "/support/accounts");
 await owner.fill('input[name="email"]', "nobody@example.com");
 await owner.fill('textarea[name="reason"]', "Trial for a partner");
 await owner.click("text=Save");
+// The plan starts unchosen (it used to default to Studio), and a refusal keeps what was typed.
+await owner.waitForSelector("text=Choose a plan, or Back to Free");
+ok("asks for a plan in the page", (await owner.inputValue('input[name="email"]')) === "nobody@example.com");
+await owner.selectOption("select", "STUDIO");
+await owner.click("text=Save");
 await owner.waitForSelector("text=hasn't signed up yet");
 ok("unknown email is refused", true);
 await owner.fill('input[name="email"]', tester.toUpperCase());
