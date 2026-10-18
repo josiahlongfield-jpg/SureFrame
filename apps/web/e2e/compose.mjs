@@ -84,8 +84,12 @@ const hidden = await page.evaluate(() => window.__frames);
 await page.bringToFront();
 ok("and keep coming with another tab in front", hidden >= 6 * 20, String(hidden));
 
+// Moved while recording: the circle goes to the top right from the next frame (Josiah, 18 October 2026).
+await page.click("[data-testid=corner-top-right]");
+ok("moved: the preview circle follows", (await page.getAttribute("[data-testid=camera-circle]", "data-corner")) === "top-right");
+await page.waitForTimeout(3000);
+
 // The camera stops (unplugged): the recording carries on with the screen only, and says so.
-await page.waitForTimeout(1500);
 await page.evaluate(() => {
   window.__unplugged = performance.now();
   for (const v of document.querySelectorAll("video")) v.srcObject?.getVideoTracks?.().forEach((t) => t.label && !t.label.includes("screen") && t.stop());
@@ -96,37 +100,44 @@ await page.waitForTimeout(2000);
 await page.click("button:has-text('Stop')");
 await page.waitForURL("**/v/**", { timeout: 30000 });
 await page.waitForSelector("main video", { timeout: 20000 });
-// A frame from the saved video: the camera circle sits in the bottom-left corner.
+// Frames from the saved video: the camera circle tucked into the bottom-left corner, then the top right once moved.
 const grab = (at) => page.evaluate(({ at }) => { window.__at = at; return (new Promise((done) => {
   const v = document.querySelector("main video");
   const go = () => {
-    v.currentTime = window.__at === "end" ? Math.max(0, (Number.isFinite(v.duration) ? v.duration : 8) - 0.5) : 2;
+    const len = Number.isFinite(v.duration) ? v.duration : 12;
+    v.currentTime = window.__at === "end" ? Math.max(0, len - 0.5) : window.__at === "moved" ? Math.max(0, len - 3.5) : 2;
     v.addEventListener("seeked", () => {
       const c = document.createElement("canvas");
       c.width = v.videoWidth;
       c.height = v.videoHeight;
       const g = c.getContext("2d");
       g.drawImage(v, 0, 0);
-      // The circle sits 18% of the height up from the bottom, clear of the player's controls (lib/recorder/compose.ts).
-      // The ring is sampled on its centre line, where the video codec keeps it white.
-      const W = c.width, H = c.height, d = Math.round(Math.min(W, H) * 0.24), m = Math.round(Math.min(W, H) * 0.035), b = Math.round(H * 0.18);
+      // The circle is 24% of the height across, 3% in from both edges (lib/recorder/compose.ts, CIRCLE).
+      // The ring is sampled on its centre line (its top for a bottom corner, its bottom for a top one), where the codec keeps it white.
+      const W = c.width, H = c.height, d = Math.round(Math.min(W, H) * 0.24), m = Math.round(Math.min(W, H) * 0.03);
       const at = (x, y) => Array.from(g.getImageData(Math.round(x), Math.round(y), 1, 1).data.slice(0, 3));
-      done({ W, H, ring: at(m + d / 2, H - b - d), centre: at(m + d / 2, H - b - d / 2), below: at(m + d / 2, H - b / 2), url: c.toDataURL("image/png") });
+      done({
+        W, H,
+        ring: at(m + d / 2, H - m - d), centre: at(m + d / 2, H - m - d / 2),
+        topRight: at(W - m - d / 2, m + d - 1), url: c.toDataURL("image/png"),
+      });
     }, { once: true });
   };
   if (v.readyState >= 1) go(); else v.addEventListener("loadedmetadata", go, { once: true });
   setTimeout(() => done(null), 15000);
 })); }, { at });
 const early = await grab("early");
+const moved = await grab("moved");
 const late = await grab("end");
-ok("the saved video has frames to check", !!early && !!late, "no frame");
-if (early && late) {
-  console.log("early ring", early.ring, "centre", early.centre, "| end ring", late.ring);
+ok("the saved video has frames to check", !!early && !!moved && !!late, "no frame");
+if (early && moved && late) {
+  console.log("early ring", early.ring, "centre", early.centre, "| moved", moved.topRight, "| end ring", late.ring);
   const fs = await import("node:fs");
   fs.writeFileSync(`${shots}/compose-frame.png`, Buffer.from(early.url.split(",")[1], "base64"));
   fs.writeFileSync(`${shots}/compose-frame-end.png`, Buffer.from(late.url.split(",")[1], "base64"));
-  ok("with the white ring of the camera circle in the bottom-left corner", early.ring.every((c) => c > 200), JSON.stringify(early.ring));
-  ok("raised clear of the player's controls (no circle in the bottom strip)", !early.below.every((c) => c > 200), JSON.stringify(early.below));
+  fs.writeFileSync(`${shots}/compose-frame-moved.png`, Buffer.from(moved.url.split(",")[1], "base64"));
+  ok("with the white ring of the camera circle tucked into the bottom-left corner", early.ring.every((c) => c > 200) && !early.topRight.every((c) => c > 200), JSON.stringify(early));
+  ok("moved while recording: the circle is in the top right, not the bottom left", moved.topRight.every((c) => c > 200) && !moved.ring.every((c) => c > 200), JSON.stringify({ topRight: moved.topRight, ring: moved.ring }));
   ok("and no circle once the camera was unplugged", !late.ring.every((c) => c > 200), JSON.stringify(late.ring));
 }
 

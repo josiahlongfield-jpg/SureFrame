@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useVideoFrame } from "@/lib/videoFrame";
 import { useRouter } from "next/navigation";
 import MicLevel from "./MicLevel";
@@ -23,7 +23,7 @@ import {
   type Mode,
   type Quality,
 } from "@/lib/recorder/media";
-import { canComposeCamera, composeCamera } from "@/lib/recorder/compose";
+import { CAMERA_CORNERS, CIRCLE, canComposeCamera, composeCamera, type CameraCorner } from "@/lib/recorder/compose";
 
 type Phase = "setup" | "countdown" | "recording" | "paused" | "finishing";
 
@@ -90,6 +90,24 @@ export default function Recorder({
   const [phone, setPhone] = useState(false);
   // Firefox can neither draw the camera into the video nor float it over other windows.
   const [cameraWithScreen, setCameraWithScreen] = useState(true);
+  // Where the camera circle sits in a Screen + camera recording (Josiah, 18 October 2026): bottom left unless the
+  // person drags it or picks another corner, before or while recording. Remembered in this browser.
+  const [corner, setCorner] = useState<CameraCorner>("bottom-left");
+  const cornerNow = useRef(corner);
+  const composer = useRef<{ move: (c: CameraCorner) => void } | null>(null);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CORNER_KEY) as CameraCorner | null;
+      if (saved && CAMERA_CORNERS.includes(saved)) setCorner(saved);
+    } catch {}
+  }, []);
+  useEffect(() => {
+    cornerNow.current = corner;
+    composer.current?.move(corner);
+    try {
+      localStorage.setItem(CORNER_KEY, corner);
+    } catch {}
+  }, [corner]);
   useEffect(() => {
     setCameraWithScreen(canComposeCamera() || "documentPictureInPicture" in window || document.pictureInPictureEnabled === true);
   }, []);
@@ -306,13 +324,14 @@ export default function Recorder({
         shared = video;
         // The browser's own "Stop sharing" button ends the recording cleanly.
         video.addEventListener("ended", () => void stop());
-        // The camera goes into the video as a circle, bottom left, whatever was shared.
+        // The camera goes into the video as a circle in the chosen corner, whatever was shared.
         const camTrack = camStream.current?.getVideoTracks()[0];
         if (mode === "screen+camera" && camTrack && canComposeCamera()) {
-          const c = composeCamera(video, camTrack, () =>
+          const c = composeCamera(video, camTrack, cornerNow.current, () =>
             setNotice("Your camera stopped, so the recording carries on with your screen only."),
           );
           composed = c;
+          composer.current = c;
           video = c.track;
           // A whole-screen share would also record the floating window, title bar and all, so the camera
           // showed twice. The circle drawn into the video is the camera then, and you see yourself on this tab.
@@ -390,6 +409,7 @@ export default function Recorder({
       live.current = { recorder, uploader, streams, closeAudio: () => {
         audio.close();
         composed?.close();
+        composer.current = null;
       }, closeBubble, releaseLock, videoId, startedAt: 0, accumulated: 0, sealing: Promise.resolve() };
 
       setPhase("countdown");
@@ -410,6 +430,7 @@ export default function Recorder({
     } catch (err) {
       stopAll(...streams);
       composed?.close();
+      composer.current = null;
       bubble?.();
       setBubbleOpen(false);
       cleanup();
@@ -528,7 +549,7 @@ export default function Recorder({
   }
 
   const recordingish = phase === "recording" || phase === "paused";
-  // Only Camera only shows the camera full size. Screen + camera shows it where the video will: a circle, bottom left.
+  // Only Camera only shows the camera full size. Screen + camera shows it where the video will: a circle in its corner.
   const bigCamera = mode === "camera";
   const allowedQualities = ([720, 1080, 2160] as Quality[]).filter((q) => q <= maxResolution);
 
@@ -546,12 +567,12 @@ export default function Recorder({
             <p className="text-sm">
               {phase === "setup"
                 ? mode === "screen+camera"
-                  ? "You\u2019ll pick a screen, window or tab when you start. Your camera goes in the circle at the bottom left."
+                  ? "You\u2019ll pick a screen, window or tab when you start. Your camera goes in the circle: drag it to any corner."
                   : "You\u2019ll pick a screen, window or tab when you start."
                 : mode === "screen"
                   ? "Recording your screen."
                   : wholeScreen
-                    ? "Recording your whole screen. Your camera is in the circle at the bottom left of the video."
+                    ? "Recording your whole screen. Your camera is in the circle in the corner of the video. Drag it to move it."
                     : bubbleOpen
                       ? "Recording your screen. Your camera is in the floating bubble."
                       : "Recording your screen. Pop out the camera bubble to show your camera over your other windows."}
@@ -559,16 +580,9 @@ export default function Recorder({
           </div>
         )}
         {mode === "screen+camera" && (
-          // Same place and size as the circle drawn into the video (lib/recorder/compose.ts): 24% of the height, 18% up, inset 3.5%.
-          <video
-            ref={previewRef}
-            autoPlay
-            muted
-            playsInline
-            style={{ height: "24%", bottom: "18%", left: "1.97%" }}
-            className="absolute aspect-square -scale-x-100 rounded-full object-cover ring-2 ring-white/90"
-            data-testid="camera-circle"
-          />
+          <CameraCircle corner={corner} onCorner={setCorner}>
+            <video ref={previewRef} autoPlay muted playsInline className="h-full w-full -scale-x-100 rounded-full object-cover" />
+          </CameraCircle>
         )}
         {phase === "countdown" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-black/60 text-white">
@@ -577,7 +591,8 @@ export default function Recorder({
           </div>
         )}
         {recordingish && (
-          <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-sm font-medium text-white">
+          // Out of the camera's way when it sits top left.
+          <div className={`absolute top-4 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-sm font-medium text-white ${mode === "screen+camera" && corner === "top-left" ? "right-4" : "left-4"}`}>
             <span className={`h-2.5 w-2.5 rounded-full ${phase === "recording" ? "animate-pulse bg-red-500" : "bg-amber-400"}`} />
             {phase === "paused" ? "Paused" : "Recording"} · {fmt(elapsed)}
           </div>
@@ -636,6 +651,7 @@ export default function Recorder({
                 <p className="text-xs text-warn-fg">This browser can&rsquo;t put your camera in a screen recording. Use Chrome, Edge or Brave, or choose Camera only.</p>
               )}
             </fieldset>
+            {mode === "screen+camera" && <CornerPicker corner={corner} onCorner={setCorner} />}
 
             <div className="grid gap-3 text-sm">
               {mode !== "screen" && (
@@ -699,6 +715,7 @@ export default function Recorder({
               )}
               <button onClick={stop} className="flex-1 rounded-xl bg-red-600 px-4 py-3 font-semibold text-white hover:bg-red-700">Stop</button>
             </div>
+            {mode === "screen+camera" && <CornerPicker corner={corner} onCorner={setCorner} />}
             {mode === "screen+camera" && !bubbleOpen && !wholeScreen && (
               <button onClick={popOutBubble} className="rounded-xl border border-line-strong px-4 py-2 text-sm hover:bg-hover">Pop out camera bubble</button>
             )}
@@ -734,6 +751,74 @@ export default function Recorder({
           </div>
         )}
       </aside>
+    </div>
+  );
+}
+
+const CORNER_KEY = "sureframe.cameraCorner";
+const CORNER_LABEL: Record<CameraCorner, string> = { "top-left": "Top left", "top-right": "Top right", "bottom-left": "Bottom left", "bottom-right": "Bottom right" };
+
+/**
+ * The camera preview in Screen + camera: the same size and corner as the circle drawn into the video
+ * (lib/recorder/compose.ts), on a 16:9 panel, so the inset across is the inset down times 9/16. Drag it and it
+ * snaps to the nearest corner when let go; the recording follows from the next frame.
+ */
+function CameraCircle({ corner, onCorner, children }: { corner: CameraCorner; onCorner: (c: CameraCorner) => void; children: ReactNode }) {
+  const [drag, setDrag] = useState<{ x0: number; y0: number; dx: number; dy: number } | null>(null);
+  const inset = CIRCLE.inset * 100;
+  const place = {
+    [corner.startsWith("top") ? "top" : "bottom"]: `${inset}%`,
+    [corner.endsWith("left") ? "left" : "right"]: `${(inset * 9) / 16}%`,
+  };
+  return (
+    <div
+      role="img"
+      aria-label={`Your camera, ${CORNER_LABEL[corner].toLowerCase()}. Drag to move it.`}
+      title="Drag to move your camera"
+      data-testid="camera-circle"
+      data-corner={corner}
+      style={{ height: `${CIRCLE.size * 100}%`, ...place, transform: drag ? `translate(${drag.dx}px, ${drag.dy}px)` : undefined }}
+      className={`absolute z-10 aspect-square touch-none select-none rounded-full ring-2 ring-white/90 ${drag ? "cursor-grabbing" : "cursor-grab transition-[top,bottom,left,right] duration-200"}`}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setDrag({ x0: e.clientX, y0: e.clientY, dx: 0, dy: 0 });
+      }}
+      onPointerMove={(e) => drag && setDrag({ ...drag, dx: e.clientX - drag.x0, dy: e.clientY - drag.y0 })}
+      onPointerUp={(e) => {
+        if (!drag) return;
+        // The corner nearest where the middle of the circle was let go.
+        const panel = e.currentTarget.parentElement!.getBoundingClientRect();
+        const me = e.currentTarget.getBoundingClientRect();
+        const cx = me.left + me.width / 2 - panel.left, cy = me.top + me.height / 2 - panel.top;
+        onCorner(`${cy < panel.height / 2 ? "top" : "bottom"}-${cx < panel.width / 2 ? "left" : "right"}`);
+        setDrag(null);
+      }}
+      onPointerCancel={() => setDrag(null)}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** The same choice without dragging: four corners, also while recording. */
+function CornerPicker({ corner, onCorner }: { corner: CameraCorner; onCorner: (c: CameraCorner) => void }) {
+  return (
+    <div className="grid gap-1 text-sm" role="group" aria-labelledby="corner-label" data-testid="corner-picker">
+      <span id="corner-label" className="font-medium text-muted">Camera position</span>
+      <div className="grid grid-cols-2 gap-1.5">
+        {(["top-left", "top-right", "bottom-left", "bottom-right"] as const).map((c) => (
+          <button
+            key={c}
+            type="button"
+            aria-pressed={corner === c}
+            onClick={() => onCorner(c)}
+            data-testid={`corner-${c}`}
+            className={`rounded-lg border px-2 py-1.5 text-xs ${corner === c ? "border-primary bg-primary-soft font-medium text-ink ring-1 ring-primary" : "border-line-strong text-muted hover:bg-hover"}`}
+          >
+            {CORNER_LABEL[c]}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

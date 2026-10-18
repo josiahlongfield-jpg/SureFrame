@@ -1,6 +1,7 @@
 /**
- * Screen + camera: draws the camera as a circle at the bottom left of
- * the screen recording, so it's in the video whatever is shared (a tab, a
+ * Screen + camera: draws the camera as a circle tucked into a corner of
+ * the screen recording (bottom left unless the person picks another, and they
+ * can move it while recording), so it's in the video whatever is shared (a tab, a
  * window or the whole screen). Runs in a worker, which keeps drawing while the
  * SureFrame tab is in the background.
  *
@@ -17,6 +18,16 @@ type Globals = {
   MediaStreamTrackGenerator?: new (o: { kind: "video" }) => Generator;
 };
 
+/** Where the camera circle sits in a Screen + camera recording. */
+export const CAMERA_CORNERS = ["bottom-left", "bottom-right", "top-left", "top-right"] as const;
+export type CameraCorner = (typeof CAMERA_CORNERS)[number];
+
+/**
+ * The circle's size and inset, as fractions of the frame's shorter side (its height, for a landscape screen):
+ * the recorder's preview uses the same numbers, so it shows exactly where the circle will be.
+ */
+export const CIRCLE = { size: 0.24, inset: 0.03 };
+
 export function canComposeCamera() {
   const g = globalThis as unknown as Globals;
   return !!g.MediaStreamTrackProcessor && !!g.MediaStreamTrackGenerator && typeof OffscreenCanvas !== "undefined" && typeof Worker !== "undefined";
@@ -26,7 +37,7 @@ export function canComposeCamera() {
 // combined frame 30 times a second, so the camera keeps moving on a still
 // screen and the screen keeps going if the camera drops out.
 const WORKER = `
-let screen = null, cam = null, canvas = null, ctx = null, writer = null, timer = null;
+let screen = null, cam = null, canvas = null, ctx = null, writer = null, timer = null, corner = "bottom-left";
 const keep = (frame, old) => { if (old) old.close(); return frame; };
 async function pump(readable, set) {
   const reader = readable.getReader();
@@ -46,9 +57,9 @@ function draw() {
   if (dw < W || dh < H) ctx.fillRect(0, 0, W, H);
   ctx.drawImage(screen, (W - dw) / 2, (H - dh) / 2, dw, dh);
   if (cam) {
-    // Raised off the bottom edge (18% of the height) so the player's controls, drawn over the bottom of the video, don't cover it.
-    const d = Math.round(Math.min(W, H) * 0.24), m = Math.round(Math.min(W, H) * 0.035), b = Math.round(H * 0.18);
-    const x = m, y = H - b - d, r = d / 2;
+    // Tucked into the chosen corner, the same small gap from both edges.
+    const d = Math.round(Math.min(W, H) * ${CIRCLE.size}), m = Math.round(Math.min(W, H) * ${CIRCLE.inset});
+    const x = corner.endsWith("left") ? m : W - m - d, y = corner.startsWith("top") ? m : H - m - d, r = d / 2;
     const cw = cam.displayWidth, ch = cam.displayHeight, side = Math.min(cw, ch);
     ctx.save();
     ctx.beginPath();
@@ -70,6 +81,8 @@ function draw() {
   writer.write(out).catch(() => {});
 }
 onmessage = (e) => {
+  if (e.data.corner) corner = e.data.corner;
+  if (e.data.move) return;
   if (e.data.stop) {
     clearInterval(timer);
     screen = keep(null, screen); cam = keep(null, cam);
@@ -89,14 +102,15 @@ onmessage = (e) => {
 `;
 
 /**
- * A video track of `screen` with `camera` in a circle at the bottom left,
- * clear of the player's controls. `close()` stops it; the screen and camera tracks are left running.
+ * A video track of `screen` with `camera` in a circle in `corner`. `move()` puts the circle in another corner
+ * from the next frame on; `close()` stops it; the screen and camera tracks are left running.
  */
 export function composeCamera(
   screen: MediaStreamTrack,
   camera: MediaStreamTrack,
+  corner: CameraCorner,
   onCameraEnded?: () => void,
-): { track: MediaStreamTrack; close: () => void } {
+): { track: MediaStreamTrack; move: (corner: CameraCorner) => void; close: () => void } {
   const g = globalThis as unknown as Required<Globals>;
   // A copy of the camera, so stopping this doesn't stop the preview or the bubble.
   const cam = camera.clone();
@@ -108,13 +122,14 @@ export function composeCamera(
   const worker = new Worker(url);
   URL.revokeObjectURL(url);
   worker.onmessage = (e) => e.data?.cameraEnded && !closed && onCameraEnded?.();
-  worker.postMessage({ screen: screenIn.readable, camera: camIn.readable, out: out.writable }, [
+  worker.postMessage({ screen: screenIn.readable, camera: camIn.readable, out: out.writable, corner }, [
     screenIn.readable as unknown as Transferable,
     camIn.readable as unknown as Transferable,
     out.writable as unknown as Transferable,
   ]);
   return {
     track: out,
+    move: (to) => !closed && worker.postMessage({ move: true, corner: to }),
     close: () => {
       if (closed) return;
       closed = true;
