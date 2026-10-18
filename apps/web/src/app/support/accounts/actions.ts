@@ -79,7 +79,10 @@ export async function setComplimentary(_prev: CompResult, form: FormData): Promi
                 { text: `The Free plan includes ${limit} videos in total. You've used ${Math.min(used, limit)}, so you have ${Math.max(0, limit - used)} left.` },
                 { text: "To record more, or to get your paid features back, choose a plan in Settings > Billing." },
               ]
-            : [{ text: "It stays until we end it or you start paying for a plan." }],
+            : [
+                { text: "It stays until we end it or you start paying for a plan." },
+                { text: "Cloud backup, extra client seats and extra staff logins need a paid subscription, so they can't be added to it." },
+              ],
         button: { label: "Open Billing", link: appUrl(teamPath("/settings/billing", ws.id)) },
         footer: QUESTIONS,
       }),
@@ -124,10 +127,10 @@ export async function setComplimentaryAi(_prev: CompResult, form: FormData): Pro
       row.id,
       email,
       notice({
-        subject: on ? `AI summaries are on for ${ws.name}, free of charge` : `Your free AI summaries have ended`,
+        subject: on ? `AI summaries are on for ${ws.name}, free of charge` : `We've switched off your free AI summaries`,
         lead: on
           ? `${BRAND.name} has switched on AI transcripts and summaries for ${ws.name}, free of charge. Your clients see a note that you use AI summaries.`
-          : `The AI transcripts and summaries ${BRAND.name} gave ${ws.name} free of charge have ended, so they're switched off.`,
+          : `${BRAND.name} has switched off the AI transcripts and summaries it gave ${ws.name} free of charge.`,
         lines: [{ text: on ? "You can switch them off in Settings > Billing." : "You can add them to a paid plan in Settings > Billing." }],
         button: { label: "Open Billing", link: appUrl(teamPath("/settings/billing", ws.id)) },
         footer: QUESTIONS,

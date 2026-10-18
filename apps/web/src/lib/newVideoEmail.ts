@@ -2,7 +2,8 @@ import { EMAIL, emailButton, emailColors, emailLogo, emailShell, esc } from "@/l
 import { isDefaultTitle } from "@/lib/videoTitle";
 
 /**
- * Tells a client a video is waiting, under the business's logo and name. The
+ * Tells a client a video is waiting, under the business's logo (or, without
+ * one, the SureFrame mark) and name. The
  * title is included once the business has given it one (the date-made default
  * says nothing). The link carries no key: the client's device already holds
  * it from their personal link, which is why only clients who have opened it
@@ -20,9 +21,11 @@ export function newVideoEmail(o: {
   unsubscribe?: string;
   noReply?: boolean;
 }) {
-  const from = o.sender?.trim() ? `${o.sender.trim()} from ${o.business}` : o.business;
+  const sender = o.sender?.trim() || null;
+  const from = sender ? `${sender} from ${o.business}` : o.business;
   const title = o.title?.trim() && !isDefaultTitle(o.title) ? o.title.trim() : null;
-  const subject = title ? `${from} sent you a video: ${title}` : `${from} sent you a video`;
+  // The email already comes from "Business A via SureFrame", so the subject names just the person (or the business without one).
+  const subject = `${sender ?? o.business} sent you a video${title ? `: ${title}` : ""}`;
   const lead = `Hi ${o.clientName}, ${from} sent you a new video on SureFrame.`;
   const device =
     `It's private to you. The button opens it on any phone or computer where you've opened your personal link from ${o.business} before. ` +
@@ -30,11 +33,11 @@ export function newVideoEmail(o: {
     `Can't find it? Ask ${o.business} to send it again.`;
   const after = device + (o.noReply ? ` Please don't reply to this email; contact ${o.business} directly.` : "");
   const stop = o.unsubscribe ? `Don't want emails from ${o.business}? Turn them off: ${o.unsubscribe}` : "";
-  const text = [o.business, "", lead, ...(title ? ["", title] : []), "", `Watch it: ${o.link}`, "", after, ...(stop ? ["", stop] : [])].join("\n");
+  const text = [o.business, "", lead, ...(title ? ["", title] : []), "", `Watch it: ${o.link}`, "", after, ...(stop ? ["", stop] : []), "", "Sent with SureFrame"].join("\n");
   const colors = emailColors(o.color);
   const { link } = colors;
   const html = emailShell(`${emailLogo(o.logoUrl, o.business)}
-<p style="font-size:13px;font-weight:600;color:${EMAIL.muted};margin:0 0 12px">${esc(o.business)}</p>
+<p style="font-size:15px;font-weight:600;color:${EMAIL.ink};margin:0 0 12px">${esc(o.business)}</p>
 <p style="font-size:16px;line-height:1.5;margin:0 0 16px">${esc(lead)}</p>
 ${title ? `<p style="font-size:18px;line-height:1.4;font-weight:600;color:${EMAIL.ink};margin:0">${esc(title)}</p>` : ""}
 ${emailButton(o.link, "Watch the video", colors)}

@@ -640,7 +640,7 @@ export async function closeAccount(
           (selfDeleted ? ", the date set when you deleted your account" : "") +
           `, unless the law requires us to keep ${w ? "them" : "it"} longer.`,
       },
-      { text: `For a copy of your account data download before then, email ${LEGAL.email} within ${REVIEW_DAYS} days.` },
+      { text: `To get a copy of your account data, email ${LEGAL.email} within ${REVIEW_DAYS} days, by ${zoned(w?.timezone).longDay(new Date(Date.now() + REVIEW_DAYS * 86_400_000))}.` },
       ...(teamsLeft.length ? [{ text: `You're no longer on the team${teamsLeft.length === 1 ? "" : "s"} of ${teamsLeft.join(", ")}.` }] : []),
       ...(o.blockEmail ? [{ text: `This email address can't be used to sign up to ${BRAND.name} again.` }] : []),
       termsLine(),

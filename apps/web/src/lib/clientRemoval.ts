@@ -304,7 +304,7 @@ export async function datePendingRemovals(now = new Date()) {
         logoUrl: brand.logoUrl,
         color: brand.color,
       });
-      await sendMail({ to: owner.user.email, ...mail, fromName: ws.name });
+      await sendMail({ to: owner.user.email, ...mail });
       // Told: now they get the date the email gave. One restored meanwhile has lost the claim and stays restored.
       dated += (await db.client.updateMany({ where: { id: { in: ids }, ...pending, purgeWarnedAt: claim }, data: { purgeAt: stamp, purgeWarnedAt: null } })).count;
     } catch (err) {
@@ -391,7 +391,7 @@ export async function warnClientPurge(now = new Date()) {
         color: brand.color,
       });
       try {
-        await sendMail({ to: email, ...mail, fromName: ws.name });
+        await sendMail({ to: email, ...mail });
         delivered++;
       } catch (err) {
         console.error("client purge warning failed", err);

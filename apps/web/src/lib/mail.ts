@@ -1,7 +1,13 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { BRAND } from "@/lib/brand";
+import { emailDocument } from "@/lib/emailLook";
 
+/**
+ * fromName is for emails to a business's clients only ("Business A via
+ * SureFrame"). Emails to the business itself, its staff or anyone signing in
+ * come from plain "SureFrame": a business shouldn't get mail from its own name.
+ */
 export type Mail = { to: string; subject: string; text: string; html: string; fromName?: string; replyTo?: string | null };
 
 /** Sends an email through Resend when RESEND_API_KEY is set, or to the local outbox without it. */
@@ -40,7 +46,8 @@ const fromOf = (mail: Mail) => {
   const name = mail.fromName?.trim();
   return `${displayName(name && name !== BRAND.name ? `${name} via ${BRAND.name}` : BRAND.name)} <${process.env.MAIL_FROM ?? "reminders@example.com"}>`;
 };
-const resendBody = (mail: Mail) => ({ from: fromOf(mail), to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html, reply_to: mail.replyTo ?? undefined });
+// Every email goes out as a whole document with a viewport tag, so phones show it at their own width.
+const resendBody = (mail: Mail) => ({ from: fromOf(mail), to: [mail.to], subject: mail.subject, text: mail.text, html: emailDocument(mail.html, mail.subject), reply_to: mail.replyTo ?? undefined });
 
 async function resend(key: string, path: string, payload: unknown) {
   const body = JSON.stringify(payload);
@@ -70,7 +77,7 @@ async function toOutbox(mail: Mail) {
     await mkdir(dir, { recursive: true });
     await mkdir(tmp, { recursive: true });
     // Written aside, then moved in whole, so nothing reading the outbox sees half a file.
-    await writeFile(join(tmp, name), JSON.stringify({ from: fromOf(mail), ...mail }, null, 2));
+    await writeFile(join(tmp, name), JSON.stringify({ from: fromOf(mail), ...mail, html: emailDocument(mail.html, mail.subject) }, null, 2));
     await rename(join(tmp, name), join(dir, name));
   } catch {
     // No writable disk (e.g. a hosted preview): log instead.

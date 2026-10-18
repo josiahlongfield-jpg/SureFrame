@@ -46,6 +46,7 @@ export default async function BrandingPreview({ searchParams }: { searchParams: 
   const { user, workspace } = me;
   const { view } = await searchParams;
   const brand = brandOf({ ...workspace, plan: "SOLO" });
-  const sender = user.name?.trim().split(/\s+/)[0] || "Team member 1";
+  // As real emails and pages show it: their full name, or just the business when they haven't given one.
+  const sender = user.name?.trim() ?? "";
   return <BrandPreviewFrame initial={brand} sender={sender} view={view === "inbox" || view === "email" ? (view as PreviewView) : "video"} />;
 }

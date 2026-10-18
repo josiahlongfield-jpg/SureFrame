@@ -153,7 +153,7 @@ async function tellManagersAboutLeaver(w: Workspace, leaver: string, closedBySup
     logoUrl: brand.logoUrl,
     color: brand.color,
   });
-  for (const m of managers) await sendMail({ to: m.user.email, ...mail, fromName: w.name });
+  for (const m of managers) await sendMail({ to: m.user.email, ...mail });
 }
 
 /**

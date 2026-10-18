@@ -85,7 +85,7 @@ export default function BrandingForm(props: { workspaceId: string; name: string;
       <div className="grid gap-6 rounded-2xl border border-line bg-surface p-6 md:grid-cols-2 xl:order-2 xl:grid-cols-1">
         <label className="grid gap-1 md:col-span-2 xl:col-span-1">
           <span className="text-sm font-medium text-muted">Business name</span>
-          <span className="text-xs text-dim">Shown next to your logo on client pages, and as the sender of your emails.</span>
+          <span className="text-xs text-dim">Shown next to your logo on client pages, and in the sender of your clients&apos; emails (&ldquo;{name.trim() || "Your business"} via SureFrame&rdquo;).</span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -220,7 +220,7 @@ export function BusinessNameForm({ name: initial }: { name: string }) {
     <form onSubmit={save} className="mt-6 rounded-2xl border border-line bg-surface p-6" data-testid="business-name-form">
       <label className="grid gap-1">
         <span className="text-sm font-medium text-muted">Business name</span>
-        <span className="text-xs text-dim">Shown on client pages, and as the sender of your emails and reminders.</span>
+        <span className="text-xs text-dim">Shown on client pages, and in the sender of your clients&apos; emails and reminders (&ldquo;{name.trim() || "Your business"} via SureFrame&rdquo;).</span>
         <input
           value={name}
           onChange={(e) => { setName(e.target.value); setMsg(undefined); }}

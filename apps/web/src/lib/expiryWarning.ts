@@ -112,7 +112,7 @@ export async function warnExpiring(now = new Date()) {
       color: brand.color,
     });
     try {
-      await sendMail({ to, ...mail, fromName: ws.name });
+      await sendMail({ to, ...mail });
       sent++;
     } catch (err) {
       // Release them so the next run tries again.

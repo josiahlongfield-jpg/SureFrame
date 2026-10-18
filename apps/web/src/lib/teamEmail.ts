@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import { EMAIL, emailButton, emailColors, emailLogo, emailShell, esc } from "@/lib/emailLook";
 
 /**
@@ -29,7 +30,10 @@ export function teamEmail(o: {
   ].join("\n");
   const colors = emailColors(o.color);
   const { link } = colors;
+  // These come from SureFrame, so without a logo the business they're about is named under the mark.
+  const named = !o.logoUrl && o.business !== BRAND.name;
   const html = emailShell(`${emailLogo(o.logoUrl, o.business)}
+${named ? `<p style="font-size:13px;font-weight:600;color:${EMAIL.muted};margin:-8px 0 12px">${esc(o.business)}</p>` : ""}
 <p style="font-size:16px;line-height:1.5;margin:0 0 16px">${esc(o.lead)}</p>
 ${o.note ? `<p style="font-size:15px;line-height:1.5;white-space:pre-wrap;margin:0 0 16px;color:${EMAIL.body}">${esc(o.note)}</p>` : ""}
 ${lines.length ? `<ul style="font-size:14px;line-height:1.5;margin:0 0 16px;padding-left:20px;color:${EMAIL.body}">${lines.map((l) => `<li>${l.link ? `<a href="${esc(l.link)}" style="color:${link}">${esc(l.text)}</a>` : esc(l.text)}</li>`).join("")}</ul>` : ""}
