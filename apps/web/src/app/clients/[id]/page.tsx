@@ -14,6 +14,8 @@ import ClientName from "@/components/ClientName";
 import { accessOf, canSeeClient } from "@/lib/permissions";
 import { zoned } from "@/lib/dates";
 import { activeMember } from "@/lib/team";
+import { clientConvs } from "@/lib/clientReplies";
+import { ReplyBadges } from "@/components/LibraryTools";
 
 export const metadata: Metadata = { title: "Client" };
 
@@ -33,6 +35,8 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const team = await db.membership.findMany({ where: { workspaceId: workspace.id, ...activeMember }, include: { user: { select: { name: true, email: true } } } });
   const assigned = client.assignedToId ? team.find((m) => m.userId === client.assignedToId) : undefined;
   const assignedName = assigned ? (assigned.user.name ?? assigned.user.email.split("@")[0]) : null;
+  const convs = (await clientConvs([client.id])).get(client.id) ?? [];
+  const convOf = (videoId: string) => convs.filter((c) => c.id === videoId);
   const teamWho =
     team.length <= 1 || assigned?.userId === user.id ? undefined
     : assignedName ? { label: `Email ${assignedName}`, tag: assignedName }
@@ -63,7 +67,13 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
           <section className="rounded-2xl border border-line bg-surface p-5">
-            <h2 className="font-semibold text-ink">Videos</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="font-semibold text-ink">Videos</h2>
+              {/* New replies across all of them, on this device's count (as in the library). */}
+              <span className="empty:hidden" data-testid="client-new-replies">
+                <ReplyBadges convs={convs} onlyNew />
+              </span>
+            </div>
             {client.videos.length === 0 ? (
               <p className="mt-3 text-sm text-dim">
                 Nothing sent yet. Record a video, then choose {client.name} in the Send box under it.
@@ -73,7 +83,10 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                 {client.videos.map((v) => (
                   <li key={v.id}>
                     <Link href={`/v/${v.id}`} className="flex items-center justify-between gap-3 py-2.5 text-sm hover:text-accent">
-                      <span className="truncate font-medium">{v.title}</span>
+                      <span className="min-w-0 flex-1 truncate font-medium">{v.title}</span>
+                      <span className="shrink-0 empty:hidden">
+                        <ReplyBadges convs={convOf(v.id)} />
+                      </span>
                       <span className="shrink-0 text-xs text-dim">
                         {v.status === "EXPIRED" ? "Server copy expired · " : ""}
                         {zoned(workspace.timezone).day(v.createdAt)}

@@ -9,8 +9,8 @@ import { isDefaultTitle } from "@/lib/videoTitle";
 import { markLinkSent, personalLink } from "./ClientsManager";
 import type { ClientOption, SendMany } from "./WatchView";
 
-/** A client this recording went to, and their conversation about it (this video, or their own copy). */
-type Recipient = { clientId: string; convId: string };
+/** A client this recording went to, and their conversation about it (this video, or their own copy); `opened` once they've watched it. */
+type Recipient = { clientId: string; convId: string; opened?: boolean };
 type RowState = "emailed" | "when-ready" | "copied" | "shared";
 
 /**
@@ -38,7 +38,7 @@ export default function SendPanel({
   teamKey,
   onTitle,
 }: {
-  video: { id: string; title: string; status: string; encrypted: boolean; sourceId: string | null };
+  video: { id: string; title: string; status: string; encrypted: boolean; sourceId: string | null; viewCount?: number };
   clients: ClientOption[];
   sentToId: string | null;
   /** Set when this person may send one recording to several clients. */
@@ -56,8 +56,8 @@ export default function SendPanel({
   const uploading = video.status === "RECORDING";
   const [primary, setPrimary] = useState(sentToId);
   const [recipients, setRecipients] = useState<Recipient[]>(() => [
-    ...(sentToId ? [{ clientId: sentToId, convId: video.id }] : []),
-    ...(sendMany?.copies ?? []).map((c) => ({ clientId: c.clientId, convId: c.id })),
+    ...(sentToId ? [{ clientId: sentToId, convId: video.id, opened: (video.viewCount ?? 0) > 0 }] : []),
+    ...(sendMany?.copies ?? []).map((c) => ({ clientId: c.clientId, convId: c.id, opened: c.opened })),
   ]);
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [picked, setPicked] = useState<string[]>([]);
@@ -81,6 +81,8 @@ export default function SendPanel({
   const chosen = picked.map((id) => byId.get(id)!).filter(Boolean);
   const chosenEmail = chosen.filter(canEmail);
   const chosenFirst = chosen.filter((c) => !reached(c));
+  // Several chosen, some we can email and some we can't: one "Send to all" emails those it can and copies the others' links.
+  const mixed = chosen.length > 1 && chosenEmail.length > 0 && chosenEmail.length < chosen.length;
   const copyWords = canShare ? "Copy link or Share" : "Copy link";
 
   // Each recipient's personal link for their conversation, worked out ahead so Copy and Share work in one tap.
@@ -223,11 +225,50 @@ export default function SendPanel({
         setRows((cur) => ({ ...cur, [c.id]: "copied" }));
         setNote({ text: `${c.name}'s link is copied. Paste it into your own app, text or email. It only opens for ${c.name}.` });
       } else {
-        await deliver(list, false);
-        setNote({ text: `Sent. Now send each client their own link: use ${copyWords} on each row below. Each link only opens for that client.` });
+        await writeClipboard(deliver(list, false).then(({ added }) => linesFor(added)));
+        list.forEach((c) => void markLinkSent(c.id));
+        setRows((cur) => ({ ...cur, ...Object.fromEntries(list.map((c) => [c.id, "copied" as const])) }));
+        setNote({ text: `Copied ${list.length} links, one per line with each client's name. Send each client only their own link. ${OWN_LINKS}` });
       }
     } catch (err) {
       setNote({ text: (err as Error).message || "Couldn't copy the link. Try again.", error: true });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** "Client A: <link>" lines for the clients just sent to. */
+  async function linesFor(added: Recipient[]) {
+    const lines = await Promise.all(added.map(async (r) => `${byId.get(r.clientId)!.name}: ${await linkFor(byId.get(r.clientId)!, r.convId)}`));
+    return lines.join("\n");
+  }
+
+  /** Everyone chosen in one go: emails those who can open it from an email, and copies the others' links to send yourself. */
+  async function sendAll() {
+    const list = chosen;
+    const others = list.filter((c) => !canEmail(c));
+    setBusy("all");
+    setNote(undefined);
+    try {
+      let emailed = 0;
+      await writeClipboard(
+        deliver(list, true).then(async (r) => {
+          emailed = r.emailed;
+          return linesFor(r.added.filter((a) => others.some((c) => c.id === a.clientId)));
+        }),
+      );
+      others.forEach((c) => void markLinkSent(c.id));
+      setRows((cur) => ({ ...cur, ...Object.fromEntries(others.map((c) => [c.id, "copied" as const])) }));
+      const names = (l: ClientOption[]) => (l.length <= 3 ? l.map((c) => c.name).join(", ") : `${l.length} clients`);
+      setNote({
+        text: [
+          emailed ? `Sent to all ${list.length}. Emailed ${emailed === 1 ? chosenEmail[0]?.name ?? "1 client" : `${emailed} clients`}.` : `Sent to all ${list.length}.`,
+          `Copied the links for ${names(others)}, one per line with each name: paste each client only their own link, for example by text or message.`,
+          OWN_LINKS,
+        ].join(" "),
+      });
+    } catch (err) {
+      setNote({ text: (err as Error).message || "Couldn't send it. Try again.", error: true });
     } finally {
       setBusy(null);
     }
@@ -263,28 +304,6 @@ export default function SendPanel({
       } else setNote({ text: `Sent to ${c.name}. Tap Share on their row below to send them their link.` });
     } catch (err) {
       setNote({ text: (err as Error).message || "Couldn't send it. Try again.", error: true });
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  /** Sends it to every chosen client who needs their first link, and copies all their links, one per line with their name. */
-  async function copyAllFirst() {
-    const list = chosenFirst;
-    setBusy("first-all");
-    setNote(undefined);
-    try {
-      await writeClipboard(
-        deliver(list, false).then(async ({ added }) => {
-          const lines = await Promise.all(added.map(async (r) => `${byId.get(r.clientId)!.name}: ${await linkFor(byId.get(r.clientId)!, r.convId)}`));
-          return lines.join("\n");
-        }),
-      );
-      list.forEach((c) => void markLinkSent(c.id));
-      setRows((cur) => ({ ...cur, ...Object.fromEntries(list.map((c) => [c.id, "copied" as const])) }));
-      setNote({ text: `Copied ${list.length} first links, one per line with each client's name. Send each client only their own link.` });
-    } catch (err) {
-      setNote({ text: (err as Error).message || "Couldn't copy the links. Try again.", error: true });
     } finally {
       setBusy(null);
     }
@@ -360,10 +379,16 @@ export default function SendPanel({
           <span className="min-w-0 break-words">
             {r.convId === video.id ? <span className="font-medium text-ink">{c.name}</span> : (
               <Link href={`/v/${r.convId}`} className="font-medium text-ink hover:text-accent hover:underline">{c.name}</Link>
-            )}
+            )}{" "}
             {state && (
               <span className="ml-2 text-xs text-ok-fg">
                 {state === "emailed" ? "Emailed" : state === "when-ready" ? "Emailed when the upload finishes" : state === "shared" ? "Shared" : "Link copied"}
+              </span>
+            )}
+            {!waiting && !blocked && (
+              // Whether they've watched it yet, so a row says more than "Emailed".
+              <span className={`ml-2 text-xs ${r.opened ? "text-ok-fg" : "text-dim"}`} data-testid="row-opened">
+                {r.opened ? "· Opened" : "· Not opened yet"}
               </span>
             )}
           </span>
@@ -447,7 +472,7 @@ export default function SendPanel({
       {canPick && (
         <>
           <h2 className="font-medium text-ink">{recipients.length ? "Send to more clients" : "Send this video"}</h2>
-          {!uploading && (isDefaultTitle(video.title) || titled) && (
+          {!uploading && clients.length > 0 && (isDefaultTitle(video.title) || titled) && (
             <TitlePrompt
               videoId={video.id}
               onTitle={(t) => {
@@ -457,10 +482,12 @@ export default function SendPanel({
             />
           )}
           {clients.length === 0 ? (
-            <p className="mt-2 text-sm text-muted">
-              Add your clients first, then you can pick them here.{" "}
-              <Link href="/clients" className="font-medium text-accent hover:underline">Add clients</Link>
-            </p>
+            // A first video with nobody to send it to: one clear next step (the title can wait until they're added).
+            <div className="mt-2 text-sm text-muted" data-testid="send-no-clients">
+              <p className="font-medium text-ink">Next: add a client to send this to</p>
+              <p className="mt-1">Once they&apos;re on your list, come back here and pick them. This video stays private until then.</p>
+              <Link href="/clients" className="mt-3 inline-block rounded-xl bg-primary px-4 py-2 font-semibold text-on-primary hover:bg-primary-hover">Add a client</Link>
+            </div>
           ) : available.length === 0 ? (
             <p className="mt-2 text-sm text-muted">Every client you can send to has this video.</p>
           ) : (
@@ -532,7 +559,11 @@ export default function SendPanel({
                   <p className="font-medium">Needs first link</p>
                   <p className="mt-0.5 text-xs text-muted">
                     {chosenFirst.length === 1 ? `${chosenFirst[0].name} hasn't` : "These clients haven't"} opened their personal link yet, so we can&apos;t email them this time.
-                    Press {chosenFirst.length > 1 ? "each Copy button" : "Copy"}{canShare ? " or Share" : ""} and send the link yourself, for example by text or message.
+                    {mixed
+                      ? " Send to all below emails the others and copies these links for you to send yourself, or copy one at a time here."
+                      : chosenFirst.length > 1
+                        ? ` Press Copy all ${chosen.length} links below, or copy one at a time here, and send each link yourself, for example by text or message.`
+                        : ` Press Copy${canShare ? " or Share" : ""} and send the link yourself, for example by text or message.`}
                   </p>
                   <ul className="mt-2 grid gap-1.5">
                     {chosenFirst.map((c) => (
@@ -546,34 +577,42 @@ export default function SendPanel({
                       </li>
                     ))}
                   </ul>
-                  {chosenFirst.length > 1 && (
-                    <button onClick={copyAllFirst} disabled={!!busy} data-testid="copy-all-first" className="mt-2 rounded-lg bg-solid px-3 py-1.5 text-xs font-medium text-white hover:bg-solid-hover disabled:opacity-60">
-                      {busy === "first-all" ? "Copying…" : "Copy all first links"}
-                    </button>
-                  )}
                 </div>
               )}
 
               <div className="mt-3 flex flex-wrap gap-2">
+                {mixed && (
+                  <button onClick={sendAll} disabled={!!busy} data-testid="send-all" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
+                    {busy === "all" ? "Sending…" : `Send to all ${chosen.length}`}
+                  </button>
+                )}
                 {(picked.length === 0 || chosenEmail.length > 0) && (
                   <button
                     onClick={sendByEmail}
                     disabled={!chosenEmail.length || !!busy}
                     data-testid="send-email"
-                    className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
+                    className={mixed ? "rounded-xl border border-line-strong px-4 py-2 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50" : "rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"}
                   >
-                    {busy === "email" ? "Sending…" : chosenEmail.length && chosenEmail.length < chosen.length ? `Email ${chosenEmail.length} of them` : "Send by email"}
+                    {busy === "email" ? "Sending…" : mixed ? `Email ${chosenEmail.length} of them` : "Send by email"}
                   </button>
                 )}
-                <button
-                  onClick={sendByLink}
-                  disabled={!picked.length || !!busy}
-                  data-testid="send-link"
-                  className="rounded-xl border border-line-strong px-4 py-2 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50"
-                >
-                  {busy === "link" ? "Copying…" : picked.length > 1 ? "Get their links" : "Copy link"}
-                </button>
+                {!mixed && (
+                  <button
+                    onClick={sendByLink}
+                    disabled={!picked.length || !!busy}
+                    data-testid="send-link"
+                    className="rounded-xl border border-line-strong px-4 py-2 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50"
+                  >
+                    {busy === "link" ? "Copying…" : picked.length > 1 ? `Copy all ${picked.length} links` : "Copy link"}
+                  </button>
+                )}
               </div>
+              {mixed && (
+                <p className="mt-2 text-sm text-muted" data-testid="send-all-explained">
+                  Send to all {chosen.length} emails {chosenEmail.length === 1 ? chosenEmail[0].name : `${chosenEmail.length} of them`}, and copies the {chosen.length - chosenEmail.length === 1 ? "link" : "links"} for{" "}
+                  {chosen.filter((c) => !canEmail(c)).map((c) => c.name).join(", ")} for you to send yourself.
+                </p>
+              )}
               <p className="mt-2 text-xs text-dim">
                 Send by email and we email each client to say it&apos;s waiting. Or copy the link and send it from your own app, texts or messages. Either way it opens on SureFrame, for that client only.
               </p>
@@ -611,7 +650,7 @@ export default function SendPanel({
       )}
       {sentRows.length > 0 && (
         <div className={canPick || isCopy || waitingRows.length ? "mt-4 border-t border-line pt-4" : ""}>
-          <h3 className="text-sm font-medium text-ink">Sent to</h3>
+          <h3 className="text-sm font-medium text-ink">Sent to {sentRows.length} {sentRows.length === 1 ? "client" : "clients"}</h3>
           <ul className="mt-2 grid gap-2" data-testid="sent-list">
             {sentRows.map((r) => row(r, false))}
           </ul>
@@ -620,6 +659,9 @@ export default function SendPanel({
     </div>
   );
 }
+
+/** Copied links differ per client (and from this page's address): each opens that client's own encrypted copy. */
+const OWN_LINKS = "Each link is different because each client gets their own private copy and conversation.";
 
 /** Why a client's first link comes from the business: shown up front, before anyone presses Send. */
 function FirstTime() {

@@ -7,11 +7,12 @@ import { EXTRA_SEAT_PRICE, EXTRA_SEAT_PRICE_YEARLY, PLANS } from "@/lib/plans";
 import { followTeamLink, requirePageUser } from "@/lib/session";
 import { accessOf, clientScopeWhere, effectivePerms } from "@/lib/permissions";
 import { CLIENT_KEEP_DAYS, restorableWhere } from "@/lib/clientRemoval";
+import { clientConvs } from "@/lib/clientReplies";
 
 export const metadata: Metadata = { title: "Clients" };
 
-export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ ws?: string; removed?: string }> }) {
-  const { ws, removed } = await searchParams;
+export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ ws?: string; removed?: string; seats?: string }> }) {
+  const { ws, removed, seats: seatsParam } = await searchParams;
   await followTeamLink(ws, removed ? "/clients?removed=1" : "/clients");
   const me = await requirePageUser("/clients");
   const { user, workspace, role } = me;
@@ -33,6 +34,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
       ? db.client.findMany({ where: { workspaceId: workspace.id, ...restorableWhere() }, orderBy: { removedAt: "desc" }, select: { id: true, name: true, email: true, removedAt: true, purgeAt: true } })
       : Promise.resolve([]),
   ]);
+  const convs = await clientConvs(clients.map((c) => c.id));
 
   return (
     <>
@@ -72,12 +74,14 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
             paused: !!c.pausedAt,
             linkOff: !!c.linkDisabledAt,
             reached: !!c.linkOpenedAt,
+            convs: convs.get(c.id) ?? [],
           }))}
           initialRemoved={removedClients.map((c) => ({ id: c.id, name: c.name, email: c.email, removedAt: c.removedAt!.toISOString(), purgeAt: c.purgeAt?.toISOString() ?? null }))}
           keepDays={CLIENT_KEEP_DAYS}
           openRemoved={!!removed}
           timezone={workspace.timezone}
           cloudBackup={workspace.cloudBackup}
+          seatsAdded={Math.max(0, Math.min(1000, Number(seatsParam) || 0)) || undefined}
           initialSeats={seats}
           includedSeats={plan.clientSeats}
           extraSeats={workspace.extraClientSeats}

@@ -7,11 +7,11 @@ import { zoned } from "@/lib/dates";
 import { shareLink, useCanShare, writeClipboard } from "@/lib/clipboard";
 import TeamKeyGate from "./TeamKeyGate";
 import RemoveExtras from "./RemoveExtras";
-import PurchaseNotice, { reloadAfterPurchase } from "./PurchaseNotice";
+import { ReplyBadges, type Conv } from "./LibraryTools";
 
 type Seats = { used: number; limit: number };
 /** `reached`: the client has opened their personal link, so emailed videos open for them. */
-type Client = { id: string; name: string; email: string | null; link: string; teamKeyWrap: string | null; videoCount: number; assignedToId: string | null; paused?: boolean; linkOff?: boolean; reached?: boolean };
+type Client = { id: string; name: string; email: string | null; link: string; teamKeyWrap: string | null; videoCount: number; assignedToId: string | null; paused?: boolean; linkOff?: boolean; reached?: boolean; convs?: Conv[] };
 type Staff = { id: string; name: string };
 /** A removed client the business can still restore. Dates are ISO strings. */
 type Removed = { id: string; name: string; email: string | null; removedAt: string; purgeAt: string | null };
@@ -70,6 +70,8 @@ type Props = {
   timezone: string | null;
   /** Cloud backup is on: recordings stay until the client is deleted. Without it they still expire on their usual dates. */
   cloudBackup?: boolean;
+  /** Seats just bought (after the reload), to confirm it. */
+  seatsAdded?: number;
 };
 
 const EMAIL = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
@@ -91,7 +93,13 @@ export function parseClientList(text: string) {
     if (!line) continue;
     const angle = line.match(/^(.*?)<([^>]+)>\s*$/);
     const parts = angle ? [angle[1], angle[2]] : line.split(/\t|,|;/);
-    const cells = parts.map((p) => p.trim().replace(/^"|"$/g, "")).filter(Boolean);
+    let cells = parts.map((p) => p.trim().replace(/^"|"$/g, "")).filter(Boolean);
+    // "Client D client-d@example.com", with only a space between: the email is the word with an @.
+    if (cells.length === 1 && /\s/.test(cells[0]) && cells[0].includes("@")) {
+      const words = cells[0].split(/\s+/);
+      const at = words.filter((w) => w.includes("@"));
+      if (at.length === 1) cells = [words.filter((w) => !w.includes("@")).join(" "), at[0]].filter(Boolean);
+    }
     const email = cells.find((c) => c.includes("@"));
     const name = cells.find((c) => !c.includes("@"));
     if (email && !EMAIL.test(email)) bad.push(line);
@@ -133,6 +141,7 @@ function Manager({
   openRemoved = false,
   timezone,
   cloudBackup = false,
+  seatsAdded,
 }: Omit<Props, "workspaceId" | "fingerprint"> & { teamKey: CryptoKey }) {
   const [clients, setClients] = useState(initialClients);
   const [seats, setSeats] = useState(initialSeats);
@@ -150,11 +159,19 @@ function Manager({
   const [tellClient, setTellClient] = useState(true);
   const [working, setWorking] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [assigned, setAssigned] = useState<{ id: string; text: string }>();
   const [listError, setListError] = useState<string>();
   // The clients just added: sending their first link is the next step.
   const [justAdded, setJustAdded] = useState<Client[]>([]);
   // Names from a pasted list that didn't fit in the seats left.
   const [unfit, setUnfit] = useState<string[]>([]);
+  // Lines of a pasted list that couldn't be read: kept in the box to fix, never dropped.
+  const [unread, setUnread] = useState<string[]>([]);
+  const addedNote = useRef<HTMLDivElement>(null);
+  // On a phone the note can land below the fold; bring it into view.
+  useEffect(() => {
+    if (justAdded.length) addedNote.current?.scrollIntoView?.({ block: "nearest" });
+  }, [justAdded]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const canShare = useCanShare();
@@ -214,6 +231,7 @@ function Manager({
     setSeats((s) => ({ ...s, used: s.used + 1 }));
     setJustAdded([data.client]);
     setUnfit([]);
+    setUnread([]);
     setName("");
     setEmail("");
   }
@@ -240,10 +258,13 @@ function Manager({
     if (!res.ok) return setError(data.error ?? "Could not add those clients");
     setClients((c) => [...c, ...data.clients].sort((a, b) => a.name.localeCompare(b.name)));
     setSeats((s) => ({ ...s, used: s.used + data.clients.length }));
-    // Those that didn't fit stay in the box, ready once there are more seats.
+    // Lines to fix and those that didn't fit stay in the box, ready to correct or for when there are more seats.
     const rest = fresh.slice(fits.length);
-    setBulk(rest.length ? rest.map((c) => c.line).join("\n") : null);
+    const bad = parsed?.bad ?? [];
+    const keep = [...bad, ...rest.map((c) => c.line)];
+    setBulk(keep.length ? keep.join("\n") : null);
     setUnfit(rest.map((c) => c.name));
+    setUnread(bad);
     // The note under the form says what was added and what's next.
     setJustAdded(data.clients);
   }
@@ -311,6 +332,9 @@ function Manager({
     });
     if (!res.ok) return setError((await res.json().catch(() => ({}))).error ?? "Could not assign client");
     setClients((list) => list.map((x) => (x.id === c.id ? { ...x, assignedToId } : x)));
+    // Said beside the dropdown that changed.
+    setAssigned({ id: c.id, text: assignedToId ? `Saved: ${staffName(assignedToId) ?? "they"} ${assignedToId === meId ? "(you) look" : "looks"} after ${c.name}` : `Saved: ${c.name} is unassigned` });
+    setTimeout(() => setAssigned((cur) => (cur?.id === c.id ? undefined : cur)), 4000);
   }
 
   const linkOf = (c: Client) => personalLink(c.link, c.teamKeyWrap, teamKey);
@@ -342,11 +366,14 @@ function Manager({
     if (data.url) return void (window.location.href = data.url);
     setBuying(null);
     if (!res.ok) return setError(data.error ?? "Could not add seats");
-    reloadAfterPurchase(buyQty);
+    // Reloaded for the new totals, with a line saying it worked.
+    window.location.href = `/clients?seats=${buyQty}`;
   }
 
   return (
     <div className="mt-8 grid gap-6">
+      {/* Seats are the business's to manage: staff aren't shown how many clients the business has. */}
+      {canManage && (
       <section id="buy-seats" className="scroll-mt-6 rounded-2xl border border-line bg-surface p-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -369,7 +396,6 @@ function Manager({
             <div className={`h-full ${full ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${Math.min(100, (seats.used / Math.max(1, seats.limit)) * 100)}%` }} />
           </div>
         </div>
-        {isOwner && <PurchaseNotice one="client seat" many="client seats" where="They're ready to use now." />}
         {!isOwner ? null : canBuySeats ? (
           <div className="mt-5 grid gap-3 border-t border-line pt-5 text-sm">
             <div className="flex flex-wrap items-center gap-2">
@@ -393,6 +419,11 @@ function Manager({
                 </div>
               </div>
             )}
+            {!!seatsAdded && !buying && (
+              <p role="status" data-testid="seats-added" className="rounded-lg border border-ok-line bg-ok-bg px-3 py-2 text-ok-fg">
+                Added {plural(seatsAdded, "client seat", "client seats")}. You can add {plural(left, "more client", "more clients")} now. Your receipt comes by email from Link, Stripe&apos;s payment service, and Settings &gt; Billing shows what you pay.
+              </p>
+            )}
             {/* Lowering bought seats is billing, on its own row away from removing a client. */}
             <RemoveExtras extra={extraSeats} spare={seats.limit - seats.used} noun={{ one: "client seat", many: "client seats", holder: "clients" }} endpoint="/api/billing/seats" field="extraSeats" onError={setError} />
             {suggestStudio && (
@@ -412,10 +443,12 @@ function Manager({
           </p>
         )}
       </section>
+      )}
 
       {canAdd && (
       <section className="rounded-2xl border border-line bg-surface p-6">
-        <h2 className="font-semibold text-ink">Add a client</h2>
+        <h2 className="font-semibold text-ink">{canManage ? "Add a client" : "Add a client of your own"}</h2>
+        {!canManage && <p className="mt-1 text-sm text-dim">Clients you add are assigned to you. The owner or an admin can also assign clients to you.</p>}
         <p className="mt-1 text-sm text-dim" data-testid="first-link-rule">
           The first time, you send each client their personal link yourself, by text, message or your own email. It holds the key to their videos, so only your team can send it.
           Once they&apos;ve opened it, we can email them new videos too.
@@ -434,13 +467,18 @@ function Manager({
           </p>
         )}
         {justAdded.length > 0 && (
-          <div role="status" data-testid="added-note" className="mt-3 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg">
+          <div ref={addedNote} role="status" data-testid="added-note" className="mt-3 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg">
             <p>
               {justAdded.length === 1 ? `${justAdded[0].name} added.` : `Added ${plural(justAdded.length, "client", "clients")}.`}{" "}
               {unfit.length > 0 && (
                 <span data-testid="bulk-unfit">
                   {plural(unfit.length, "client", "clients")} didn&apos;t fit in your seats ({unfit.slice(0, 5).join(", ")}{unfit.length > 5 ? "…" : ""}), so {unfit.length === 1 ? "it's" : "they're"} still in the box below.{" "}
                   {isOwner ? <a href={buyHref} className="font-medium underline">{canBuySeats ? "Add seats" : "See plans with more seats"}</a> : "Ask the owner to add seats"}.{" "}
+                </span>
+              )}
+              {unread.length > 0 && (
+                <span data-testid="bulk-unread" className="font-medium">
+                  {unread.length === 1 ? "1 line wasn't added" : `${unread.length} lines weren't added`} because we couldn&apos;t read a name and email in {unread.length === 1 ? "it" : "them"}, so {unread.length === 1 ? "it's" : "they're"} still in the box below to fix.{" "}
                 </span>
               )}
               Next, send {justAdded.length === 1 ? "them their" : "each of them their"} personal link yourself. Once they&apos;ve opened it, we can email them new videos too.
@@ -458,7 +496,7 @@ function Manager({
                   {copied === "all" ? "Copied" : "Copy all first links"}
                 </button>
               )}
-              <button onClick={() => { setJustAdded([]); setUnfit([]); }} className="px-2 py-1.5 text-dim hover:text-ink">Done</button>
+              <button onClick={() => { setJustAdded([]); setUnfit([]); setUnread([]); }} className="px-2 py-1.5 text-dim hover:text-ink">Done</button>
             </div>
           </div>
         )}
@@ -482,9 +520,19 @@ function Manager({
               <p className="text-sm text-muted" data-testid="bulk-summary">
                 {plural(fresh.length, "client", "clients")} ready to add
                 {fresh.length > left && ` (${left === 0 ? "no seats left" : `only ${plural(left, "seat", "seats")} left`})`}
-                {dupes > 0 && `, ${dupes} already on your list`}
-                {parsed.bad.length > 0 && `. Check ${parsed.bad.length === 1 ? "this line" : "these lines"}: ${parsed.bad.slice(0, 3).join("; ")}${parsed.bad.length > 3 ? "…" : ""}`}
+                {dupes > 0 && `, ${dupes} already on your list`}.
               </p>
+            )}
+            {parsed && parsed.bad.length > 0 && (
+              <div className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-sm text-warn-fg" data-testid="bulk-bad">
+                <p>
+                  {parsed.bad.length === 1 ? "This line won't be added" : `These ${parsed.bad.length} lines won't be added`} until it&apos;s fixed. Put a comma between the name and email, like &ldquo;Client A, client-a@example.com&rdquo;:
+                </p>
+                <ul className="mt-1 list-disc pl-5 font-mono text-xs">
+                  {parsed.bad.slice(0, 5).map((l, i) => <li key={i} className="break-all">{l}</li>)}
+                  {parsed.bad.length > 5 && <li>and {parsed.bad.length - 5} more</li>}
+                </ul>
+              </div>
             )}
             {fresh.length > left && (
               <p className="text-sm text-warn-fg" data-testid="bulk-over">
@@ -500,7 +548,7 @@ function Manager({
               <button type="button" onClick={addMany} disabled={busy || !fits.length} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
                 {busy ? "Adding…" : fresh.length > fits.length && fits.length ? `Add the ${plural(fits.length, "client", "clients")} that fit` : `Add ${fits.length || ""} ${fits.length === 1 ? "client" : "clients"}`}
               </button>
-              <button type="button" onClick={() => { setBulk(null); setUnfit([]); }} className="rounded-lg px-3 py-2 text-sm text-dim hover:text-ink">Cancel</button>
+              <button type="button" onClick={() => { setBulk(null); setUnfit([]); setUnread([]); }} className="rounded-lg px-3 py-2 text-sm text-dim hover:text-ink">Cancel</button>
             </div>
           </div>
         )}
@@ -573,19 +621,19 @@ function Manager({
               return (
                 <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
                   <div className="min-w-0">
-                    <Link href={`/clients/${c.id}`} className="break-words font-medium text-ink hover:text-accent hover:underline">{c.name}</Link>
+                    <Link href={`/clients/${c.id}`} className="break-words font-medium text-ink hover:text-accent hover:underline">{c.name}</Link>{" "}
                     {!c.reached && !c.linkOff && (
-                      <span className="ml-2 inline-block rounded-full bg-primary-soft px-2 py-0.5 text-xs font-semibold text-accent" data-testid="needs-first-link" title="They haven't opened their personal link yet">
+                      <span className="ml-1 inline-block rounded-full bg-primary-soft px-2 py-0.5 text-xs font-semibold text-accent" data-testid="needs-first-link" title="They haven't opened their personal link yet">
                         Needs first link
                       </span>
                     )}
                     {c.paused && (
-                      <span className="ml-2 rounded-full bg-warn-bg px-2 py-0.5 text-xs font-semibold text-warn-fg" data-testid="client-paused-badge" title="Over your plan's client limit">
+                      <span className="ml-1 rounded-full bg-warn-bg px-2 py-0.5 text-xs font-semibold text-warn-fg" data-testid="client-paused-badge" title="Over your plan's client limit">
                         Paused
                       </span>
                     )}
                     {c.linkOff && (
-                      <span className="ml-2 rounded-full bg-danger-bg px-2 py-0.5 text-xs font-semibold text-danger-fg" data-testid="client-link-off-badge" title="Turned off by SureFrame support">
+                      <span className="ml-1 rounded-full bg-danger-bg px-2 py-0.5 text-xs font-semibold text-danger-fg" data-testid="client-link-off-badge" title="Turned off by SureFrame support">
                         Link off
                       </span>
                     )}
@@ -593,6 +641,12 @@ function Manager({
                       {c.email && <><span className="break-all">{c.email}</span> · </>}{plural(c.videoCount, "video", "videos")}
                       {staff.length > 1 && seesAll && !canManage && ` · ${staffName(c.assignedToId) ?? "Unassigned"}`}
                     </p>
+                    {/* Replies waiting, so they aren't only found on the library's cards. */}
+                    {!!c.convs?.length && (
+                      <Link href={`/clients/${c.id}`} className="mt-1 block w-fit empty:hidden" aria-label={`Replies from ${c.name}`}>
+                        <ReplyBadges convs={c.convs} />
+                      </Link>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2 text-sm">
                     {staff.length > 1 && canManage && (
@@ -602,6 +656,7 @@ function Manager({
                         {staff.map((p) => <option key={p.id} value={p.id}>{p.id === meId ? `${p.name} (you)` : p.name}</option>)}
                       </select>
                     )}
+                    {assigned?.id === c.id && <span role="status" className="self-center text-xs text-ok-fg" data-testid="assign-saved">{assigned.text}</span>}
                     {!c.linkOff && (
                       <>
                         <button onClick={() => copy(c)} aria-label={`Copy personal link for ${c.name}`} className="rounded-lg border border-line-strong px-3 py-1.5 hover:bg-hover">
@@ -615,13 +670,17 @@ function Manager({
                   {confirming?.id === c.id && (
                     <div data-testid="remove-client-confirm" className="w-full rounded-xl border border-danger-line bg-danger-bg p-4 text-sm text-muted">
                       <p className="font-medium text-ink">Remove {c.name}? Their personal link stops working now and their seat is freed.</p>
-                      <p className="mt-2">
-                        Their videos, conversations, to-dos and notes are kept until {dates.longDay(confirming.until)}, so you can restore them from Removed clients on this page.
-                        {!cloudBackup && " Recordings without cloud backup still leave our servers on their usual dates, and restoring doesn't bring those back."}
-                      </p>
-                      <p className="mt-2">
-                        After that they&apos;re deleted for good, including your team&apos;s replies to them, even with cloud backup on. Recordings you also sent to other clients stay with those clients.
-                      </p>
+                      <p className="mt-1">You can restore them from Removed clients on this page until {dates.longDay(confirming.until)}.</p>
+                      {/* The detail is there for whoever wants it, not three paragraphs every time. */}
+                      <details className="mt-2" data-testid="remove-client-details">
+                        <summary className="cursor-pointer font-medium text-accent hover:underline">What happens to their data?</summary>
+                        <ul className="mt-2 list-disc space-y-1 pl-5">
+                          <li>Their videos, conversations, to-dos and notes are kept until {dates.longDay(confirming.until)}, so you can restore them from Removed clients.</li>
+                          {!cloudBackup && <li>Recordings without cloud backup still leave our servers on their usual dates, and restoring doesn&apos;t bring those back.</li>}
+                          <li>After that they&apos;re deleted for good, including your team&apos;s replies to them, even with cloud backup on.</li>
+                          <li>Recordings you also sent to other clients stay with those clients.</li>
+                        </ul>
+                      </details>
                       {c.email && twin ? (
                         <p className="mt-3" data-testid="remove-client-twin">{twin.name} also uses {c.email}, so nobody is emailed about this.</p>
                       ) : c.email ? (

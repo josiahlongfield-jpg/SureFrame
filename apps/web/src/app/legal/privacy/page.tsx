@@ -1,6 +1,6 @@
 import Link from "next/link";
 import LegalPage, { SubprocessorList } from "@/components/LegalPage";
-import { LEGAL, operatorLine } from "@/lib/legal";
+import { DATA_LOCATIONS, LEGAL, operatorLine } from "@/lib/legal";
 
 export const metadata = { title: "Privacy Policy" };
 
@@ -48,6 +48,13 @@ export default function Page() {
           cookie for that business from that device only.
         </li>
         <li>
+          The Help button on your pages opens a help chat answered by an AI assistant (Anthropic). It receives only what you type there and which business&rsquo;s
+          page you&rsquo;re on, never your videos, messages, replies, to-dos or notes. Nobody from our team answers it, and it can&rsquo;t pass anything to the
+          business or to us: for anything it can&rsquo;t help with, it gives you the business&rsquo;s name and, if the business set one, its reply-to email address.
+          We keep the text of each question you type, with the business&rsquo;s name but not who asked, for {LEGAL.clientQuestionDays} days, and send our team a
+          weekly summary of the questions it couldn&rsquo;t answer, so we can fix problems. The rest of the conversation stays in your browser tab.
+        </li>
+        <li>
           On a free-plan business, the short SureFrame intro is shown once per device for each business; your browser remembers this. You don&rsquo;t need an
           account and never pay.
         </li>
@@ -66,9 +73,14 @@ export default function Page() {
         <li>
           <strong>Team details:</strong> for businesses with staff, each team member&rsquo;s name, email address and role, which clients they look after, what
           they&rsquo;re allowed to see and do, and their own email and reminder settings (such as a reply-to address for their clients). Reminders that owners and admins send to staff are stored and emailed as written, so
-          they aren&rsquo;t end-to-end encrypted.
+          they aren&rsquo;t end-to-end encrypted. If you invite someone by their email address, we email them to say they&rsquo;ve been invited, and we email
+          staff you remove to tell them.
         </li>
-        <li><strong>Client details you add:</strong> the names and email addresses of clients you invite, so we can send them links and reminders.</li>
+        <li>
+          <strong>Client details you add:</strong> the names and email addresses of clients you invite, so we can send them links and reminders. When a
+          business resets its keys (after someone leaves its team), we keep a one-way fingerprint (a hash) of each client&rsquo;s old link until that client is
+          deleted, so the old link can say it was replaced.
+        </li>
         <li>
           <strong>Encrypted content:</strong> video and reply recordings, text replies, and the text of to-dos and notes. These are encrypted on your device before
           they reach us, and the keys stay with you and your clients, so we hold only scrambled copies of them. Some details aren&rsquo;t encrypted, because we need to
@@ -89,7 +101,8 @@ export default function Page() {
           business that shared a code sees only that it was used and when, not which business used it.
         </li>
         <li>
-          <strong>Support conversations:</strong> what you type into our help chat, and the email address you give us there.
+          <strong>Support conversations:</strong> what you type into our help chat, and the email address you give us there. From the help chat on client pages,
+          only the text of each question and which business&rsquo;s page it was asked on.
         </li>
         <li>
           <strong>Technical information:</strong> IP address, browser type and logs of requests, used to keep the service secure, prevent abuse and fix problems.
@@ -164,6 +177,10 @@ export default function Page() {
         to Anthropic to generate replies. The assistant can&rsquo;t see your videos, replies, to-dos or notes. Anything it can&rsquo;t resolve is passed to a person on our
         team, who can read the conversation. Please don&rsquo;t share passwords, recovery keys or card numbers in the chat. We don&rsquo;t use your content or chats to train AI models, and Anthropic doesn&rsquo;t use them to train its models either.
       </p>
+      <p>
+        Clients have their own help chat on their pages, also answered by the AI assistant, which never passes conversations to a person (see{" "}
+        <a href="#for-clients">For clients</a>).
+      </p>
 
       <h2>AI transcripts and summaries (optional)</h2>
       <p>
@@ -208,7 +225,6 @@ export default function Page() {
           Link, Stripe&rsquo;s merchant-of-record service, which sells subscriptions, collects tax and sends receipts, and Stripe, which processes payments and
           manages subscriptions.
         </li>
-        <li>Google, if you choose Continue with Google to sign in. Google tells us your name and email address.</li>
       </ul>
       <p>
         We may also disclose information to law enforcement agencies, regulators, courts or others where the law requires or permits it, for example to respond to
@@ -220,8 +236,7 @@ export default function Page() {
 
       <h2>Overseas storage</h2>
       <p>
-        We run {LEGAL.product} from Australia, and we may access information from there. Our providers store and process information outside Australia, mainly in
-        the United States. We choose providers with strong security and privacy practices. Your encrypted content stays encrypted wherever it&rsquo;s stored. The
+        We run {LEGAL.product} from Australia, and we may access information from there. {DATA_LOCATIONS} We choose providers with strong security and privacy practices. Your encrypted content stays encrypted wherever it&rsquo;s stored. The
         exception is transcript text sent for AI summaries (only for businesses that switch them on), which Anthropic must be able to read to write the summary;
         it&rsquo;s sent over an encrypted connection and processed mainly in the United States. If you&rsquo;re in the EU or UK, see{" "}
         <a href="#eu-uk">below</a> for how we protect these transfers.
@@ -259,6 +274,10 @@ export default function Page() {
         <li>
           Support chats are kept for as long as we need them to help you, and we delete them if you ask. They aren&rsquo;t deleted automatically when an account is
           deleted.
+        </li>
+        <li>
+          Questions typed into the help chat on client pages are deleted {LEGAL.clientQuestionDays} days after they&rsquo;re asked, or sooner with the
+          business&rsquo;s account.
         </li>
         <li>
           Records of team emails (who was told about which reply or video) are deleted about 30 days after the email is sent. Reminders sent to staff are kept
@@ -310,8 +329,7 @@ export default function Page() {
       <p>We only use cookies needed to run {LEGAL.product}:</p>
       <ul>
         <li>
-          <strong>Sign-in cookie:</strong> keeps you signed in to your account. It holds your account&rsquo;s id, your name and email address (and, if you sign in with Google, the link to your Google
-          profile picture), and when you signed in, so a sign-in from before
+          <strong>Sign-in cookie:</strong> keeps you signed in to your account. It holds your account&rsquo;s id, your name and email address, and when you signed in, so a sign-in from before
           you closed your account, or before we signed your account out everywhere, no longer works.
         </li>
         <li>
@@ -422,8 +440,7 @@ export default function Page() {
           terms and this policy, and the technical information we use to keep {LEGAL.product} secure for everyone who uses it, including clients.
         </li>
         <li>
-          <strong>Others:</strong> Link and Stripe are separate controllers for the payment and tax details they collect at checkout. Google is a separate controller
-          for your Google account if you choose Continue with Google.
+          <strong>Others:</strong> Link and Stripe are separate controllers for the payment and tax details they collect at checkout.
         </li>
       </ul>
 

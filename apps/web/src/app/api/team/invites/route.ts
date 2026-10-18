@@ -4,6 +4,10 @@ import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
 import { appUrl } from "@/lib/stripe";
 import { rateLimit } from "@/lib/rateLimit";
 import { hashToken, INVITE_DAYS, newInviteToken, staffUsage } from "@/lib/team";
+import { sendMail } from "@/lib/mail";
+import { inviteEmail } from "@/lib/staffEmails";
+import { brandOf } from "@/lib/branding";
+import { isEmailBlocked } from "@/lib/blockedEmail";
 
 const Body = z.object({
   role: z.enum(["ADMIN", "MEMBER"]).default("MEMBER"),
@@ -17,7 +21,8 @@ const Body = z.object({
 
 /**
  * Invite someone to the team. Returns the link without its #fragment; the
- * inviter's browser appends the one-off key before showing it.
+ * inviter's browser appends the one-off key before showing it. An invite made
+ * out to an email also tells that person to expect the link (never the link).
  */
 export const POST = handle(async (req: Request) => {
   const me = await requireUser();
@@ -45,5 +50,14 @@ export const POST = handle(async (req: Request) => {
       invitedById: user.id,
     },
   });
-  return Response.json({ invite: { id: invite.id, email: invite.email, role: invite.role, expiresAt: invite.expiresAt }, link: appUrl(`/join/${token}`) }, { status: 201 });
+  let emailed = false;
+  if (invite.email && !(await isEmailBlocked(invite.email))) {
+    const brand = brandOf(workspace, appUrl(""));
+    const mail = inviteEmail({ business: workspace.name, inviter: user.name ?? user.email, admin: invite.role === "ADMIN", logoUrl: brand.logoUrl, color: brand.color });
+    emailed = await sendMail({ to: invite.email, ...mail }).then(
+      () => true,
+      (err) => (console.error("invite email failed", err), false),
+    );
+  }
+  return Response.json({ invite: { id: invite.id, email: invite.email, role: invite.role, expiresAt: invite.expiresAt }, link: appUrl(`/join/${token}`), emailed }, { status: 201 });
 });

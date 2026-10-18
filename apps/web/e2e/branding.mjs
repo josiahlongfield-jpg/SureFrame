@@ -63,7 +63,8 @@ ok("preview shows the client video page", await visible(preview, "text=Conversat
 await page.fill('input[aria-label="Colour code"]', "#f1f5f9");
 ok("too-light colour explained", await page.isVisible("text=too light for white button text"));
 ok("and can't be saved", await page.isDisabled("text=Save branding"));
-await page.click('button[aria-label="Use #0f766e"]');
+await page.click('button[aria-label="Use Teal (#0f766e)"]');
+ok("swatches have names", (await page.textContent('button[aria-label="Use Teal (#0f766e)"]')).trim() === "Teal");
 await page.setInputFiles('input[type="file"]', { name: "logo.png", mimeType: "image/png", buffer: png(40, 20, [15, 118, 110]) });
 // Before saving, the preview already wears the new logo and colour.
 await page.waitForSelector("[data-testid=logo-thumb]");

@@ -3,6 +3,7 @@ import Link from "next/link";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import { BUSINESS_FAQ, CLIENT_FAQ, FaqList } from "@/components/Faq";
+import OpenFaqFromHash from "@/components/OpenFaqFromHash";
 import { LEGAL } from "@/lib/legal";
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default function Faq() {
           Who runs {LEGAL.product}, where data is kept and what&rsquo;s encrypted: <Link href="/about" className="font-medium text-accent hover:underline">About {LEGAL.product}</Link>.
         </p>
       </main>
+      <OpenFaqFromHash />
       <SiteFooter />
     </div>
   );

@@ -51,3 +51,23 @@ export async function formerTeams(userId: string) {
   });
   return [...new Map(accepted.map((i) => [i.workspaceId, { id: i.workspaceId, name: i.workspace.name }])).values()];
 }
+
+/**
+ * How someone who has left the team appears on what they recorded or wrote. Their recordings stay with the
+ * business under its owner (video.ownerId), so without this the owner would be credited with them. They
+ * aren't named once they've gone.
+ */
+export const FORMER_MEMBER = "Former team member";
+
+type Sender = { formerStaffAt: Date | null; owner: { name: string | null; email?: string } };
+
+/**
+ * Who a video is from. The team sees the recorder's name (or the start of their email); clients see
+ * "Sam from Business", or just the business when the recorder gave no name, never an email. Either way,
+ * a former team member's recording reads "Former team member · Business".
+ */
+export function senderName(video: Sender, business: string, viewer: "team" | "client") {
+  if (video.formerStaffAt) return `${FORMER_MEMBER} · ${business}`;
+  if (viewer === "team") return video.owner.name ?? video.owner.email?.split("@")[0] ?? business;
+  return video.owner.name ? `${video.owner.name} from ${business}` : business;
+}

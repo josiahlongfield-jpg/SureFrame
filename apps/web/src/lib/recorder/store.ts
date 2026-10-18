@@ -20,6 +20,8 @@ export type PendingSession = {
   uploadToken?: string;
   /** For replies: the video being replied to. */
   replyTo?: string;
+  /** "Discard this recording?" was open: if the page closes now, recovery deletes it instead of uploading it. */
+  discarding?: boolean;
 };
 
 type ChunkRow = { videoId: string; seq: number; blob: Blob };

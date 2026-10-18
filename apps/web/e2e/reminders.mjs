@@ -154,8 +154,9 @@ ok("business sees the opt-out", true);
 
 // 7. Edit a to-do's reminders, and remind the business itself
 await pro.click("li:has-text('Record your weekly check-in') >> nth=0 >> button:has-text('Edit')");
-await pro.click("role=group[name='Reminders'] >> text=1 week before");
-await pro.check("text=Email me");
+// The add form above shows reminders too (greyed until it has a date), so stay inside the item being edited.
+await pro.click("li >> role=group[name='Reminders'] >> text=1 week before");
+await pro.check("li >> text=Email me");
 await pro.click("button:has-text('Save')");
 await pro.waitForSelector("text=/1 day before, On the day at 8am, 2 hours before · you/");
 ok("edit saved and reminders rescheduled", sql(`select count(*) from "Reminder" r join "Item" i on i.id=r."itemId" where i."seriesId"='${itemId}' and r."sentAt" is null and r."to"='TEAM'`) === "3");

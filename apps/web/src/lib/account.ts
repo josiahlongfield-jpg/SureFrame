@@ -87,7 +87,7 @@ export async function deleteAccount(userId: string) {
   });
   for (const { workspaceId } of kept) {
     const owner = await db.membership.findFirst({ where: { workspaceId, role: "OWNER", userId: { not: userId } } });
-    if (owner) await db.video.updateMany({ where: { workspaceId, ownerId: userId }, data: { ownerId: owner.userId } });
+    if (owner) await db.video.updateMany({ where: { workspaceId, ownerId: userId }, data: { ownerId: owner.userId, formerStaffAt: new Date() } });
     else await deleteVideoFiles({ workspaceId, ownerId: userId });
   }
   for (const w of own) {
@@ -117,9 +117,11 @@ export async function leaveTeam(userId: string, w: Workspace, leaver: string, { 
     if (!gone.count) return false;
     const owner = await tx.membership.findFirst({ where: { workspaceId: w.id, role: "OWNER" } });
     if (owner) {
-      await tx.video.updateMany({ where: { workspaceId: w.id, ownerId: userId }, data: { ownerId: owner.userId } });
+      // Shown as a former team member's, not the owner's (lib/team.ts senderName).
+      const now = new Date();
+      await tx.video.updateMany({ where: { workspaceId: w.id, ownerId: userId }, data: { ownerId: owner.userId, formerStaffAt: now } });
       // Their replies stay the team's: without an author they'd count as the client's in the Team overview.
-      await tx.reply.updateMany({ where: { authorUserId: userId, video: { workspaceId: w.id } }, data: { authorUserId: owner.userId } });
+      await tx.reply.updateMany({ where: { authorUserId: userId, video: { workspaceId: w.id } }, data: { authorUserId: owner.userId, formerStaffAt: now } });
     }
     await tx.client.updateMany({ where: { workspaceId: w.id, assignedToId: userId }, data: { assignedToId: null } });
     // Invites they sent and nobody has used yet stop working with them.
@@ -148,7 +150,7 @@ async function tellManagersAboutLeaver(w: Workspace, leaver: string, closedBySup
     // Closed by SureFrame support (lib/support/admin.ts): the team isn't told why.
     subject: closedBySupport ? `${leaver}'s ${BRAND.name} account was closed, so they've left ${w.name}` : `${leaver} closed their ${BRAND.name} account and left ${w.name}`,
     lead: closedBySupport ? `${leaver}'s ${BRAND.name} account was closed, so they're no longer on your team.` : `${leaver} closed their ${BRAND.name} account, so they're no longer on your team.`,
-    lines: [{ text: "Their recordings now belong to the owner. They held your team's encryption keys, so reset the keys on Settings > Team now. Every client gets a new personal link; those with an email are sent theirs automatically." }],
+    lines: [{ text: "Their recordings now belong to the owner. They held your team's encryption keys, so reset the keys on Settings > Team now. Every client gets a new personal link; those who have opened their link and have an email are sent theirs automatically." }],
     button: { label: "Reset keys on Settings > Team", link: appUrl(teamPath("/settings/team", w.id)) },
     logoUrl: brand.logoUrl,
     color: brand.color,

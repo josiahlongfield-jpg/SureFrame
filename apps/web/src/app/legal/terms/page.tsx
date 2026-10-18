@@ -340,7 +340,8 @@ export default function Page() {
       <h2>13. Help chat</h2>
       <p>
         Our help chat is answered first by an AI assistant, which can make mistakes. It gives general help with using {LEGAL.product} only and isn&rsquo;t legal,
-        financial or other professional advice. A person from our team will step in when needed.
+        financial or other professional advice. A person from our team will step in when needed. The help chat on client pages is answered only by the AI
+        assistant: for anything it can&rsquo;t help with, clients contact the business that sent them their link.
       </p>
 
       <h2>14. Availability and changes</h2>

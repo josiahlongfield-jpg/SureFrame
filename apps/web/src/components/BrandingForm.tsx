@@ -1,12 +1,22 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { colorProblem, logoPath, type Brand } from "@/lib/branding";
 import { prepareLogo } from "@/lib/logoFile";
 import { FullPreview, PreviewStage, Segmented, VIEWS, type Device } from "./BrandPreview";
 import type { PreviewView } from "./ClientPreview";
 
-const SWATCHES = ["#3b55e6", "#0f766e", "#1f7a5c", "#b91c1c", "#c2410c", "#7c3aed", "#be185d", "#0f172a"];
+// Named, so similar shades can be told apart without seeing the colour.
+const SWATCHES = [
+  { hex: "#3b55e6", name: "Blue" },
+  { hex: "#0f766e", name: "Teal" },
+  { hex: "#1f7a5c", name: "Green" },
+  { hex: "#b91c1c", name: "Red" },
+  { hex: "#c2410c", name: "Orange" },
+  { hex: "#7c3aed", name: "Purple" },
+  { hex: "#be185d", name: "Pink" },
+  { hex: "#0f172a", name: "Navy" },
+];
 
 export default function BrandingForm(props: { workspaceId: string; name: string; color: string | null; logoUrl: string | null }) {
   const [saved, setSaved] = useState({ name: props.name, color: props.color ?? "", logoUrl: props.logoUrl });
@@ -21,6 +31,10 @@ export default function BrandingForm(props: { workspaceId: string; name: string;
   const [view, setView] = useState<PreviewView>("video");
   const [device, setDevice] = useState<Device>("desktop");
   const [full, setFull] = useState(false);
+  // On a small screen a scaled-down desktop page is too small to read: start on the phone view there.
+  useEffect(() => {
+    if (window.innerWidth < 1024) setDevice("phone");
+  }, []);
 
   const problem = color ? colorProblem(color) : null;
   const logo = removeLogo ? null : file ? file.dataUrl : saved.logoUrl;
@@ -85,7 +99,7 @@ export default function BrandingForm(props: { workspaceId: string; name: string;
       <div className="grid gap-6 rounded-2xl border border-line bg-surface p-6 md:grid-cols-2 xl:order-2 xl:grid-cols-1">
         <label className="grid gap-1 md:col-span-2 xl:col-span-1">
           <span className="text-sm font-medium text-muted">Business name</span>
-          <span className="text-xs text-dim">Shown next to your logo on client pages, and in the sender of your clients&apos; emails (&ldquo;{name.trim() || "Your business"} via SureFrame&rdquo;).</span>
+          <span className="text-xs text-dim">Shown next to your logo on client pages, and in the sender of your clients&apos; emails (&ldquo;{trimmed || "Business A"} via SureFrame&rdquo;).</span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -128,14 +142,17 @@ export default function BrandingForm(props: { workspaceId: string; name: string;
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {SWATCHES.map((s) => (
               <button
-                key={s}
+                key={s.hex}
                 type="button"
-                aria-label={`Use ${s}`}
-                aria-pressed={color === s}
-                onClick={() => setColor(s)}
-                className={`h-8 w-8 rounded-full border border-line-strong ring-offset-2 ${color === s ? "ring-2 ring-ink ring-offset-surface" : ""}`}
-                style={{ background: s }}
-              />
+                aria-label={`Use ${s.name} (${s.hex})`}
+                title={`${s.name} (${s.hex})`}
+                aria-pressed={color === s.hex}
+                onClick={() => setColor(s.hex)}
+                className="grid w-12 justify-items-center gap-1 text-[0.6875rem] text-muted"
+              >
+                <span className={`h-8 w-8 rounded-full border border-line-strong ring-offset-2 ${color === s.hex ? "ring-2 ring-ink ring-offset-surface" : ""}`} style={{ background: s.hex }} />
+                <span className={color === s.hex ? "font-semibold text-ink" : ""}>{s.name}</span>
+              </button>
             ))}
             <input
               type="color"

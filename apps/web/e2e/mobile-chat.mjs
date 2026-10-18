@@ -168,11 +168,13 @@ ok("client: tapping the AI bar shows the summary", (await phone.textContent("[da
 await phone.screenshot({ path: `${shots}/phone-390-ai-open.png`, fullPage: true });
 await phone.tap(toggle);
 
+// Clients get their own Help in the top bar (components/ClientHelp.tsx), never the business help chat.
+ok("client: Help is the client help in the top bar", helpShown && (await phone.locator("header [data-testid=client-help-button]").count()) === 1 && (await phone.locator("[data-testid=help-button]").count()) === 0);
 if (helpShown) {
   await help.tap();
-  ok("390px: Help is tappable", await phone.isVisible("[role=dialog][aria-label='SureFrame help']"));
+  ok("390px: Help is tappable", await phone.isVisible("[data-testid=client-help-panel]"));
   await phone.tap("button[aria-label='Close help']");
-} else console.log("note: no Help button on this page for clients");
+}
 
 await phone.tap(open);
 await phone.waitForSelector("[data-testid=conversation][data-sheet]", { timeout: 5000 });

@@ -104,10 +104,11 @@ const staffCtx = await browser.newContext(perms);
 const staff = await staffCtx.newPage();
 await staff.goto(invite);
 await staff.click("text=Sign in to join");
-await agreed(`rk-staff${stamp}@example.com`);
+await agreed(`rk-staff${stamp}@example.com`, { name: null });
 await staff.fill('input[name="email"]', `rk-staff${stamp}@example.com`);
 await staff.click("text=Continue");
 await staff.waitForURL((u) => u.pathname.startsWith("/join/"));
+await staff.fill("[data-testid=join-name]", "Team member 1");
 await staff.click("text=Join the team");
 await staff.waitForURL((u) => u.pathname === "/library");
 // Members see only the clients assigned to them.
@@ -119,6 +120,19 @@ await staff.click("text=Copy personal link");
 const staffCopy = await clip(staff);
 ok("staff copied Avery's full link", staffCopy === averyOldLink);
 const staffUser = await prisma.user.findUnique({ where: { email: `rk-staff${stamp}@example.com` } });
+// The staff member records a video for Avery and writes in its conversation: after they're removed, it's a
+// former team member's, not the owner's.
+await staff.goto(BASE + "/record");
+await staff.click("text=Camera only");
+await staff.click("text=Start recording");
+await staff.waitForSelector("text=/Recording · \\d/", { timeout: 15000 });
+await staff.waitForTimeout(2500);
+await staff.click("button:has-text('Stop')");
+await staff.waitForURL("**/v/**", { timeout: 30000 });
+const staffVideoId = staff.url().split("/v/")[1].split("?")[0];
+await sendByLink(staff, avery.name);
+await prisma.video.update({ where: { id: staffVideoId }, data: { sentAt: new Date() } });
+const staffReply = await prisma.reply.create({ data: { kind: "TEXT", body: "sealed".padEnd(40, "x"), encrypted: true, authorName: "Team member 1", videoId: staffVideoId, authorUserId: joined.id } });
 const pendingInvite = await owner.request.post(BASE + "/api/team/invites", { data: { teamKeyWrap: "x".repeat(44) } });
 ok("an invite is waiting", pendingInvite.status() === 201);
 
@@ -134,6 +148,8 @@ await owner.goto(BASE + "/settings/team");
 await owner.click("[data-testid=remove-member]");
 await owner.waitForSelector("[data-testid=team-dialog]");
 ok("removing asks first, in the page", await owner.isVisible("[data-testid=team-dialog] >> text=every client gets a new personal link"));
+ok("dialog: Avery (opened, has email) is emailed", (await owner.textContent("[data-testid=remove-emailed]")).includes("Avery"));
+ok("dialog: Blake (never opened) gets a first link from the team", (await owner.textContent("[data-testid=remove-first-link]")).includes("Blake"));
 await owner.click("[data-testid=dialog-confirm]");
 await owner.waitForSelector("[data-testid=key-reset]", { timeout: 20000 });
 await owner.screenshot({ path: `${shots}/key-reset.png`, fullPage: true });
@@ -144,26 +160,39 @@ ok("pending invites cancelled", (await prisma.invite.count({ where: { workspaceI
 const avery2 = await prisma.client.findUnique({ where: { id: avery.id } });
 ok("Avery has a new link token", avery2.token !== avery.token);
 ok("Avery has a new key", !!avery2.keyFingerprint && avery2.teamKeyWrap !== avery.teamKeyWrap);
-ok("panel lists Blake (no email) to send by hand", await owner.isVisible("[data-testid=key-reset] >> text=Blake"));
+ok("panel lists Blake (never opened) to send as a first link", await owner.isVisible("[data-testid=reset-first-link] >> text=Blake"));
 ok("panel doesn't list Avery (emailed)", !(await owner.isVisible("[data-testid=key-reset] >> text=Avery")));
 ok("panel shows a new recovery key", (await owner.textContent("[data-testid=new-recovery-key]")).replace(/\s/g, "") !== recoveryKey);
 const newMail = readdirSync(".data/outbox").filter((f) => !outboxBefore.has(f)).map((f) => JSON.parse(readFileSync(`.data/outbox/${f}`, "utf8")));
 const averyMail = newMail.find((m) => m.to === `avery${stamp}@example.com`);
 ok("Avery emailed a new link", !!averyMail && averyMail.text.includes(`/c/${avery2.token}`));
 ok("emailed link carries no key", !!averyMail && !averyMail.text.includes("#k="));
+ok("the email says the link was replaced and where it opens", !!averyMail && averyMail.text.includes("replaced your personal link") && averyMail.text.includes("you used before"));
+ok("Blake, who never opened a link, isn't emailed one", !newMail.some((m) => m.text.includes(`/c/`) && m.to !== `avery${stamp}@example.com` && m.text.includes("new link")));
+ok("the removed staff member is emailed", newMail.some((m) => m.to === `rk-staff${stamp}@example.com` && m.subject.includes("no longer on")));
+// Their recording and reply stay with the business, shown as a former team member's.
+const staffVideo = await prisma.video.findUnique({ where: { id: staffVideoId } });
+ok("their video moved to the owner, marked as a former team member's", !!staffVideo.formerStaffAt && staffVideo.ownerId !== joined.id);
+const replies = await (await owner.request.get(`${BASE}/api/videos/${staffVideoId}/replies`)).json();
+const former = replies.replies.find((r) => r.id === staffReply.id);
+ok("their reply reads Former team member, and isn't the owner's own", former?.authorName === "Former team member" && former.mine === false, JSON.stringify(former));
 
 // The removed staff member's copies stop working.
 const staffTry = await (await browser.newContext()).newPage();
 await staffTry.goto(staffCopy);
-ok("old link refused", staffTry.url().includes("invalid=1"));
+ok("old link refused, saying it was replaced", staffTry.url().includes("replaced=1") && !!(await staffTry.waitForSelector("[data-testid=client-link-replaced]", { timeout: 10000 }).catch(() => null)));
 ok("removed staff can't fetch Avery's key chain", (await staff.request.get(`${BASE}/api/clients/${avery.id}/key`)).status() === 404);
 await staff.goto(videoUrl);
 ok("removed staff can't open the video", !(await staff.isVisible("main video")));
+ok("and are told they were removed, not to open a personal link", !!(await staff.waitForSelector("[data-testid=video-former-member]", { timeout: 10000 }).catch(() => null)));
 
 // Stale tabs can't write with the old key.
 const stale = await owner.request.post(BASE + "/api/clients", { data: { name: "Late", teamKeyWrap: "x".repeat(44), keyFingerprint: before.keyFingerprint } });
 ok("write sealed with the old key refused", stale.status() === 409);
 
+// Before opening it, Avery's phone (still holding the old link) says the link was replaced.
+await phone.goto(BASE + "/inbox");
+ok("client's device with the old link is told it was replaced", !!(await phone.waitForSelector("[data-testid=client-link-replaced]", { timeout: 10000 }).catch(() => null)));
 // Avery opens the emailed link (no key in it) on the same phone: the device's old key catches up.
 const newLink = averyMail.text.match(/https?:\/\/\S+\/c\/\S+/)[0];
 await phone.goto(newLink);
@@ -173,11 +202,20 @@ ok("client reads shared to-do after the reset", true);
 await phone.goto(videoUrl);
 await phone.waitForSelector("main video", { timeout: 30000 });
 ok("client plays the video after the reset", (await phone.$eval("main video", finiteDuration)) > 1);
+await phone.goto(BASE + "/inbox");
+await phone.waitForSelector("[data-testid=inbox-video]", { timeout: 15000 });
+ok("client's inbox: the removed member's video reads Former team member · business", (await phone.textContent("main")).includes("Former team member ·"));
+await phone.goto(`${BASE}/v/${staffVideoId}`);
+ok("client's video page too", (await phone.textContent("[data-testid=video-meta]", { timeout: 20000 })).includes("Former team member ·"));
 
 // Blake's new link from the panel works on a fresh device.
 await owner.click("[data-testid=key-reset] li:has-text('Blake') >> text=Copy new link");
 const blakeNew = await clip(owner);
 ok("Blake's new link carries a key", /\/c\/[\w-]+#k=/.test(blakeNew) && !blakeNew.includes(blake.token));
+await owner.goto(`${BASE}/v/${staffVideoId}`);
+ok("owner's video page: Former team member · business", (await owner.textContent("[data-testid=video-meta]", { timeout: 20000 })).includes("Former team member ·"));
+await owner.goto(`${BASE}/library`);
+ok("owner's library card says so too", !!(await owner.waitForSelector("[data-testid=video-former]", { timeout: 15000 }).catch(() => null)));
 
 // The owner still reads everything.
 await owner.goto(`${BASE}/clients/${avery.id}`);

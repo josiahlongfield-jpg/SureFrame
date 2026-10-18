@@ -42,7 +42,8 @@ export default function Page() {
         version you agreed to, email {mail}.
       </p>
       <p>
-        Our <Link href="/legal/dpa">Data Processing Agreement</Link> has its own version number, shown on that page.
+        Our <Link href="/legal/dpa">Data Processing Agreement</Link> has its own version numbers. Version {LEGAL.dpaVersion}, in effect from {LEGAL.dpaSince}, is
+        the current one; its wording was last updated on {LEGAL.dpaUpdated}.
       </p>
     </LegalPage>
   );

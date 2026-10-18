@@ -23,6 +23,7 @@ export function PermChecks({ name, email, perms, self, editable, onChange }: { n
       <legend className="sr-only">What {name} can do</legend>
       <p className="text-xs text-muted">
         {self ? "You see" : `${name} sees`} the clients assigned to {self ? "you" : "them"} (with their videos, replies, to-dos and notes) and videos {self ? "you" : "they"} recorded.
+        {" "}Only the owner and admins remove clients, invite staff or change these.
       </p>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         {PERMS.map((p) => (

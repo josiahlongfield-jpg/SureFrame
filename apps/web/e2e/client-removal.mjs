@@ -99,7 +99,8 @@ const panel = await owner.waitForSelector("[data-testid=remove-client-confirm]")
 const until = longDay(new Date(Date.now() + 30 * D), TZ);
 const ptext = norm(await panel.textContent());
 ok("box: link stops now, seat freed", ptext.includes(`Remove Ana ${stamp}? Their personal link stops working now and their seat is freed.`), ptext);
-ok("box: kept until the date, restorable from Removed clients", ptext.includes(`kept until ${until}, so you can restore them from Removed clients`), ptext);
+ok("box: kept until the date, restorable from Removed clients", ptext.includes(`restore them from Removed clients on this page until ${until}`) && ptext.includes(`kept until ${until}, so you can restore them from Removed clients`), ptext);
+ok("box: the detail sits behind \"What happens to their data?\"", !(await owner.isVisible("[data-testid=remove-client-details] li >> nth=0")));
 ok("box: then deleted for good, replies included, shared recordings stay", ptext.includes("deleted for good, including your team's replies to them, even with cloud backup on") && ptext.includes("Recordings you also sent to other clients stay with those clients"), ptext);
 ok("box: without cloud backup, recordings still leave on their own dates", ptext.includes("Recordings without cloud backup still leave our servers on their usual dates, and restoring doesn't bring those back."), ptext);
 ok("box: 'Email Ana that their access has ended' is ticked", ptext.includes(`Email Ana ${stamp} that their access has ended`) && (await owner.isChecked("[data-testid=remove-client-email]")));
