@@ -61,7 +61,7 @@ const madeUpCode = () => `SF-${Array.from({ length: 8 }, () => ALPHABET[crypto.r
 async function businessOf(email: string): Promise<{ workspace: Workspace; ownerEmail: string }> {
   const owned = await db.membership.findMany({ where: { role: "OWNER", user: { email: { equals: email.trim(), mode: "insensitive" } } }, include: { workspace: true, user: true } });
   if (!owned.length) throw new HttpError(400, "No business has an owner with that email. Check it on Look up.");
-  if (owned.length > 1) throw new HttpError(400, "That person owns more than one business. Ask Claude to add a way to choose one.");
+  if (owned.length > 1) throw new HttpError(400, "That person owns more than one business, and this page can't tell which one the code is for, so no code was made. For now, codes can only go to someone who owns one business.");
   const { workspace, user } = owned[0];
   if (workspace.closedAt || workspace.deleteAt) throw new HttpError(400, `${workspace.name} is closed or being deleted.`);
   return { workspace, ownerEmail: user.email };

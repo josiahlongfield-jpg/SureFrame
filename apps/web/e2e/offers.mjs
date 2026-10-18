@@ -116,6 +116,10 @@ ok("and the workspace records them", (await prisma.workspace.findUnique({ where:
 // 2) The console's Discounts page (the founder only): a code for one business, which works once.
 const ADMIN = "owner@test.dev";
 const admin = await signIn(ADMIN, "/support/offers", { phone: true });
+// The Code field's pattern used to be an invalid expression, so the browser logged an error and never checked it.
+const patternErrors = [];
+admin.on("console", (m) => /pattern attribute/i.test(m.text()) && patternErrors.push(m.text()));
+await admin.reload();
 async function power(testId, fields = {}) {
   const box = admin.locator(`[data-testid="${testId}"]`);
   // A form left open by a refusal stays open.
@@ -160,7 +164,22 @@ const created = await prisma.adminAction.findFirst({ where: { action: "offer.cre
 ok("support log records the code and its business", created?.reason === "e2e offers test" && created.workspaceId === linkWs.id && created.details?.summary === "20% off your plan for 3 months");
 t = (await admin.textContent("main")).replace(/\s+/g, " ");
 ok("console shows who it's for and its link", t.includes(`Done: Discount code given (${CODE})`) && t.includes(`/offer/${CODE}`) && t.includes(`(${linkEmail}) only`) && t.includes("Used0 of 1 times"), t.slice(0, 600));
-ok("codes for a number of months are capped at 12", (await admin.locator('[data-testid="create-offer"] input[name="months"]').getAttribute("max")) === "12");
+{
+  const box = admin.locator('[data-testid="create-offer"]');
+  await box.locator("summary").click();
+  ok("how long it lasts: nothing chosen at first, and no months box", (await box.locator('select[name="duration"]').inputValue()) === "" && (await box.locator('input[name="months"]').count()) === 0);
+  await box.locator('select[name="duration"]').selectOption("repeating");
+  ok("codes for a number of months are capped at 12", (await box.locator('input[name="months"]').getAttribute("max")) === "12");
+  await box.locator('input[name="lastDay"]').fill("2026-12-31");
+  ok("the last day is written out as the site writes dates", ((await box.locator("[data-testid=offer-last-day]").textContent()) ?? "").includes("31 Dec 2026"));
+  await box.locator('input[name="lastDay"]').fill("");
+  ok("the Code field's check is a valid pattern and works", patternErrors.length === 0 && (await box.locator('input[name="code"]').evaluate((i) => ((i.value = "MY CODE"), i.validity.patternMismatch))), patternErrors.join(" / "));
+  await box.locator('input[name="code"]').fill("");
+}
+ok("console: a ready email with the code for its business", (await admin.getAttribute(`[data-testid="email-code-${CODE}"]`, "href"))?.startsWith(`mailto:${linkEmail}?`));
+ok("founding prices: plain words, no developer note", !(await admin.textContent("[data-testid=founding-status]")).includes("Claude"));
+err = await power("create-offer", { email: linkEmail, code: "", percentOff: 150, scope: "plan", duration: "once" });
+ok("150% is refused with a message, not left on Working…", /Enter a percentage from 1 to 100/.test(err), err);
 err = await power("create-offer", { email: linkEmail, code: CODE, percentOff: 10, scope: "all", duration: "once" });
 ok("a code already running can't be made twice", /already in use/.test(err), err);
 err = await power("create-offer", { email: `nobody${stamp}@example.com`, code: "", percentOff: 10, scope: "all", duration: "once" });
