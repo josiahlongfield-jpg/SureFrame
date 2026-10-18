@@ -112,10 +112,10 @@ await page.goto(BASE + "/settings/billing?upgraded=1");
 await page.waitForSelector("[data-testid=upgraded]");
 const thanks = await pay("upgraded");
 ok("after checkout: says the plan is on, not that it's pending", thanks.includes("You're on Solo now") && !thanks.includes("as soon as payment is confirmed"), thanks);
-// A discount code on a running plan: checked here, used by moving up a plan.
+// A discount code on a running plan: checked here, then added from the next bill.
 await page.click("[data-testid=have-code]");
 await page.fill("#discount-code", "NO-SUCH-CODE");
-await page.click("text=Check code");
+await page.click("text=Add to my plan");
 ok("discount box on a paid plan: an unknown code is refused", !!(await page.waitForSelector("text=That code isn't valid or has ended.", { timeout: 10000 }).catch(() => null)));
 
 // 4) Upgrading switches the plan in place, after the owner confirms what's charged and to which card.

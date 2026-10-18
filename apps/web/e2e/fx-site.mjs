@@ -144,7 +144,7 @@ await visitor.goto(BASE + "/faq#cancel");
 ok("a link to one answer opens it", await visitor.waitForFunction(() => document.getElementById("cancel")?.open === true, null, { timeout: 5000 }).then(() => true, () => false));
 await visitor.goto(BASE + "/about");
 const about = norm(await visitor.textContent("main"));
-ok("About: who runs it, as a business name with its ABN", about.includes("SureFrame is a registered business name of a sole trader based in Queensland, Australia. ABN 38 364 192 034"), about.slice(0, 300));
+ok("About: who runs it, as a business name with its ABN", about.includes("Made in Queensland. SureFrame is a registered business name (ABN 38 364 192 034) of a sole trader who builds it, runs it and answers support."), about.slice(0, 300));
 ok("About: support email, data locations, encryption, recovery key", about.includes("support@sureframe.app") && about.includes("Cloudflare R2") && about.includes("Video titles") && about.includes("recovery key"));
 ok("About: recordings' location in plain words, the same as the FAQ", about.includes("Encrypted video and voice recordings are stored in the Oceania region (Australia, New Zealand and the Pacific)"));
 ok("About and FAQ never name the owner", !/josiah|longfield/i.test(about + faq));

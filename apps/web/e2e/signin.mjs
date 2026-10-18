@@ -7,8 +7,8 @@ import { passAgree } from "./agree.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const outbox = ".data/outbox";
-const ok = (label, cond) => {
-  console.log(`${cond ? "PASS" : "FAIL"} ${label}`);
+const ok = (label, cond, extra = "") => {
+  console.log(`${cond ? "PASS" : "FAIL"} ${label}${cond ? "" : ` ${extra}`}`);
   if (!cond) process.exitCode = 1;
 };
 // Earlier runs share this machine's IP; start with fresh rate-limit windows.
@@ -28,7 +28,7 @@ ok("Keep me signed in comes before the button, in tab order", await page.evaluat
 await page.fill('input[name="email"]', email);
 await page.click("text=Email me a sign-in link");
 await page.waitForURL("**/login/check**");
-ok("check-your-email page shown", await page.isVisible("text=Check your email"));
+ok("check-your-email page shown", !!(await page.waitForSelector("text=Check your email", { timeout: 15000 }).catch(() => null)));
 ok("it shows the whole address, never split mid-word by force", (await page.textContent("[data-testid=sent-to-address]")) === email && (await page.$eval("[data-testid=sent-to-address]", (e) => getComputedStyle(e).wordBreak)) !== "break-all");
 
 const mail = readdirSync(outbox)
@@ -87,7 +87,7 @@ await shut.goto(BASE + "/login?next=/library");
 await shut.fill('input[name="email"]', shutEmail);
 await shut.click("text=Email me a sign-in link");
 await shut.waitForURL("**/login/check**");
-ok("a support-closed account sees the usual check page", await shut.isVisible("text=Check your email"));
+ok("a support-closed account sees the usual check page", !!(await shut.waitForSelector("text=Check your email", { timeout: 15000 }).catch(() => null)));
 const shutMail = readdirSync(outbox)
   .map((f) => JSON.parse(readFileSync(`${outbox}/${f}`, "utf8")))
   .filter((m) => m.to === shutEmail);
@@ -104,6 +104,8 @@ for (let i = 0; i < 5; i++) {
   await spam.click("text=Email me a sign-in link");
   await spam.waitForURL((u) => u.pathname === "/login/check" || u.searchParams.get("error") === "rate");
 }
-ok("sign-in emails to one address are limited", await spam.waitForSelector("text=Too many sign-in emails", { timeout: 5000 }).then(() => true, () => false));
+// Load the refused address afresh: headless Chromium here can leave a same-page redirect on the loading screen.
+if (new URL(spam.url()).searchParams.get("error")) await spam.goto(spam.url());
+ok("sign-in emails to one address are limited", await spam.waitForSelector("text=Too many sign-in emails", { timeout: 15000 }).then(() => true, () => false), spam.url());
 await browser.close();
 await prisma.$disconnect();

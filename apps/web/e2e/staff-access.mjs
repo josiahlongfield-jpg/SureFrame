@@ -415,6 +415,8 @@ await amy.waitForURL((u) => u.searchParams.get("saved") === "name");
 ok("Amy's name is saved", (await prisma.user.findUnique({ where: { id: amyUser.id } })).name === "Amy Lee");
 await amy.goto(BASE + "/library");
 ok("the name prompt is gone once set", !(await amy.isVisible("[data-testid=name-prompt]")));
+// This test client's key is never really held here; mark it held so the inbox lists its videos (lib/e2e/keyHeld.ts).
+await anaClient.context().addCookies([{ name: `fc_key_${ana.id}`, value: "1", url: BASE }]);
 await anaClient.goto(BASE + "/inbox");
 // Past the loading screen and the key check ("One moment…").
 await anaClient.waitForFunction(() => !document.querySelector("main")?.textContent?.includes("One moment"), null, { timeout: 15000 }).catch(() => {});

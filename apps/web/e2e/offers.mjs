@@ -46,6 +46,8 @@ const priceOf = (id) => state.prices.find((p) => p.id === id);
 const keys = (sub) => sub.items.data.map((i) => i.price.lookup_key).sort().join(",");
 const text = async (page, path) => {
   await page.goto(BASE + path);
+  // Past the folder's loading screen (components/PageLoading.tsx).
+  await page.waitForFunction(() => !document.querySelector('[role=status][aria-label="Loading"]'), null, { timeout: 15000 }).catch(() => {});
   return (await page.textContent("main")).replace(/\s+/g, " ");
 };
 // The workspace is made as the first page renders, so it can arrive a moment after the page's address.
@@ -251,7 +253,7 @@ ok("a used code is refused for a subscriber", res.status() === 400 && /isn't val
 await visitor.goto(`${BASE}/offer/${CODE}`);
 ok("used once, its link now says it has ended", (await visitor.locator('[data-testid="offer-ended"]').count()) === 1);
 t = await text(admin, "/support/offers");
-ok("console lists it as used", t.includes("Used or cancelled") && (await admin.locator(`[data-testid="offer-${CODE}"]`).textContent()).includes("Used"));
+ok("console lists it as used", t.includes("Used or cancelled") && (await admin.locator(`[data-testid="offer-${CODE}"]`).textContent()).includes("Used"), t.slice(0, 600));
 
 // New-customers-only codes aren't for subscribers; a Free owner's typed code is kept for checkout.
 const newOnly = await fake.coupons.create({ name: "NEWONLY", percent_off: 50, duration: "once", metadata: { sureframe_scope: "all" } });
@@ -279,6 +281,9 @@ t = ((await third.waitForSelector('[data-testid="code-done"]', { timeout: 10000 
 ok("a subscriber's code is added from the next bill", t.includes(`${ONCECODE} added:`) && t.includes("comes off from your next bill") && sub3.discounts.length === 1, t);
 res = await api(third, "/api/billing/code", { code: ONCECODE });
 ok("and can't be added twice", res.status() === 400, String(res.status()));
+// Taken off again in the stand-in Stripe, so the move-up checks below start from a plan with no discount.
+sub3.discounts = [];
+await webhook(third, "customer.subscription.updated", sub3);
 const yearlyEmail = `yearly${stamp}@example.com`;
 const yearly = await signIn(yearlyEmail);
 await api(yearly, "/api/billing/checkout", { plan: "SOLO", interval: "year" });
@@ -383,7 +388,7 @@ t = await text(late, "/legal/terms");
 // The page's own "last updated" date (lib/legal.ts termsUpdated), which moved on when later changes were added.
 const termsUpdated = readFileSync(new URL("../src/lib/legal.ts", import.meta.url), "utf8").match(/termsUpdated: "([^"]+)"/)?.[1];
 ok("terms explain founding prices", /Founding prices are the exception/.test(t) && !!termsUpdated && t.includes(`Last updated ${termsUpdated}`), termsUpdated);
-ok("terms explain discounts", /Discount codes and offers work as described when you use them/.test(t) && /only be used when you start a paid subscription or move up to a bigger plan, and when moving up a code can.t bring the new plan below what your current plan costs/.test(t));
+ok("terms explain discounts", /Discount codes and offers work as described when you use them/.test(t) && /be used when you start a paid subscription or move up to a bigger plan, and when moving up a code can.t bring the new plan below what your current plan costs/.test(t) && /can also be added to a plan you already pay for/.test(t));
 ok("terms say a code works once, for one business only", /A discount code we give your business works once and only for your business: it can.t be passed on, sold or used by anyone else/.test(t));
 
 // 8) Share links can't be used to try codes: 30 different codes per IP in 10 minutes, and retrying a refused one is refused again.

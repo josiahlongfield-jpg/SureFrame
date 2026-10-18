@@ -94,6 +94,7 @@ await agent.waitForURL("**/support");
 await agent.waitForSelector("[data-testid=inbox-list]");
 ok("inbox lists the ticket as urgent", (await agent.textContent("main")).includes("visitor@example.com") && (await agent.textContent("main")).toLowerCase().includes("urgent"));
 await agent.goto(link.replace(/^https?:\/\/[^/]+/, BASE));
+await agent.waitForSelector("text=summary", { timeout: 15000 }).catch(() => {});
 ok("agent sees the summary", (await agent.textContent("main")).includes("Customer wants a refund"));
 await agent.screenshot({ path: `${shots}/support-agent.png`, fullPage: true });
 await agent.fill('textarea[aria-label="Your reply"]', "Sorry about that. I've refunded the second charge.");
