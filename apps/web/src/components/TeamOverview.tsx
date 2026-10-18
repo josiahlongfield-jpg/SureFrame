@@ -89,9 +89,11 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
                 {theirs.map((c, i) => (
                   <span key={c.id}>{i > 0 && ", "}<Link href={`/clients/${c.id}`} className="hover:underline">{c.name}</Link></span>
                 ))}
-                {/* Owners and admins look after the unassigned clients too, so their cards say so. */}
+                {/* The owner and admins look after unassigned clients, so their cards say so rather than "no clients". */}
                 {s.role !== "MEMBER" && unassigned.length > 0 && (
-                  <span>{theirs.length > 0 && ", plus "}the unassigned {unassigned.length === 1 ? "client" : `clients (${unassigned.length})`}{s.role === "OWNER" ? "" : ", with the owner"}</span>
+                  <span data-testid="looks-after-unassigned">
+                    {theirs.length > 0 && ", plus "}unassigned clients ({unassigned.slice(0, 5).map((c) => c.name).join(", ")}{unassigned.length > 5 ? ` and ${unassigned.length - 5} more` : ""})
+                  </span>
                 )}
                 {!theirs.length && (s.role === "MEMBER" || !unassigned.length) && <span className="text-dim">no clients yet</span>}
               </p>

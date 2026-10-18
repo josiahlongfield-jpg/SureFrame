@@ -83,7 +83,7 @@ export default function ReminderSettings({ initial }: { initial: Settings }) {
             <span className="font-medium text-muted">Business name</span>
             <span>
               <span className="text-ink">{s.name}</span>{" "}
-              <Link href="/settings/branding" className="font-medium text-accent hover:underline">Change in Branding</Link>
+              <span className="text-dim">·</span> <Link href="/settings/branding" className="font-medium text-accent hover:underline">change it on the Branding page</Link>
             </span>
             <span className="text-xs text-dim">Shown to clients on their page and as the sender of reminder emails.</span>
           </p>

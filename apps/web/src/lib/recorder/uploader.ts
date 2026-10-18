@@ -225,6 +225,12 @@ export async function recoverInterrupted(onRecovered: (videoId: string, s: store
     // A recording still running in another tab holds this lock; leave it alone.
     await navigator.locks.request(lockName(s.videoId), { ifAvailable: true }, async (lock) => {
       if (!lock) return;
+      if (s.discarding && !s.stopped) {
+        // They were about to discard it when the page closed: finish the discard, don't upload it (or use up a free video).
+        const res = await fetch(`/api/videos/${s.videoId}`, { method: "DELETE" }).catch(() => null);
+        if (res && (res.ok || res.status === 404)) await store.removeSession(s.videoId);
+        return;
+      }
       const chunks = await store.getChunks(s.videoId);
       try {
         const up = new ChunkedUploader(s.videoId, {

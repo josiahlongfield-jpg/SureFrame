@@ -6,9 +6,13 @@ import type { Brand } from "@/lib/branding";
 
 export type Device = "desktop" | "phone";
 
-/** Real viewport sizes, so the client pages lay out exactly as they do for clients. */
+/**
+ * Real viewport sizes, so the client pages lay out exactly as they do for
+ * clients. Desktop is a small laptop's width (still the desktop layout), so the
+ * scaled-down preview stays big enough to read.
+ */
 const SIZES: Record<Device, { w: number; h: number }> = {
-  desktop: { w: 1280, h: 800 },
+  desktop: { w: 1024, h: 720 },
   phone: { w: 390, h: 844 },
 };
 const BEZEL = 10;

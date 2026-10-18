@@ -92,7 +92,6 @@ export function KeyActions({ value, business, tone = "plain" }: { value: string;
 /** This device's copy of the team key as a recovery key, if it has the current one. */
 function useDeviceKey(workspaceId: string, fingerprint: string | null) {
   const [value, setValue] = useState<string | null>();
-  const [fresh, setFresh] = useState(false);
   useEffect(() => {
     let cancelled = false;
     const load = async (created: boolean) => {
@@ -101,7 +100,6 @@ function useDeviceKey(workspaceId: string, fingerprint: string | null) {
       const ok = key && (created || !fingerprint || (await keyFingerprint(key)) === fingerprint);
       if (cancelled) return;
       setValue(ok ? await exportKey(key) : null);
-      if (ok && created) setFresh(true);
     };
     void load(false);
     const onCreated = (e: Event) => (e as CustomEvent<string>).detail === workspaceId && void load(true);
@@ -111,20 +109,30 @@ function useDeviceKey(workspaceId: string, fingerprint: string | null) {
       window.removeEventListener(KEY_CREATED, onCreated);
     };
   }, [workspaceId, fingerprint]);
-  return { value, fresh };
+  return { value };
 }
 
 async function markSaved() {
   await fetch("/api/workspace/key/saved", { method: "POST" }).catch(() => null);
 }
 
+/** Says at once that "I've saved it" registered, while the page catches up. */
+function SavedNote() {
+  return (
+    <p role="status" className="rounded-2xl border border-ok-line bg-ok-bg p-4 text-sm text-ok-fg" data-testid="recovery-key-saved">
+      Thanks, noted that you&apos;ve saved your recovery key. {FIND_IT_LATER}
+    </p>
+  );
+}
+
 /** The key with everything needed to keep it, and "I've saved it". Used by the header reminder and the first steps. */
-export function RecoveryKeyBox({ value, business, onSaved }: { value: string; business: string; onSaved: () => void }) {
-  const [busy, setBusy] = useState(false);
+export function RecoveryKeyBox({ value, business, onSaved, onLater, titled = true }: { value: string; business: string; onSaved: () => void; onLater?: () => void; /** Off inside the first steps, whose step already says it. */ titled?: boolean }) {
+  const [saved, setSaved] = useState(false);
+  if (saved) return <SavedNote />;
   return (
     <div role="region" aria-label="Save your recovery key" className="rounded-2xl border border-warn-line bg-warn-bg p-5" data-testid="recovery-key-box">
-      <h2 className="font-semibold text-warn-fg">Save your recovery key</h2>
-      <p className="mt-1 text-sm text-warn-fg">
+      {titled && <h2 className="mb-1 font-semibold text-warn-fg">Save your recovery key</h2>}
+      <p className="text-sm text-warn-fg">
         Your videos are end-to-end encrypted on this device. You&apos;ll need this key to open them on another computer, phone or browser. We can&apos;t recover it for you, so keep it somewhere private, like a password manager.
       </p>
       <KeyText value={value} className="mt-3" />
@@ -133,9 +141,9 @@ export function RecoveryKeyBox({ value, business, onSaved }: { value: string; bu
         <KeyActions value={value} business={business} tone="warn" />
         <button
           type="button"
-          disabled={busy}
           onClick={async () => {
-            setBusy(true);
+            // Answered straight away; the server is told in the background.
+            setSaved(true);
             await markSaved();
             onSaved();
           }}
@@ -143,6 +151,11 @@ export function RecoveryKeyBox({ value, business, onSaved }: { value: string; bu
         >
           I&apos;ve saved it
         </button>
+        {onLater && (
+          <button type="button" onClick={onLater} className="px-2 py-1.5 text-sm text-warn-fg underline-offset-2 hover:underline" data-testid="recovery-key-later">
+            Remind me later
+          </button>
+        )}
       </div>
       <p className="mt-3 text-xs text-warn-fg">{FIND_IT_LATER}</p>
     </div>
@@ -156,7 +169,9 @@ export function RecoveryKeyBox({ value, business, onSaved }: { value: string; bu
 export function RecoveryKeyStep({ workspaceId, fingerprint, business }: { workspaceId: string; fingerprint: string | null; business: string }) {
   const router = useRouter();
   const { value } = useDeviceKey(workspaceId, fingerprint);
+  const [saved, setSaved] = useState(false);
   if (value === undefined) return null;
+  if (saved) return <SavedNote />;
   // A brand-new business has no key yet: this device makes it here (TeamKeyGate), then shows it.
   if (value === null && !fingerprint) {
     return (
@@ -169,40 +184,62 @@ export function RecoveryKeyStep({ workspaceId, fingerprint, business }: { worksp
     return (
       <div className="text-sm text-muted">
         <p>Your recovery key opens your encrypted videos on a new device. This browser doesn&apos;t hold it yet. {FIND_IT_LATER}</p>
-        <button type="button" onClick={async () => { await markSaved(); router.refresh(); }} className="mt-2 rounded-lg border border-line-strong px-3 py-1.5 font-medium text-ink hover:bg-hover">
+        <button type="button" onClick={async () => { setSaved(true); await markSaved(); router.refresh(); }} className="mt-2 rounded-lg border border-line-strong px-3 py-1.5 font-medium text-ink hover:bg-hover">
           I&apos;ve saved it
         </button>
       </div>
     );
   }
-  return <RecoveryKeyBox value={value} business={business} onSaved={() => router.refresh()} />;
+  return <RecoveryKeyBox value={value} business={business} onSaved={() => router.refresh()} titled={false} />;
 }
 
+const LATER = "sf-recovery-key-later";
+
 /**
- * Under the header until its person presses "I've saved it", on every page:
- * in full where the key has just been made (or staff have just joined), else
- * as one line that opens it. Not lost after a reload or a recording. Asked
+ * Under the header until its person presses "I've saved it", on every page, in
+ * full: not lost after a reload or a recording. "Remind me later" folds it to
+ * one line that opens it again, for the rest of this browser session. Asked
  * again after the team's keys are reset (`note` then says why).
  */
 export default function RecoveryKeyReminder({ workspaceId, fingerprint, business, hiddenOn, note }: { workspaceId: string; fingerprint: string | null; business: string; hiddenOn: string | null; note?: string }) {
   const router = useRouter();
   const hidden = usePathname() === hiddenOn;
-  const { value, fresh } = useDeviceKey(workspaceId, fingerprint);
-  const [open, setOpen] = useState(false);
+  const { value } = useDeviceKey(workspaceId, fingerprint);
+  const [later, setLater] = useState(false);
   const [saved, setSaved] = useState(false);
-  // Staff land here straight after joining (components/JoinTeam.tsx): the key is shown in full once.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).has("joined")) setOpen(true);
+    try {
+      setLater(sessionStorage.getItem(LATER) === workspaceId);
+    } catch {
+      /* storage blocked: shown in full */
+    }
+  }, [workspaceId]);
+  function remindLater(on: boolean) {
+    setLater(on);
+    try {
+      if (on) sessionStorage.setItem(LATER, workspaceId);
+      else sessionStorage.removeItem(LATER);
+    } catch {
+      /* storage blocked: folded until the next page */
+    }
+  }
+  // Staff land here straight after joining (components/JoinTeam.tsx): the key is shown in full.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("joined")) remindLater(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (hidden || saved || !value) return null;
   return (
     <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6" data-testid="recovery-key-reminder">
-      {fresh || open ? (
-        <RecoveryKeyBox value={value} business={business} onSaved={() => { setSaved(true); router.refresh(); }} />
+      {!later ? (
+        <>
+          {note && <p className="mb-2 text-sm font-medium text-warn-fg">{note}</p>}
+          <RecoveryKeyBox value={value} business={business} onSaved={() => { setSaved(true); router.refresh(); }} onLater={() => remindLater(true)} />
+        </>
       ) : (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warn-line bg-warn-bg px-4 py-2.5 text-sm text-warn-fg">
           <p>{note ?? "You haven't saved your recovery key yet. You need it to open your videos on another device."}</p>
-          <button type="button" onClick={() => setOpen(true)} className="font-medium underline">Show recovery key</button>
+          <button type="button" onClick={() => remindLater(false)} className="font-medium underline">Show recovery key</button>
         </div>
       )}
     </div>
