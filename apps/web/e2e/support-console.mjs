@@ -44,9 +44,8 @@ const putFile = (key) => {
 };
 const has = (key) => existsSync(path.join(uploads, key));
 const lastAction = (where) => prisma.adminAction.findFirst({ where, orderBy: { createdAt: "desc" } });
-const isoDay = (d) => d.toISOString().slice(0, 10);
-// Emails give dates in the workspace's time zone; these workspaces have none (UTC).
-const longDay = (d) => new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "UTC" }).format(d);
+// The support pages and support's emails give dates in Queensland time, written one way: "18 Oct 2026" (lib/support/when.ts).
+const qldDay = (d) => new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Brisbane", day: "numeric", month: "short", year: "numeric" }).format(d);
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM });
 async function signIn(email, next = "/library", { phone = false, lands = next.split("?")[0] } = {}) {
@@ -234,7 +233,7 @@ ok("a result opens the login's page", (await text("h1")).includes(aEmail));
 await open(`/support/workspaces/${wsA}`);
 let status = await text("[data-testid=ws-status]");
 const aPeriodEnd = (await prisma.workspace.findUnique({ where: { id: wsA } })).currentPeriodEnd;
-ok("status: owner, plan, subscription, renewal", status.includes(aEmail) && status.includes("Solo, billed every month") && status.includes("Subscription active") && status.includes(`Renews ${isoDay(aPeriodEnd)}`), status);
+ok("status: owner, plan, subscription, renewal", status.includes(aEmail) && status.includes("Solo, billed every month") && status.includes("Subscription active") && status.includes(`Renews ${qldDay(aPeriodEnd)}`), status);
 ok("status: Stripe Dashboard links for the customer and subscription", (await admin.locator(`a[href="https://dashboard.stripe.com/test/customers/${aCustomer}"]`).count()) === 1 && (await admin.locator(`a[href="https://dashboard.stripe.com/test/subscriptions/${aSub.id}"]`).count()) === 1);
 ok("status: not suspended, closed or held", status.includes("Suspended No") && status.includes("Closed by support No") && status.includes("Legal hold Off") && status.includes("Deletion Not scheduled"), status);
 ok("status: members and clients listed with link state", (await text("main")).includes(samEmail) && (await text(`[data-testid=client-${ana.id}]`)).includes("Link works"));
@@ -396,7 +395,7 @@ await prisma.workspace.update({ where: { id: wsB }, data: { videosRecorded: 4 } 
 // =====================================================================================================
 // 9. Removed clients: restore, keep 30 more days, delete now
 // =====================================================================================================
-ok("removed clients listed with their deletion dates", (await text(`[data-testid=removed-${dee.id}]`)).includes(`Deleted for good on ${isoDay(dee.purgeAt)}`));
+ok("removed clients listed with their deletion dates", (await text(`[data-testid=removed-${dee.id}]`)).includes(`Deleted for good on ${qldDay(dee.purgeAt)}`));
 r = await power(`power-restoreClient-${cy.id}`, { reason: "Owner removed the wrong client" });
 ok("restore: refused while every seat is in use", !r.done && r.message.includes("All 3 client seats are in use"), r.message);
 ok("restore: the refusal changed nothing and logged nothing", !!(await prisma.client.findUnique({ where: { id: cy.id } })).removedAt && !(await prisma.adminAction.findFirst({ where: { clientId: cy.id } })));
@@ -412,9 +411,9 @@ ok("restore: logged as done", row?.details?.status === "done" && row.details.ign
 
 const deeUntil = new Date(dee.purgeAt.getTime() + 30 * D);
 r = await power(`power-keepClient-${dee.id}`, { reason: "Owner is on leave and asked for more time" });
-ok("keep 30 more days: done", r.done && r.message.includes("Removed client kept 30 more days") && r.message.includes(`from ${isoDay(dee.purgeAt)} to ${isoDay(deeUntil)}`), r.message);
+ok("keep 30 more days: done", r.done && r.message.includes("Removed client kept 30 more days") && r.message.includes(`from ${qldDay(dee.purgeAt)} to ${qldDay(deeUntil)}`), r.message);
 ok("keep 30 more days: new date, warning reset", (await prisma.client.findUnique({ where: { id: dee.id } })).purgeAt.getTime() === deeUntil.getTime());
-ok("keep 30 more days: owner emailed the date", !!(await waitMail(bEmail, (m) => m.subject === `Dee ${stamp} will be kept until ${longDay(deeUntil)}`)));
+ok("keep 30 more days: owner emailed the date", !!(await waitMail(bEmail, (m) => m.subject === `Dee ${stamp} will be kept until ${qldDay(deeUntil)}`)));
 
 r = await power(`power-deleteClientNow-${eve.id}`, { reason: "Client asked the business to erase their data", confirm: "DELETE eve" });
 ok("delete client now: the wrong confirmation is refused", !r.done && r.message.includes(`Type DELETE ${eve.email} to confirm.`) && !!(await prisma.client.findUnique({ where: { id: eve.id } })), r.message);
@@ -454,7 +453,7 @@ ok("close: staff taken off the team", !(await prisma.membership.findFirst({ wher
 ok("close: address blocked", !!(await prisma.blockedEmail.findUnique({ where: { emailHash: createHash("sha256").update(eEmail).digest("hex") } })));
 ok("close: emailed", !!(await waitMail(eEmail, (m) => m.subject === "Your SureFrame account has been closed")) && !!(await waitMail(fayEmail, (m) => m.subject === `You're no longer on ${eName}'s team`)));
 const eBadges = await text("[data-testid=user-badges]");
-ok("close: page shows closed, deletion date, blocked, legal hold", eBadges.includes("Closed by support") && eBadges.includes(`Deletion ${isoDay(eRow.deleteAt)}`) && eBadges.includes("Email blocked") && eBadges.includes("Legal hold"), eBadges);
+ok("close: page shows closed, deletion date, blocked, legal hold", eBadges.includes("Closed by support") && eBadges.includes(`Deletion ${qldDay(eRow.deleteAt)}`) && eBadges.includes("Email blocked") && eBadges.includes("Legal hold"), eBadges);
 ok("close: no Cancel deletion for a support-closed account; Reopen instead", (await admin.locator("[data-testid=power-cancelDeletion]").count()) === 0 && (await admin.locator("[data-testid=power-reopenAccount]").count()) === 1);
 ok("close: Delete now not offered under legal hold", (await text("main")).includes("Delete now isn’t available while legal hold is on"));
 // The closed account can't sign in for its data, so support downloads it for them (DPA section 10).
@@ -469,7 +468,7 @@ ok("download their data: not for anyone but a support admin", (await bOwner.requ
 ok("download their data: not from another site", (await admin.request.post(BASE + "/api/support/export", { form: { userId: eUser.id, reason: "x" }, headers: { "sec-fetch-site": "cross-site" } })).status() === 404);
 await open(`/support/workspaces/${wsE}`);
 status = await text("[data-testid=ws-status]");
-ok("close: the workspace page shows closed, held, the deletion date and the blocked owner", status.includes("Owner's email blocked Yes") && status.includes("Closed by support 20") && status.includes("Legal hold On since") && status.includes(`Scheduled for ${isoDay(eRow.deleteAt)} (closed by support)`), status);
+ok("close: the workspace page shows closed, held, the deletion date and the blocked owner", status.includes("Owner's email blocked Yes") && /Closed by support \d{1,2} [A-Z][a-z]{2,3} 20\d\d, \d{1,2}:\d\d [ap]m AEST/.test(status) && status.includes("Legal hold On since") && status.includes(`Scheduled for ${qldDay(eRow.deleteAt)} (closed by support)`), status);
 
 // =====================================================================================================
 // 8. Cancel a scheduled deletion (their own closing), but never for a support-closed account
@@ -539,10 +538,13 @@ ok("delete now: not offered to an owner with staff", (await text("main")).includ
 // /support/accounts: the complimentary-plan forms are logged too
 // =====================================================================================================
 await open("/support/accounts");
+ok("free plans: no plan chosen until one is picked", (await admin.inputValue("[data-testid=comp-form] select")) === "");
 await admin.fill('input[name="email"]', bEmail);
 await admin.selectOption("select", "STUDIO");
 await admin.click("text=Save");
-ok("complimentary plan: a reason is needed", (await admin.evaluate(() => document.querySelector('textarea[name="reason"]').validity.valueMissing)) && !(await prisma.workspace.findUnique({ where: { id: wsB } })).complimentaryPlan);
+// Said in the page (not the browser's own pop-up), keeping what was typed.
+const needReason = await admin.waitForSelector("[data-testid=comp-form] [role=alert]", { timeout: 30000 }).then((e) => e.textContent()).catch(() => "");
+ok("complimentary plan: a reason is needed, said in the page", needReason.includes("Write the reason for this") && (await admin.inputValue('[data-testid=comp-form] input[name="email"]')) === bEmail && !(await prisma.workspace.findUnique({ where: { id: wsB } })).complimentaryPlan, needReason);
 await admin.fill('textarea[name="reason"]', "Partner trial agreed by email");
 await admin.click("text=Save");
 await admin.waitForSelector("text=free of charge");
@@ -575,6 +577,12 @@ ok("log: newest first, with every kind of action", log.indexOf("Complimentary pl
 ok("log: reasons and who did it", log.includes("Reason: Used to send threats") && log.includes(`By ${ADMIN}`));
 ok("log: no link to a deleted account", (await admin.locator(`a[href="/support/users/${dUser.id}"]`).count()) === 0 && (await admin.locator(`a[href="/support/users/${eUser.id}"]`).count()) > 0);
 await admin.screenshot({ path: `${shots}/log-phone.png` });
+await open(`/support/log?q=${encodeURIComponent("Partner trial")}`);
+const found = await text("[data-testid=history]");
+ok("log: search finds actions by their reason", found.includes("Partner trial agreed by email") && !found.includes("Used to send threats"), found.slice(0, 200));
+await open("/support/log?action=account.close");
+const closes = await text("[data-testid=history]");
+ok("log: and filters by kind", closes.includes("Account closed permanently") && !closes.includes("Warning sent"), closes.slice(0, 200));
 
 ok("every console page fits a phone screen (no sideways scrolling)", wide.length === 0, wide.join(", "));
 

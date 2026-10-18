@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { firstStepsFor } from "@/lib/firstSteps";
 import { currentUser } from "@/lib/session";
 import { formerTeams } from "@/lib/team";
+import { isSupportAgent } from "@/lib/support/tickets";
 import NamePrompt from "./NamePrompt";
 import StaffNotices from "./StaffNotices";
 import Logo from "./Logo";
@@ -38,6 +39,8 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
   const settings: Links = manager
     ? [["/settings/reminders", "Reminders"], ["/settings/branding", "Branding"], ["/settings/team", teamSize > 1 ? "Team and staff" : "Invite staff"], ["/settings/billing", "Billing"], ["/settings/account", "Account"]]
     : [["/settings/reminders", "Reminders"], ["/settings/account", "Account"], ...((me?.user.memberships.length ?? 0) > 1 ? [["/settings/team", "Your workspaces"] as const] : [])];
+  // SureFrame's own support pages, for the people who answer support.
+  if (isSupportAgent(email)) settings.push(["/support", "Support"]);
   const signOutForm = (
     <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
       <button className="whitespace-nowrap text-dim hover:text-ink">Sign out</button>
