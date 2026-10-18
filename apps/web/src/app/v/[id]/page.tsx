@@ -26,7 +26,7 @@ import { zoned } from "@/lib/dates";
 import { formerTeams, senderName } from "@/lib/team";
 import { replacedLinks } from "@/lib/replacedLinks";
 
-type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ team?: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ team?: string; asClient?: string }> };
 
 /**
  * A client whose key this browser isn't known to hold (lib/e2e/keyHeld.ts): an email link opened on a device
@@ -156,6 +156,12 @@ export default async function Watch({ params, searchParams }: Props) {
         />
       )}
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        {isMember && (await searchParams).asClient && (
+          <p role="status" className="mb-6 max-w-2xl rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-sm text-warn-fg" data-testid="team-view-of-client-link">
+            You&rsquo;re signed in to {workspace.name}, so this is your team&rsquo;s view of the video. To see what your client sees,
+            open their link in a private window or on another device.
+          </p>
+        )}
         {expired ? (
           <CantOpen title="This link has expired">
             <p>Ask {workspace.name} to send the video again if you still need it.</p>
@@ -190,6 +196,7 @@ export default async function Watch({ params, searchParams }: Props) {
             }
             sentToId={video.clientId}
             ai={aiOn || insight ? { insight, canMake: isMember && aiOn, notice: !isMember } : undefined}
+            aiOffer={isMember && !aiOn && !insight ? (workspace.plan === "FREE" ? "free" : "off") : null}
             initialReplies={replies.map((r) => replyDTO(r, video.ownerId, who))}
             reactions={reactions}
             hasThumb={hasThumb}

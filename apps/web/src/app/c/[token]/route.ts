@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { clientBlock, clientCookie, clientGate, REMOVED_COOKIE } from "@/lib/access";
 import { replacedLinks } from "@/lib/replacedLinks";
@@ -54,6 +55,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   });
   const v = url.searchParams.get("v");
   // The browser carries the link's #k=… fragment (the client's key) through this redirect.
-  const dest = v && /^[a-z0-9]{6,20}$/.test(v) ? `/v/${v}` : `/inbox?c=${client.id}`;
+  // Someone signed in to this business who opens a client's link sees their own team view of the video; the
+  // page says so (?asClient=1), so they know it isn't what the client sees.
+  const userId = (await auth())?.user?.id;
+  const team = !!userId && (await db.membership.count({ where: { userId, workspaceId: client.workspaceId } })) > 0;
+  const dest = v && /^[a-z0-9]{6,20}$/.test(v) ? `/v/${v}${team ? "?asClient=1" : ""}` : `/inbox?c=${client.id}`;
   return Response.redirect(new URL(dest, url), 302);
 }

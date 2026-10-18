@@ -90,6 +90,8 @@ type Props = {
   sendMany?: SendMany;
   /** AI summaries add-on: the encrypted transcript/summary, whether this viewer may make one, and whether to tell a client AI is used. */
   ai?: { insight: SealedInsight; canMake: boolean; notice: boolean };
+  /** For the team when AI summaries aren't on: where they would appear, and how to get them. */
+  aiOffer?: "free" | "off" | null;
   /** Members only: the client's reactions on this conversation, with the moment in the video if there was one. */
   reactions?: { emoji: string; timestampMs: number | null }[];
   /** The reactions this viewer has left (tap again to take one back). */
@@ -193,6 +195,7 @@ function WatchBody({
   initialHeld = [],
   sendMany,
   ai,
+  aiOffer,
   reactions: clientReactions,
   myReactions = [],
   message: sealedMessage = null,
@@ -874,6 +877,14 @@ function WatchBody({
             canRemove={canEdit}
             onSeek={seek}
           />
+        )}
+        {!ai && aiOffer && canEdit && (
+          <p className="mt-4 rounded-xl border border-line bg-solid px-4 py-3 text-sm text-dim" data-testid="ai-offer">
+            <span className="font-semibold text-ink">AI summary.</span>{" "}
+            {aiOffer === "free"
+              ? "Transcripts and AI summaries are an add-on on paid plans. They appear here once it's on."
+              : "Transcripts and AI summaries are an add-on. The account owner or an admin can turn it on in Settings › Billing, and they appear here."}
+          </p>
         )}
         {ai?.notice && !canEdit && <AiNotice className="mt-4" />}
         {!canEdit && <HowThisWorks business={business} purgeAt={video.purgeAt} expired={expired} />}
