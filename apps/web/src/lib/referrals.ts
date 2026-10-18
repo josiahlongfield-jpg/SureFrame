@@ -5,8 +5,15 @@ import { ACTIVE_STATUSES, productIds } from "@/lib/billing";
 import { db, type Workspace } from "@/lib/db";
 import { billedBefore, DISCOUNT_EXPAND } from "@/lib/offers";
 import { HttpError } from "@/lib/session";
-import { stripe } from "@/lib/stripe";
+import { appUrl, stripe } from "@/lib/stripe";
 import { currentSubscription, isMissing } from "@/lib/subscription";
+import { brandOf } from "@/lib/branding";
+import { zoned } from "@/lib/dates";
+import { sendMail } from "@/lib/mail";
+import { RECEIPTS_NOTE } from "@/lib/plans";
+import { activeMember } from "@/lib/team";
+import { teamEmail } from "@/lib/teamEmail";
+import { teamPath } from "@/lib/teamLink";
 
 /**
  * Referrals (Josiah, 16 October 2026). A business paying for a plan has one
@@ -142,14 +149,44 @@ export async function recordReferral(sub: Stripe.Subscription) {
   if (!row || row.usedAt || row.workspaceId === newWorkspaceId) return;
   const end = row.workspace.currentPeriodEnd;
   const dueAt = end ? new Date(Math.max(Date.now(), end.getTime() - REWARD_LEAD_MS)) : new Date();
+  let used = 0;
   try {
-    await db.referralCode.updateMany({ where: { code, usedAt: null }, data: { usedAt: new Date(), usedByWorkspaceId: newWorkspaceId, rewardDueAt: dueAt } });
+    used = (await db.referralCode.updateMany({ where: { code, usedAt: null }, data: { usedAt: new Date(), usedByWorkspaceId: newWorkspaceId, rewardDueAt: dueAt } })).count;
   } catch (err) {
     // This business already used another code: the first one counts.
     if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) throw err;
   }
+  // The sharer hears once, when the code is used (Settings > Billing says the same).
+  if (used) await tellSharer(row.workspace, code).catch((err) => console.error("[billing] referral notice failed", JSON.stringify({ code, error: String(err).slice(0, 300) })));
   // A code of its own made before this was recorded, and not shared yet, goes: a referred business doesn't get one.
   await db.referralCode.deleteMany({ where: { workspaceId: newWorkspaceId, usedAt: null } });
+}
+
+/** Emails the owner of the business whose code was used. The business that used it isn't named. */
+async function tellSharer(workspace: Workspace, code: string) {
+  // Nothing goes out in the name of a workspace whose owner closed it or that support suspended or closed.
+  if (workspace.deleteAt || workspace.suspendedAt || workspace.closedAt) return;
+  const owner = await db.membership.findFirst({ where: { workspaceId: workspace.id, role: "OWNER", ...activeMember }, include: { user: { select: { email: true } } } });
+  if (!owner) return;
+  const end = workspace.currentPeriodEnd;
+  const brand = brandOf(workspace, appUrl(""));
+  const mail = teamEmail({
+    business: workspace.name,
+    subject: "Your referral code was used",
+    lead: `A business started a paid plan with your referral code ${code}. Thank you for passing it on.`,
+    lines: [
+      {
+        text:
+          `Your ${REFERRAL_PERCENT}% off your plan starts with your next bill${end ? `, on ${zoned(workspace.timezone).longDay(end)}` : ""}, and then comes off every bill ` +
+          "for as long as the business you referred stays subscribed (and you do too).",
+      },
+      { text: RECEIPTS_NOTE },
+    ],
+    button: { label: "Open Billing", link: appUrl(teamPath("/settings/billing", workspace.id)) },
+    logoUrl: brand.logoUrl,
+    color: brand.color,
+  });
+  await sendMail({ to: owner.user.email, ...mail });
 }
 
 /**

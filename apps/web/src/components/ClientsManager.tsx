@@ -7,6 +7,7 @@ import { zoned } from "@/lib/dates";
 import { shareLink, useCanShare, writeClipboard } from "@/lib/clipboard";
 import TeamKeyGate from "./TeamKeyGate";
 import RemoveExtras from "./RemoveExtras";
+import PurchaseNotice, { reloadAfterPurchase } from "./PurchaseNotice";
 
 type Seats = { used: number; limit: number };
 /** `reached`: the client has opened their personal link, so emailed videos open for them. */
@@ -341,7 +342,7 @@ function Manager({
     if (data.url) return void (window.location.href = data.url);
     setBuying(null);
     if (!res.ok) return setError(data.error ?? "Could not add seats");
-    window.location.reload();
+    reloadAfterPurchase(buyQty);
   }
 
   return (
@@ -368,6 +369,7 @@ function Manager({
             <div className={`h-full ${full ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${Math.min(100, (seats.used / Math.max(1, seats.limit)) * 100)}%` }} />
           </div>
         </div>
+        {isOwner && <PurchaseNotice one="client seat" many="client seats" where="They're ready to use now." />}
         {!isOwner ? null : canBuySeats ? (
           <div className="mt-5 grid gap-3 border-t border-line pt-5 text-sm">
             <div className="flex flex-wrap items-center gap-2">

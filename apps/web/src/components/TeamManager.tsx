@@ -13,6 +13,7 @@ import { BRAND } from "@/lib/brand";
 const money = (n: number) => `US$${Number.isInteger(n) ? n : n.toFixed(2)}`;
 import { PermChecks, savePerm, type Perms } from "./StaffPerms";
 import RemoveExtras from "./RemoveExtras";
+import PurchaseNotice, { reloadAfterPurchase } from "./PurchaseNotice";
 
 type Role = "OWNER" | "ADMIN" | "MEMBER";
 type Member = { userId: string; name: string; email: string; role: Role; perms: Perms; paused?: boolean };
@@ -196,7 +197,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
     const data = await res.json().catch(() => ({}));
     if (data.url) return void (window.location.href = data.url);
     if (!res.ok) return setError(data.error ?? "Could not add staff logins");
-    window.location.reload();
+    reloadAfterPurchase(buyQty);
   }
 
   return (
@@ -210,6 +211,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
           {includedStaff} included with your plan{extraStaff > 0 && ` + ${extraStaff} extra`}
           {seats.pending > 0 && ` · ${seats.pending} waiting to join`}
         </p>
+        {canBuyStaff && <PurchaseNotice one="staff login" many="staff logins" where="Invite someone below to use them." />}
         {canBuyStaff && (
           <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-5 text-sm">
             <span className="text-muted">Need more?</span>

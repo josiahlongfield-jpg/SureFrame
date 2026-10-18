@@ -10,7 +10,8 @@ import CancelPlan from "@/components/CancelPlan";
 import { summaryUsage } from "@/lib/ai/summary";
 import { readManifest } from "@/lib/ai/speechModel";
 import { RETENTION_DAYS } from "@/lib/retention";
-import { AI_ASSIST_PRICES, aiAssistActive, CLOUD_BACKUP_PRICE, CLOUD_BACKUP_PRICE_YEARLY, PLANS } from "@/lib/plans";
+import { AI_ASSIST_PRICES, aiAssistActive, CLOUD_BACKUP_PRICE, CLOUD_BACKUP_PRICE_YEARLY, PLANS, TEAM_PLANS, type Interval } from "@/lib/plans";
+import { AI_ITEM, CATALOG, keyFor, PLAN_ITEM, type CatalogItem } from "@/lib/billing";
 import type { Workspace } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { agreePath, followTeamLink, requirePageUser } from "@/lib/session";
@@ -30,6 +31,7 @@ async function AiAddOn({ workspace }: { workspace: Workspace }) {
     <AiAssistToggle
       enabled={aiAssistActive(workspace)}
       canEnable={free || (!!paid && !!workspace.stripeSubscriptionId)}
+      needsSubscription={!!workspace.complimentaryPlan && !workspace.stripeSubscriptionId && !free}
       priceLabel={free || !paid ? null : `US$${paid.month} per month on ${PLANS[workspace.plan].name} (US$${paid.year} per year on yearly billing)`}
       usage={aiAssistActive(workspace) ? await summaryUsage(workspace) : null}
       modelReady={!!(await readManifest().catch(() => null))}
@@ -44,6 +46,67 @@ async function FreeVideosUsed({ workspaceId, limit }: { workspaceId: string; lim
     <p className="mt-3 text-sm text-muted" data-testid="free-videos-used">
       {Math.min(used, limit)} of {limit} free videos used. Deleting a video doesn&apos;t give its place back.
     </p>
+  );
+}
+
+const money = (cents: number) => `US$${cents % 100 ? (cents / 100).toFixed(2) : cents / 100}`;
+
+/**
+ * What a subscription costs each period, line by line: the plan, extra client
+ * seats, extra staff logins and add-ons, from the same prices Stripe charges
+ * (founding prices included). Before tax and any discount; Stripe's invoices
+ * have the exact amounts.
+ */
+function WhatYouPay({ workspace, discount }: { workspace: Workspace; discount: string | null }) {
+  if (workspace.plan === "FREE") return null;
+  const interval: Interval = workspace.billingInterval === "year" ? "year" : "month";
+  const each = (item: CatalogItem) => Math.round(CATALOG[keyFor(item, interval, workspace.foundingPrices)].amount * 100);
+  const per = interval === "year" ? "a year" : "a month";
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const staff = TEAM_PLANS.includes(workspace.plan) ? workspace.extraStaffSeats : 0;
+  const rows: { label: string; note?: string; cents: number; testId: string; free?: boolean }[] = [
+    { label: `${PLANS[workspace.plan].name} plan`, cents: each(PLAN_ITEM[workspace.plan]), testId: "pay-plan" },
+    ...(workspace.extraClientSeats
+      ? [{ label: plural(workspace.extraClientSeats, "extra client seat", "extra client seats"), note: `${money(each("client_seat"))} each`, cents: workspace.extraClientSeats * each("client_seat"), testId: "pay-seats" }]
+      : []),
+    ...(staff ? [{ label: plural(staff, "extra staff login", "extra staff logins"), note: `${money(each("staff_seat"))} each`, cents: staff * each("staff_seat"), testId: "pay-staff" }] : []),
+    ...(workspace.cloudBackup ? [{ label: "Cloud backup", cents: each("cloud_backup"), testId: "pay-backup" }] : []),
+    ...(aiAssistActive(workspace)
+      ? [{ label: "AI transcripts and summaries", cents: workspace.aiAssistComplimentary ? 0 : each(AI_ITEM[workspace.plan]), testId: "pay-ai", free: workspace.aiAssistComplimentary }]
+      : []),
+  ];
+  const total = rows.reduce((t, r) => t + r.cents, 0);
+  return (
+    <div className="mt-5 rounded-xl border border-line bg-canvas p-4 text-sm" data-testid="what-you-pay">
+      <p className="font-medium text-ink">What you pay</p>
+      <ul className="mt-2 divide-y divide-line">
+        {rows.map((r) => (
+          <li key={r.testId} className="flex flex-wrap items-baseline justify-between gap-x-4 py-1.5" data-testid={r.testId}>
+            <span className="text-muted">
+              {r.label}
+              {r.note && <span className="text-dim"> ({r.note})</span>}
+            </span>
+            <span className="text-ink">{r.free ? "Free" : `${money(r.cents)} ${per}`}</span>
+          </li>
+        ))}
+        <li className="flex flex-wrap items-baseline justify-between gap-x-4 pt-2 font-semibold text-ink" data-testid="pay-total">
+          <span>Total</span>
+          <span>
+            {money(total)} {per}
+          </span>
+        </li>
+      </ul>
+      <p className="mt-2 text-xs text-dim">
+        Plus any tax{discount ? ", less your discount" : ""}. Extra client seats are added on the{" "}
+        <Link href="/clients#buy-seats" className="font-medium text-accent hover:underline">Clients page</Link>
+        {TEAM_PLANS.includes(workspace.plan) && (
+          <>
+            , extra staff logins on the <Link href="/settings/team" className="font-medium text-accent hover:underline">Team page</Link>
+          </>
+        )}
+        , and add-ons below.
+      </p>
+    </div>
   );
 }
 
@@ -172,8 +235,11 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Billing</h1>
         {upgraded && (
-          <p className="mt-4 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg">
-            Thanks for upgrading. Your plan updates as soon as payment is confirmed.
+          // Stripe's confirmation usually lands before the page does; until it has, say the plan is on its way.
+          <p role="status" className="mt-4 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="upgraded">
+            {workspace.stripeSubscriptionId && workspace.plan !== "FREE"
+              ? `Thanks for upgrading. You're on ${plan.name} now. Your receipt comes by email from Link, Stripe's payment service.`
+              : "Thanks for upgrading. Your plan updates as soon as payment is confirmed, usually within a minute. Reload this page to see it."}
           </p>
         )}
         <div className="mt-6 rounded-2xl border border-line bg-surface p-6">
@@ -218,6 +284,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
               {workspace.discountEndsAt ? `, until ${day(workspace.discountEndsAt, workspace.timezone)}` : ""}.
             </p>
           )}
+          {workspace.stripeSubscriptionId && <WhatYouPay workspace={workspace} discount={discount} />}
           {plan.showsPromo && (
             <p className="mt-3 rounded-xl bg-canvas p-3 text-sm text-muted">
               Your clients see a short SureFrame intro, once on each device. Any paid plan removes it and lets you add your own logo and colours (a small Made with {BRAND.name} credit stays).
@@ -242,6 +309,12 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
               </Link>
             )}
           </div>
+          {workspace.stripeCustomerId && (
+            <p className="mt-2 text-xs text-dim" data-testid="receipts-note">
+              Manage subscription opens Stripe&apos;s billing page, where you can change your card and see or download past invoices. Receipts for your
+              payments come by email from Link, Stripe&apos;s payment service; {BRAND.name} doesn&apos;t send its own.
+            </p>
+          )}
           {workspace.stripeSubscriptionId && (
             <CancelPlan
               planName={plan.name}
@@ -256,8 +329,8 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
               cancel your plan or choose Manage subscription without agreeing.
             </p>
           )}
-          {/* Codes are for starting a subscription (Free or a plan we gave to paid), never for one that's running. */}
-          {agreed && !workspace.stripeSubscriptionId && <RedeemCode />}
+          {/* Without a subscription a code is kept for checkout; on a running one, a code we gave this business comes off its next bill. */}
+          {agreed && (!workspace.stripeSubscriptionId || !discount) && <RedeemCode subscribed={!!workspace.stripeSubscriptionId} />}
         </div>
         {agreed && <Referrals workspace={workspace} />}
         {agreed && (

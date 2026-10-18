@@ -12,10 +12,12 @@ type Props = {
   usage: { used: number; limit: number } | null;
   /** The speech model is installed on the server, so transcripts can be made. */
   modelReady: boolean;
+  /** On a free plan we gave: the add-on can be bought once they start paying. */
+  needsSubscription?: boolean;
 };
 
 /** Settings > Billing: the AI transcripts and summaries add-on, with exactly what leaves the device. */
-export default function AiAssistToggle({ enabled, canEnable, priceLabel, usage, modelReady }: Props) {
+export default function AiAssistToggle({ enabled, canEnable, priceLabel, usage, modelReady, needsSubscription = false }: Props) {
   const [on, setOn] = useState(enabled);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -56,13 +58,17 @@ export default function AiAssistToggle({ enabled, canEnable, priceLabel, usage, 
             <li>• Automatic transcripts and AI summaries can contain mistakes.</li>
           </ul>
           <p className="mt-3 text-xs text-dim">
-            {!canEnable && !on ? "Available with a paid subscription (not on Free)." : priceLabel ? `${priceLabel}, plus any tax. Optional.` : "Included free with your plan."}
+            {!canEnable && !on
+              ? needsSubscription
+                ? "Available once you start a paid subscription."
+                : "Available with a paid subscription (not on Free)."
+              : priceLabel ? `${priceLabel}, plus any tax. Optional.` : "Included free with your plan."}
             {usage && ` ${usage.used} of ${usage.limit} summaries used this month.`}
           </p>
           {!modelReady && (on || canEnable) && (
             <p className="mt-2 text-xs text-warn-fg" data-testid="ai-model-missing">
               The speech model isn&apos;t installed yet, so new transcripts can&apos;t be made for now. We&apos;re setting it up
-              {!on && priceLabel ? ", and you can add this once it&apos;s ready" : ""}.
+              {!on && priceLabel ? ", and you can add this once it's ready" : ""}.
             </p>
           )}
         </div>

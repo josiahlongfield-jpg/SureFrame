@@ -225,10 +225,11 @@ ok("billing records the discount and its end", linkAfter.discountLabel === `${CO
 await visitor.goto(BASE + "/settings/billing");
 t = ((await visitor.textContent('[data-testid="discount"]').catch(() => "")) ?? "").replace(/\s+/g, " ");
 ok("billing page shows the discount", t.startsWith(`Discount: ${CODE}: 20% off your plan, until `), t);
-// Codes are only for starting a subscription: a subscriber has no code box, and the API refuses them.
-ok("no code box for a subscriber", (await visitor.locator('[data-testid="have-code"]').count()) === 0);
+// A running subscription takes codes only when moving up a plan (Terms, Discounts): a subscriber with a discount has no
+// code box, and one without gets a box that only checks the code and says how to use it. Nothing is applied.
+ok("no code box for a subscriber with a discount", (await visitor.locator('[data-testid="have-code"]').count()) === 0);
 res = await api(visitor, "/api/billing/code", { code: CODE });
-ok("a subscriber's code is refused", res.status() === 400 && /only be used when you start a paid plan/.test((await res.json()).error));
+ok("a used code is refused for a subscriber", res.status() === 400 && /isn't valid or has ended/.test((await res.json()).error));
 await visitor.goto(`${BASE}/offer/${CODE}`);
 ok("used once, its link now says it has ended", (await visitor.locator('[data-testid="offer-ended"]').count()) === 1);
 t = await text(admin, "/support/offers");
@@ -245,14 +246,21 @@ await api(third, "/api/billing/checkout", { plan: "SOLO" });
 const sub3 = createSubscription(lastSession().customer, sub3Ws.id, "sureframe_solo_monthly");
 await webhook(third, "customer.subscription.created", sub3);
 await third.goto(BASE + "/settings/billing");
-ok("no code box for a subscriber without a discount either", (await third.locator('[data-testid="have-code"]').count()) === 0 && (await third.locator('[data-testid="renews-on"]').count()) === 1);
+ok("a subscriber without a discount gets a code box", (await third.locator('[data-testid="have-code"]').count()) === 1 && (await third.locator('[data-testid="renews-on"]').count()) === 1);
 res = await api(third, "/api/billing/code", { code: NEWCODE });
-ok("a new-customers code is refused for a subscriber", res.status() === 400 && /only be used when you start a paid plan/.test((await res.json()).error));
+ok("a new-customers code is refused for a subscriber", res.status() === 400 && /never billed before/.test((await res.json()).error));
 const once = await fake.coupons.create({ name: "ONCE", percent_off: 30, duration: "once", metadata: { sureframe_scope: "all" } });
 const ONCECODE = `ONCE-${String(stamp).slice(-6)}`;
 await fake.promotionCodes.create({ promotion: { type: "coupon", coupon: once.id }, code: ONCECODE });
 res = await api(third, "/api/billing/code", { code: ONCECODE });
-ok("a first-bill code is refused for a subscriber", res.status() === 400 && /only be used when you start a paid plan/.test((await res.json()).error) && !sub3.discounts.length);
+body = await res.json();
+ok("a subscriber's valid code is only checked, not applied", res.ok() && body.subscribed === true && body.applied === false && !sub3.discounts.length, JSON.stringify(body));
+await third.goto(BASE + "/settings/billing");
+await third.click('[data-testid="have-code"]');
+await third.fill("#discount-code", ONCECODE);
+await third.click("text=Check code");
+t = ((await third.waitForSelector('[data-testid="code-done"]', { timeout: 10000 }).then((el) => el.textContent()).catch(() => "")) ?? "").replace(/\s+/g, " ");
+ok("and the box says to use it when moving up a plan", t.includes(`${ONCECODE} works:`) && /move up to a bigger plan/.test(t) && !sub3.discounts.length, t);
 const yearlyEmail = `yearly${stamp}@example.com`;
 const yearly = await signIn(yearlyEmail);
 await api(yearly, "/api/billing/checkout", { plan: "SOLO", interval: "year" });
@@ -260,7 +268,7 @@ const subY = createSubscription(lastSession().customer, (await workspaceOf(yearl
 await webhook(yearly, "customer.subscription.created", subY);
 res = await api(yearly, "/api/billing/code", { code: CODE });
 body = await res.json();
-ok("a yearly subscriber's code is refused", res.status() === 400 && /only be used when you start a paid plan/.test(body.error) && !subY.discounts.length, body.error);
+ok("a yearly subscriber can't use a used code", res.status() === 400 && /isn't valid or has ended/.test(body.error) && !subY.discounts.length, body.error);
 
 // Moving up a plan can take a code, typed in the switch box, as long as the bigger plan still costs at least the current one.
 // (Billing calls share a limit of 20 per IP per 10 minutes, which this run's earlier checkouts have used up.)
@@ -350,7 +358,7 @@ ok("checkouts don't get it", res.ok() && session.allow_promotion_codes === "true
 ok("the business that used its code keeps the discount", sub2.discounts?.length === 1);
 await prisma.workspace.update({ where: { id: linkWs.id }, data: { discountEndsAt: new Date(Date.now() - 60_000) } });
 await visitor.goto(BASE + "/settings/billing");
-ok("a discount past its end isn't shown, and still no code box", (await visitor.locator('[data-testid="discount"]').count()) === 0 && (await visitor.locator('[data-testid="have-code"]').count()) === 0);
+ok("a discount past its end isn't shown, and the code box is back", (await visitor.locator('[data-testid="discount"]').count()) === 0 && (await visitor.locator('[data-testid="have-code"]').count()) === 1);
 
 // 7) The Terms cover both.
 t = await text(late, "/legal/terms");
