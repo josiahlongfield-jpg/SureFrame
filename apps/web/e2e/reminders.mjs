@@ -66,6 +66,7 @@ await pro.fill('input[aria-label="Reply-to email"]', "coach@peak.com");
 await pro.fill('textarea[aria-label="Personal message"]', "Reply here if you need to reschedule.");
 await pro.click("role=group[name='Reminders'] >> text=1 week before");
 ok("preview shows business name", (await pro.textContent("[data-testid=preview-subject]")).includes("Reminder from Peak Fitness"));
+ok("preview: from the business via SureFrame, as the real email", (await pro.textContent("[data-testid=preview-from]")).trim() === "From: Peak Fitness via SureFrame");
 ok("preview shows personal message", (await pro.textContent("[data-testid=preview-body]")).includes("Reply here if you need to reschedule."));
 await pro.click("text=Save changes");
 await pro.waitForSelector("role=status >> text=Saved");

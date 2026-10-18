@@ -164,8 +164,11 @@ ok("its reminders are scheduled", (await prisma.reminder.count({ where: { itemId
 // Edit its reminders: drop "1 week before".
 await amy.hover("li:has-text('Send your food diary')");
 await amy.click(`button[aria-label='Edit "Send your food diary"']`);
-await amy.click("role=group[name='Reminders'] >> text=1 week before");
-await amy.click("button:has-text('Save')");
+// The edit form's own reminders and Save (the new to-do box above has reminders too, and the page has other forms).
+const editForm = "form:has(textarea[aria-label='Edit text'])";
+await amy.click(`${editForm} >> role=group[name='Reminders'] >> text=1 week before`);
+await amy.click(`${editForm} >> button:has-text('Save')`);
+await amy.waitForSelector(editForm, { state: "detached" }).catch(async (e) => { await amy.screenshot({ path: `${shots}/staff-edit-fail.png`, fullPage: true }); throw e; });
 await amy.waitForSelector("text=/1 day before · Cal and you/");
 ok("Amy changes the to-do's reminders", (await prisma.reminder.count({ where: { itemId: item.id, sentAt: null } })) === 2);
 

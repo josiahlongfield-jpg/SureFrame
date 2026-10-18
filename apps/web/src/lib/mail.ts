@@ -1,6 +1,6 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { BRAND } from "@/lib/brand";
+import { BRAND, senderName } from "@/lib/brand";
 import { emailDocument } from "@/lib/emailLook";
 
 /**
@@ -42,10 +42,7 @@ export async function sendMails(mails: Mail[]) {
 }
 
 /** A business's emails read "Business A via SureFrame", from our one sending address. */
-const fromOf = (mail: Mail) => {
-  const name = mail.fromName?.trim();
-  return `${displayName(name && name !== BRAND.name ? `${name} via ${BRAND.name}` : BRAND.name)} <${process.env.MAIL_FROM ?? "reminders@example.com"}>`;
-};
+const fromOf = (mail: Mail) => `${displayName(senderName(mail.fromName))} <${process.env.MAIL_FROM ?? "reminders@example.com"}>`;
 // Every email goes out as a whole document with a viewport tag, so phones show it at their own width.
 const resendBody = (mail: Mail) => ({ from: fromOf(mail), to: [mail.to], subject: mail.subject, text: mail.text, html: emailDocument(mail.html, mail.subject), reply_to: mail.replyTo ?? undefined });
 

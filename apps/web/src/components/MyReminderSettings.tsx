@@ -1,5 +1,6 @@
 "use client";
 
+import { senderName } from "@/lib/brand";
 import { useEffect, useMemo, useState } from "react";
 import { reminderEmail } from "@/lib/reminderEmail";
 import { ruleLabel, sortRules, type ReminderRule } from "@/lib/schedule";
@@ -151,7 +152,7 @@ export default function MyReminderSettings({ business, ...initial }: Props) {
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-dim">What your clients see</p>
         <div className="overflow-hidden rounded-2xl border border-line bg-surface text-ink">
           <div className="border-b border-line px-4 py-3 text-xs text-dim">
-            <p><span className="text-dim">From:</span> {business.name}</p>
+            <p><span className="text-dim">From:</span> {senderName(business.name)}</p>
             <p className="mt-0.5 font-medium text-ink" data-testid="preview-subject">{preview?.subject ?? "\u00a0"}</p>
           </div>
           <div className="min-h-40 text-left" data-testid="preview-body" dangerouslySetInnerHTML={{ __html: preview?.html ?? "" }} />
