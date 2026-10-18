@@ -31,11 +31,10 @@ export default function FirstSteps({ steps, workspaceId, fingerprint, business }
     {
       key: "client",
       title: "Add your first client",
-      // Same wording and test id as the staff "Start here" guide on the library.
+      // Same wording and test id as the staff "Start here" guide on the library; the step's own title is the heading.
       body: (
         <div data-testid="start-here">
-          <h3 className="font-medium text-ink">Add your clients first</h3>
-          <p className="mt-1 max-w-xl text-sm text-muted">
+          <p className="max-w-xl text-sm text-muted">
             Put in the clients you&apos;ll send videos to, with their email addresses. You can paste a whole list at once. Then, when a video is ready, you just pick them from a list and press Send.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-4">

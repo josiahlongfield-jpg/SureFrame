@@ -31,3 +31,5 @@ export const TERMS_RECORD_KEEP_YEARS = 7;
  * for them (lib/terms.ts sendTermsNotices); until then they carry on under the version they agreed to.
  */
 export const TERMS_NOTICE_DAYS = 30;
+/** Questions clients type into the help chat on their pages are kept this long for the weekly digest (lib/support/clientQuestions.ts). */
+export const CLIENT_QUESTION_KEEP_DAYS = 90;

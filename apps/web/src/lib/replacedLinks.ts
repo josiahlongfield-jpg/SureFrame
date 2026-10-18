@@ -1,43 +1,35 @@
-import crypto from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { hashToken } from "@/lib/team";
 
 /**
- * Personal links a key reset replaced (lib/rekey.ts, and restoring a client after one). Only a hash of the
- * old token is kept: it opens nothing, it just lets the old link say it was replaced and a new one sent,
- * rather than that it was mistyped.
+ * Old personal links that a key reset replaced (lib/rekey.ts, and restoring a client after one), with the
+ * business that replaced them and whether the client was emailed the new one. Lets an old link, or a
+ * device still holding one, say "replaced" rather than "mistyped". Only hashes of old links are kept.
+ * A client the business has since removed hears that instead, so isn't included. One row per client,
+ * the newest.
  */
-export const tokenHash = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
-
-/** Inside the transaction that gives a client a new token. */
-export function recordReplaced(tx: Prisma.TransactionClient, clientId: string, oldToken: string, emailed: boolean) {
-  return tx.replacedLink.upsert({
-    where: { tokenHash: tokenHash(oldToken) },
-    create: { tokenHash: tokenHash(oldToken), clientId, emailed },
-    update: { clientId, emailed },
-  });
-}
-
-/** Marks the latest replaced link of a client as emailed, once the new link's email has gone. */
-export async function markReplacedEmailed(clientId: string) {
-  const last = await db.replacedLink.findFirst({ where: { clientId }, orderBy: { createdAt: "desc" }, select: { id: true } });
-  if (last) await db.replacedLink.update({ where: { id: last.id }, data: { emailed: true } });
-}
-
-/**
- * The replaced links among these tokens, the newest per client, with what a client needs to hear:
- * who replaced it and whether the new one was emailed. A client the business has since removed hears
- * that instead, so isn't included.
- */
-export async function findReplaced(tokens: string[]) {
+export async function replacedLinks(tokens: string[]) {
   if (!tokens.length) return [];
-  const rows = await db.replacedLink.findMany({
-    where: { tokenHash: { in: tokens.map(tokenHash) }, client: { removedAt: null } },
+  const rows = await db.replacedClientLink.findMany({
+    where: { tokenHash: { in: tokens.map(hashToken) }, client: { removedAt: null } },
     orderBy: { createdAt: "desc" },
     select: {
       emailed: true,
-      client: { select: { id: true, workspaceId: true, workspace: { select: { name: true, plan: true, brandColor: true, brandLogoType: true, brandVersion: true, id: true } } } },
+      client: { select: { id: true, workspaceId: true, workspace: { select: { id: true, name: true, plan: true, brandColor: true, brandLogoType: true, brandVersion: true } } } },
     },
   });
-  return [...new Map(rows.map((r) => [r.client.id, r])).values()];
+  return [...new Map(rows.map((r) => [r.client.id, { ...r, business: r.client.workspace.name }])).values()];
+}
+
+/** Inside the transaction that gives a restored client a new link (lib/clientRemoval.ts). */
+export function recordReplaced(tx: Prisma.TransactionClient, clientId: string, oldToken: string, emailed: boolean) {
+  const tokenHash = hashToken(oldToken);
+  return tx.replacedClientLink.upsert({ where: { tokenHash }, create: { tokenHash, clientId, emailed }, update: { clientId, emailed } });
+}
+
+/** Marks a client's latest replaced link as emailed, once the new link's email has gone. */
+export async function markReplacedEmailed(clientId: string) {
+  const last = await db.replacedClientLink.findFirst({ where: { clientId }, orderBy: { createdAt: "desc" }, select: { tokenHash: true } });
+  if (last) await db.replacedClientLink.update({ where: { tokenHash: last.tokenHash }, data: { emailed: true } });
 }

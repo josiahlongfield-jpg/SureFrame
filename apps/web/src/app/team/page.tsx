@@ -7,9 +7,10 @@ import { PermChecks } from "@/components/StaffPerms";
 import { db } from "@/lib/db";
 import { duration, PERIODS, teamStats, type StaffStats } from "@/lib/monitoring";
 import { accessOf, clientScopeWhere, permsOf } from "@/lib/permissions";
-import { PLANS } from "@/lib/plans";
+import { PLANS, TEAM_PLANS } from "@/lib/plans";
 import { followTeamLink, requirePageUser } from "@/lib/session";
 import { zoned } from "@/lib/dates";
+import { FORMER_MEMBER } from "@/lib/team";
 
 export const metadata: Metadata = { title: "Team" };
 
@@ -17,7 +18,8 @@ export const metadata: Metadata = { title: "Team" };
  * Owners and admins: staff and who looks after which clients, reminders to
  * staff, and how the whole business is keeping up with clients. Staff get
  * their own page instead (StaffTeam), never anyone else's numbers. A business
- * of one has no team page: inviting staff is under Settings.
+ * of one has no team page unless it's on a team plan (the overview still
+ * covers the owner's own clients): inviting staff is under Settings.
  */
 
 /** A number cell: a labelled line on phones (the label comes from data-label), a plain cell from tablets up. */
@@ -32,7 +34,8 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
     db.membership.count({ where: { workspaceId: workspace.id } }),
     db.invite.count({ where: { workspaceId: workspace.id, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } } }),
   ]);
-  if (teamSize === 1 && !waiting) redirect("/settings/team");
+  const alone = teamSize === 1 && !waiting;
+  if (alone && !TEAM_PLANS.includes(workspace.plan)) redirect("/settings/team");
   const q = await searchParams;
   const days = PERIODS.find((p) => String(p) === q.days) ?? 30;
   const staleDays = Math.min(365, Math.max(1, Number.parseInt(q.stale ?? "", 10) || 14));
@@ -54,7 +57,7 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
       replyTo: m.myReminderReplyTo,
     },
   }));
-  const nameOf = (id: string | null) => (id ? (staff.find((s) => s.userId === id)?.name ?? "Former staff") : "Unassigned");
+  const nameOf = (id: string | null) => (id ? (staff.find((s) => s.userId === id)?.name ?? FORMER_MEMBER) : "Unassigned");
   const now = new Date();
   const rows: { id: string; r: StaffStats }[] = [
     ...stats.staff.map((r) => ({ id: r.userId!, r })),
@@ -72,8 +75,16 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
           Who looks after which clients, what each staff member can do, and how the business is keeping up. Only owners and admins see this page.{" "}
           <Link href="/settings/team" className="font-medium text-accent hover:underline">Invite or remove staff</Link>
           {" · "}
+          <a href="#remind" className="font-medium text-accent hover:underline">Remind staff</a>
+          {" · "}
           <Link href="/settings/account#emails" className="font-medium text-accent hover:underline">Emails to you</Link>
         </p>
+        {alone && (
+          <p className="mt-4 rounded-xl border border-primary-line bg-primary-soft p-3 text-sm text-ink" data-testid="team-alone">
+            You&apos;re the only one on the team right now, so this covers your own clients. Your sent reminders stay below.{" "}
+            <Link href="/settings/team" className="font-medium underline">Invite staff</Link>
+          </p>
+        )}
 
         <section id="monitoring" className="mt-8">
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -124,7 +135,7 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
             </table>
           </div>
           <p className="mt-2 text-xs text-dim">
-            Last {days} days. Videos sent counts videos sent to clients, by who recorded them. Reply time runs from a client&apos;s reply to the team&apos;s next reply in that conversation.
+            Last {days} days. Videos sent counts videos sent to clients, by who recorded them (a former team member&apos;s count only towards the whole business). Reply time runs from a client&apos;s reply to the team&apos;s next reply in that conversation.
             Worked out from dates only; nothing encrypted is read.
           </p>
 
@@ -174,14 +185,7 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
           </div>
         </section>
 
-        <section className="mt-10">
-          <h2 className="text-lg font-semibold text-ink">Staff and clients</h2>
-          <div className="mt-3">
-            <Delegations meId={user.id} initialStaff={staff} initialClients={clients} />
-          </div>
-        </section>
-
-        <section className="mt-10">
+        <section id="remind" className="mt-10 scroll-mt-6">
           <h2 className="text-lg font-semibold text-ink">Remind staff</h2>
           <div className="mt-3">
             <StaffReminderForm meId={user.id} staff={staff} clients={clients} videos={videos} />
@@ -202,6 +206,13 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
               </ul>
             </div>
           )}
+        </section>
+
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold text-ink">Staff and clients</h2>
+          <div className="mt-3">
+            <Delegations meId={user.id} initialStaff={staff} initialClients={clients} />
+          </div>
         </section>
       </main>
     </>

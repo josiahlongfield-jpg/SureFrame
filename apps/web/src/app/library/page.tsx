@@ -7,6 +7,8 @@ import LibraryThumb from "@/components/LibraryThumb";
 import DayFolder from "@/components/DayFolder";
 import { LibrarySearch, ReplyBadges, type Conv } from "@/components/LibraryTools";
 import FirstSteps from "@/components/FirstSteps";
+import { LibraryUnlock } from "@/components/TeamKeyGate";
+import { dueTodos } from "@/lib/dueTodos";
 import { firstStepsFor } from "@/lib/firstSteps";
 import { db } from "@/lib/db";
 import { PLANS } from "@/lib/plans";
@@ -18,6 +20,7 @@ import { zoned } from "@/lib/dates";
 import { videosUsed } from "@/lib/videoAllowance";
 import { RETENTION_DAYS } from "@/lib/retention";
 import { visibleReplies } from "@/lib/replies";
+import { senderName } from "@/lib/team";
 
 export const metadata: Metadata = { title: "Library" };
 
@@ -58,7 +61,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     ...(q ? [{ OR: [{ title: contains }, { client: { name: contains } }, { copies: { some: { client: { name: contains } } } }] }] : []),
     ...(clientId ? [{ OR: [{ clientId }, { copies: { some: { clientId } } }] }] : []),
   ];
-  const [videos, soonCount, allowance] = await Promise.all([
+  const [videos, soonCount, allowance, due] = await Promise.all([
     // Copies sent to other clients count their views and replies towards the original, and name who it went to.
     db.video.findMany({
       where: { AND: [soon ? soonWhere : scope, ...search] },
@@ -72,6 +75,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     }),
     db.video.count({ where: soonWhere }),
     plan.maxVideos !== null ? videosUsed(workspace.id) : null,
+    dueTodos(access),
   ]);
   // The client's replies in each conversation (the team's own aren't news), newest first, with when they came,
   // so each device can tell which it hasn't seen (components/LibraryTools.tsx). Held and uploading replies don't count yet.
@@ -87,6 +91,9 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   const steps = await firstStepsFor(me);
   // A new business starts on its clients: once they're in, sending a video is picking them from a list.
   const startHere = clients.length === 0 && videos.length === 0 && !soon && !searching && effectivePerms(access).addClients && !steps;
+  // Staff usually have clients assigned to them rather than adding their own: their first screen says so.
+  const staffStart = !isManager(access) && clients.length === 0 && videos.length === 0 && !soon && !searching;
+  const canAddClients = effectivePerms(access).addClients;
   // Free: videos in total for the life of the workspace, deleted ones included.
   const freeLeft = allowance && plan.maxVideos !== null ? Math.max(0, plan.maxVideos - allowance.used) : null;
   const withParams = (p: Record<string, string | undefined>) => {
@@ -158,11 +165,16 @@ export default async function Library({ searchParams }: { searchParams: Promise<
               <span data-testid="video-time">{when(v, inDay)}</span> · {views(v)} {views(v) === 1 ? "view" : "views"}
             </p>
             <p className="truncate text-xs text-muted" data-testid="video-recipients" title={sentTo(v).join(", ") || undefined}>{recipients(v)}</p>
+            {/* Kept by the business after its recorder left: not shown as the owner's (lib/team.ts). */}
+            {v.formerStaffAt && <p className="truncate text-xs text-dim" data-testid="video-former">{senderName({ ...v, owner: { name: null } }, workspace.name, "team")}</p>}
             <span className="mt-1 block empty:hidden">
               <ReplyBadges convs={convsOf(v)} />
             </span>
-            {(soon || v.status === "EXPIRED" || nearDeletion(v)) && (
+            {soon || v.status === "EXPIRED" || nearDeletion(v) ? (
               <StorageStatus status={v.status} purgeAt={v.purgeAt?.toISOString() ?? null} cloudBackup={workspace.cloudBackup} />
+            ) : (
+              // Search results have no day row to carry the date.
+              !inDay && !workspace.cloudBackup && v.purgeAt && v.status !== "RECORDING" && <p className="text-xs text-dim" data-testid="card-deletes">Deletes from our servers {dates.shortDay(v.purgeAt)}</p>
             )}
             {v.client?.removedAt && (
               <p className="text-xs text-warn-fg" data-testid="client-removed-badge">
@@ -184,6 +196,12 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     if (last?.key === key) last.items.push(v);
     else days.push({ key, label: key === today ? "Today" : key === yesterday ? "Yesterday" : dates.weekdayDay(v.createdAt), items: [v] });
   }
+  // When a day's recordings leave our servers: said once on the day's row rather than on every card.
+  const dayDeletes = (items: Item[]) => {
+    if (workspace.cloudBackup) return null;
+    const at = items.flatMap((v) => (v.purgeAt && v.status !== "EXPIRED" && v.status !== "RECORDING" ? [v.purgeAt.getTime()] : [])).sort((a, b) => a - b)[0];
+    return at ? new Date(at) : null;
+  };
   const pill = (active: boolean) => `rounded-md px-3 py-1.5 ${active ? "bg-surface font-medium text-ink shadow-sm" : "text-muted hover:text-ink"}`;
 
   return (
@@ -257,9 +275,11 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             )}
           </div>
         </div>
+        {/* A new device meets the unlock box first, not below the locked tiles. */}
+        <LibraryUnlock workspaceId={workspace.id} fingerprint={workspace.keyFingerprint} />
         {steps && !soon && <FirstSteps steps={steps} workspaceId={workspace.id} fingerprint={workspace.keyFingerprint} business={workspace.name} />}
         {(videos.length > 0 || searching) && !startHere && (
-          <LibrarySearch key={`${q}|${clientId}`} q={q} client={clientId} clients={clients} keep={{ show, filter }} />
+          <LibrarySearch q={q} client={clientId} clients={clients} keep={{ show, filter }} />
         )}
         {searching && (
           <p className="-mt-3 mb-4 text-sm text-muted" data-testid="search-summary">
@@ -284,6 +304,19 @@ export default async function Library({ searchParams }: { searchParams: Promise<
           <div className="rounded-2xl border border-dashed border-line-strong p-16 text-center">
             <h2 className="font-semibold text-ink">Nothing deleting soon</h2>
             <p className="mt-1 text-sm text-dim">No recordings are due to be deleted from our servers in the next 7 days.</p>
+          </div>
+        ) : staffStart ? (
+          <div className="rounded-2xl border border-line bg-surface p-8 sm:p-10" data-testid="staff-start">
+            <p className="font-mono text-xs uppercase tracking-widest text-accent">Welcome to {workspace.name}</p>
+            <h2 className="mt-2 text-xl font-semibold text-ink">Your clients will show here</h2>
+            <p className="mt-2 max-w-xl text-sm text-muted">
+              The owner or an admin assigns clients to you. Once they have, record a video and pick those clients to send it to.
+              {canAddClients && " You can also add clients of your own: they're assigned to you."}
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-4">
+              <Link href="/team" className="rounded-xl bg-primary px-5 py-2.5 font-semibold text-on-primary hover:bg-primary-hover">See your team</Link>
+              {canAddClients && <Link href="/clients" className="text-sm text-dim hover:text-ink">Add a client of your own</Link>}
+            </div>
           </div>
         ) : startHere ? (
           <div className="rounded-2xl border border-line bg-surface p-8 sm:p-10" data-testid="start-here">
@@ -333,7 +366,10 @@ export default async function Library({ searchParams }: { searchParams: Promise<
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block font-semibold text-ink" data-testid="day-label">{label}</span>
-                        <span className="block text-sm text-dim" data-testid="day-count">{items.length} {items.length === 1 ? "video" : "videos"}</span>
+                        <span className="block text-sm text-dim">
+                          <span data-testid="day-count">{items.length} {items.length === 1 ? "video" : "videos"}</span>
+                          {dayDeletes(items) && <span data-testid="day-deletes"> · deletes from our servers {dates.shortDay(dayDeletes(items)!)}</span>}
+                        </span>
                         <span className="mt-1 block empty:hidden">
                           <ReplyBadges convs={items.flatMap(convsOf)} onlyNew />
                         </span>
@@ -347,9 +383,26 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             </div>
           )
         )}
-        <div className="mt-12 max-w-2xl">
+        <div id="todos" className="mt-12 max-w-2xl scroll-mt-6">
+          {due.total > 0 && (
+            // The menu's "To-dos" comes here: client to-dos live on each client's page, so name the clients with some due.
+            <div className="mb-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="due-todos">
+              <p className="font-medium">
+                {due.total} {due.total === 1 ? "to-do is" : "to-dos are"} overdue or due within a day
+              </p>
+              <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                {due.general > 0 && <li>Your list below ({due.general})</li>}
+                {due.clients.map((c) => (
+                  <li key={c.id}>
+                    <Link href={`/clients/${c.id}`} className="font-medium underline">{c.name}</Link> ({c.count})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {/* Items not about a client are one list for the whole team; say so when there is a team. */}
           <MemberPlanner
+            lockedNote={<p className="rounded-2xl border border-line bg-surface p-5 text-sm text-dim">Your to-dos and notes open once this browser is unlocked. <a href="#unlock" className="font-medium text-accent hover:underline">Unlock at the top of the page</a></p>}
             workspaceId={workspace.id}
             fingerprint={workspace.keyFingerprint}
             defaults={{ ...reminderDefaultsFor(workspace, me.membership), remindTeam: true }}

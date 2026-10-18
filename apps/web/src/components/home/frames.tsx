@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { PLANS } from "@/lib/plans";
 import { Face, Icon } from "./icons";
 
 /*
@@ -28,7 +29,8 @@ function Record() {
         <span className="f-link" style={{ justifySelf: "start" }}>Discard and start over</span>
         <div className="f-hr" />
         <p className="f-ok" style={{ fontSize: "0.78125rem" }}>Uploaded: 12.3 MB <span className="f-mut">(+0.8 MB on device)</span></p>
-        <p className="f-dim">Limit on your plan: 4 hours.</p>
+        {/* The real page says "Limit on your plan: 4 hours."; here it's a paid plan's, so say which (V10). */}
+        <p className="f-dim">Limit on your plan: {PLANS.SOLO.maxDurationMin / 60} hours per video on paid plans, {PLANS.FREE.maxDurationMin} minutes on Free.</p>
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import { DELETION_GRACE_DAYS } from "@/lib/accountDeletion";
 import { pendingDeletion } from "@/lib/session";
 import { isEmailBlocked } from "@/lib/blockedEmail";
 import KeepSignedIn from "@/components/KeepSignedIn";
+import AuthLinks from "@/components/AuthLinks";
 import { emailLink } from "./actions";
 import { errorText } from "./errors";
 import { BRAND } from "@/lib/brand";
@@ -39,6 +40,17 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   const hasGoogle = authProviders.some((p) => p.id === "google");
   const hasEmail = authProviders.some((p) => p.id === "email");
   const hasDev = authProviders.some((p) => p.id === "dev");
+  // When you're signed out, and the tick to stay signed in: just before the button that signs in, so it's met on the way
+  // to it (V63). With only Google, it sits under that button.
+  const keep = (
+    <div className="grid gap-2" data-testid="keep-block">
+      <p className="text-xs text-dim" data-testid="signout-default">
+        For your security, you&apos;re signed out when you close your browser or after 8 hours without using {BRAND.name}.
+      </p>
+      <KeepSignedIn />
+    </div>
+  );
+  const keepAt = hasEmail ? "email" : hasDev ? "dev" : "end";
 
   return (
     <main data-theme="navy" className="fit-screen navy-glow text-ink px-4 py-4 short:py-2">
@@ -86,6 +98,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
                 <span className="font-medium text-muted">Email</span>
                 <input name="email" type="email" required autoComplete="email" placeholder="you@company.com" className="rounded-lg border border-line-strong px-3 py-2" />
               </label>
+              {keepAt === "email" && keep}
               <button className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover">Email me a sign-in link</button>
               <p className="text-xs text-dim">No password needed. We&apos;ll email you a link that signs you in.</p>
             </form>
@@ -114,22 +127,17 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
                   <input name="password" type="password" required className="rounded-lg border border-line-strong px-3 py-2" />
                 </label>
               )}
+              {keepAt === "dev" && keep}
               <button className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover">Continue</button>
             </form>
           )}
           {error && <p role="alert" className="text-sm text-danger-fg">{errorText(error)}</p>}
-          {authProviders.length > 0 && (
-            <div className="grid gap-2 border-t border-line pt-4 short:pt-2">
-              <p className="text-xs text-dim" data-testid="signout-default">
-                For your security, you&apos;re signed out when you close your browser or after 8 hours without using {BRAND.name}.
-              </p>
-              <KeepSignedIn />
-            </div>
-          )}
+          {authProviders.length > 0 && keepAt === "end" && <div className="border-t border-line pt-4 short:pt-2">{keep}</div>}
           {authProviders.length === 0 && (
             <p className="text-sm text-muted">No sign-in method is configured. Set RESEND_API_KEY, AUTH_GOOGLE_ID or AUTH_DEV_LOGIN.</p>
           )}
         </div>
+        <AuthLinks />
       </div>
     </main>
   );

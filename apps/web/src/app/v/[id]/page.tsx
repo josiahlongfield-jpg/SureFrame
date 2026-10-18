@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import type { Video } from "@prisma/client";
 import { notFound, redirect } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
@@ -13,25 +13,20 @@ import { AskForLink, ClientKeyGate } from "@/components/LostKey";
 import Logo from "@/components/Logo";
 import { aiAssistActive, PLANS } from "@/lib/plans";
 import { db } from "@/lib/db";
-import { clientBlock, clientCookie, clientGate, viewerFor, type Viewer } from "@/lib/access";
+import { clientBlock, clientCookie, clientGate, type Viewer } from "@/lib/access";
+import { loadVideo } from "./load";
 import { agreePath, currentUser } from "@/lib/session";
 import { keyHeldCookie } from "@/lib/e2e/keyHeld";
-import { findReplaced } from "@/lib/replacedLinks";
-import { formerTeams } from "@/lib/team";
 import { reactionsBy } from "@/lib/reactions";
 import { clientLink } from "@/lib/clients";
 import { publicVideo } from "@/lib/videos";
 import { heldRepliesOf, replyDTO, replyViewer, visibleReplies } from "@/lib/replies";
 import { accessOf, canDeleteVideo, canSeeVideo, clientScopeWhere, effectivePerms } from "@/lib/permissions";
 import { zoned } from "@/lib/dates";
+import { formerTeams, senderName } from "@/lib/team";
+import { replacedLinks } from "@/lib/replacedLinks";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ team?: string }> };
-
-async function load(id: string) {
-  const video = await db.video.findUnique({ where: { id }, include: { owner: { select: { name: true, email: true } }, workspace: { select: { name: true } } } });
-  if (!video || video.replyToId) return null;
-  return { video, viewer: await viewerFor(video) };
-}
 
 /**
  * A client whose key this browser isn't known to hold (lib/e2e/keyHeld.ts): an email link opened on a device
@@ -45,10 +40,11 @@ async function keyless(viewer: Viewer | null) {
 // Titles and thumbnails are never put in link previews: videos are private.
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const found = await load(id);
-  // A client's tab also says who it's from, as a tab list otherwise reads like a page about the title.
+  const found = await loadVideo(id);
+  // No video: the layout shows the not-found page, and this is its tab title. A client's tab also says who
+  // it's from, as a tab list otherwise reads like a page about the title.
   const title = !found
-    ? "Video not found"
+    ? "Page not found"
     : !found.viewer || (await keyless(found.viewer))
       ? "Private video"
       : found.viewer.kind === "client"
@@ -59,7 +55,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function Watch({ params, searchParams }: Props) {
   const { id } = await params;
-  const found = await load(id);
+  // A missing video is turned away by the layout; this is for TypeScript.
+  const found = await loadVideo(id);
   if (!found) notFound();
   const { video, viewer } = found;
 
@@ -87,7 +84,7 @@ export default async function Watch({ params, searchParams }: Props) {
   if (viewer.kind === "client" && (await keyless(viewer))) {
     const workspace = await db.workspace.findUniqueOrThrow({ where: { id: video.workspaceId }, select: brandFields });
     return (
-      <CantOpenShell brand={brandOf(workspace)}>
+      <CantOpenShell brand={brandOf(workspace)} help={{ for: [{ clientId: viewer.client.id, business: workspace.name }], page: "cant-open", videoId: id }}>
         <div className="mx-auto max-w-md">
           <ClientKeyGate clientId={viewer.client.id} business={workspace.name} signInNext={`/v/${id}`} />
         </div>
@@ -105,7 +102,7 @@ export default async function Watch({ params, searchParams }: Props) {
     // Quick picks by staff member only help someone who can see everyone's clients.
     access && perms?.seeAllClients ? db.membership.findMany({ where: { workspaceId: video.workspaceId }, include: { user: true }, orderBy: { id: "asc" } }) : Promise.resolve([]),
     // The other clients this recording went to, each with their own conversation.
-    access && !video.sourceId ? db.video.findMany({ where: { sourceId: video.id, client: clientScopeWhere(access) }, select: { id: true, clientId: true }, orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
+    access && !video.sourceId ? db.video.findMany({ where: { sourceId: video.id, client: clientScopeWhere(access) }, select: { id: true, clientId: true, viewCount: true }, orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
   ]);
   // Staff can open a video they recorded that went to someone else's client: show who, nothing more.
   // So do removed and paused clients, and those whose link support turned off, who can't open it.
@@ -151,7 +148,12 @@ export default async function Watch({ params, searchParams }: Props) {
         // The team gets the normal app menu, so they can get back to the Library and everything else.
         <AppHeader email={memberEmail ?? ""} plan={PLANS[workspace.plan].name} />
       ) : (
-        <ClientHeader brand={brand} width="max-w-6xl" allVideosLink />
+        <ClientHeader
+          brand={brand}
+          width="max-w-6xl"
+          allVideosLink
+          help={viewer.kind === "client" ? { for: [{ clientId: viewer.client.id, business: workspace.name }], page: expired ? "cant-open" : "video", videoId: id } : undefined}
+        />
       )}
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {expired ? (
@@ -162,10 +164,8 @@ export default async function Watch({ params, searchParams }: Props) {
           <WatchView
             // Only the team sees how often the client opened it; clients aren't sent the count at all.
             video={{ ...publicVideo(video), viewCount: isMember ? video.viewCount + copyViews : 0 }}
-            ownerName={
-              // Clients see "Sam from Business" (never an email); the team sees the name or email.
-              isMember ? (video.owner.name ?? video.owner.email.split("@")[0]) : video.owner.name ? `${video.owner.name} from ${workspace.name}` : workspace.name
-            }
+            // Clients see "Sam from Business" (never an email); the team sees the name or email (lib/team.ts).
+            ownerName={senderName(video, workspace.name, isMember ? "team" : "client")}
             canDelete={!!access && canDeleteVideo(access, video)}
             // Only a finished original counts (a refused upload never got a duration).
             freeVideoLimit={isMember && !video.sourceId && !video.replyToId && video.status !== "RECORDING" && video.durationMs !== null ? PLANS[workspace.plan].maxVideos : null}
@@ -184,7 +184,7 @@ export default async function Watch({ params, searchParams }: Props) {
                     meId: viewer.userId,
                     sourceId: video.sourceId,
                     staff: staff.map((m) => ({ id: m.userId, name: m.user.name ?? m.user.email.split("@")[0] })),
-                    copies: copies.filter((c) => c.clientId).map((c) => ({ id: c.id, clientId: c.clientId! })),
+                    copies: copies.filter((c) => c.clientId).map((c) => ({ id: c.id, clientId: c.clientId!, opened: c.viewCount > 0 })),
                   }
                 : undefined
             }
@@ -212,7 +212,7 @@ export default async function Watch({ params, searchParams }: Props) {
 const brandFields = { id: true, name: true, plan: true, brandColor: true, brandLogoType: true, brandVersion: true } as const;
 
 /** A page around the one "can't open" card, in the business's colours when this device is one of their clients. */
-function CantOpenShell({ brand, team = false, children }: { brand: Brand | null; team?: boolean; children: ReactNode }) {
+function CantOpenShell({ brand, team = false, help, children }: { brand: Brand | null; team?: boolean; help?: ComponentProps<typeof ClientHeader>["help"]; children: ReactNode }) {
   return (
     <div data-theme="fresh" className="flex min-h-screen flex-col bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
       {team ? (
@@ -221,7 +221,7 @@ function CantOpenShell({ brand, team = false, children }: { brand: Brand | null;
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6"><Logo href="/library" /></div>
         </header>
       ) : (
-        <ClientHeader brand={brand} allVideosLink />
+        <ClientHeader brand={brand} allVideosLink help={help} />
       )}
       <main className="flex-1 px-4 py-10 sm:px-6">{children}</main>
       <MadeWith />
@@ -252,7 +252,7 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
               ? ["This link no longer opens your videos", `${name} has closed their SureFrame account. If you need anything, contact them directly.`, "video-closed"]
               : ["Your access is paused", `${name} changed its SureFrame plan, so your access is paused. Nothing has been deleted; contact them to have it restored.`, "video-paused"];
     return (
-      <CantOpenShell brand={brandOf(mine.workspace)}>
+      <CantOpenShell brand={brandOf(mine.workspace)} help={{ for: [{ clientId: mine.id, business: name }], page: "cant-open", videoId: video.id }}>
         <CantOpen title={title} testId={testId}>
           <p>{text}</p>
         </CantOpen>
@@ -260,34 +260,20 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
     );
   }
 
-  // This device's link for the business was replaced by a key reset: say so, and how to get the new one.
-  if (token && !mine && video.clientId) {
-    const replaced = (await findReplaced([token])).find((r) => r.client.id === video.clientId);
-    if (replaced) {
-      const name = replaced.client.workspace.name;
-      return (
-        <CantOpenShell brand={brandOf(replaced.client.workspace)}>
-          <CantOpen title="Your link was replaced" testId="video-replaced" action={<AskForLink business={name} url={`/api/videos/${video.id}/ask-link`} />}>
-            <p>{name} replaced your personal link for security, so the old one no longer opens your videos. Nothing has been deleted.</p>
-            <p>{replaced.emailed ? "They've emailed you your new link. Open it on this device and this video opens here again." : "Ask them for your new link, then open it on this device."}</p>
-          </CantOpen>
-        </CantOpenShell>
-      );
-    }
+  // This device holds a link the business replaced when it reset its keys (someone left their team).
+  const replaced = token && !mine && video.clientId ? (await replacedLinks([token])).find((r) => r.client.id === video.clientId) : undefined;
+  if (replaced) {
+    return (
+      <CantOpenShell brand={brandOf(replaced.client.workspace)}>
+        <CantOpen title="Your link was replaced" testId="video-replaced" action={<AskForLink business={replaced.business} url={`/api/videos/${video.id}/ask-link`} />}>
+          <p>{replaced.business} replaced your personal link to keep your videos secure, so the old one no longer opens them. Nothing has been deleted.</p>
+          <p>{replaced.emailed ? "They've emailed you your new link: open it on this device and this video opens here too." : `Ask ${replaced.business} for your new link, then open it on this device.`}</p>
+        </CantOpen>
+      </CantOpenShell>
+    );
   }
 
   if (me) {
-    // Someone removed from the business's team: told so plainly, as everywhere else in the app (RemovedNotice).
-    const former = (await formerTeams(me.user.id)).find((t) => t.id === video.workspaceId);
-    if (former && !me.user.memberships.some((m) => m.workspaceId === video.workspaceId)) {
-      return (
-        <CantOpenShell brand={null} team>
-          <CantOpen title={`You're no longer on ${former.name}'s team`} testId="video-removed-member">
-            <p>An owner or admin removed you, so you can&apos;t open that team&apos;s videos any more. If that&apos;s a mistake, ask them for a new invite link.</p>
-          </CantOpen>
-        </CantOpenShell>
-      );
-    }
     // Signed in to the team: say what's actually in the way rather than "sign in".
     const membership = me.user.memberships.find((m) => m.workspaceId === video.workspaceId);
     const ws = membership?.workspace;
@@ -314,6 +300,17 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
                   : "Your access in this team doesn't include it."}{" "}
               Ask the owner or an admin if you need it.
             </p>
+          </CantOpen>
+        </CantOpenShell>
+      );
+    }
+    // Taken off the team that owns it: the same plain words as on their other pages (components/RemovedNotice.tsx).
+    const former = membership ? null : (await formerTeams(me.user.id)).find((t) => t.id === video.workspaceId);
+    if (former) {
+      return (
+        <CantOpenShell brand={null} team>
+          <CantOpen title={`You're no longer on ${former.name}'s team`} testId="video-former-member">
+            <p>An owner or admin removed you, so you can&apos;t open that team&apos;s videos or clients any more. If that&apos;s a mistake, ask them for a new invite link.</p>
           </CantOpen>
         </CantOpenShell>
       );

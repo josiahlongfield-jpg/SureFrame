@@ -249,7 +249,7 @@ sub2.cancel_at_period_end = false;
 await webhook("customer.subscription.updated", sub2);
 await page.goto(BASE + "/settings/account");
 const explainer = (await page.textContent("[data-testid=delete-explainer]")).replace(/\s+/g, " ");
-ok("explainer: closed now, deleted in 30 days unless kept, plan won't renew", explainer.includes("closed straight away and permanently deleted on") && explainer.includes("sign in to keep it") && explainer.includes("your plan won't renew"), explainer);
+ok("explainer: closed now, deleted in 30 days unless kept, plan won't renew", explainer.includes("closed straight away and permanently deleted 30 days later") && explainer.includes("sign in to keep it") && explainer.includes("your plan won't renew"), explainer);
 await page.fill('input[name="confirm"]', "someone@else.com");
 await page.click("text=Delete my account");
 await page.waitForURL("**error=confirm**");

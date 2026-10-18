@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { PermChecks, savePerm, type Perms } from "./StaffPerms";
+import { PERMS, PermChecks, savePerm, type Perms } from "./StaffPerms";
 
 type Role = "OWNER" | "ADMIN" | "MEMBER";
 /** A member's own settings, shown to owners and admins so nothing a member sets is hidden from them. */
@@ -21,18 +22,22 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [target, setTarget] = useState<string>("");
   const [note, setNote] = useState<string>();
+  // "Saved" on the card whose switches just changed.
+  const [saved, setSaved] = useState<{ userId: string; text: string }>();
   const [busy, setBusy] = useState(false);
   const nameOf = (id: string | null) => staff.find((s) => s.userId === id)?.name ?? "Unassigned";
+  const unassigned = clients.filter((c) => !c.assignedToId || !staff.some((s) => s.userId === c.assignedToId));
 
   async function setPerm(s: OverviewStaff, key: keyof Perms, value: boolean) {
     setNote(undefined);
+    setSaved(undefined);
     const flip = (v: boolean) => setStaff((list) => list.map((x) => (x.userId === s.userId ? { ...x, perms: { ...x.perms, [key]: v } } : x)));
     flip(value);
     const error = await savePerm(s.userId, key, value);
     if (error) {
       flip(!value);
       setNote(error);
-    }
+    } else setSaved({ userId: s.userId, text: `Saved. ${s.name} ${value ? "can now" : "can no longer"} ${PERMS.find((p) => p.key === key)!.label.toLowerCase()}.` });
   }
 
   async function assign() {
@@ -78,11 +83,19 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
                   {" · "}client emails: {s.own.message ? "their own message" : "the business's message"}, replies to {s.own.replyTo ?? "the business's reply-to"}
                 </p>
               )}
-              <p className="mt-3 text-sm text-muted">
+              {saved?.userId === s.userId && <p role="status" className="mt-2 text-sm text-ok-fg" data-testid="perm-saved">{saved.text}</p>}
+              <p className="mt-3 text-sm text-muted" data-testid="looks-after">
                 <span className="font-medium">Looks after:</span>{" "}
-                {theirs.length ? theirs.map((c, i) => (
+                {theirs.map((c, i) => (
                   <span key={c.id}>{i > 0 && ", "}<Link href={`/clients/${c.id}`} className="hover:underline">{c.name}</Link></span>
-                )) : <span className="text-dim">no clients yet</span>}
+                ))}
+                {/* The owner and admins look after unassigned clients, so their cards say so rather than "no clients". */}
+                {s.role !== "MEMBER" && unassigned.length > 0 && (
+                  <span data-testid="looks-after-unassigned">
+                    {theirs.length > 0 && ", plus "}unassigned clients ({unassigned.slice(0, 5).map((c) => c.name).join(", ")}{unassigned.length > 5 ? ` and ${unassigned.length - 5} more` : ""})
+                  </span>
+                )}
+                {!theirs.length && (s.role === "MEMBER" || !unassigned.length) && <span className="text-dim">no clients yet</span>}
               </p>
             </li>
           );
@@ -206,6 +219,7 @@ export function NotifyPrefs({ meId, staff, initial }: { meId: string; staff: Ove
 
 /** Send a short reminder to one, several or all staff. */
 export function StaffReminderForm({ meId, staff, clients, videos }: { meId: string; staff: OverviewStaff[]; clients: OverviewClient[]; videos: { id: string; title: string }[] }) {
+  const router = useRouter();
   const others = staff.filter((s) => s.userId !== meId);
   const [to, setTo] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState("");
@@ -226,13 +240,22 @@ export function StaffReminderForm({ meId, staff, clients, videos }: { meId: stri
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) return setNote(data.error ?? "Could not send the reminder");
-    setNote(`Sent to ${data.sent} ${data.sent === 1 ? "person" : "people"}.`);
+    setNote(`Sent to ${data.sent} ${data.sent === 1 ? "person" : "people"}. It's listed under Sent reminders.`);
+    router.refresh();
     setMessage("");
     setLink("");
     setTo(new Set());
   }
 
-  if (!others.length) return <p className="rounded-2xl border border-line bg-surface p-5 text-sm text-dim">Invite staff on the Team page to send them reminders.</p>;
+  if (!others.length) {
+    return (
+      <p className="rounded-2xl border border-line bg-surface p-5 text-sm text-dim">
+        Once someone else is on the team, you can send them reminders here. <Link href="/settings/team" className="font-medium text-accent hover:underline">Invite staff</Link>
+      </p>
+    );
+  }
+  // Why Send isn't ready yet, said next to it.
+  const missing = !to.size ? "Pick who to remind." : !message.trim() ? "Write a message." : null;
   return (
     <form onSubmit={send} className="grid gap-3 rounded-2xl border border-line bg-surface p-5 text-sm">
       <div className="flex flex-wrap items-center gap-3">
@@ -259,7 +282,8 @@ export function StaffReminderForm({ meId, staff, clients, videos }: { meId: stri
             {videos.map((v) => <option key={v.id} value={`video:${v.id}`}>{v.title}</option>)}
           </optgroup>
         </select>
-        <button disabled={busy || !to.size || !message.trim()} className="rounded-lg bg-primary px-4 py-1.5 font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">Send reminder</button>
+        <button disabled={busy || !!missing} className="rounded-lg bg-primary px-4 py-1.5 font-semibold text-on-primary hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted">Send reminder</button>
+        {missing && <span className="text-xs text-dim" data-testid="remind-missing">{missing}</span>}
       </div>
       <p className="text-xs text-dim">They get an email and see it in the app until they dismiss it.</p>
       {note && <p role="status" className="text-muted">{note}</p>}

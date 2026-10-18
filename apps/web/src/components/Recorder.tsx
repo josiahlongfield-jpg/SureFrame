@@ -9,7 +9,7 @@ import * as store from "@/lib/recorder/store";
 import { encryptFrame, fingerprint, generateKey, wrapKey } from "@/lib/e2e/crypto";
 import { browserTimeZone } from "@/lib/schedule";
 import { thumbFromTrack } from "@/lib/thumb";
-import { ChunkedUploader, FatalUploadError, lockName, mayRecover, recoverInterrupted, type UploadState } from "@/lib/recorder/uploader";
+import { ChunkedUploader, FatalUploadError, lockName, mayRecover, PART_BYTES, recoverInterrupted, type UploadState } from "@/lib/recorder/uploader";
 import {
   bitrateFor,
   getCamera,
@@ -86,6 +86,8 @@ export default function Recorder({
   const [wholeScreen, setWholeScreen] = useState(false);
   // Phones and tablets can't share their screen from a browser, so they only get camera mode.
   const [canShareScreen, setCanShareScreen] = useState(true);
+  // On a phone the screen modes are shown greyed, with why, even where the browser claims it could.
+  const [phone, setPhone] = useState(false);
   // Firefox can neither draw the camera into the video nor float it over other windows.
   const [cameraWithScreen, setCameraWithScreen] = useState(true);
   useEffect(() => {
@@ -98,8 +100,9 @@ export default function Recorder({
       // Phones record 720p: lighter on memory and battery, and plenty for a phone screen.
       setQuality(720);
     } else if (isPhone()) {
-      // A phone whose browser offers screen sharing still starts on the camera: that's what people record on a phone.
+      // A phone whose browser offers screen sharing still records with the camera: phone browsers can't record the screen in practice.
       setMode("camera");
+      setPhone(true);
     }
   }, []);
 
@@ -265,6 +268,8 @@ export default function Recorder({
 
   async function start() {
     setError(undefined);
+    // The "finished uploading" note is from before; it doesn't stay up during the next recording.
+    setRecovered([]);
     setWholeScreen(false);
     // Setup notices (no camera, camera found) don't carry into the recording.
     if (!noCamera) setNotice(undefined);
@@ -493,11 +498,16 @@ export default function Recorder({
     const wasRecording = phase === "recording";
     if (wasRecording) pause();
     setConfirmDiscard({ wasRecording });
+    // Closing the browser with this question open counts as discarding: recovery deletes it rather than uploading it.
+    const l = live.current;
+    if (l) void store.updateSession(l.videoId, { discarding: true }).catch(() => {});
   }
 
   function keepRecording() {
     if (confirmDiscard?.wasRecording) resume();
     setConfirmDiscard(null);
+    const l = live.current;
+    if (l) void store.updateSession(l.videoId, { discarding: false }).catch(() => {});
   }
 
   function cleanup() {
@@ -575,10 +585,13 @@ export default function Recorder({
       </div>
 
       <aside className="flex min-w-0 flex-col gap-5">
-        {recovered.length > 0 && (
-          <div className="rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg">
-            {recovered.length === 1 ? "We finished uploading a recording that was interrupted." : `We finished uploading ${recovered.length} recordings that were interrupted.`}{" "}
-            <a className="font-medium underline" href={recovered.length === 1 ? `/v/${recovered[0]}` : "/library"}>{recovered.length === 1 ? "View it" : "See your library"}</a>
+        {recovered.length > 0 && phase === "setup" && (
+          <div className="flex items-start gap-3 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="recorder-recovered">
+            <p className="min-w-0 flex-1">
+              {recovered.length === 1 ? "We finished uploading a recording that was interrupted." : `We finished uploading ${recovered.length} recordings that were interrupted.`}{" "}
+              <a className="font-medium underline" href={recovered.length === 1 ? `/v/${recovered[0]}` : "/library"}>{recovered.length === 1 ? "View it" : "See your library"}</a>
+            </p>
+            <button onClick={() => setRecovered([])} aria-label="Dismiss" className="shrink-0">✕</button>
           </div>
         )}
         {error && (
@@ -600,13 +613,25 @@ export default function Recorder({
           <>
             <fieldset className="flex flex-col gap-2">
               <legend className="mb-2 text-sm font-semibold text-ink">What do you want to record?</legend>
-              {MODES.filter((m) => canShareScreen || m.id === "camera").map((m) => (
-                <label key={m.id} className={`cursor-pointer rounded-xl border p-3 transition ${noCamera && m.id !== "screen" ? "opacity-60 " : ""}${mode === m.id ? "border-primary bg-primary-soft ring-1 ring-primary" : "border-line hover:border-line-strong"}`}>
-                  <input type="radio" name="mode" className="sr-only" checked={mode === m.id} onChange={() => (noCamera && m.id !== "screen" ? setFlash((n) => n + 1) : setMode(m.id))} />
-                  <span className="block text-sm font-medium text-ink">{m.label}</span>
-                  <span className="block text-xs text-dim">{m.hint}</span>
-                </label>
-              ))}
+              {MODES.map((m) => {
+                // Phones (and browsers without screen sharing) show the screen modes greyed, so it's plain why there's only one.
+                const off = m.id !== "camera" && (phone || !canShareScreen);
+                return (
+                  <label
+                    key={m.id}
+                    aria-disabled={off || undefined}
+                    data-testid={`mode-${m.id}`}
+                    className={`rounded-xl border p-3 transition ${off ? "cursor-not-allowed border-line opacity-50" : "cursor-pointer"} ${!off && noCamera && m.id !== "screen" ? "opacity-60 " : ""}${mode === m.id ? "border-primary bg-primary-soft ring-1 ring-primary" : off ? "" : "border-line hover:border-line-strong"}`}
+                  >
+                    <input type="radio" name="mode" className="sr-only" disabled={off} checked={mode === m.id} onChange={() => (noCamera && m.id !== "screen" ? setFlash((n) => n + 1) : setMode(m.id))} />
+                    <span className="block text-sm font-medium text-ink">{m.label}</span>
+                    <span className="block text-xs text-dim">{m.hint}</span>
+                  </label>
+                );
+              })}
+              {(phone || !canShareScreen) && (
+                <p className="text-xs text-dim" data-testid="screen-modes-note">Recording your screen needs a computer. On a phone or tablet, record with your camera.</p>
+              )}
               {mode === "screen+camera" && !cameraWithScreen && (
                 <p className="text-xs text-warn-fg">This browser can&rsquo;t put your camera in a screen recording. Use Chrome, Edge or Brave, or choose Camera only.</p>
               )}
@@ -648,6 +673,10 @@ export default function Recorder({
             <button onClick={start} className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary shadow-sm hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
               Start recording
             </button>
+            {/* Said before Start, not only once recording: how long a video can be, and what happens at the limit. */}
+            <p className="text-sm text-muted" data-testid="length-limit">
+              Videos on your plan can be up to {limitText(maxDurationMin)}. At {limitClock(maxDurationMin)} the recording stops and is saved by itself.
+            </p>
             {freeVideos && freeLeft !== null && (
               <p className="text-sm text-muted" data-testid="free-videos-left">
                 {freeLeft} of {freeVideos.limit} free videos left.{" "}
@@ -693,7 +722,7 @@ export default function Recorder({
               />
             )}
             <p className="text-xs text-dim">
-              Limit on your plan: {maxDurationMin % 60 === 0 && maxDurationMin >= 60 ? `${maxDurationMin / 60} hour${maxDurationMin === 60 ? "" : "s"}` : `${maxDurationMin} minutes`}.
+              Limit on your plan: {limitText(maxDurationMin)}. It stops and saves by itself at {limitClock(maxDurationMin)}.
             </p>
           </>
         )}
@@ -708,6 +737,11 @@ export default function Recorder({
     </div>
   );
 }
+
+/** "5 minutes", "4 hours" */
+const limitText = (min: number) => (min % 60 === 0 && min >= 60 ? `${min / 60} hour${min === 60 ? "" : "s"}` : `${min} minutes`);
+/** "5:00" as the recording's clock shows it; "4 hours" for the long ones. */
+const limitClock = (min: number) => (min >= 60 ? limitText(min) : `${min}:00`);
 
 /** A phone (not a tablet or computer): a touch screen with no mouse, small on its shorter side. */
 function isPhone() {
@@ -730,6 +764,10 @@ function UploadBadge({ s }: { s: UploadState }) {
     <p className="text-sm text-ok-fg">
       Uploaded: {(s.uploadedBytes / 1024 / 1024).toFixed(1)} MB
       {s.bufferedBytes > 0 && <span className="text-dim"> (+{(s.bufferedBytes / 1024 / 1024).toFixed(1)} MB on device)</span>}
+      {/* Short takes go up in one piece at the end, so a still 0.0 isn't a stuck upload. */}
+      {s.uploadedBytes === 0 && (
+        <span className="block text-xs text-dim">It goes up in {Math.round(PART_BYTES / 1024 / 1024)} MB pieces while you record, and the rest when you stop. Until then it&rsquo;s kept safe in this browser.</span>
+      )}
     </p>
   );
 }

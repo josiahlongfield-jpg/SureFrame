@@ -161,6 +161,8 @@ ok("Bea's reminder is skipped, not emailed", !!rem.sentAt && rem.error === "clie
 const items = await prisma.item.findMany({ where: { workspaceId: ws }, select: { id: true, body: true } });
 const videos = await prisma.video.findMany({ where: { workspaceId: ws, teamKeyWrap: { not: null } }, select: { id: true, teamKeyWrap: true, clientKeyWrap: true } });
 const FP2 = "e".repeat(32);
+// Only a client who has opened their link is emailed the new one (lib/rekey.ts); the test link carries no key, so record it.
+await prisma.client.update({ where: { id: cy.id }, data: { linkOpenedAt: new Date() } });
 res = await owner.request.post(`${BASE}/api/team/rekey`, { data: { from: FP, fingerprint: FP2, teamWrap: "w".repeat(44), clients: [], videos, items } });
 ok("key reset done", res.status() === 200, await res.text());
 b = await prisma.client.findUnique({ where: { id: bea.id } });

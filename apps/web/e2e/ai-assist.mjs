@@ -331,8 +331,8 @@ ok("existing summary stays readable after switching off", true);
 await owner.goto(`${BASE}/v/${videoId}`);
 await openAi(owner);
 await owner.waitForSelector("[data-testid=ai-summary]", { timeout: 30000 });
-owner.once("dialog", (d) => d.accept());
 await owner.click("text=Remove transcript and summary");
+await owner.click("[data-testid=remove-insight-confirm-yes]");
 for (let i = 0; i < 30 && (await prisma.videoInsight.findUnique({ where: { videoId } })); i++) await owner.waitForTimeout(100);
 ok("team can remove the transcript", !(await prisma.videoInsight.findUnique({ where: { videoId } })));
 

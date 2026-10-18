@@ -9,6 +9,7 @@ import {
   REVIEW_DAYS,
   TERMS_NOTICE_DAYS,
   TERMS_RECORD_KEEP_YEARS,
+  CLIENT_QUESTION_KEEP_DAYS,
 } from "@/lib/periods";
 import { RETENTION_DAYS } from "@/lib/retention";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
@@ -46,6 +47,8 @@ export const LEGAL = {
   deletionWarningDays: DELETION_WARN_DAYS,
   /** Records of support actions on accounts are kept this long. */
   supportRecordYears: ADMIN_ACTION_KEEP_YEARS,
+  /** Questions typed into the help chat on client pages are kept this long. */
+  clientQuestionDays: CLIENT_QUESTION_KEEP_DAYS,
   /** Records of agreeing to the Terms and Privacy Policy are kept this long. */
   agreementRecordYears: TERMS_RECORD_KEEP_YEARS,
   /** Time to ask us to review a suspension, closure or turned-off link. */
@@ -60,6 +63,8 @@ export const LEGAL = {
   termsVersion: "2026-10-11",
   privacyVersion: "2026-10-11",
   dpaVersion: "1.0",
+  /** When the DPA's current version took effect (it has its own numbering, not the dated versions in LEGAL_VERSIONS). */
+  dpaSince: "11 October 2026",
   updated: "11 October 2026",
   /**
    * The Terms page's own "last updated" date. A change that only adds to what customers get (founding prices and
@@ -67,16 +72,26 @@ export const LEGAL = {
    * Discount codes limited to starting a subscription or moving up a plan, codes given to one business for one use, and the
    * referral programme (16 October 2026) keep it too: they only add to what customers get, and the site was closed for maintenance.
    * "Keep me signed in" and cancelling in Settings > Billing (17 October 2026) only add choices, so they keep it too.
+   * Saying the help chat on client pages is AI only and points clients to the business (18 October 2026) explains a new help option, so it keeps it too.
    */
-  termsUpdated: "17 October 2026",
-  /** The Data Processing Agreement's own "last updated" date: "Keep me signed in" added to its security measures (17 October 2026). */
-  dpaUpdated: "17 October 2026",
+  termsUpdated: "18 October 2026",
+  /**
+   * The Data Processing Agreement's own "last updated" date: "Keep me signed in" added to its security measures (17 October 2026).
+   * Google sign-in taken out of its security measures, since only email sign-in links are offered, and file storage's location
+   * worded plainly (18 October 2026): they describe what we already do, so it keeps dpaVersion.
+   */
+  dpaUpdated: "18 October 2026",
   /**
    * The Privacy Policy page's own "last updated" date. Describing discount codes, referrals and the sf_offer cookie
    * (16 October 2026) only explains more of what we already do, so it keeps privacyVersion. So do a short section for
    * clients, the intro shown once per device, "Keep me signed in" and its cookies, and clients deleting their own replies
    * (17 October 2026): they explain what we do or add choices, and take nothing away. Unsent video and voice replies
-   * being deleted after 7 days (18 October 2026) keeps less, for less time, so it keeps privacyVersion too.
+   * being deleted after 7 days (18 October 2026) keeps less, for less time, so it keeps privacyVersion too. Describing the
+   * help chat on client pages and the question text it keeps for 90 days (18 October 2026) explains a new, optional help
+   * feature that takes nothing away, so it keeps privacyVersion too. So does saying that an invited team member is
+   * emailed to expect their link, and that a replaced client link is kept only as a one-way fingerprint, taking out
+   * "Continue with Google", which isn't offered (only email sign-in links are), and saying plainly where recordings are
+   * stored (18 October 2026).
    */
   privacyUpdated: "18 October 2026",
 };
@@ -103,9 +118,15 @@ export const LEGAL_VERSIONS = [
 export const operatorLine = () =>
   `${LEGAL.product}${LEGAL.abn ? ` (ABN ${LEGAL.abn})` : ""} is ${LEGAL.businessNameRegistered ? "a registered business name of" : "run by"} a sole trader based in ${LEGAL.state}, ${LEGAL.country}`;
 
-/** Where Neon and the Cloudflare R2 bucket keep data. Null until confirmed: the pages then give no location. */
+/**
+ * Where Neon and the Cloudflare R2 bucket keep data. Null until confirmed: the pages then give no location. R2's is
+ * Cloudflare's "Oceania" region; it's spelt out because the bare region name means little to most readers (V23).
+ */
 export const NEON_LOCATION: string | null = "United States";
-export const R2_LOCATION: string | null = "Oceania";
+export const R2_LOCATION: string | null = "Oceania region (Australia, New Zealand and the Pacific)";
+
+/** Where data is kept, in the same words on the home page, FAQ, About page and Privacy Policy. */
+export const DATA_LOCATIONS = `${R2_LOCATION ? `Encrypted video and voice recordings are stored in the ${R2_LOCATION}. Our other providers` : "Our providers"} store and process information outside Australia, mainly in the United States.`;
 
 export type Subprocessor = {
   name: string;
@@ -121,8 +142,8 @@ export type Subprocessor = {
 
 /**
  * Service providers that handle personal information for us. The privacy
- * policy lists them all; the DPA lists those with `customerData`. Stripe,
- * Link and Google sign-in aren't here: they're separate controllers.
+ * policy lists them all; the DPA lists those with `customerData`. Stripe
+ * and Link aren't here: they're separate controllers.
  */
 export const SUBPROCESSORS: Subprocessor[] = [
   {

@@ -428,9 +428,10 @@ await stranger.waitForSelector("[data-testid=inbox-video]", { timeout: 20000 }).
 ok("with the key: the same device lists the videos", (await stranger.textContent("main")).includes("Week 1 plan"));
 
 // An unknown /v/ address: the client frame and a plain card, not the marketing site.
-await stranger.goto(`${BASE}/v/abc`);
-ok("unknown /v/ address: a can't-find card in the client frame", (await stranger.textContent("[data-testid=cant-open-title]")) === "This video can't be found" && (await stranger.locator("header >> text=All my videos").count()) === 1 && (await stranger.locator("text=Pricing").count()) === 0);
-ok("unknown /v/ address: tab title says so", (await stranger.title()).startsWith("Video not found"));
+const missing = await stranger.goto(`${BASE}/v/abc`);
+ok("unknown /v/ address: a real 404", missing.status() === 404, String(missing.status()));
+ok("unknown /v/ address: a can't-find card in the client frame", (await stranger.textContent("[data-testid=cant-open-title]")) === "Page not found" && (await stranger.locator("[data-testid=video-not-found]").count()) === 1 && (await stranger.locator("header >> text=All my videos").count()) === 1 && (await stranger.locator("text=Pricing").count()) === 0);
+ok("unknown /v/ address: tab title says so", (await stranger.title()).startsWith("Page not found"));
 
 // A link a key reset replaced says so (not "mistyped"), on a new device and on one that had it.
 const oldToken = `fx-replaced-${Date.now()}-${"x".repeat(12)}`;
@@ -439,7 +440,7 @@ const bVideo = await prisma.video.create({ data: { id: `fxr${Date.now().toString
 const bDevice = await (await browser.newContext({ viewport: { width: 320, height: 640 } })).newPage();
 await bDevice.goto(`${BASE}/c/${oldToken}`);
 await prisma.client.update({ where: { id: clientB.id }, data: { token: `fx-new-${Date.now()}-${"y".repeat(12)}` } });
-await prisma.replacedLink.create({ data: { tokenHash: createHash("sha256").update(oldToken).digest("hex"), clientId: clientB.id, emailed: true } });
+await prisma.replacedClientLink.create({ data: { tokenHash: createHash("sha256").update(oldToken).digest("hex"), clientId: clientB.id, emailed: true } });
 await stranger.goto(`${BASE}/c/${oldToken}#k=abc`);
 await stranger.waitForSelector("[data-testid=client-replaced]", { timeout: 10000 });
 const replacedText = await stranger.textContent("[data-testid=client-replaced]");

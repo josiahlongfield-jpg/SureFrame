@@ -1,11 +1,27 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
+import Link from "next/link";
 import { cookies } from "next/headers";
+import AppHeader from "@/components/AppHeader";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import PricingTable, { type CurrentPlan } from "@/components/PricingTable";
 import { auth } from "@/auth";
 import { RETENTION_DAYS } from "@/lib/retention";
-import { AI_ASSIST_PRICES, AI_SUMMARIES_PER_MONTH, CLOUD_BACKUP_PRICE, CLOUD_BACKUP_PRICE_YEARLY, PAID_PLANS, PLANS, type PaidPlan } from "@/lib/plans";
+import {
+  AI_ASSIST_PRICES,
+  AI_SUMMARIES_PER_MONTH,
+  CLOUD_BACKUP_PRICE,
+  CLOUD_BACKUP_PRICE_YEARLY,
+  EXTRA_SEAT_PRICE,
+  EXTRA_SEAT_PRICE_YEARLY,
+  EXTRA_STAFF_PRICE_YEARLY,
+  MAX_REPLY_MINUTES,
+  PAID_PLANS,
+  PLANS,
+  type PaidPlan,
+} from "@/lib/plans";
+import { MAX_TRANSCRIBE_MINUTES } from "@/lib/ai/limits";
 import { foundingLastDay, foundingOpen } from "@/lib/founding";
 import { automaticOffer, cachedOfferForCode, codeFromCookie, isCodeShaped, OFFER_COOKIE, offerIsFor, quietly, type Offer } from "@/lib/offers";
 import { currentUser } from "@/lib/session";
@@ -80,6 +96,64 @@ function Offers({
 }
 
 /**
+ * What visitors asked about that the plan cards don't say (V13, V16, V30, V32): how extras are billed, cancelling and
+ * refunds, moving to a smaller plan, and offers. Each line is a short form of Terms section 5, which it links to.
+ */
+function GoodToKnow() {
+  const rows: [string, ReactNode][] = [
+    [
+      "Billing",
+      <>
+        Plans renew automatically until you cancel. Extra clients, extra staff and add-ons are billed with your plan: monthly on a monthly plan, and for a year
+        at a time on a yearly plan (extra clients US${EXTRA_SEAT_PRICE_YEARLY} a year each, extra staff US${EXTRA_STAFF_PRICE_YEARLY},
+        cloud backup US${CLOUD_BACKUP_PRICE_YEARLY}). Anything added part-way through is charged for the rest of the period.
+      </>,
+    ],
+    [
+      "Cancelling",
+      <>
+        Cancel any time in Settings &gt; Billing. Your plan stays until the end of the period you&rsquo;ve paid for, then your workspace moves to Free. Payments
+        aren&rsquo;t refunded for part of a period, except where the law requires it, including under the Australian Consumer Law.
+      </>,
+    ],
+    [
+      "Smaller plans",
+      <>
+        To move to a smaller plan, first remove the clients and staff it doesn&rsquo;t include. If your plan drops on its own (you cancel, or a payment fails),
+        clients and staff beyond its limits are paused until you upgrade or remove others. Nothing is deleted.
+      </>,
+    ],
+    [
+      "Offers and codes",
+      <>
+        When we run founding prices or a discount offer, it&rsquo;s shown at the top of this page. A discount or referral code comes off at checkout when you
+        start a subscription.
+      </>,
+    ],
+  ];
+  return (
+    <section className="mx-auto mt-12 max-w-3xl rounded-2xl border border-line bg-surface p-6" aria-labelledby="good-to-know" data-testid="good-to-know">
+      <h2 id="good-to-know" className="text-lg font-semibold text-ink">Good to know</h2>
+      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-[10rem_1fr] sm:gap-x-6">
+        {rows.map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt className="font-medium text-ink">{k}</dt>
+            <dd className="-mt-2 text-muted sm:mt-0">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-4 text-sm text-muted">
+        The details are in our{" "}
+        <Link href="/legal/terms#5-plans-billing-and-cancelling" className="font-medium text-accent hover:underline">
+          Terms of Service, section 5
+        </Link>
+        .
+      </p>
+    </section>
+  );
+}
+
+/**
  * Everything the Free plan includes and leaves out, in one place (V4). Each line comes from lib/plans.ts, lib/retention.ts
  * or the Terms (section 10 for unused workspaces).
  */
@@ -87,8 +161,14 @@ function FreePlanInFull() {
   const free = PLANS.FREE;
   const rows: [string, string][] = [
     ["Clients", `${free.clientSeats} clients. Clients never pay and don't need an account.`],
-    ["Videos", `${free.maxVideos} videos in total, not per month, counting videos recorded on any plan. Deleting a video doesn't give its place back. Replies and sending a video to more clients don't count.`],
-    ["Length", `Up to ${free.maxDurationMin} minutes per video, and up to ${free.maxDurationMin} minutes for your own video and voice replies.`],
+    [
+      "Videos",
+      `${free.maxVideos} videos in total, not per month, counting videos recorded on any plan. Deleting a video doesn't give its place back. Replies and sending a video to more clients don't count. Free is for trying SureFrame, so its videos don't start again each month; paid plans have no limit on videos.`,
+    ],
+    [
+      "Length",
+      `Up to ${free.maxDurationMin} minutes per video, and up to ${free.maxDurationMin} minutes for your own video and voice replies (${MAX_REPLY_MINUTES} on paid plans). Your clients' video and voice replies can be up to ${MAX_REPLY_MINUTES} minutes on every plan.`,
+    ],
     ["Quality", `${free.maxResolution}p recording. Paid plans record in 1080p or 4K.`],
     ["What clients see", "A short SureFrame intro before your video, once on each device. Paid plans remove it and let you add your own logo and colours."],
     ["Video storage", `Videos are deleted from our servers ${RETENTION_DAYS} days after they're recorded. Save a video to your device to keep your own copy. Cloud backup is only on paid plans.`],
@@ -141,7 +221,8 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
   const ended = endedLink ?? (code && ((lookup && (!lookup.offer || !mine)) || (referred && !referred.offer)) ? code : null);
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
-      <SiteHeader navy />
+      {/* Signed in, the app's own header, so the Settings menu and plan stay in reach (O37). */}
+      {me ? <AppHeader email={me.user.email} plan={PLANS[me.workspace.plan].name} /> : <SiteHeader navy />}
       <main className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
         <div className="text-center">
           <p className="kicker">Pricing</p>
@@ -150,12 +231,16 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
         </div>
         <Offers founding={foundingOpen() ? foundingLastDay() : null} ended={ended} busy={query.code === "busy"} linked={linked} auto={auto} referral={referral} />
         <PricingTable current={current} signedIn={signedIn} retentionDays={RETENTION_DAYS} start={start} />
-        <p className="mt-10 text-center text-sm text-dim">More than 100 clients? Add extra clients for US$1.50 a month each.</p>
+        <p className="mt-10 text-center text-sm text-dim">
+          More than 100 clients? Add extra clients for US${EXTRA_SEAT_PRICE.toFixed(2)} a month each, or US${EXTRA_SEAT_PRICE_YEARLY} a year on yearly billing.
+        </p>
         <p className="mt-2 text-center text-sm text-dim" data-testid="free-videos-note">
           Free includes {PLANS.FREE.maxVideos} videos in total, not per month, counting videos recorded on any plan. Deleting a video doesn&rsquo;t give its place
           back. Replies and sending a video to more clients don&rsquo;t count.
         </p>
         <p className="mt-2 text-center text-sm text-dim" data-testid="currency-note">All prices are in US dollars (USD), plus any sales tax, VAT or GST that applies where you are. Checkout may offer to charge you in your own currency at Stripe&rsquo;s exchange rate; otherwise your bank converts it.</p>
+
+        <GoodToKnow />
 
         <FreePlanInFull />
 
@@ -166,7 +251,7 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
               <h3 className="font-semibold text-ink">AI transcripts and summaries</h3>
               <p className="mt-2 text-sm text-muted">
                 A transcript and a short summary with key points and action items under each video, for your team and your client. The transcript is made on your own
-                device and the audio isn&apos;t sent anywhere for it; only the transcript text is sent to Anthropic&apos;s Claude to write the summary. AI summaries can contain mistakes. Videos up to 30 minutes.
+                device and the audio isn&apos;t sent anywhere for it; only the transcript text is sent to Anthropic&apos;s Claude to write the summary. AI summaries can contain mistakes. Works on videos up to {MAX_TRANSCRIBE_MINUTES} minutes long; longer videos don&apos;t get a transcript or summary.
               </p>
               <ul className="mt-4 space-y-1 text-sm text-muted">
                 {(["SOLO", "STUDIO", "AGENCY"] as const).map((id) => (
@@ -188,7 +273,8 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
           </div>
         </section>
       </main>
-      <SiteFooter />
+      {/* The app's header brings its own help button. */}
+      <SiteFooter widget={!me} />
     </div>
   );
 }

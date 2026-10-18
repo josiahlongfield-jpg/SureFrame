@@ -65,39 +65,39 @@ export default function ScheduleFields({
           </button>
         )}
       </label>
-      {value.due && (
-        <>
-          <RepeatPicker due={value.due} value={value.repeat} onChange={(repeat) => set({ repeat })} />
-          <div className="flex flex-wrap items-start gap-2 text-muted">
-            <span className="w-20 shrink-0 pt-1">Remind</span>
-            <div className="min-w-0 flex-1">
-              <ReminderPicker value={value.reminders} onChange={(reminders) => set({ reminders })} />
-              {value.reminders.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                  {canShareReminders && (
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={value.remindClient && !!clientEmail}
-                        disabled={!clientEmail}
-                        onChange={(e) => set({ remindClient: e.target.checked })}
-                        className="accent-primary"
-                      />
-                      Email {first}
-                      {!clientEmail && <span className="text-xs text-warn-fg">(add {first}&apos;s email first)</span>}
-                      {clientEmail && clientOptedOut && <span className="text-xs text-warn-fg">({first} has emails turned off, so none go until they turn them back on)</span>}
-                    </label>
-                  )}
+      {/* Shown before a date is picked too (greyed), so repeats and reminders can be set while adding, not only in Edit. */}
+      <fieldset disabled={!value.due} className={`grid gap-3 ${value.due ? "" : "opacity-60"}`} data-testid="schedule-extras">
+        {!value.due && <p className="text-xs text-dim">Pick a due date to make it repeat or to get reminders.</p>}
+        <RepeatPicker due={value.due || toLocalInput(new Date().toISOString())} value={value.repeat} onChange={(repeat) => set({ repeat })} />
+        <div className="flex flex-wrap items-start gap-2 text-muted">
+          <span className="w-20 shrink-0 pt-1">Remind</span>
+          <div className="min-w-0 flex-1">
+            <ReminderPicker value={value.reminders} onChange={(reminders) => set({ reminders })} />
+            {value.reminders.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                {canShareReminders && (
                   <label className="flex items-center gap-2">
-                    <input type="checkbox" checked={value.remindTeam} onChange={(e) => set({ remindTeam: e.target.checked })} className="accent-primary" />
-                    {teamLabel}
+                    <input
+                      type="checkbox"
+                      checked={value.remindClient && !!clientEmail}
+                      disabled={!clientEmail}
+                      onChange={(e) => set({ remindClient: e.target.checked })}
+                      className="accent-primary"
+                    />
+                    Email {first}
+                    {!clientEmail && <span className="text-xs text-warn-fg">(add {first}&apos;s email first)</span>}
+                    {clientEmail && clientOptedOut && <span className="text-xs text-warn-fg">({first} has emails turned off, so none go until they turn them back on)</span>}
                   </label>
-                </div>
-              )}
-            </div>
+                )}
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={value.remindTeam} onChange={(e) => set({ remindTeam: e.target.checked })} className="accent-primary" />
+                  {teamLabel}
+                </label>
+              </div>
+            )}
           </div>
-        </>
-      )}
+        </div>
+      </fieldset>
     </div>
   );
 }

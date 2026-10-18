@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import TeamManager from "@/components/TeamManager";
 import { db } from "@/lib/db";
@@ -23,18 +24,26 @@ export default async function TeamSettings({ searchParams }: { searchParams: Pro
     staffUsage(workspace),
   ]);
   const isTeamPlan = TEAM_PLANS.includes(workspace.plan);
+  // Staff have their own Team page; this one only switches between the businesses they're on.
+  if (role === "MEMBER" && mine.length < 2) redirect("/team");
+  const teamName = isTeamPlan || members.length > 1 ? "Team and staff" : "Invite staff";
 
   return (
     <>
       <AppHeader email={user.email} plan={plan.name} />
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">{role === "MEMBER" ? "Your workspaces" : members.length > 1 ? "Team and staff" : "Invite staff"}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">{role === "MEMBER" ? "Your businesses" : teamName}</h1>
         <p className="mt-1 text-sm text-dim">
-          {role === "MEMBER"
-            ? "You see the clients assigned to you and the videos you record. The owner or an admin chooses what else you can do."
-            : "You choose who looks after each client. Members see only the clients assigned to them, unless you let them see all clients. Clients see the name of the person who sent their video, never their email."}
+          {role === "MEMBER" ? (
+            <>
+              You&apos;re on the team of more than one business.{" "}
+              <Link href="/team" className="font-medium text-accent hover:underline">Your team</Link> shows who you look after in {workspace.name} and what you can do there.
+            </>
+          ) : (
+            "You choose who looks after each client. Members see only the clients assigned to them, unless you let them see all clients. Clients see the name of the person who sent their video, never their email."
+          )}
         </p>
-        {role !== "MEMBER" && members.length > 1 && (
+        {role !== "MEMBER" && (members.length > 1 || isTeamPlan) && (
           <p className="mt-2 text-sm">
             <Link href="/team" className="font-medium text-accent hover:underline">Open the Team page</Link>
             <span className="text-dim"> to reassign clients in bulk, remind staff and see how everyone is keeping up.</span>
@@ -69,6 +78,7 @@ export default async function TeamSettings({ searchParams }: { searchParams: Pro
           initialMembers={members.map((m) => ({ userId: m.userId, name: m.user.name ?? m.user.email.split("@")[0], email: m.user.email, role: m.role, perms: permsOf(m), paused: !!m.pausedAt }))}
           initialInvites={invites.map((i) => ({ id: i.id, email: i.email, role: i.role, expiresAt: i.expiresAt.toISOString() }))}
           keyResetNeeded={role === "MEMBER" ? null : workspace.keyResetNeeded}
+          teamPlan={isTeamPlan}
           workspaces={mine.map((m) => ({ id: m.workspaceId, name: m.workspace.name, active: m.workspaceId === workspace.id }))}
           timezone={workspace.timezone}
           business={workspace.name}

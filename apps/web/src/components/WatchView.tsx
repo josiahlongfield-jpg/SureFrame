@@ -15,6 +15,7 @@ import LostKey from "./LostKey";
 import SureFramePromo from "./SureFramePromo";
 import { markLinkSent } from "./ClientsManager";
 import SendPanel from "./SendPanel";
+import ConfirmDialog from "./ConfirmDialog";
 import { recoverInterrupted } from "@/lib/recorder/uploader";
 import { useVideoFrame } from "@/lib/videoFrame";
 import { makeThumb } from "@/lib/thumb";
@@ -64,8 +65,8 @@ export type SendMany = {
   /** Set when this page is one client's copy of another video. */
   sourceId: string | null;
   staff: { id: string; name: string }[];
-  /** Copies already sent to other clients. */
-  copies: { id: string; clientId: string }[];
+  /** Copies already sent to other clients; `opened` once that client has watched theirs. */
+  copies: { id: string; clientId: string; opened?: boolean }[];
 };
 
 export type WatchViewer = { kind: "member"; workspaceId: string; fingerprint: string | null } | { kind: "client"; clientId: string };
@@ -593,12 +594,15 @@ function WatchBody({
     setTimeout(() => setTitleSaved(false), 2500);
   }
 
+  // Asked in the page (not the browser's own confirm box), like every other delete.
+  const [deleting, setDeleting] = useState<null | { busy: boolean; error?: string }>(null);
   async function remove() {
-    const others = sendMany && !sendMany.sourceId && sendMany.copies.length ? " The copies sent to other clients are deleted too." : "";
-    const counts = freeVideoLimit ? ` It still counts towards your ${freeVideoLimit} free videos.` : "";
-    if (!confirm(`Delete this video?${others}${counts} This can't be undone.`)) return;
+    setDeleting({ busy: true });
     const res = await fetch(`/api/videos/${video.id}`, { method: "DELETE" }).catch(() => null);
-    if (!res?.ok) return alert((await res?.json().catch(() => ({})))?.error ?? "Couldn't delete the video. Check your connection and try again.");
+    if (!res?.ok) {
+      const error = (await res?.json().catch(() => ({})))?.error ?? "Couldn't delete the video. Check your connection and try again.";
+      return setDeleting({ busy: false, error });
+    }
     router.push("/library");
   }
 
@@ -726,7 +730,27 @@ function WatchBody({
               </a>
             )}
             {canEdit && canDelete && (
-              <button onClick={remove} className="rounded-xl border border-line-strong px-4 py-2 text-sm text-muted hover:bg-hover">Delete</button>
+              <button onClick={() => setDeleting({ busy: false })} className="rounded-xl border border-line-strong px-4 py-2 text-sm text-muted hover:bg-hover">Delete</button>
+            )}
+            {deleting && (
+              <ConfirmDialog
+                title="Delete this video?"
+                testId="delete-video-confirm"
+                danger
+                confirmLabel="Delete video"
+                cancelLabel="Keep it"
+                busy={deleting.busy}
+                error={deleting.error}
+                onConfirm={remove}
+                onCancel={() => setDeleting(null)}
+                body={
+                  <>
+                    {sendMany && !sendMany.sourceId && sendMany.copies.length > 0 && <p>The copies sent to other clients are deleted too.</p>}
+                    {freeVideoLimit ? <p>It still counts towards your {freeVideoLimit} free videos.</p> : null}
+                    <p>This can&apos;t be undone.</p>
+                  </>
+                }
+              />
             )}
           </div>
         </div>
@@ -803,7 +827,7 @@ function WatchBody({
         )}
         {canEdit && teamKey && !expired && (
           <SendPanel
-            video={{ id: video.id, title, status: video.status, encrypted: video.encrypted, sourceId }}
+            video={{ id: video.id, title, status: video.status, encrypted: video.encrypted, sourceId, viewCount: video.viewCount }}
             clients={clients}
             sentToId={sentToId}
             sendMany={sendMany}

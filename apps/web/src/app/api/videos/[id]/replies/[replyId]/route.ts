@@ -17,7 +17,8 @@ async function ownReply(ctx: Ctx) {
   const who = replyViewer(viewer);
   const reply = await db.reply.findFirst({ where: { id: replyId, videoId: id }, include: { media: true } });
   // Someone else's reply looks the same as no reply, so ids don't leak.
-  if (!reply || (who.userId ? reply.authorUserId !== who.userId : !reply.byClient)) throw new HttpError(404, "Reply not found");
+  // A former team member's replies moved to the owner but aren't the owner's to send or delete as their own.
+  if (!reply || (who.userId ? reply.authorUserId !== who.userId || !!reply.formerStaffAt : !reply.byClient)) throw new HttpError(404, "Reply not found");
   return { root, viewer, who, reply };
 }
 

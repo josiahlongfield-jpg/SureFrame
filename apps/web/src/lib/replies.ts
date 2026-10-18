@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { storage } from "@/lib/storage";
 import type { Viewer } from "@/lib/access";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
+import { FORMER_MEMBER } from "@/lib/team";
 
 export type ReplyDTO = {
   id: string;
@@ -31,16 +32,18 @@ export type ReplyViewer = { userId: string | null };
 export const replyViewer = (v: Viewer): ReplyViewer => ({ userId: v.kind === "member" ? v.userId : null });
 
 export function replyDTO(r: Reply & { media: Video | null }, ownerId: string, viewer: ReplyViewer): ReplyDTO {
+  // Written by someone who has left the team: it moved to the owner, but it's neither theirs nor named.
+  const former = !!r.formerStaffAt;
   return {
     id: r.id,
     kind: r.kind,
     body: r.body,
     encrypted: r.encrypted,
     timestampMs: r.timestampMs,
-    authorName: r.authorName,
-    fromOwner: !!r.authorUserId && r.authorUserId === ownerId,
+    authorName: former ? FORMER_MEMBER : r.authorName,
+    fromOwner: !former && !!r.authorUserId && r.authorUserId === ownerId,
     fromTeam: !!r.authorUserId,
-    mine: viewer.userId ? r.authorUserId === viewer.userId : r.byClient,
+    mine: viewer.userId ? !former && r.authorUserId === viewer.userId : r.byClient,
     held: !!r.heldAt,
     heldUntil: r.heldAt ? new Date(r.heldAt.getTime() + HELD_REPLY_DAYS * 86_400_000).toISOString() : null,
     createdAt: r.createdAt.toISOString(),
@@ -68,6 +71,8 @@ export const heldRepliesOf = (viewer: ReplyViewer) =>
   ({
     heldAt: { not: null },
     authorUserId: viewer.userId,
+    // A former team member's unsent replies moved to the owner with the rest; they were never theirs to send.
+    formerStaffAt: null,
     media: { status: { notIn: ["RECORDING" as const, "EXPIRED" as const] } },
   }) satisfies Prisma.ReplyWhereInput;
 

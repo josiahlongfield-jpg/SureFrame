@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import NavLinks from "./NavLinks";
@@ -11,7 +12,7 @@ type Links = readonly (readonly [string, string])[];
  * link in a tidy list, with the settings pages in their own section. It drops
  * down from the bar itself, over any banners under it.
  */
-export default function MobileMenu({ links, settings, plan, email, signOut }: { links: Links; settings: Links; plan: string; email: string; signOut: ReactNode }) {
+export default function MobileMenu({ links, settings, plan, planHref, email, signOut }: { links: Links; settings: Links; plan: string; planHref: string; email: string; signOut: ReactNode }) {
   const [open, setOpen] = useState(false);
   const path = usePathname();
   const box = useRef<HTMLDivElement>(null);
@@ -60,7 +61,7 @@ export default function MobileMenu({ links, settings, plan, email, signOut }: { 
           </nav>
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 border-t border-line px-5 py-3 text-sm sm:px-7">
             <span className="min-w-0 truncate text-dim">
-              <span className="mr-2 rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted">{plan}</span>
+              <Link href={planHref} onClick={() => setOpen(false)} aria-label={`Your plan: ${plan}`} className="mr-2 rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted hover:text-ink">{plan}</Link>
               {email}
             </span>
             {signOut}

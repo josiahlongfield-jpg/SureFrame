@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useState } from "react";
 import { decryptText, encryptText } from "@/lib/e2e/crypto";
+import ConfirmDialog from "./ConfirmDialog";
 import type { DeviceSupport, Progress, Summary, Transcript } from "@/lib/ai/transcribe";
 import { MAX_TRANSCRIBE_MINUTES } from "@/lib/ai/limits";
 
@@ -159,10 +160,13 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
     }
   }, [mediaUrl, save, summarise]);
 
+  // Asked in the page, not with the browser's own confirm box.
+  const [removing, setRemoving] = useState<null | { busy: boolean; error?: string }>(null);
   async function remove() {
-    if (!confirm("Remove this video's transcript and summary? Your team and client won't see them any more.")) return;
-    const res = await fetch(`/api/videos/${videoId}/insight`, { method: "DELETE" });
-    if (!res.ok) return;
+    setRemoving({ busy: true });
+    const res = await fetch(`/api/videos/${videoId}/insight`, { method: "DELETE" }).catch(() => null);
+    if (!res?.ok) return setRemoving({ busy: false, error: "Couldn't remove them. Check your connection and try again." });
+    setRemoving(null);
     setSealed(null);
     setTranscript(null);
     setSummary(null);
@@ -325,9 +329,23 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
           </details>
         )}
         {canRemove && sealed && !busy && (
-          <button onClick={remove} className="mt-3 text-xs text-dim underline hover:text-ink">Remove transcript and summary</button>
+          <button onClick={() => setRemoving({ busy: false })} className="mt-3 text-xs text-dim underline hover:text-ink">Remove transcript and summary</button>
         )}
       </div>
+      {removing && (
+        <ConfirmDialog
+          title="Remove the transcript and summary?"
+          testId="remove-insight-confirm"
+          danger
+          confirmLabel="Remove them"
+          cancelLabel="Keep them"
+          busy={removing.busy}
+          error={removing.error}
+          onConfirm={remove}
+          onCancel={() => setRemoving(null)}
+          body={<p>Your team and client won&apos;t see them any more.</p>}
+        />
+      )}
     </section>
   );
 }

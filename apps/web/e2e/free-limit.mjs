@@ -176,9 +176,9 @@ await b.click("button:has-text('Stop')");
 await b.waitForURL("**/v/**", { timeout: 30000 });
 ok("a recording made in the browser uses a place", (await counter(wsB)) === 1);
 await b.waitForSelector("main button:text-is('Delete')", { timeout: 20000 });
-const confirmText = new Promise((r) => b.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
 await b.click("main button:text-is('Delete')");
-const msg = await confirmText;
+const msg = await b.textContent("[data-testid=delete-video-confirm]", { timeout: 10000 });
+await b.click("[data-testid=delete-video-confirm] >> text=Keep it");
 ok("on Free, the delete confirm says the video still counts", msg.includes("It still counts towards your 25 free videos."), msg);
 
 await setCounter(wsB, 23);

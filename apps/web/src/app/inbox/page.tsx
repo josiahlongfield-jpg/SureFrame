@@ -19,8 +19,10 @@ import { zoned } from "@/lib/dates";
 import { clientCookie, REMOVED_COOKIE, usableClientWhere } from "@/lib/access";
 import { visibleReplies } from "@/lib/replies";
 import { askForLink } from "@/lib/askForLink";
-import { findReplaced } from "@/lib/replacedLinks";
+import { replacedLinks } from "@/lib/replacedLinks";
 import { keyHeldCookie } from "@/lib/e2e/keyHeld";
+import { helpForDevice } from "@/lib/support/clientHelp";
+import { senderName } from "@/lib/team";
 
 /** "jo@example.com" as "j•••@example.com": enough to recognise, without showing the whole address on screen. */
 const masked = (email: string) => email.replace(/^(.)[^@]*/, "$1•••");
@@ -91,7 +93,7 @@ export default async function Inbox({
   const listed = clients.filter((c) => !keyless.includes(c));
   // Links a key reset replaced (lib/replacedLinks.ts): this device's old one, or the old link just opened. Not
   // when that client's current link already works here.
-  const replacedBy = (await findReplaced(removedTokens)).filter((r) => !clients.some((c) => c.id === r.client.id));
+  const replacedBy = (await replacedLinks(removedTokens)).filter((r) => !clients.some((c) => c.id === r.client.id));
 
   // Emails back on in one tap, landing on a page that says so (reminders/off).
   async function turnOn(formData: FormData) {
@@ -113,7 +115,7 @@ export default async function Inbox({
     "use server";
     const jar = await cookies();
     const mine = [...jar.getAll().filter((c) => c.name.startsWith("fc_client_")).map((c) => c.value), jar.get(REMOVED_COOKIE)?.value].filter((t): t is string => !!t);
-    const row = (await findReplaced(mine)).find((r) => r.client.id === clientId);
+    const row = (await replacedLinks(mine)).find((r) => r.client.id === clientId);
     return row ? askForLink(row.client.id) : false;
   }
 
@@ -198,12 +200,13 @@ export default async function Inbox({
 
   // With one business, the whole page wears its branding.
   const brand = clients.length === 1 ? brandOf(clients[0].workspace) : !clients.length && replacedBy.length === 1 ? brandOf(replacedBy[0].client.workspace) : null;
+  const help = await helpForDevice();
 
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
       {/* For a client not yet known to have the key here, the gate below takes the key from the link instead. */}
       {arrivedAs && listed.some((c) => c.id === arrivedAs) && <ClientKeyCapture clientId={arrivedAs} />}
-      <ClientHeader brand={brand} />
+      <ClientHeader brand={brand} help={help.length ? { for: help, page: "inbox" } : undefined} />
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
         {/* The link's key is no use on a page that couldn't open it, so it leaves the address bar too. */}
         {arrived && <HideKeyFromAddress />}
@@ -214,13 +217,11 @@ export default async function Inbox({
               testId="client-replaced"
               action={<AskForLink business={r.client.workspace.name} action={askReplaced.bind(null, r.client.id)} unlocks="your videos" />}
             >
-              <p>
-                {r.client.workspace.name} replaced your personal link for security, so the old one no longer opens your videos. Nothing has been deleted.
-              </p>
+              <p>{r.business} replaced your personal link to keep your videos secure, so the old one no longer opens them. Nothing has been deleted.</p>
               <p>
                 {r.emailed
-                  ? `They've emailed you your new link. Open it on this device and your videos show here again.`
-                  : `Ask them for your new link, then open it on this device.`}
+                  ? "They've emailed you your new link: open it on this device and your videos and replies are all here."
+                  : `Ask ${r.business} for your new link, then open it on this device.`}
               </p>
             </CantOpen>
           </div>
@@ -234,7 +235,7 @@ export default async function Inbox({
                   business that sent it for your personal link.
                 </p>
               )}
-              {arrived === "replaced" && <p data-testid="client-replaced">This link was replaced by a newer one. Ask the business that sent it for your new link.</p>}
+              {arrived === "replaced" && <p data-testid="client-replaced">The business that sent you this link replaced it to keep your videos secure. Ask them for your new link.</p>}
               {inCard.map((n) => (
                 <p key={n.key} data-testid={n.testId}>{n.text}</p>
               ))}
@@ -284,8 +285,8 @@ export default async function Inbox({
                               <span className={`line-clamp-2 text-ink [overflow-wrap:anywhere] ${unwatched ? "font-semibold" : "font-medium"}`}>{v.title}</span>
                             </span>
                             <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-dim">
-                              {/* Who sent it, never their email: "Sam from Business". */}
-                              {v.owner.name && <span>{v.owner.name} from {c.workspace.name}</span>}
+                              {/* Who sent it, never their email: "Sam from Business", or a former team member's (lib/team.ts). */}
+                              {(v.owner.name || v.formerStaffAt) && <span>{senderName(v, c.workspace.name, "client")}</span>}
                               {unwatched && <span className="rounded-full bg-primary-soft px-2 py-0.5 font-medium text-accent" data-testid="inbox-new">New</span>}
                               {replied && <span className="rounded-full bg-surface-2 px-2 py-0.5 font-medium text-muted" data-testid="inbox-replied">You replied</span>}
                             </span>
