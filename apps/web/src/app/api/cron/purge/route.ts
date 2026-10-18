@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { abortStaleUploads, pruneLeftovers, purgeExpired } from "@/lib/retention";
 import { pruneRateLimits } from "@/lib/rateLimit";
+import { pruneSupportUse } from "@/lib/support/allowance";
 import { cronAuthorized } from "@/lib/secrets";
 import { unlessPaused } from "@/lib/maintenance";
 import { pruneTeamNotifications } from "@/lib/teamNotify";
@@ -16,7 +17,7 @@ import { pruneClientQuestions, sendClientQuestionDigest } from "@/lib/support/cl
 
 export const maxDuration = 300;
 
-const JOBS = ["purged", "rateLimits", "staleUploads", "teamNotifications", "leftovers", "expiryWarnings", "clientsPurged", "clientWarnings", "accountWarnings", "accountsPurged", "adminActionsPruned", "agreementsPruned", "termsNotices", "unsentReplies", "clientQuestionDigest", "clientQuestionsPruned"] as const;
+const JOBS = ["purged", "rateLimits", "supportUse", "staleUploads", "teamNotifications", "leftovers", "expiryWarnings", "clientsPurged", "clientWarnings", "accountWarnings", "accountsPurged", "adminActionsPruned", "agreementsPruned", "termsNotices", "unsentReplies", "clientQuestionDigest", "clientQuestionsPruned"] as const;
 
 /** Run daily (e.g. Vercel Cron) with Authorization: Bearer $CRON_SECRET. */
 export async function GET(req: Request) {
@@ -29,6 +30,8 @@ export async function GET(req: Request) {
     // Mostly done by the 5-minute job by now; this works through any backlog.
     unlessPaused(() => purgeExpired(new Date(), 120_000)),
     pruneRateLimits(),
+    // Help-chat allowance records for people who aren't paying, after 31 days.
+    pruneSupportUse(),
     abortStaleUploads(),
     pruneTeamNotifications(),
     pruneLeftovers(),

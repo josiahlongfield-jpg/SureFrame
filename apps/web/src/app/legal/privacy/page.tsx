@@ -317,6 +317,10 @@ export default function Page() {
           of blocking it, which includes the address itself, is a support record and is kept for {LEGAL.supportRecordYears} years.
         </li>
         <li>IP addresses we count to limit repeated attempts (for example at sign-in) are deleted within about two days.</li>
+        <li>
+          To keep the help chat&rsquo;s limits for visitors and Free plans, we record when someone uses it with a one-way fingerprint of their IP address and email
+          address (not the addresses themselves) or their account. These records are deleted after 31 days.
+        </li>
         <li>We keep billing records for as long as tax law requires, usually 5 years.</li>
         <li>
           We may keep information for longer than described here, and pause its automatic deletion (a legal hold), where the law requires it, to deal with a legal

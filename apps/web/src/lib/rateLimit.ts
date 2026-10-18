@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { HttpError } from "@/lib/session";
 
 /** RATE_LIMITS=off is for local test runs only; the live site always limits. */
-const limitsOff = process.env.RATE_LIMITS === "off" && process.env.VERCEL_ENV !== "production";
+export const limitsOff = process.env.RATE_LIMITS === "off" && process.env.VERCEL_ENV !== "production";
 if (process.env.RATE_LIMITS === "off" && !limitsOff) console.error("[rate-limit] RATE_LIMITS=off is set in production and ignored");
 
 /**

@@ -306,7 +306,7 @@ export default function Page() {
         <li>
           <strong>Data minimisation:</strong> notification emails don&rsquo;t include video titles, replies or to-do text. Copies of recordings are deleted from our servers
           automatically (see section 10), unfinished uploads are removed after a week, expired sign-in links are deleted, and IP addresses counted for rate limits
-          are deleted within about two days.
+          are deleted within about two days (the help chat&rsquo;s limits for visitors and Free plans keep only a one-way fingerprint, for 31 days).
         </li>
         <li>
           <strong>AI add-on:</strong> transcripts are made on the team member&rsquo;s device, from a speech model served from our own storage. Only transcript text

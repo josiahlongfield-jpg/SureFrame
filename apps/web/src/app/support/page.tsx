@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requirePageUser } from "@/lib/session";
+import { paying } from "@/lib/referrals";
 import { isSupportAdmin } from "@/lib/support/admin";
 import { TALK_TO_PERSON } from "@/lib/support/person";
 import { isSupportAgent } from "@/lib/support/tickets";
@@ -49,8 +50,19 @@ export default async function SupportInbox({ searchParams }: { searchParams: Pro
     }),
     db.supportTicket.groupBy({ by: ["status"], _count: { _all: true } }),
   ]);
+  // Paying businesses come first within each status (Josiah, 18 October 2026), then urgent ones, then the latest.
+  const ids = [...new Set(tickets.flatMap((t) => (t.workspaceId ? [t.workspaceId] : [])))];
+  const workspaces = new Map(
+    (await db.workspace.findMany({ where: { id: { in: ids } }, select: { id: true, plan: true, stripeSubscriptionId: true, subscriptionStatus: true, cancelsAt: true } })).map((w) => [w.id, w]),
+  );
+  const account = (t: (typeof tickets)[number]) => {
+    const w = t.workspaceId ? workspaces.get(t.workspaceId) : undefined;
+    if (!w) return { rank: 2, tag: null };
+    if (w.plan === "FREE") return { rank: 1, tag: "Free plan" };
+    return { rank: 0, tag: paying(w) ? "Paying" : w.stripeSubscriptionId ? "Paid plan" : "Plan given free" };
+  };
   const order = { NEEDS_HUMAN: 0, ANSWERED: 1, OPEN: 2, CLOSED: 3 };
-  tickets.sort((a, b) => order[a.status] - order[b.status]);
+  tickets.sort((a, b) => order[a.status] - order[b.status] || account(a).rank - account(b).rank);
   const count = (statuses: string[]) => counts.filter((c) => statuses.includes(c.status)).reduce((n, c) => n + c._count._all, 0);
   const tabCount = { needs: count(["NEEDS_HUMAN", "ANSWERED"]), open: count(["NEEDS_HUMAN", "ANSWERED", "OPEN"]), closed: count(["CLOSED"]) };
   const href = (v: View) => (v === "needs" ? "/support" : `/support?show=${v}`);
@@ -99,11 +111,20 @@ export default async function SupportInbox({ searchParams }: { searchParams: Pro
           {tickets.map((t) => {
             // What they asked: their latest message, passing over the "Talk to a person" line.
             const asked = t.messages.find((m) => m.body !== TALK_TO_PERSON) ?? t.messages[0];
+            const { rank, tag } = account(t);
             return (
               <li key={t.id}>
                 <Link href={`/support/${t.id}`} className="block p-4 hover:bg-hover">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="min-w-0 truncate font-medium text-ink">{t.user?.email ?? t.email ?? "Website visitor"}</p>
+                    <p className="flex min-w-0 items-center gap-2">
+                      <span className="truncate font-medium text-ink">{t.user?.email ?? t.email ?? "Website visitor"}</span>
+                      <span
+                        data-testid="inbox-account"
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${rank === 0 ? "bg-ok-bg text-ok-fg" : "bg-surface-2 text-muted"}`}
+                      >
+                        {tag ?? "Visitor"}
+                      </span>
+                    </p>
                     <span
                       className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${t.status === "NEEDS_HUMAN" ? (t.urgent ? "bg-danger-bg text-danger-fg" : "bg-warn-bg text-warn-fg") : "bg-surface-2 text-muted"}`}
                     >

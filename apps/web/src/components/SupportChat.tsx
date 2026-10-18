@@ -33,7 +33,7 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  // "Talk to a person" from a visitor with no email yet: asked once for one, so the reply can reach them by email.
+  // "Talk to a person" from a visitor with no email yet: asked for one, so the reply can reach them by email.
   const [askEmail, setAskEmail] = useState(false);
   const end = useRef<HTMLDivElement>(null);
   const emailBox = useRef<HTMLInputElement>(null);
@@ -118,8 +118,9 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
    * Hands the conversation to a person straight away (not left to the assistant): it joins the support inbox's
    * "Needs you" list and the team is emailed. Anything typed in the box goes with it.
    */
-  function talkToPerson(skipEmail = false) {
-    if (!signedIn && !ticket?.hasEmail && !email.trim() && !skipEmail) {
+  function talkToPerson() {
+    // A visitor's reply goes by email, so one is needed first (the server checks too).
+    if (!signedIn && !ticket?.hasEmail && !email.trim()) {
       setAskEmail(true);
       emailBox.current?.focus();
       return;
@@ -207,11 +208,6 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
                 className="rounded-lg border border-line-strong px-3 py-1.5 font-medium text-ink hover:bg-hover disabled:opacity-50">
                 Talk to a person
               </button>
-              {askEmail && (
-                <button type="button" onClick={() => talkToPerson(true)} disabled={busy} data-testid="person-without-email" className="text-xs text-muted underline hover:text-ink">
-                  Without email (reply here only)
-                </button>
-              )}
             </span>
           ) : (
             <span />

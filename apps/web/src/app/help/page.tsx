@@ -6,6 +6,8 @@ import { ChatBoundary, SupportChat } from "@/components/SupportChat";
 import Link from "next/link";
 import { BUSINESS_FAQ, CLIENT_FAQ } from "@/components/Faq";
 import { LEGAL } from "@/lib/legal";
+import { currentUser } from "@/lib/session";
+import { SUPPORT_LIMITS, supportTier } from "@/lib/support/allowance";
 
 export const metadata: Metadata = {
   title: "Help",
@@ -17,6 +19,7 @@ const COMMON = ["storage", "free-plan", "first-email", "phone", "recovery-key", 
 
 export default async function Help() {
   const signedIn = !!(await auth())?.user;
+  const tier = supportTier(signedIn ? (await currentUser().catch(() => null))?.workspace : null);
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
       <SiteHeader navy />
@@ -27,10 +30,21 @@ export default async function Help() {
         <p className="mt-2 text-sm text-dim" data-testid="reply-time">
           When a person is needed, we reply within 2 business days (Queensland, Australia time), by email and here in the chat.
         </p>
-        <p className="mt-2 text-sm text-muted" data-testid="help-email">
-          Rather email? Write to <a href={`mailto:${LEGAL.email}`} className="font-medium text-accent hover:underline">{LEGAL.email}</a>. Or{" "}
-          <a href="#faq" className="font-medium text-accent hover:underline">see common questions</a> below.
-        </p>
+        {tier === "paying" ? (
+          <p className="mt-2 text-sm text-muted" data-testid="help-email">
+            Rather email? Write to <a href={`mailto:${LEGAL.email}`} className="font-medium text-accent hover:underline">{LEGAL.email}</a>. Or{" "}
+            <a href="#faq" className="font-medium text-accent hover:underline">see common questions</a> below.
+          </p>
+        ) : (
+          // People who aren't paying have a small allowance (lib/support/allowance.ts), said up front.
+          <p className="mt-2 text-sm text-muted" data-testid="help-limits">
+            {tier === "visitor"
+              ? `Without an account, the assistant answers general questions (up to ${SUPPORT_LIMITS.visitor.aiPerDay} a day), and you can talk to a person once every ${SUPPORT_LIMITS.visitor.personEveryDays} days.`
+              : `On the Free plan, the assistant answers general questions (up to ${SUPPORT_LIMITS.free.aiPerDay} a day), and you can talk to a person once a week. Paid plans get full help and can talk to a person any time.`}{" "}
+            Most answers are in the <a href="#faq" className="font-medium text-accent hover:underline">common questions</a> below and the{" "}
+            <Link href="/faq" className="font-medium text-accent hover:underline">FAQ</Link>.
+          </p>
+        )}
         <div className="mt-8 flex h-[65vh] min-h-[26.25rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface">
           <ChatBoundary>
             <SupportChat signedIn={signedIn} className="flex-1" />

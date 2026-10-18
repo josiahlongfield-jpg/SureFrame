@@ -344,6 +344,11 @@ export default function Page() {
         financial or other professional advice. A person from our team will step in when needed. The help chat on client pages is answered only by the AI
         assistant: for anything it can&rsquo;t help with, clients contact the business that sent them their link.
       </p>
+      <p id="help-limits">
+        Businesses on a paid plan can ask for a person at any time. For visitors without an account and businesses on the Free plan, the help chat gives
+        brief answers to general questions, up to a set number a day and a week, and a person can be asked for once in a set period. The current limits are
+        shown on the <Link href="/help">Help page</Link>, and the chat says when you can ask again. We may change these limits.
+      </p>
 
       <h2>14. Availability and changes</h2>
       <p>

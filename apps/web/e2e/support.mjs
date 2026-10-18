@@ -28,8 +28,13 @@ rmSync(".data/outbox", { recursive: true, force: true });
 // Earlier runs share this machine's IP; start with fresh rate-limit windows.
 const prisma = new PrismaClient();
 await prisma.rateLimit.deleteMany();
+await prisma.supportUse.deleteMany();
 const fake = await startFakeAnthropic();
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM });
+
+// Each browser here is a different network (the help chat's allowances count per network as well as per account).
+let nets = 0;
+const page = async (opts = {}) => (await browser.newContext({ ...opts, extraHTTPHeaders: { "x-real-ip": `10.7.0.${++nets}` } })).newPage();
 
 async function ask(page, text) {
   const before = await page.locator("[aria-live=polite] .whitespace-pre-wrap").count();
@@ -40,7 +45,7 @@ async function ask(page, text) {
 }
 
 // 1. A visitor on the home page opens Help and asks a question
-const visitor = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+const visitor = await page({ viewport: { width: 1280, height: 900 } });
 await visitor.goto(BASE + "/");
 await visitor.click("button:has-text('Help')");
 ok("help panel opens", await visitor.isVisible("role=dialog[name='SureFrame help']"));
@@ -52,6 +57,8 @@ const system = [].concat(call.body.system);
 const lastBlock = [].concat(call.body.messages.findLast((m) => m.role === "user").content).at(-1);
 ok("uses the Claude API with the guide cached", call.body.model === "claude-opus-5-5" && system.some((b) => b.text?.includes("help guide") && b.cache_control?.type === "ephemeral") && lastBlock?.cache_control?.type === "ephemeral", JSON.stringify({ system: system.map((b) => b.cache_control), lastBlock: lastBlock?.cache_control }));
 ok("tells the assistant the visitor isn't signed in", call.body.messages.some((m) => m.role === "system" && m.content.includes("not signed in")));
+const note = call.body.messages.find((m) => m.role === "system")?.content ?? "";
+ok("visitor: the assistant keeps to brief, general answers", note.includes("a website visitor without an account") && note.includes("not a full help service") && note.includes("/faq") && call.body.max_tokens <= 1200, note.slice(0, 200));
 
 // 2. A refund is handed to a person
 const a2 = await ask(visitor, "I was charged twice, I want a refund");
@@ -100,11 +107,16 @@ await agent.screenshot({ path: `${shots}/support-agent.png`, fullPage: true });
 await agent.fill('textarea[aria-label="Your reply"]', "Sorry about that. I've refunded the second charge.");
 await agent.click("text=Send reply by email");
 await agent.waitForLoadState("networkidle");
-const sent = outbox().find((m) => m.to === "visitor@example.com");
+// The reply email can land a moment after the page settles.
+let sent;
+for (let i = 0; i < 20 && !sent; i++) {
+  sent = outbox().find((m) => m.to === "visitor@example.com");
+  if (!sent) await new Promise((r) => setTimeout(r, 500));
+}
 ok("customer emailed the reply", !!sent && sent.text.includes("refunded the second charge") && sent.text.includes("/help#t="));
 
 // 6. The visitor sees it from the email link
-const fromEmail = await (await browser.newContext()).newPage();
+const fromEmail = await page();
 await fromEmail.goto(sent.text.match(/https?:\/\/\S+\/help#t=\S+/)[0].replace(/^https?:\/\/[^/]+/, BASE));
 await fromEmail.waitForSelector("text=SureFrame team");
 ok("reply shows in the chat", (await fromEmail.textContent("main")).includes("refunded the second charge"));
@@ -116,7 +128,7 @@ ok("after a person replies, follow-ups go to them", ack.includes("added that to 
 await fromEmail.screenshot({ path: `${shots}/support-help-page.png` });
 
 // 7. A signed-in customer asks about their plan
-const owner = await (await browser.newContext()).newPage();
+const owner = await page();
 await owner.goto(BASE + "/settings/billing");
 const planEmail = `plan${Date.now()}@peak.com`;
 await agreed(planEmail);
@@ -127,17 +139,26 @@ await owner.click("button:has-text('Help')");
 ok("no email box when signed in", !(await owner.isVisible('input[aria-label="Your email"]')));
 const a3 = await ask(owner, "What's my plan?");
 ok("assistant reads the account", a3.includes("Free plan"), a3);
+ok("Free plan: the assistant is told it's not paying", requests.at(-1).body.messages.some((m) => m.role === "system" && m.content.includes("on the Free plan (not paying)")));
 
 // 8. The assistant failing still reaches a person
 const a4 = await ask(owner, "explode");
 ok("failure hands over", a4.includes("passed your message to the team"), a4);
 
-// 8b. "Talk to a person" hands over straight away, without the assistant, and says so (Decision 3, 18 October 2026)
+// 8b. "Talk to a person" hands over straight away, without the assistant, and says so (Decision 3, 18 October 2026).
+// A Free plan can do that once a week: the failure above already used it (Josiah, 18 October 2026).
 await owner.click("[data-testid=new-conversation]");
-const callsBeforeTalk = requests.length;
-const mailsBeforeTalk = outbox().length;
 const inv = `inv${Date.now()}`;
 await owner.fill('textarea[aria-label="Your message"]', `Can someone check my invoice ${inv} from last month?`);
+const callsBeforeRefusal = requests.length;
+await owner.click("[data-testid=talk-to-person]");
+const weekly = await owner.waitForSelector("form [role=alert]", { timeout: 15000 }).then((e) => e.textContent(), () => "");
+ok("Free plan: a second person in a week is refused, with when to ask again", weekly.includes("once a week") && /You can ask again from \d{1,2} [A-Z][a-z]{2,3} \d{4}/.test(weekly) && weekly.includes("Paid plans can talk to a person any time"), weekly);
+ok("Free plan: refused without a hand-over, the AI or losing the message", (await owner.locator("[data-testid=with-person]").count()) === 0 && requests.length === callsBeforeRefusal && (await owner.inputValue('textarea[aria-label="Your message"]')).includes(inv));
+// Paying businesses can ask any time.
+await prisma.workspace.updateMany({ where: { members: { some: { user: { email: planEmail } } } }, data: { plan: "SOLO" } });
+const callsBeforeTalk = requests.length;
+const mailsBeforeTalk = outbox().length;
 await owner.click("[data-testid=talk-to-person]");
 await owner.waitForSelector("[data-testid=with-person]");
 const passed = (await owner.textContent("[data-testid=with-person]")).trim();
@@ -147,26 +168,49 @@ const talkMail = outbox().slice(mailsBeforeTalk).find((m) => m.to === AGENT);
 ok("talk to a person: support is emailed, with the customer's words", !!talkMail && talkMail.text.includes("Talk to a person") && talkMail.text.includes(`check my invoice ${inv}`) && talkMail.replyTo === planEmail, talkMail?.text?.slice(0, 200));
 ok("talk to a person: the button goes once it's done", (await owner.locator("[data-testid=talk-to-person]").count()) === 0);
 
-// 8c. A visitor with no email is asked for one first, and can go on without it
-const asker = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+// 8c. A visitor needs an email to talk to a person, and can do it once every 30 days (by network and by email)
+const asker = await page({ viewport: { width: 1280, height: 900 } });
 await asker.goto(BASE + "/help");
+ok("help page: says what visitors get", (await asker.textContent("[data-testid=help-limits]")).includes("once every 30 days") && (await asker.locator("[data-testid=help-email]").count()) === 0);
 await asker.click("[data-testid=talk-to-person]");
 ok("visitor: asked where to reply before handing over", (await asker.textContent("#help-email-note")).includes("Where should a person reply?") && (await asker.evaluate(() => document.activeElement?.getAttribute("aria-label"))) === "Your email");
-ok("visitor: nothing sent yet", (await asker.locator("[data-testid=with-person]").count()) === 0);
-await asker.click("[data-testid=person-without-email]");
+ok("visitor: nothing sent yet, and no way on without an email", (await asker.locator("[data-testid=with-person]").count()) === 0 && (await asker.locator("[data-testid=person-without-email]").count()) === 0);
+const noEmail = await fetch(BASE + "/api/support", { method: "POST", headers: { "Content-Type": "application/json", "x-real-ip": "10.7.1.1" }, body: JSON.stringify({ body: "hello", person: true }) });
+ok("visitor without email: the server refuses a person too", noEmail.status === 429 && ((await noEmail.json()).error ?? "").includes("add your email"));
+await asker.fill('input[aria-label="Your email"]', "visitor2@example.com");
+await asker.click("[data-testid=talk-to-person]");
 await asker.waitForSelector("[data-testid=with-person]");
-ok("visitor without email: passed on, reply here only", (await asker.textContent("[data-testid=with-person]")).includes("here in this chat. Add your email below"));
-const asker2 = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
-await asker2.goto(BASE + "/help");
-await asker2.fill('input[aria-label="Your email"]', "visitor2@example.com");
-await asker2.click("[data-testid=talk-to-person]");
-await asker2.waitForSelector("[data-testid=with-person]");
-ok("visitor with email: passed on, here and by email", (await asker2.textContent("[data-testid=with-person]")).includes("here and by email"));
+ok("visitor with email: passed on, here and by email", (await asker.textContent("[data-testid=with-person]")).includes("here and by email"));
+await asker.click("[data-testid=new-conversation]");
+await asker.fill('textarea[aria-label="Your message"]', "Another thing for a person");
+await asker.click("[data-testid=talk-to-person]");
+const monthly = await asker.waitForSelector("form [role=alert]", { timeout: 15000 }).then((e) => e.textContent(), () => "");
+ok("visitor: a second person within 30 days is refused, with when to ask again", monthly.includes("once every 30 days") && monthly.includes("You can ask again from"), monthly);
+const sameEmail = await fetch(BASE + "/api/support", { method: "POST", headers: { "Content-Type": "application/json", "x-real-ip": "10.7.1.2" }, body: JSON.stringify({ body: "hi", email: "Visitor2@example.com", person: true }) });
+ok("visitor: the same email from another network is refused too", sameEmail.status === 429 && ((await sameEmail.json()).error ?? "").includes("once every 30 days"));
+// Across all visitors, at most 5 people a day (two so far: the refund and visitor2).
+await prisma.supportUse.createMany({ data: [1, 2, 3].map(() => ({ kind: "handover", key: "all:visitor" })) });
+const crowd = await fetch(BASE + "/api/support", { method: "POST", headers: { "Content-Type": "application/json", "x-real-ip": "10.7.1.3" }, body: JSON.stringify({ body: "hi", email: "visitor3@example.com", person: true }) });
+ok("visitors: past the day's ceiling, refused", crowd.status === 429 && ((await crowd.json()).error ?? "").includes("can't take more questions from website visitors today"));
+await prisma.supportUse.deleteMany({ where: { kind: "handover", key: "all:visitor" } });
+
+// 8c2. A visitor gets 8 AI answers a day; then the chat says when they can ask again
+const chatty = await page({ viewport: { width: 1280, height: 900 } });
+await chatty.goto(BASE + "/help");
+for (let i = 0; i < 8; i++) await ask(chatty, `How do I add a client? (${i})`);
+await chatty.fill('textarea[aria-label="Your message"]', "And one more question");
+const callsBeforeNinth = requests.length;
+await chatty.keyboard.press("Enter");
+const daily = await chatty.waitForSelector("form [role=alert]", { timeout: 15000 }).then((e) => e.textContent(), () => "");
+ok("visitor: the 9th answer in a day is refused, with when to ask again", daily.includes("8 answers a day") && daily.includes("You can ask again from") && requests.length === callsBeforeNinth, daily);
+ok("visitor: the limit doesn't point to the support email", !daily.includes("@"));
 
 // 8d. The inbox: the hand-over is under Needs you, in the customer's words; closed ones can be found and reopened
 await agent.goto(BASE + "/support");
 const inbox = await agent.textContent("[data-testid=inbox-list]");
 ok("inbox: the hand-over is under Needs you, with the customer's question", inbox.includes(planEmail) && inbox.includes(`Can someone check my invoice ${inv}`), inbox.slice(0, 300));
+const rows = await agent.$$eval("[data-testid=inbox-list] li", (lis) => lis.map((li) => li.textContent));
+ok("inbox: businesses on a plan come first, tagged", rows[0]?.includes(planEmail) && rows[0]?.includes("Plan given free") && rows.some((r) => r.includes("visitor2@example.com") && r.includes("Visitor")), rows.slice(0, 4).join(" | ").slice(0, 300));
 ok("inbox: rows quote the customer, not the assistant", !inbox.includes("I've passed this to the team") && !inbox.includes("open the Clients page"));
 ok("inbox: times in Queensland time", /\d{1,2} [A-Z][a-z]{2,3} \d{4}, \d{1,2}:\d\d [ap]m AEST/.test(inbox) && !inbox.includes("UTC"));
 ok("inbox: no delete-everything box, a link to its own page instead", (await agent.locator("button:has-text('Delete everything')").count()) === 0 && !!(await agent.waitForSelector("[data-testid=clear-link]", { timeout: 10000 }).catch(() => null)));
@@ -210,7 +254,7 @@ await agent.click("[data-testid=settings-menu-button]");
 ok("app: Support is in the Settings menu for the support address", (await agent.getAttribute("[data-testid=settings-menu] a:has-text('Support')", "href")) === "/support");
 
 // 8e. The help panel and the keyboard: focus goes in, Tab stays in, Escape closes and goes back to Help
-const kb = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+const kb = await page({ viewport: { width: 1280, height: 900 } });
 await kb.goto(BASE + "/pricing");
 await kb.focus("[data-testid=help-button]");
 await kb.keyboard.press("Enter");

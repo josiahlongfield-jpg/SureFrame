@@ -9,6 +9,8 @@ import { videosUsed } from "@/lib/videoAllowance";
 import { restorableWhere } from "@/lib/clientRemoval";
 import { SUPPORT_GUIDE } from "@/lib/support/knowledge";
 import { handToHuman } from "@/lib/support/tickets";
+import { appUrl } from "@/lib/stripe";
+import { SUPPORT_LIMITS, type SupportTier } from "@/lib/support/allowance";
 import { hasAgreed } from "@/lib/terms";
 
 export const MODEL = "claude-opus-5-5";
@@ -160,7 +162,10 @@ async function accountOverview(ticket: SupportTicket) {
  * Lets the assistant answer the latest customer message on a ticket, using
  * its tools as needed, and stores the reply. Returns the reply text.
  */
-export async function answer(ticketId: string): Promise<{ reply: string; handedOver: boolean }> {
+export async function answer(ticketId: string, opts: AnswerOptions = {}): Promise<{ reply: string; handedOver: boolean }> {
+  const tier = opts.tier ?? "paying";
+  // Hands over unless this person's allowance says no (api/support passes the check); returns why not, or null.
+  const handOver = opts.handOver ?? (async (summary: string | null, urgent: boolean) => (await handToHuman(ticketId, summary, urgent), null));
   const ticket = await db.supportTicket.findUniqueOrThrow({ where: { id: ticketId }, include: { messages: { orderBy: { createdAt: "asc" } } } });
   // The team's own replies are part of the conversation too, so the assistant doesn't contradict them.
   const messages: Anthropic.Beta.BetaMessageParam[] = ticket.messages.map((m) => ({
@@ -173,6 +178,7 @@ export async function answer(ticketId: string): Promise<{ reply: string; handedO
   if (last?.role === "user" && typeof last.content === "string") last.content = [{ type: "text", text: last.content, cache_control: { type: "ephemeral" } }];
   const notes = [ticket.userId ? "The customer is signed in." : "The customer is not signed in (a website visitor)."];
   notes.push(`A person's reply reaches them ${replyRoute(ticket)}.`);
+  if (tier !== "paying") notes.push(unpaidScope(tier, ticket.status === "NEEDS_HUMAN" || ticket.status === "ANSWERED" ? null : opts.personRefused ?? null));
   if (ticket.status === "NEEDS_HUMAN") {
     notes.push(
       "This conversation has already been passed to the team. Keep helping with anything you can in the meantime. Don't hand over again unless something new comes up that needs a person; the team sees every message.",
@@ -182,10 +188,11 @@ export async function answer(ticketId: string): Promise<{ reply: string; handedO
   let handedOver = false;
 
   let reply = "";
-  for (let turn = 0; turn < 5; turn++) {
+  // People who aren't paying get short answers and fewer tool turns.
+  for (let turn = 0; turn < (tier === "paying" ? 5 : 3); turn++) {
     const response = await anthropic().beta.messages.create({
       model: MODEL,
-      max_tokens: 4000,
+      max_tokens: tier === "paying" ? 4000 : 1200,
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       output_config: { effort: "low" },
@@ -196,9 +203,11 @@ export async function answer(ticketId: string): Promise<{ reply: string; handedO
     });
     console.log("[support] assistant turn", JSON.stringify({ ticket: ticket.id, stop: response.stop_reason, model: response.model, blocks: response.content.map((b) => (b.type === "tool_use" ? `tool:${b.name}` : b.type)) }));
     if (response.stop_reason === "refusal") {
-      await handToHuman(ticket.id, "The assistant couldn't answer this message. Please read the conversation.", false);
-      handedOver = true;
-      reply = `I've passed this to the team, and a person will reply ${ticket.userId || ticket.email ? "by email and here" : "here in this chat (add your email address below if you'd like it by email too)"}.`;
+      const refused = await handOver("The assistant couldn't answer this message. Please read the conversation.", false);
+      handedOver = !refused;
+      reply = refused
+        ? "Sorry, I can't help with that one here."
+        : `I've passed this to the team, and a person will reply ${ticket.userId || ticket.email ? "by email and here" : "here in this chat (add your email address below if you'd like it by email too)"}.`;
       break;
     }
     reply = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n").trim() || reply;
@@ -211,9 +220,13 @@ export async function answer(ticketId: string): Promise<{ reply: string; handedO
         results.push({ type: "tool_result", tool_use_id: call.id, content: JSON.stringify(await accountOverview(ticket)) });
       } else if (call.name === "hand_to_human") {
         const input = call.input as { summary?: unknown; urgent?: unknown };
-        await handToHuman(ticket.id, String(input.summary ?? "").slice(0, 2000), input.urgent === true);
-        handedOver = true;
-        results.push({ type: "tool_result", tool_use_id: call.id, content: `Handed over. The team has been notified and will reply ${replyRoute(ticket)}.` });
+        const refused = await handOver(String(input.summary ?? "").slice(0, 2000), input.urgent === true);
+        if (refused) {
+          results.push({ type: "tool_result", tool_use_id: call.id, content: `Not handed over: this customer's allowance for talking to a person is used up. Tell them plainly, in your own words: ${refused} Then keep helping within what you can cover.` });
+        } else {
+          handedOver = true;
+          results.push({ type: "tool_result", tool_use_id: call.id, content: `Handed over. The team has been notified and will reply ${replyRoute(ticket)}.` });
+        }
       } else {
         results.push({ type: "tool_result", tool_use_id: call.id, content: "Unknown tool", is_error: true });
       }
@@ -223,6 +236,35 @@ export async function answer(ticketId: string): Promise<{ reply: string; handedO
   reply ||= "Sorry, I couldn't put an answer together just then. Could you try asking another way, or ask me to pass it to the team?";
   await db.supportMessage.create({ data: { ticketId, author: "ASSISTANT", body: reply } });
   return { reply, handedOver };
+}
+
+export type AnswerOptions = {
+  /** Who's asking: people who aren't paying get the narrower scope below. Defaults to "paying". */
+  tier?: SupportTier;
+  /** Passes the conversation to a person, or returns why it can't (their allowance is used up). */
+  handOver?: (summary: string | null, urgent: boolean) => Promise<string | null>;
+  /** Why this person can't be passed to a person right now, if they can't. */
+  personRefused?: string | null;
+};
+
+/**
+ * What the assistant covers for someone who isn't paying (Josiah, 18 October 2026): brief answers to general questions
+ * (what it does, signing up, pricing, payments and the like). It's a helpful start, not a full help service, so
+ * anything in depth points to the FAQ, and talking to a person is kept for what really needs one.
+ */
+function unpaidScope(tier: Exclude<SupportTier, "paying">, personRefused: string | null) {
+  const who = tier === "visitor" ? "a website visitor without an account" : "on the Free plan (not paying)";
+  const person = personRefused
+    ? `They can't be passed to a person right now: ${personRefused} Don't offer it or call hand_to_human; if they ask, tell them that plainly.`
+    : tier === "visitor"
+      ? `Website visitors can be passed to a person only once every ${SUPPORT_LIMITS.visitor.personEveryDays} days, and only with an email address, so call hand_to_human only when they ask for a person or money needs to move.`
+      : "Free plans can be passed to a person only once a week, so call hand_to_human only when they ask for a person, money needs to move, or they've lost access to their account.";
+  return [
+    `This customer is ${who}. For them the chat is a helpful start, not a full help service: answer general questions about ${BRAND.name} briefly, such as what it is and who it's for, what it can do, getting started, signing up and signing in, plans, prices and what each includes, payments, billing and cancelling,${tier === "free" ? " their own plan's limits," : ""} and privacy and data.`,
+    "Keep every answer to two or three short sentences.",
+    `Don't give in-depth help: no step-by-step walkthroughs, troubleshooting, set-up advice or long back-and-forth. For those, say in one sentence that detailed help in the chat comes with a paid plan, and point them to the FAQ at ${appUrl("/faq")}. Saying in a few words where something is in the app is fine.`,
+    person,
+  ].join(" ");
 }
 
 /** How a person's reply will reach this customer: by email only when there's an address to send it to. */

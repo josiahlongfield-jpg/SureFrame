@@ -6,6 +6,7 @@ import { clientIp, limitByIp, rateLimit } from "@/lib/rateLimit";
 import { answer, assistantEnabled } from "@/lib/support/assistant";
 import { TALK_TO_PERSON } from "@/lib/support/person";
 import { handToHuman, newAccessToken, publicTicket } from "@/lib/support/tickets";
+import { aiRefusal, personRefusal, recordAi, recordPerson, SUPPORT_LIMITS, supportTier, type Asker, type SupportTier } from "@/lib/support/allowance";
 
 // The assistant can take a few turns; leave room to hand over if it's slow.
 export const maxDuration = 120;
@@ -49,14 +50,30 @@ export const POST = handle(async (req: Request) => {
   await limitByIp("support", 30, 3600);
   const { token, body, email, person } = parsed.data;
   const me = await currentUser().catch(() => null);
+  // Anyone who isn't paying has a smaller, fixed allowance on top (lib/support/allowance.ts).
+  const tier = supportTier(me?.workspace);
+  const unpaid = tier === "paying" ? null : SUPPORT_LIMITS[tier];
   // Daily allowances, so one person (signed in or not) can't run up AI costs or flood the inbox.
-  await dailyAllowance(me ? `support-day:user:${me.user.id}` : `support-day:ip:${await clientIp()}`, me ? 80 : 25);
+  await rateLimit(me ? `support-day:user:${me.user.id}` : `support-day:ip:${await clientIp()}`, me ? 80 : 25, 86400).catch(() => {
+    throw new HttpError(429, unpaid ? UNPAID_TODAY_LIMIT : TODAY_LIMIT);
+  });
 
   // A token for a conversation that's since been deleted, or that belongs to someone else's account, starts a new one.
   let ticket = token ? await load(token).catch(() => null) : null;
   if (ticket && ownedBySomeoneElse(ticket, me)) ticket = null;
+  const asker: Asker = { tier, workspaceId: me?.workspace.id, network: await clientIp(), email: me ? null : (email ?? ticket?.email ?? null) };
+  const withTeam = ticket?.status === "NEEDS_HUMAN" || ticket?.status === "ANSWERED";
+
+  // Checked before anything is stored, so a refused message stays in the box and costs nothing.
+  const personRefused = withTeam ? null : await personRefusal(asker);
+  if (person && personRefused) throw new HttpError(429, personRefused.message);
+  // An AI answer is needed unless a person is already talking with them or they pressed "Talk to a person".
+  const aiRefused = person || ticket?.status === "ANSWERED" ? null : await aiRefusal(asker);
+  // Once the team has the conversation, their message still reaches the team without an AI answer.
+  if (aiRefused && !withTeam) throw new HttpError(429, aiRefused.message);
+
   if (!ticket) {
-    await limitByIp("support-new", 15, 86400).catch(() => { throw new HttpError(429, TODAY_LIMIT); });
+    await limitByIp(unpaid ? `support-new-${tier}` : "support-new", unpaid?.newChatsPerDay ?? 15, 86400).catch(() => { throw new HttpError(429, unpaid ? NEW_CHAT_LIMIT : TODAY_LIMIT); });
     ticket = await db.supportTicket.create({
       data: { accessToken: newAccessToken(), userId: me?.user.id, workspaceId: me?.workspace.id, email: me ? null : email },
       include: { messages: true },
@@ -64,50 +81,64 @@ export const POST = handle(async (req: Request) => {
   } else if (email && !ticket.email && !ticket.userId) {
     await db.supportTicket.update({ where: { id: ticket.id }, data: { email } });
   }
-  if (ticket.messages.length >= MAX_MESSAGES) throw new HttpError(429, "This conversation is very long. Please start a new one.");
+  if (ticket.messages.length >= (unpaid?.messagesPerChat ?? MAX_MESSAGES)) throw new HttpError(429, "This conversation is very long. Please start a new one.");
   await rateLimit(`support:ticket:${ticket.id}`, 20, 600);
   await db.supportMessage.create({ data: { ticketId: ticket.id, author: "CUSTOMER", body } });
 
   const say = (body: string) => db.supportMessage.create({ data: { ticketId: ticket.id, author: "ASSISTANT", body } });
+  /**
+   * Passes the conversation to a person. A new hand-over from someone who isn't paying uses their allowance, and is
+   * refused (with why) once it's used up; a message added to a conversation the team already has always gets through.
+   */
+  const handOver = async (summary: string | null, urgent: boolean): Promise<string | null> => {
+    const now = await db.supportTicket.findUnique({ where: { id: ticket.id }, select: { status: true } });
+    if (now?.status !== "NEEDS_HUMAN" && now?.status !== "ANSWERED") {
+      const refused = await personRefusal(asker);
+      if (refused) return refused.message;
+      await recordPerson(asker);
+    }
+    await handToHuman(ticket.id, summary, urgent);
+    return null;
+  };
 
   if (person) {
     // The button hands over itself: the conversation goes to the inbox's "Needs you" list and the team is emailed,
     // whatever the assistant would have made of it. The chat then shows "Passed to a person".
-    if (ticket.status === "NEEDS_HUMAN" || ticket.status === "ANSWERED") await handToHuman(ticket.id, null, ticket.urgent);
-    else await handToHuman(ticket.id, personSummary(ticket.messages, body, !!me), false);
-  } else if (ticket.status === "ANSWERED") {
-    // A person is talking with them now: pass it on rather than have the assistant cut in.
+    await handOver(withTeam ? null : personSummary(ticket.messages, body, !!me, tier), withTeam && ticket.urgent);
+  } else if (ticket.status === "ANSWERED" || aiRefused) {
+    // A person is talking with them now (or has the conversation, and the AI allowance is used up): pass it on.
     await handToHuman(ticket.id, null, ticket.urgent);
     await say("Thanks, I've added that to your conversation with the team. They'll reply here and by email.");
   } else if (assistantEnabled() && (await underDailyAiCap())) {
     // Before a person has replied, the assistant keeps helping, even once the team has been told.
     const waiting = ticket.status === "NEEDS_HUMAN";
     if (ticket.status === "CLOSED") await db.supportTicket.update({ where: { id: ticket.id }, data: { status: "OPEN" } });
+    await recordAi(asker);
     try {
-      const { handedOver } = await answer(ticket.id);
+      const { handedOver } = await answer(ticket.id, { tier, handOver, personRefused: personRefused?.message });
       if (waiting && !handedOver) await handToHuman(ticket.id, null, ticket.urgent);
     } catch (e) {
       const err = e as { status?: number; message?: string; error?: unknown };
       console.error("[support] assistant failed", JSON.stringify({ ticket: ticket.id, status: err.status, message: err.message?.slice(0, 500), error: err.error }));
       // If the assistant had already handed over before failing, keep its summary.
       const now = await db.supportTicket.findUnique({ where: { id: ticket.id }, select: { status: true } });
-      await handToHuman(ticket.id, waiting || now?.status === "NEEDS_HUMAN" ? null : "The assistant had a technical problem answering. Please reply to the customer.", ticket.urgent);
-      await say("Sorry, I hit a problem answering that. I've passed your message to the team, and a person will reply.");
+      const refused = await handOver(waiting || now?.status === "NEEDS_HUMAN" ? null : "The assistant had a technical problem answering. Please reply to the customer.", ticket.urgent);
+      await say(refused ? "Sorry, I hit a problem answering that. Please try again in a little while." : "Sorry, I hit a problem answering that. I've passed your message to the team, and a person will reply.");
     }
   } else {
-    await handToHuman(ticket.id, ticket.status === "NEEDS_HUMAN" ? null : "New message (the assistant is switched off).", ticket.urgent);
-    await say("Thanks. Your message is with the team, and a person will reply.");
+    const refused = await handOver(ticket.status === "NEEDS_HUMAN" ? null : "New message (the assistant is switched off).", ticket.urgent);
+    await say(refused ? "Sorry, the help chat can't answer right now. Please try again later, or look in the FAQ." : "Thanks. Your message is with the team, and a person will reply.");
   }
   const fresh = await load(ticket.accessToken);
   return Response.json({ token: fresh.accessToken, ...publicTicket(fresh) });
 });
 
 /** What the team reads first when the customer pressed "Talk to a person": their own words, never the assistant's. */
-function personSummary(earlier: { author: string; body: string }[], body: string, signedIn: boolean) {
+function personSummary(earlier: { author: string; body: string }[], body: string, signedIn: boolean, tier: SupportTier) {
   const asked = [...earlier.filter((m) => m.author === "CUSTOMER").map((m) => m.body), body].filter((b) => b !== TALK_TO_PERSON);
   const quote = (s: string) => `"${s.length > 300 ? `${s.slice(0, 300)}…` : s}"`;
   return [
-    `Asked for a person with the "Talk to a person" button${signedIn ? "" : " (a website visitor, not signed in)"}.`,
+    `Asked for a person with the "Talk to a person" button${signedIn ? (tier === "free" ? " (on the Free plan)" : "") : " (a website visitor, not signed in)"}.`,
     asked.length ? `${asked.length === 1 ? "What they wrote" : "What they wrote first and last"}: ${asked.length === 1 ? quote(asked[0]) : `${quote(asked[0])} … ${quote(asked.at(-1)!)}`}` : "They haven't said what it's about yet.",
   ].join(" ");
 }
@@ -116,4 +147,5 @@ function personSummary(earlier: { author: string; body: string }[], body: string
 const underDailyAiCap = () => rateLimit("support-ai:global", Number(process.env.SUPPORT_AI_DAILY_CAP ?? 2000), 86400).then(() => true, () => false);
 
 const TODAY_LIMIT = `You've reached today's limit for the help chat. Please email ${LEGAL.email} and a person will get back to you.`;
-const dailyAllowance = (key: string, limit: number) => rateLimit(key, limit, 86400).catch(() => { throw new HttpError(429, TODAY_LIMIT); });
+const NEW_CHAT_LIMIT = "You've started the most new conversations allowed today. Please carry on in your current one, or come back tomorrow.";
+const UNPAID_TODAY_LIMIT = "You've reached today's limit for the help chat. Please come back tomorrow, or look in the FAQ.";

@@ -155,7 +155,7 @@ ok("footer: Help and FAQ are named apart", footerText.includes("Help & contact")
 const sitemap = await (await visitor.request.get(BASE + "/sitemap.xml")).text();
 ok("sitemap lists FAQ and About", sitemap.includes("/faq</loc>") && sitemap.includes("/about</loc>"));
 await visitor.goto(BASE + "/help");
-ok("help page shows the support email and common questions", (await seen(visitor, "[data-testid=help-email] >> text=support@sureframe.app")) && (await visitor.$$("[data-testid=help-faq] a[href^='/faq#']")).length >= 6);
+ok("help page shows a visitor's help-chat limits and common questions", (await seen(visitor, "[data-testid=help-limits] >> text=once every 30 days")) && (await visitor.$$("[data-testid=help-faq] a[href^='/faq#']")).length >= 6);
 ok("help page links into the FAQ rather than repeating it", (await visitor.$$("[data-testid=help-faq] [data-testid=faq-item]")).length === 0);
 
 const missing = await visitor.goto(BASE + "/no-such-page-" + stamp);

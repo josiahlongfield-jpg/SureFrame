@@ -830,6 +830,20 @@ model ReferralCode {
 /// A question a client typed into the help chat on their pages (lib/support/clientHelp.ts), kept so the weekly digest to
 /// the support inbox shows what the chat couldn't answer and what clients ask most. Only the question text and which
 /// business's link it came from: never who asked, the answer, or anything else from the conversation. Deleted after 90 days.
+/// Help-chat use by people who aren't paying (website visitors, Free plans and their clients): one row per AI answer or
+/// hand-over to a person, so their allowances run over rolling days (lib/support/allowance.ts). Keys hold an account id or a
+/// one-way fingerprint of an IP or email address, never the address itself. Deleted after 31 days.
+model SupportUse {
+  id   String   @id @default(cuid())
+  /// "ai" or "handover"
+  kind String
+  key  String
+  at   DateTime @default(now())
+
+  @@index([key, kind, at])
+  @@index([at])
+}
+
 model ClientQuestion {
   id          String    @id @default(cuid())
   workspaceId String

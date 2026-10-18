@@ -75,12 +75,15 @@ export const LEGAL = {
    * Letting a code given to one business be added to a plan it already pays for, from its next bill (18 October 2026), only adds to
    * what customers get, so it keeps it too.
    * Saying the help chat on client pages is AI only and points clients to the business (18 October 2026) explains a new help option, so it keeps it too.
+   * Describing the help chat's limits for visitors and Free plans (#help-limits, 18 October 2026) is about a free extra no one
+   * paid for, while paid plans keep asking for a person any time, so it keeps it too.
    */
   termsUpdated: "18 October 2026",
   /**
    * The Data Processing Agreement's own "last updated" date: "Keep me signed in" added to its security measures (17 October 2026).
    * Google sign-in taken out of its security measures, since only email sign-in links are offered, and file storage's location
-   * worded plainly (18 October 2026): they describe what we already do, so it keeps dpaVersion.
+   * worded plainly (18 October 2026): they describe what we already do, so it keeps dpaVersion. So does the note on the help
+   * chat's 31-day fingerprints (18 October 2026).
    */
   dpaUpdated: "18 October 2026",
   /**
@@ -93,7 +96,9 @@ export const LEGAL = {
    * feature that takes nothing away, so it keeps privacyVersion too. So does saying that an invited team member is
    * emailed to expect their link, and that a replaced client link is kept only as a one-way fingerprint, taking out
    * "Continue with Google", which isn't offered (only email sign-in links are), and saying plainly where recordings are
-   * stored (18 October 2026).
+   * stored (18 October 2026). Saying that the help chat's limits for visitors and Free plans keep a one-way fingerprint of
+   * the IP and email address for 31 days (18 October 2026) describes a protection that keeps no address, so it keeps
+   * privacyVersion too.
    */
   privacyUpdated: "18 October 2026",
 };

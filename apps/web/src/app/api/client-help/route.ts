@@ -35,7 +35,11 @@ export const POST = handle(async (req: Request) => {
   // Short bursts and a daily allowance per client, so one person can't run up AI costs.
   const limited = `You've reached the limit for the help chat for now. ${contact}`;
   await rateLimit(`client-help:client:${client.id}`, 10, 600).catch(() => { throw new HttpError(429, limited); });
-  await rateLimit(`client-help-day:client:${client.id}`, 40, 86400).catch(() => { throw new HttpError(429, limited); });
+  // A Free business isn't paying for its clients' help either (Josiah, 18 October 2026): a few questions a day each, and a
+  // ceiling for all its clients together.
+  const free = client.workspace.plan === "FREE";
+  await rateLimit(`client-help-day:client:${client.id}`, free ? 5 : 40, 86400).catch(() => { throw new HttpError(429, limited); });
+  if (free) await rateLimit(`client-help-day:free-business:${client.workspaceId}`, 30, 86400).catch(() => { throw new HttpError(429, limited); });
 
   const reply = (text: string, answered: boolean) => Response.json({ reply: text, answered });
   if (!assistantEnabled() || !(await underDailyAiCap())) {
