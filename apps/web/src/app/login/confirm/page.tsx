@@ -14,16 +14,19 @@ export default async function ConfirmSignIn({ searchParams }: { searchParams: Pr
         {callback ? (
           <>
             <h1 className="mt-6 short:mt-3 text-xl font-semibold text-ink">Sign in</h1>
-            <p className="mt-3 text-sm text-muted">Press the button to finish signing in on this device.</p>
-            {/* A plain link, so nothing fetches it until it's pressed. */}
-            <a
-              href={callback}
-              rel="nofollow"
-              className="mt-6 block rounded-xl bg-primary px-4 py-3 text-center text-sm font-semibold text-on-primary hover:bg-primary-hover"
-              data-testid="confirm-sign-in"
-            >
-              Sign in
-            </a>
+            <p className="mt-3 text-sm text-muted">
+              Press Sign in to finish signing in on this device. This extra step stops email security checks, which open links before you do, from using up
+              your one-time link.
+            </p>
+            {/* A form, so nothing that only follows links (a scanner, a link preview) signs in: it's a real button, as the words say (S1). */}
+            <form method="get" action={callback.split("?")[0]} className="mt-6">
+              {[...new URLSearchParams(callback.split("?")[1] ?? "")].map(([k, v]) => (
+                <input key={k} type="hidden" name={k} value={v} />
+              ))}
+              <button className="block w-full rounded-xl bg-primary px-4 py-3 text-center text-sm font-semibold text-on-primary hover:bg-primary-hover" data-testid="confirm-sign-in">
+                Sign in
+              </button>
+            </form>
           </>
         ) : (
           <>
