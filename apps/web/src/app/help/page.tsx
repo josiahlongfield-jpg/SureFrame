@@ -4,13 +4,16 @@ import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import { ChatBoundary, SupportChat } from "@/components/SupportChat";
 import Link from "next/link";
-import { BUSINESS_FAQ, CLIENT_FAQ, FaqList } from "@/components/Faq";
+import { BUSINESS_FAQ, CLIENT_FAQ } from "@/components/Faq";
 import { LEGAL } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "Help",
   description: "Get help with recording, sending videos, clients, billing and your recovery key.",
 };
+
+/** The FAQ answers asked about most, by id (components/Faq.tsx). */
+const COMMON = ["storage", "free-plan", "first-email", "phone", "recovery-key", "cancel", "only-me", "who-sees-replies"];
 
 export default async function Help() {
   const signedIn = !!(await auth())?.user;
@@ -26,25 +29,29 @@ export default async function Help() {
         </p>
         <p className="mt-2 text-sm text-muted" data-testid="help-email">
           Rather email? Write to <a href={`mailto:${LEGAL.email}`} className="font-medium text-accent hover:underline">{LEGAL.email}</a>. Or{" "}
-          <a href="#faq" className="font-medium text-accent hover:underline">browse common questions</a> below.
+          <a href="#faq" className="font-medium text-accent hover:underline">see common questions</a> below.
         </p>
         <div className="mt-8 flex h-[65vh] min-h-[26.25rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface">
           <ChatBoundary>
             <SupportChat signedIn={signedIn} className="flex-1" />
           </ChatBoundary>
         </div>
+        {/* The most-asked questions, linking into the FAQ page rather than repeating it, so Help (ask us) and FAQ (read the
+            answers) are different pages (V26). */}
         <section id="faq" className="mt-12 scroll-mt-20" aria-labelledby="faq-h" data-testid="help-faq">
           <h2 id="faq-h" className="text-xl font-semibold text-ink">Common questions</h2>
-          <h3 className="mt-6 text-sm font-semibold uppercase tracking-wide text-dim">For businesses</h3>
-          <div className="mt-3">
-            <FaqList items={BUSINESS_FAQ} />
-          </div>
-          <h3 className="mt-8 text-sm font-semibold uppercase tracking-wide text-dim">For clients</h3>
-          <div className="mt-3">
-            <FaqList items={CLIENT_FAQ} />
-          </div>
+          <ul className="mt-4 divide-y divide-line rounded-2xl border border-line bg-surface">
+            {COMMON.map((id) => {
+              const qa = [...BUSINESS_FAQ, ...CLIENT_FAQ].find((x) => x.id === id);
+              return qa ? (
+                <li key={id}>
+                  <Link href={`/faq#${id}`} className="block px-5 py-3.5 text-[0.9375rem] font-medium text-ink hover:bg-hover">{qa.q}</Link>
+                </li>
+              ) : null;
+            })}
+          </ul>
           <p className="mt-6 text-sm text-muted">
-            Also see the <Link href="/faq" className="font-medium text-accent hover:underline">FAQ page</Link> and{" "}
+            <Link href="/faq" className="font-medium text-accent hover:underline">All questions and answers</Link>, and{" "}
             <Link href="/about" className="font-medium text-accent hover:underline">About {LEGAL.product}</Link>: who runs it, where data is kept and what&rsquo;s
             encrypted.
           </p>

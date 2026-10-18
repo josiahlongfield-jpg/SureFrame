@@ -20,10 +20,16 @@ const email = `link${Date.now()}@example.com`;
 
 await page.goto(BASE + "/login?next=/clients");
 ok("password form hidden when email links are on", !(await page.isVisible('input[name="password"]')));
+ok("Keep me signed in comes before the button, in tab order", await page.evaluate(() => {
+  const keep = document.querySelector("[data-testid=keep-signed-in]");
+  const button = [...document.querySelectorAll("button")].find((b) => b.textContent.includes("Email me a sign-in link"));
+  return !!keep && !!button && !!(keep.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING);
+}));
 await page.fill('input[name="email"]', email);
 await page.click("text=Email me a sign-in link");
 await page.waitForURL("**/login/check**");
 ok("check-your-email page shown", await page.isVisible("text=Check your email"));
+ok("it shows the whole address, never split mid-word by force", (await page.textContent("[data-testid=sent-to-address]")) === email && (await page.$eval("[data-testid=sent-to-address]", (e) => getComputedStyle(e).wordBreak)) !== "break-all");
 
 const mail = readdirSync(outbox)
   .map((f) => JSON.parse(readFileSync(`${outbox}/${f}`, "utf8")))

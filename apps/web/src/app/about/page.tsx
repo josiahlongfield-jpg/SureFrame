@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
-import { LEGAL, SUBPROCESSORS } from "@/lib/legal";
+import { DATA_LOCATIONS, LEGAL, SUBPROCESSORS } from "@/lib/legal";
 import { RETENTION_DAYS } from "@/lib/retention";
 
 export const metadata: Metadata = {
@@ -64,8 +64,7 @@ export default function About() {
 
           <Section id="data" title="Where data is kept">
             <p>
-              We run {LEGAL.product} from Australia. Our providers store and process information outside Australia, mainly in the United States. Encrypted content
-              stays encrypted wherever it&rsquo;s stored.
+              We run {LEGAL.product} from Australia. {DATA_LOCATIONS} Encrypted content stays encrypted wherever it&rsquo;s stored.
             </p>
             <ul className="space-y-1">
               {SUBPROCESSORS.map((s) => (
