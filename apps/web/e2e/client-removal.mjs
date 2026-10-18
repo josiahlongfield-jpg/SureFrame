@@ -189,7 +189,7 @@ const newLink = await waitMail(ben.email, (m) => m.subject === `${business} sent
 ok("restore after a key reset: new link emailed", !!newLink && newLink.text.includes(`/c/${benBack.token}`) && !newLink.text.includes(ben.token));
 const oldBen = await (await browser.newContext({ timezoneId: "Australia/Brisbane" })).newPage();
 await oldBen.goto(`${BASE}/c/${ben.token}`);
-ok("restore after a key reset: the old link no longer works", new URL(oldBen.url()).searchParams.get("invalid") === "1");
+ok("restore after a key reset: the old link no longer works, and says it was replaced and emailed", new URL(oldBen.url()).searchParams.get("replaced") === "1" && norm(await oldBen.textContent("[data-testid=client-replaced]")).includes("emailed you your new link"));
 
 // =====================================================================================================
 // Part 2: a Studio workspace: the team's view, members, the warning, earlier removals and the purge.

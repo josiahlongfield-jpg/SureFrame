@@ -132,6 +132,7 @@ ok("intro: once per device per business", !(await shown(phone, "[data-testid=sur
 ok("client: the business's message above the video", (await phone.textContent("[data-testid=business-message]")).includes("Here's your plan. Start Monday."));
 const meta = await phone.textContent("[data-testid=video-meta]");
 ok("client: no view count", !/view/.test(meta), meta);
+ok("client: the tab names the video and who it's from", (await phone.title()).startsWith("Week 1 plan") && (await phone.title()).includes("from Business A"), await phone.title());
 const apiVideo = await (await phone.request.get(`${BASE}/api/videos/${videoId}`)).json();
 ok("client: the video API doesn't send the view count", apiVideo.video && !("viewCount" in apiVideo.video), JSON.stringify(apiVideo).slice(0, 120));
 ok("opening it counts as a view (no play needed)", (await waitFor(async () => (await prisma.video.findUnique({ where: { id: videoId } })).viewCount >= 1, 5000)) === true);

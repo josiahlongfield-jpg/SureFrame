@@ -28,7 +28,7 @@ import { zoned } from "@/lib/dates";
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ team?: string }> };
 
 async function load(id: string) {
-  const video = await db.video.findUnique({ where: { id }, include: { owner: { select: { name: true, email: true } } } });
+  const video = await db.video.findUnique({ where: { id }, include: { owner: { select: { name: true, email: true } }, workspace: { select: { name: true } } } });
   if (!video || video.replyToId) return null;
   return { video, viewer: await viewerFor(video) };
 }
@@ -46,7 +46,14 @@ async function keyless(viewer: Viewer | null) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const found = await load(id);
-  const title = !found ? "Video not found" : !found.viewer || (await keyless(found.viewer)) ? "Private video" : found.video.title;
+  // A client's tab also says who it's from, as a tab list otherwise reads like a page about the title.
+  const title = !found
+    ? "Video not found"
+    : !found.viewer || (await keyless(found.viewer))
+      ? "Private video"
+      : found.viewer.kind === "client"
+        ? `${found.video.title} · from ${found.video.workspace.name}`
+        : found.video.title;
   return { title, robots: { index: false } };
 }
 

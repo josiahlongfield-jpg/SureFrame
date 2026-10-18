@@ -194,7 +194,8 @@ export const CLIENT_FAQ: Qa[] = [
     a: (
       <p>
         Yes, once on each new phone, computer or browser. After you&rsquo;ve opened your personal link there, that device remembers it. Safari and iPhone browsers
-        can forget it after a week or so without a visit; then open your personal link again, or ask the business to send it.
+        can forget it after a week or so without a visit; then open your personal link again, or ask the business to send it (the page there has an
+        &ldquo;Ask for my link again&rdquo; button). Until then, that device doesn&rsquo;t list your videos.
       </p>
     ),
   },

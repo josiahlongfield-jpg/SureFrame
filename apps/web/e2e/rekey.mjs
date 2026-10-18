@@ -155,7 +155,7 @@ ok("emailed link carries no key", !!averyMail && !averyMail.text.includes("#k=")
 // The removed staff member's copies stop working.
 const staffTry = await (await browser.newContext()).newPage();
 await staffTry.goto(staffCopy);
-ok("old link refused", staffTry.url().includes("invalid=1"));
+ok("old link refused: says it was replaced (not mistyped), opens nothing", staffTry.url().includes("replaced=1") && (await staffTry.textContent("main")).includes("Your link was replaced") && !(await staffTry.textContent("main")).includes("mistyped") && (await staffTry.locator("[data-testid=inbox-video]").count()) === 0);
 ok("removed staff can't fetch Avery's key chain", (await staff.request.get(`${BASE}/api/clients/${avery.id}/key`)).status() === 404);
 await staff.goto(videoUrl);
 ok("removed staff can't open the video", !(await staff.isVisible("main video")));
