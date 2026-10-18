@@ -73,7 +73,7 @@ export default async function Watch({ params, searchParams }: Props) {
     // Quick picks by staff member only help someone who can see everyone's clients.
     access && perms?.seeAllClients ? db.membership.findMany({ where: { workspaceId: video.workspaceId }, include: { user: true }, orderBy: { id: "asc" } }) : Promise.resolve([]),
     // The other clients this recording went to, each with their own conversation.
-    access && !video.sourceId ? db.video.findMany({ where: { sourceId: video.id, client: clientScopeWhere(access) }, select: { id: true, clientId: true }, orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
+    access && !video.sourceId ? db.video.findMany({ where: { sourceId: video.id, client: clientScopeWhere(access) }, select: { id: true, clientId: true, viewCount: true }, orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
   ]);
   // Staff can open a video they recorded that went to someone else's client: show who, nothing more.
   // So do removed and paused clients, and those whose link support turned off, who can't open it.
@@ -151,7 +151,7 @@ export default async function Watch({ params, searchParams }: Props) {
                     meId: viewer.userId,
                     sourceId: video.sourceId,
                     staff: staff.map((m) => ({ id: m.userId, name: m.user.name ?? m.user.email.split("@")[0] })),
-                    copies: copies.filter((c) => c.clientId).map((c) => ({ id: c.id, clientId: c.clientId! })),
+                    copies: copies.filter((c) => c.clientId).map((c) => ({ id: c.id, clientId: c.clientId!, opened: c.viewCount > 0 })),
                   }
                 : undefined
             }

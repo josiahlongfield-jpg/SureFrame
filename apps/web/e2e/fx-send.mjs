@@ -97,13 +97,16 @@ await owner.fill('input[aria-label="Client email"]', "");
 
 // Over the seats: what fits is added, the rest stay in the box with a way to get more seats.
 await owner.click("[data-testid=bulk-open]");
-await owner.fill("#bulk-list", `Client B, client-b-${stamp}@example.com\nClient C, client-c-${stamp}@example.com\nClient D, client-d-${stamp}@example.com`);
+// "Client D client-d@…" (no comma) is still read; a line with a broken email is listed and kept to fix.
+await owner.fill("#bulk-list", `Client B, client-b-${stamp}@example.com\nClient C, client-c-${stamp}@example.com\nClient D client-d-${stamp}@example.com\nClient E, client-e@example`);
+ok("pasted list: the unreadable line is listed as not added", norm(await owner.textContent("[data-testid=bulk-bad]")).includes("This line won't be added") && (await owner.textContent("[data-testid=bulk-bad] li")) === "Client E, client-e@example");
 ok("pasted list: says only 2 seats left", (await owner.textContent("[data-testid=bulk-summary]")).includes("3 clients ready to add (only 2 seats left)"));
 ok("and offers to add what fits", (await owner.textContent("[data-testid=bulk-add] >> button:has-text('Add the')")) === "Add the 2 clients that fit" && (await owner.textContent("[data-testid=bulk-over]")).includes("See plans with more seats"));
 await owner.click("[data-testid=bulk-add] >> button:has-text('Add the')");
 await owner.waitForSelector("[data-testid=bulk-unfit]");
 ok("says which didn't fit, with a link for more seats", norm(await owner.textContent("[data-testid=bulk-unfit]")).includes("1 client didn't fit in your seats (Client D)") && (await owner.locator("[data-testid=bulk-unfit] a[href='/pricing']").count()) === 1);
 ok("the one that didn't fit stays in the box", (await owner.inputValue("#bulk-list")).includes("Client D"));
+ok("the line to fix stays in the box too, and the note says so", (await owner.inputValue("#bulk-list")).includes("Client E, client-e@example") && norm(await owner.textContent("[data-testid=bulk-unread]")).includes("1 line wasn't added"));
 ok("several added: Copy all first links", await owner.isVisible("[data-testid=added-copy-all]"));
 await owner.click("[data-testid=added-copy-all]");
 await owner.waitForTimeout(300);
@@ -180,21 +183,24 @@ ok("picker marks first-time clients", (await owner.locator("[role=listbox] li:ha
 await owner.keyboard.press("Escape");
 await chooseClients(owner, "Client A", "Client B", "Client C");
 const firstBox = norm(await owner.textContent("[data-testid=first-links]"));
-ok("chosen first-timers: a Copy button each with their full name, and Copy all", firstBox.includes("Copy Client B's link") && firstBox.includes("Copy Client C's link") && (await owner.isVisible("[data-testid=copy-all-first]")), firstBox);
-ok("email is offered only for the reached client", (await owner.textContent("[data-testid=send-email]")).trim() === "Email 1 of them");
+ok("chosen first-timers: a Copy button each with their full name", firstBox.includes("Copy Client B's link") && firstBox.includes("Copy Client C's link"), firstBox);
+ok("mixed choice: one Send to all, no second Copy all in the box", (await owner.textContent("[data-testid=send-all]")).trim() === "Send to all 3" && (await owner.locator("[data-testid=copy-all-first]").count()) === 0 && (await owner.locator("[data-testid=send-link]").count()) === 0);
+ok("it says who is emailed and whose links are copied", norm(await owner.textContent("[data-testid=send-all-explained]")).includes("emails Client A, and copies the links for Client B, Client C"));
+ok("emailing only the reached client is still offered", (await owner.textContent("[data-testid=send-email]")).trim() === "Email 1 of them");
 await owner.screenshot({ path: `${shots}/fx-send-chosen.png`, fullPage: true });
-await owner.click("[data-testid=send-email]");
-await owner.waitForSelector("text=/Emailed 1 client/");
-ok("status points at the buttons on screen", (await owner.textContent("[data-testid=send-status]")).includes("2 clients still need their first link: use the Copy buttons under Needs first link"));
+await owner.click("[data-testid=send-all]");
+await owner.waitForSelector("text=/Sent to all 3/");
+const status = norm(await owner.textContent("[data-testid=send-status]"));
+ok("status: emailed the reached client, copied the others' links, says why links differ", status.includes("Emailed Client A") && status.includes("Copied the links for Client B, Client C") && status.includes("Each link is different"), status);
 const mail = await waitFor(() => mailTo(aEmail).find((m) => /sent you a video/.test(m.subject)));
 ok("email subject has the title", mail?.subject.endsWith("sent you a video: Week 1 plan"), mail?.subject);
 ok("email is from 'Business A via SureFrame'", mail?.from.startsWith(`${business} via SureFrame <`), mail?.from);
 ok("email shows the business name and title", mail?.html.includes(business) && mail.html.includes("Week 1 plan"));
 ok("email explains the device rule plainly", mail?.text.includes("The button opens it on any phone or computer where you've opened your personal link") && !mail.text.includes("use the personal link they gave you first"));
-await owner.click("[data-testid=copy-all-first]");
 await owner.waitForSelector("[data-testid=waiting-row]");
 const both = await clip();
-ok("Copy all first links: both clients' own conversations", /Client B: .*v=.*#k=/.test(both) && /Client C: .*v=.*#k=/.test(both), both);
+ok("Send to all copies the first-timers' own conversations, not the emailed client's", /Client B: .*v=.*#k=/.test(both) && /Client C: .*v=.*#k=/.test(both) && !both.includes("Client A:"), both);
+ok("the emailed client's row says Emailed and Not opened yet", /Emailed\s*· Not opened yet/.test(norm(await owner.textContent("[data-testid=sent-row]:has-text('Client A')"))));
 ok("first-timers wait for their first link, not under Sent to", (await owner.locator("[data-testid=waiting-row]").count()) === 2 && norm(await owner.textContent("[data-testid=sent-list]")) .includes("Client A") && !norm(await owner.textContent("[data-testid=sent-list]")).includes("Client B"));
 ok("waiting rows: Copy names the client", (await owner.textContent("[data-testid=waiting-row]:has-text('Client B') [data-testid=copy-row-link]")) === "Copy Client B's link");
 const copyB = await prisma.video.findFirst({ where: { sourceId: vid, clientId: clientB.id } });
@@ -224,6 +230,18 @@ ok("library: newest day open", !!(await card.waitFor({ state: "visible", timeout
 ok("library: who it went to", norm(await card.locator("[data-testid=video-recipients]").textContent()) === "To Client A, Client B");
 ok("library: replies and unread", (await card.locator("[data-testid=reply-count]").textContent()) === "2 replies" && (await card.locator("[data-testid=unread-count]").textContent()) === "2 new");
 ok("library: the day says what's new", (await owner.textContent("[data-testid=day-folder] summary [data-testid=unread-count]")) === "2 new");
+ok("library: the day's row says when its recordings are deleted", /deletes from our servers \w{3} \d+/.test(await owner.textContent("[data-testid=day-folder] >> nth=0 >> [data-testid=day-deletes]")));
+// Replies waiting show on the Clients page and on the client's own page, not only on library cards.
+await owner.goto(BASE + "/clients");
+const bRow = owner.locator("main li", { has: owner.locator(`a[href="/clients/${clientB.id}"]`) });
+ok("clients page: reply badges per client", !!(await waitFor(async () => (await bRow.locator("[data-testid=unread-count]").textContent().catch(() => "")) === "1 new")) && (await bRow.locator("[data-testid=reply-count]").textContent()) === "1 reply");
+await owner.goto(`${BASE}/clients/${clientB.id}`);
+ok("client page: new replies by the heading and on the video's row", !!(await waitFor(async () => (await owner.textContent("[data-testid=client-new-replies]").catch(() => "")).includes("1 new"))) && (await owner.locator("main section li [data-testid=reply-count]").count()) === 1);
+// A to-do that's due: the menu's To-dos says so, and the library names the client.
+await prisma.item.create({ data: { kind: "TASK", body: "sealed-".repeat(5), authorName: "Owner", workspaceId: ws, clientId: clientB.id, dueAt: new Date(Date.now() - 3600_000) } });
+await owner.goto(BASE + "/library");
+ok("menu: To-dos, with how many are due", (await owner.textContent("header nav a[href='/library#todos']")).includes("To-dos (1 due)"));
+ok("library: the due list names the client", norm(await owner.textContent("[data-testid=due-todos]")).includes("1 to-do is overdue or due within a day") && (await owner.locator(`[data-testid=due-todos] a[href="/clients/${clientB.id}"]`).count()) === 1);
 // Opening the conversation counts Client A's reply as seen on this device; Client B's copy still has one new.
 await owner.goto(`${BASE}/v/${vid}`);
 await owner.waitForSelector("[data-testid=reply-composer], aside", { timeout: 20000 }).catch(() => {});
@@ -242,7 +260,7 @@ ok("library: a recording not sent yet says so", norm(await owner.locator(`a[href
 ok("library: times shown", times.every((t) => /\d{1,2}:\d{2}/.test(t)), JSON.stringify(times));
 ok("default title recognised", /^Recording /.test(defaultTitled));
 await owner.fill("[data-testid=library-search]", "client b");
-await owner.click("form[role=search] >> button:text-is('Search')");
+// Searches as you type, no button press needed.
 await owner.waitForSelector("[data-testid=search-summary]");
 ok("library search by client name", (await owner.locator("main a[href^='/v/']").count()) === 1 && (await owner.isVisible(`a[href="/v/${vid}"]`)));
 await owner.click("[data-testid=library-clear]");
