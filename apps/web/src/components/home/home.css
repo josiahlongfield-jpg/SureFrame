@@ -155,6 +155,12 @@
 .f-sw i { width: 1.25rem; height: 1.25rem; border-radius: 50%; }
 .f-sw i.on { outline: 0.125rem solid #fff; outline-offset: 0.125rem; }
 
+/* Too narrow for all eight in one row (a laptop with the hero text beside the window): two even rows of four,
+   rather than one tab wrapping onto a row of its own. */
+@container (min-width: 35.0625rem) and (max-width: 48rem) {
+  .ff-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
 /* Phones: the window is shorter and denser frames drop their extras. */
 @container (max-width: 35rem) {
   .ff { grid-template-rows: auto 22.5rem; }

@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import NavLinks from "./NavLinks";
+import { openHelp } from "./SupportChat";
 
 type Links = readonly (readonly [string, string])[];
 
@@ -57,6 +58,18 @@ export default function MobileMenu({ links, settings, plan, email, signOut }: { 
             <NavLinks links={links} className="rounded-lg px-3 py-2.5 hover:bg-hover" />
             <p className="mt-2 border-t border-line px-3 pb-1 pt-3 text-xs font-medium uppercase tracking-wider text-dim" data-testid="menu-settings">Settings</p>
             <NavLinks links={settings} className="rounded-lg py-2.5 pl-6 pr-3 hover:bg-hover" />
+            {/* The help chat, here as well as the button at the end of each page. */}
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                openHelp();
+              }}
+              className="mt-2 border-t border-line px-3 pb-1.5 pt-3.5 text-left text-muted hover:text-ink"
+              data-testid="menu-help"
+            >
+              Help
+            </button>
           </nav>
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 border-t border-line px-5 py-3 text-sm sm:px-7">
             <span className="min-w-0 truncate text-dim">
