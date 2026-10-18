@@ -9,6 +9,7 @@ import { sendMail } from "@/lib/mail";
 import { newLinkEmail } from "@/lib/newLinkEmail";
 import { rateLimit } from "@/lib/rateLimit";
 import { clientMailSettings } from "@/lib/reminders";
+import { markReplacedEmailed, recordReplaced } from "@/lib/replacedLinks";
 import { enforceSeatLimits } from "@/lib/seatLimits";
 import { HttpError } from "@/lib/session";
 import { storage } from "@/lib/storage";
@@ -92,6 +93,8 @@ export async function restoreClient(workspace: Workspace, id: string, { ignoreSe
       where: { id },
       data: { removedAt: null, purgeAt: null, purgeWarnedAt: null, removedById: null, pausedAt: null, ...(rekeyed ? { token: newClientToken() } : {}) },
     });
+    // The old link then says it was replaced (marked emailed below once the new one has gone).
+    if (rekeyed) await recordReplaced(tx, id, c.token, false);
     return { rekeyed };
   });
   // Normally a no-op (there was a free seat); with the limit ignored, the newest clients over it are paused.
@@ -105,7 +108,10 @@ export async function restoreClient(workspace: Workspace, id: string, { ignoreSe
     const { replyTo } = clientMailSettings(workspace, assigned);
     const mail = newLinkEmail({ business: workspace.name, clientName: c.name, link: clientLink(c.token), logoUrl: brand.logoUrl, color: brand.color });
     emailed = await sendMail({ to: c.email, ...mail, fromName: workspace.name, replyTo }).then(
-      () => true,
+      async () => {
+        await markReplacedEmailed(c.id).catch(() => {});
+        return true;
+      },
       (err) => {
         console.error("restored client new link email failed", err);
         return false;

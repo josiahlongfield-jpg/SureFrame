@@ -6,12 +6,19 @@
 //   and anyone can delete their own replies (file included);
 // - unread counts only the other side's messages; own messages sit on the right; the panel names who
 //   the conversation is with; clients don't see a view count, and a client opening the video counts;
-// - reactions toggle and never double up; the business's message (encrypted) shows above the video;
-// - one plain "can't open" card for every dead end; the inbox marks new and replied videos, can forget
-//   this device and turns emails back on in one tap; and everything fits a 320px phone.
+// - one reaction at a time, which says it reached the business, toggles and never doubles up (and fits one
+//   row at 320px); the team's own row says whose it is; the business's message (encrypted) shows above the video;
+// - deleting a reply or unsent reply, discarding a recording and "Remove from this device" ask in the page,
+//   with wording true to who's affected; a text reply says Sent; Enter sends only on a computer (with a hint);
+//   keyboard focus follows Record / Stop / Send / Discard / Delete; Escape closes the larger view;
+// - one plain "can't open" card for every dead end (a replaced link says so, the private page can ask for the
+//   link again, an unknown /v/ address stays in the client frame); a device without the key lists nothing;
+//   the inbox marks new and replied videos, can forget this device and turns emails back on in one tap;
+//   clients never get the view count; and everything fits a 320px phone.
 import { chromium } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
+import { createHash } from "node:crypto";
 import { agreed } from "./agree.mjs";
 import { sendByLink } from "./send.mjs";
 
@@ -104,11 +111,17 @@ await phone.waitForURL("**/v/**");
 ok("intro: shown on the Free plan", await shown(phone, "[data-testid=sureframe-promo]", 20000));
 ok("intro: leads with the sender", (await phone.textContent("[data-testid=promo-sender]")) === "Business A sent you a private video");
 ok("intro: SureFrame is a small credit", await phone.isVisible("[data-testid=sureframe-promo] >> text=Made with SureFrame"));
-ok("intro: can't be skipped straight away", await phone.isDisabled("text=/Watch now \\(\\d\\)/"));
+ok("intro: can't be skipped straight away", await phone.isDisabled("[data-testid=sureframe-promo] button:has-text('Watch now')"));
+ok("intro: the short wait is said in words, not a countdown on the button", /You can start watching in \d seconds?\. This short intro only shows once on this device\./.test(await phone.textContent("[data-testid=promo-wait]")) && !/\(\d\)/.test(await phone.textContent("[data-testid=sureframe-promo] button")));
+ok("intro: keyboard focus starts in the card", await phone.evaluate(() => !!document.activeElement?.closest("[data-testid=sureframe-promo]")));
 ok("intro fits 320px", await fits(phone));
 await phone.screenshot({ path: `${shots}/intro-320.png` });
 await phone.waitForSelector("button:has-text('Watch now'):not([disabled])", { timeout: 6000 });
 ok("intro: skippable within a few seconds", true);
+ok("intro: focus moves to Watch now once it can be pressed", (await phone.evaluate(() => document.activeElement?.textContent)) === "Watch now");
+await phone.keyboard.press("Tab");
+await phone.keyboard.press("Tab");
+ok("intro: Tab stays inside the card", await phone.evaluate(() => !!document.activeElement?.closest("[data-testid=sureframe-promo]")));
 await phone.tap("text=/^Watch now$/");
 ok("intro closes", !(await phone.isVisible("[data-testid=sureframe-promo]")));
 ok("Watch now starts the video", !!(await phone.waitForFunction(() => { const v = document.querySelector("main video"); return v && !v.paused && v.currentTime > 0; }, null, { timeout: 20000 }).catch(() => null)));
@@ -119,24 +132,42 @@ ok("intro: once per device per business", !(await shown(phone, "[data-testid=sur
 ok("client: the business's message above the video", (await phone.textContent("[data-testid=business-message]")).includes("Here's your plan. Start Monday."));
 const meta = await phone.textContent("[data-testid=video-meta]");
 ok("client: no view count", !/view/.test(meta), meta);
+const apiVideo = await (await phone.request.get(`${BASE}/api/videos/${videoId}`)).json();
+ok("client: the video API doesn't send the view count", apiVideo.video && !("viewCount" in apiVideo.video), JSON.stringify(apiVideo).slice(0, 120));
 ok("opening it counts as a view (no play needed)", (await waitFor(async () => (await prisma.video.findUnique({ where: { id: videoId } })).viewCount >= 1, 5000)) === true);
 ok("client: How this works answers", (await phone.textContent("[data-testid=how-this-works]")).includes("How this works"));
 await phone.click("[data-testid=how-this-works] summary");
 const how = await phone.textContent("[data-testid=how-this-works]");
 ok("How this works: who sees replies, notifications, deleting, devices, views", ["Only you and Business A", "emailed that you replied", "tap Delete", "another device", "how many times you've opened"].every((t) => how.includes(t)), how);
+ok("How this works: there's no deadline to reply, and when replies go", how.includes("no deadline to reply") && how.includes("Written replies stay until Business A deletes this video"), how);
+ok("deletion note: says the client can still reply after the date", (await phone.textContent("[data-testid=purge-note]")).includes("You can still reply after that date."));
 ok("client: download names the business and title", (await phone.getAttribute("a:has-text('Save to device')", "download"))?.startsWith("Business A - Week 1 plan"));
 ok("no floating button over the video, title or reactions", !(await phone.isVisible("[data-testid=chat-bubble]")));
 ok("the reply card is in the page, right under the reactions", await phone.isVisible("[data-testid=chat-inline] >> text=Reply to Business A"));
 ok("client page fits 320px", await fits(phone));
 await phone.screenshot({ path: `${shots}/client-320.png`, fullPage: true });
 
-// Reactions: highlighted, a second tap takes it back, quick taps never double up.
+// Reactions: one at a time, highlighted, says it reached the business; a second tap takes it back; quick taps never double up.
+const rowTops = await phone.$$eval("[data-testid=reactions] button", (bs) => bs.map((b) => Math.round(b.getBoundingClientRect().top)));
+ok("320px: the six reactions sit on one row", rowTops.length === 6 && new Set(rowTops).size === 1, rowTops.join(","));
+ok("reactions: says who sees the one you pick", (await phone.textContent("[data-testid=reactions-label]")).includes("Business A sees the one you pick"));
 const thumbs = "button[aria-label='React 👍']";
 await phone.tap(thumbs);
 const burstBg = await phone.waitForSelector("[data-testid=reaction-burst]", { timeout: 2000 }).then((e) => e.evaluate((el) => getComputedStyle(el).backgroundColor), () => "");
 await phone.waitForFunction((s) => document.querySelector(s)?.getAttribute("aria-pressed") === "true", thumbs);
 await waitFor(async () => (await prisma.reaction.count({ where: { videoId, byClient: true } })) === 1, 5000);
 ok("reaction highlighted and saved once", (await prisma.reaction.count({ where: { videoId, byClient: true } })) === 1);
+ok("reaction: says it was sent and who can see it", (await phone.textContent("[data-testid=reaction-note]", { timeout: 5000 })).startsWith("Sent. Business A can see your 👍"));
+await phone.tap("button[aria-label='React 🎉']");
+await phone.waitForFunction(() => document.querySelector("button[aria-label='React 🎉']")?.getAttribute("aria-pressed") === "true" && document.querySelector("button[aria-label='React 👍']")?.getAttribute("aria-pressed") === "false");
+await waitFor(async () => (await prisma.reaction.findMany({ where: { videoId, byClient: true } })).map((r) => r.emoji).join() === "🎉", 5000);
+ok("picking another reaction replaces the first", (await prisma.reaction.findMany({ where: { videoId, byClient: true } })).map((r) => r.emoji).join() === "🎉");
+await phone.waitForTimeout(400);
+await phone.tap("button[aria-label='React 🎉']");
+await waitFor(async () => (await prisma.reaction.count({ where: { videoId, byClient: true } })) === 0, 5000);
+await phone.waitForTimeout(400);
+await phone.tap(thumbs);
+await waitFor(async () => (await prisma.reaction.count({ where: { videoId, byClient: true } })) === 1, 5000);
 ok("the reaction float sits on a white disc (keeps its colours over the video)", burstBg === "rgb(255, 255, 255)", burstBg);
 await phone.waitForTimeout(400);
 await phone.tap(thumbs);
@@ -153,10 +184,15 @@ await phone.tap("[data-testid=chat-open]");
 await phone.waitForSelector("[data-testid=conversation][data-sheet]");
 ok("sheet names the business", (await phone.textContent("[data-testid=conversation-title]")) === "Conversation with Business A");
 ok("empty conversation says it's private", (await phone.textContent("[data-testid=conversation-empty]")) === "Only you and Business A can see this conversation.");
+ok("phone: no 'Enter sends' hint (Enter is a new line there)", !(await phone.isVisible("[data-testid=enter-hint]")));
+await phone.fill('textarea[aria-label="Reply"]', "Hello from Client A");
+await phone.press('textarea[aria-label="Reply"]', "Enter");
+ok("phone: Enter makes a new line rather than sending", (await phone.inputValue('textarea[aria-label="Reply"]')) === "Hello from Client A\n" && (await prisma.reply.count({ where: { videoId } })) === 0);
 await phone.fill('textarea[aria-label="Reply"]', "Hello from Client A");
 await phone.tap("button:has-text('Send reply')");
 await phone.waitForSelector("[data-testid=conversation] li[data-mine] >> text=Hello from Client A", { timeout: 15000 });
 ok("own message on the right", true);
+ok("text reply: says Sent, and who sees it", (await phone.textContent("[data-testid=text-sent]", { timeout: 5000 })).includes("Sent. Business A can see it now"));
 ok("sheet fits 320px", await fits(phone));
 
 // Video reply: review, re-record and discard delete it; Send sends it, with a clear confirmation.
@@ -180,6 +216,8 @@ await phone.waitForTimeout(2000);
 await phone.tap("button:has-text('Stop recording')");
 await phone.waitForSelector("[data-testid=reply-review]", { timeout: 15000 });
 await phone.tap("[data-testid=reply-review] >> text=Discard");
+ok("Discard asks first, in the page, that nobody has seen it", (await phone.textContent("[data-testid=discard-confirm]", { timeout: 5000 })).includes("never sent, so nobody else has seen it") && (await mediaReplies()) === 1);
+await phone.tap("[data-testid=discard-yes]");
 await phone.waitForSelector("text=Recording deleted. Nothing was sent.", { timeout: 10000 });
 ok("Discard deletes it and says nothing was sent", (await waitFor(async () => (await mediaReplies()) === 0, 5000)) === true);
 await phone.tap("role=tab[name='Video']");
@@ -194,16 +232,23 @@ ok("Sent: says who sees it and that they're emailed", sentText.includes("Sent") 
 ok("Sent: stays on the Video tab", (await phone.getAttribute("role=tab[name='Video']", "aria-selected")) === "true");
 ok("video reply in the conversation", !!(await phone.waitForSelector("[data-testid=conversation] ul video", { timeout: 20000 }).catch(() => null)));
 
-// Deleting your own reply removes it for everyone.
-phone.once("dialog", (d) => d.accept());
+// Deleting your own reply removes it for everyone, after a question in the page (no browser pop-up).
+let popups = 0;
+phone.on("dialog", (d) => (popups++, d.dismiss()));
 await phone.tap("[data-testid=conversation] li:has-text('Hello from Client A') >> [data-testid=reply-delete]");
+ok("Delete asks in the page: removed for the business too", (await phone.textContent("[data-testid=reply-delete-confirm]", { timeout: 5000 })).includes("removed for Business A too"));
+await phone.tap("[data-testid=reply-delete-confirm] >> text=Keep it");
+ok("Keep it leaves the message", (await phone.locator("[data-testid=conversation] li:has-text('Hello from Client A')").count()) === 1 && (await prisma.reply.count({ where: { videoId, kind: "TEXT" } })) === 1);
+await phone.tap("[data-testid=conversation] li:has-text('Hello from Client A') >> [data-testid=reply-delete]");
+await phone.tap("[data-testid=reply-delete-yes]");
 await phone.waitForSelector("[data-testid=conversation] >> text=Hello from Client A", { state: "detached", timeout: 10000 });
 ok("own reply deleted from the server", (await prisma.reply.count({ where: { videoId, kind: "TEXT" } })) === 0);
 const sentVideo = await prisma.reply.findFirst({ where: { videoId, kind: "VIDEO" }, include: { media: true } });
-phone.once("dialog", (d) => d.accept());
 await phone.tap("[data-testid=conversation] li[data-mine]:has(video) >> [data-testid=reply-delete]");
+await phone.tap("[data-testid=reply-delete-yes]");
 await waitFor(async () => (await prisma.reply.count({ where: { videoId, kind: "VIDEO" } })) === 0, 10000);
 ok("video reply deleted, recording row and all", !(await prisma.video.findUnique({ where: { id: sentVideo.mediaId } })) && (await prisma.reply.count({ where: { videoId } })) === 0);
+ok("no browser pop-ups for deleting or discarding", popups === 0, String(popups));
 await phone.tap("[data-testid=chat-close]");
 
 // A reply cut short by a closed browser is never sent by itself: the client is asked.
@@ -219,6 +264,7 @@ await phone2.goto(`${BASE}/v/${videoId}`);
 await phone2.waitForSelector("[data-testid=held-reply]", { state: "attached", timeout: 30000 });
 const heldRow = await prisma.reply.findFirst({ where: { videoId, kind: "VIDEO" } });
 ok("recovered reply: uploaded but held, not sent", !!heldRow?.heldAt);
+ok("the video page says an unsent reply is waiting", (await phone2.textContent("[data-testid=inline-unsent]", { timeout: 10000 }).catch(() => "")).includes("You have an unsent reply"));
 await phone2.tap("[data-testid=chat-open]");
 ok("recovered reply: asks to send or delete, with a preview", (await phone2.textContent("[data-testid=held-reply]")).includes("Send or delete your unfinished reply?") && !!(await phone2.waitForSelector("[data-testid=held-reply] video", { timeout: 20000 }).catch(() => null)));
 await owner.reload();
@@ -232,8 +278,10 @@ const dailyPurge = () => phone2.request.get(`${BASE}/api/cron/purge`, { headers:
 await prisma.reply.update({ where: { id: heldRow.id }, data: { heldAt: new Date(Date.now() - 6 * 86_400_000) } });
 const sixDays = await (await dailyPurge()).json();
 ok("clean-up: a 6-day-old unsent reply stays", typeof sixDays.unsentReplies === "number" && !!(await prisma.reply.findUnique({ where: { id: heldRow.id } })));
-phone2.once("dialog", (d) => d.accept());
 await phone2.tap("[data-testid=held-reply] >> button:has-text('Delete it')");
+const heldAsk = await phone2.textContent("[data-testid=held-delete-confirm]", { timeout: 5000 });
+ok("unsent reply: Delete it says it was never sent, not 'removed for Business A too'", heldAsk.includes("never sent, so nobody else has seen it") && !heldAsk.includes("Business A too"), heldAsk);
+await phone2.tap("[data-testid=held-delete-yes]");
 await phone2.waitForSelector("[data-testid=held-reply]", { state: "detached", timeout: 10000 });
 ok("recovered reply deleted when asked", (await prisma.reply.count({ where: { videoId } })) === 0);
 const sentReply = await prisma.reply.create({ data: { videoId, kind: "TEXT", body: "x", authorName: "Client A", byClient: true, createdAt: new Date(Date.now() - 9 * 86_400_000) } });
@@ -271,10 +319,52 @@ ok("owner: client's message on the left", await owner.evaluate(() => {
   return !!li && !li.dataset.mine && getComputedStyle(li).alignItems === "flex-start";
 }));
 ok("owner: sees the view", /[1-9]\d* views?/.test(await owner.textContent("[data-testid=video-meta]")));
+ok("owner: the reactions row says whose it is", (await owner.textContent("[data-testid=reactions-label]")) === "Your reaction (only you see it)");
+ok("owner: the client's reaction is labelled with their name", (await owner.textContent("[data-testid=reaction-summary]")).startsWith("Client A reacted:"));
+ok("computer: the reply box says Enter sends", (await owner.textContent("[data-testid=enter-hint]")) === "Enter sends. Shift+Enter starts a new line.");
+await owner.focus('textarea[aria-label="Reply"]');
+ok("the reply box shows a focus ring", await owner.evaluate(() => getComputedStyle(document.activeElement).outlineStyle !== "none" && parseFloat(getComputedStyle(document.activeElement).outlineWidth) >= 1));
 await owner.fill('textarea[aria-label="Reply"]', "Answer from Business A");
 await owner.click("button:has-text('Send reply')");
 await owner.waitForSelector("aside ul li[data-mine] >> text=Answer from Business A");
 ok("owner: own message on the right", true);
+ok("after Send, focus is back in the reply box", await owner.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Reply"));
+
+// Keyboard: focus follows each step of a voice reply, and the tabs move with the arrow keys.
+await owner.focus("role=tab[name='Text']");
+await owner.keyboard.press("ArrowRight");
+await owner.keyboard.press("ArrowRight");
+ok("arrow keys move between the reply tabs", (await owner.getAttribute("role=tab[name='Voice']", "aria-selected")) === "true" && (await owner.evaluate(() => document.activeElement?.textContent)) === "Voice");
+await owner.waitForSelector("button:has-text('Record voice reply'):not([disabled])", { timeout: 15000 });
+await owner.focus("button:has-text('Record voice reply')");
+await owner.keyboard.press("Enter");
+await owner.waitForSelector("text=/Recording · \\d/", { timeout: 15000 });
+ok("Record: focus moves to Stop recording", (await waitFor(() => owner.evaluate(() => document.activeElement?.textContent === "Stop recording"), 3000)) === true);
+// A real tap still reaches a tab that's only marked unavailable (Playwright won't click it unforced).
+await owner.click("role=tab[name='Text']", { force: true });
+ok("tapping another tab mid-recording says why nothing happens", (await owner.textContent("[data-testid=reply-composer] [role=status]")).includes("Stop the recording first"));
+await owner.waitForTimeout(1500);
+await owner.focus("button:has-text('Stop recording')");
+await owner.keyboard.press("Enter");
+await owner.waitForSelector("[data-testid=reply-review]", { timeout: 15000 });
+ok("Stop: focus moves to Send", (await waitFor(() => owner.evaluate(() => document.activeElement?.textContent === "Send voice reply"), 3000)) === true);
+await owner.click("[data-testid=reply-review] >> text=Discard");
+ok("Discard: focus moves to Keep it", (await waitFor(() => owner.evaluate(() => document.activeElement?.textContent === "Keep it"), 3000)) === true);
+await owner.click("[data-testid=discard-yes]");
+await owner.waitForSelector("text=Recording deleted. Nothing was sent.", { timeout: 10000 });
+ok("Discard: focus moves to the text box", (await waitFor(() => owner.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Reply"), 3000)) === true);
+await owner.click("aside ul li[data-mine]:has-text('Answer from Business A') >> [data-testid=reply-delete]");
+ok("Delete: focus moves to Keep it", (await waitFor(() => owner.evaluate(() => document.activeElement?.textContent === "Keep it"), 3000)) === true);
+ok("owner: Delete names the client it's removed for", (await owner.textContent("[data-testid=reply-delete-confirm]")).includes("removed for Client A too"));
+await owner.keyboard.press("Enter");
+ok("Keep it: focus back on Delete", (await waitFor(() => owner.evaluate(() => document.activeElement?.dataset.testid === "reply-delete"), 3000)) === true);
+
+// The larger view closes with Escape, back to where it was opened.
+await owner.click("button[aria-label='Open conversation in a larger view']");
+await owner.waitForSelector("[data-testid=conversation][data-expanded]");
+await owner.click("[data-testid=conversation-title]");
+await owner.keyboard.press("Escape");
+ok("Escape closes the larger view", await owner.waitForSelector("[data-testid=conversation][data-expanded]", { state: "detached", timeout: 3000 }).then(() => true, () => false));
 const panelHeight = await owner.evaluate(() => document.querySelector("[data-testid=conversation]").getBoundingClientRect().height);
 ok("desktop panel is tall enough for a video reply", panelHeight >= 480, String(panelHeight));
 await owner.screenshot({ path: `${shots}/owner-desktop.png` });
@@ -305,6 +395,9 @@ const stranger = await strangerCtx.newPage();
 await stranger.goto(`${BASE}/v/${videoId}`);
 ok("plain address on a new device: private, explains the personal link", (await stranger.textContent("[data-testid=cant-open-title]")) === "This video is private" && (await stranger.textContent("[data-testid=video-private]")).includes("personal link"));
 ok("…with only a small 'Are you the business? Sign in'", await stranger.isVisible("text=Are you the business?"));
+ok("…and Ask for my link again, without naming the business", await stranger.isVisible("[data-testid=video-private] >> [data-testid=ask-link]") && !(await stranger.textContent("[data-testid=video-private]")).includes("Business A"));
+await stranger.click("[data-testid=video-private] >> [data-testid=ask-link]");
+ok("private page: asking says it was passed on", (await stranger.textContent("[data-testid=lost-key-asked]", { timeout: 10000 }).catch(() => "")).includes("emailed the business that sent it"));
 ok("…and no intro", !(await shown(stranger, "[data-testid=sureframe-promo]", 2000)));
 ok("can't-open page fits 320px", await fits(stranger));
 await stranger.screenshot({ path: `${shots}/private-320.png`, fullPage: true });
@@ -316,9 +409,51 @@ await stranger.goto(link.split("#")[0]);
 await stranger.waitForSelector("[data-testid=lost-key]", { timeout: 20000 });
 ok("no key on this device: says what to do", (await stranger.textContent("[data-testid=lost-key]")).includes("Open your personal link on this device once"));
 ok("no key: no intro over it", !(await shown(stranger, "[data-testid=sureframe-promo]", 2000)));
+ok("no key: the tab doesn't show the title", (await stranger.title()).startsWith("Private video"));
 await stranger.click("text=Ask for my link again");
 ok("Ask again: says who was asked and what happens next", (await stranger.textContent("[data-testid=lost-key-asked]", { timeout: 10000 }).catch(() => "")).includes("emailed Business A"));
 await stranger.screenshot({ path: `${shots}/lost-key-320.png`, fullPage: true });
+// Decision 1: a device that only opened the email link lists nothing of the client's.
+await stranger.goto(BASE + "/inbox");
+await stranger.waitForSelector("[data-testid=inbox-keyless] [data-testid=lost-key]", { timeout: 15000 });
+const keylessInbox = await stranger.textContent("main");
+ok("no key: All my videos lists no titles, email or marks", !keylessInbox.includes("Week 1 plan") && !keylessInbox.includes("@example.com") && !keylessInbox.includes("•••") && (await stranger.locator("[data-testid=inbox-video], [data-testid=forget-device], [data-testid=inbox-emails]").count()) === 0, keylessInbox.slice(0, 200));
+ok("no key: All my videos shows only how to get the key, with Ask for my link again", keylessInbox.includes("This device needs your personal link") && (await stranger.isVisible("[data-testid=inbox-keyless] >> [data-testid=ask-link]")));
+ok("no key: the inbox fits 320px", await fits(stranger));
+await stranger.screenshot({ path: `${shots}/inbox-keyless-320.png`, fullPage: true });
+// Opening the personal link on that device then lists everything.
+await stranger.goto(link.replace(/\?v=[^#]*/, ""));
+await stranger.waitForSelector("[data-testid=inbox-video]", { timeout: 20000 }).catch(() => {});
+ok("with the key: the same device lists the videos", (await stranger.textContent("main")).includes("Week 1 plan"));
+
+// An unknown /v/ address: the client frame and a plain card, not the marketing site.
+await stranger.goto(`${BASE}/v/abc`);
+ok("unknown /v/ address: a can't-find card in the client frame", (await stranger.textContent("[data-testid=cant-open-title]")) === "This video can't be found" && (await stranger.locator("header >> text=All my videos").count()) === 1 && (await stranger.locator("text=Pricing").count()) === 0);
+ok("unknown /v/ address: tab title says so", (await stranger.title()).startsWith("Video not found"));
+
+// A link a key reset replaced says so (not "mistyped"), on a new device and on one that had it.
+const oldToken = `fx-replaced-${Date.now()}-${"x".repeat(12)}`;
+const clientB = await prisma.client.create({ data: { name: "Client B", email: "clientb@example.com", token: oldToken, workspaceId: ws, linkOpenedAt: new Date() } });
+const bVideo = await prisma.video.create({ data: { id: `fxr${Date.now().toString(36)}`, mimeType: "video/webm", storageKey: `test/fx/${Date.now()}`, status: "UPLOADED", workspaceId: ws, ownerId: (await prisma.user.findUnique({ where: { email } })).id, clientId: clientB.id, title: "For Client B" } });
+const bDevice = await (await browser.newContext({ viewport: { width: 320, height: 640 } })).newPage();
+await bDevice.goto(`${BASE}/c/${oldToken}`);
+await prisma.client.update({ where: { id: clientB.id }, data: { token: `fx-new-${Date.now()}-${"y".repeat(12)}` } });
+await prisma.replacedLink.create({ data: { tokenHash: createHash("sha256").update(oldToken).digest("hex"), clientId: clientB.id, emailed: true } });
+await stranger.goto(`${BASE}/c/${oldToken}#k=abc`);
+await stranger.waitForSelector("[data-testid=client-replaced]", { timeout: 10000 });
+const replacedText = await stranger.textContent("[data-testid=client-replaced]");
+ok("replaced link: says it was replaced and the new one emailed", replacedText.includes("Your link was replaced") && replacedText.includes("Business A replaced your personal link") && replacedText.includes("emailed you your new link") && !replacedText.includes("mistyped"), replacedText);
+ok("replaced link: the key part leaves the address bar", !(await stranger.evaluate(() => location.hash)));
+await stranger.screenshot({ path: `${shots}/replaced-320.png`, fullPage: true });
+await bDevice.goto(BASE + "/inbox");
+ok("device with the replaced link: the inbox says why, not 'no videos'", (await bDevice.textContent("main")).includes("Your link was replaced") && !(await bDevice.isVisible("[data-testid=inbox-empty]")));
+await bDevice.click("[data-testid=client-replaced] >> [data-testid=ask-link]");
+ok("replaced: Ask for my link again works from the inbox", !!(await bDevice.waitForSelector("[data-testid=lost-key-asked]", { timeout: 10000 }).catch(() => null)));
+await bDevice.goto(`${BASE}/v/${bVideo.id}`);
+ok("device with the replaced link: the video page says the link was replaced", (await bDevice.textContent("[data-testid=cant-open-title]")) === "Your link was replaced");
+await bDevice.context().close();
+await prisma.video.delete({ where: { id: bVideo.id } });
+await prisma.client.delete({ where: { id: clientB.id } });
 
 // ---------- All my videos ----------
 await fresh.goto(BASE + "/inbox");
@@ -338,8 +473,9 @@ ok("emails page: the logo leads to the client's videos, not the marketing site",
 await fresh.screenshot({ path: `${shots}/emails-on-320.png`, fullPage: true });
 await fresh.goto(BASE + "/inbox");
 await fresh.waitForSelector("[data-testid=forget-device]");
-fresh.once("dialog", (d) => d.accept());
 await fresh.click("[data-testid=forget-device]");
+ok("Remove from this device asks in the page", (await fresh.textContent("[data-testid=forget-confirm]", { timeout: 5000 })).includes("Nothing is deleted"));
+await fresh.click("[data-testid=forget-confirm-yes]");
 await fresh.waitForSelector("[data-testid=inbox-empty]", { timeout: 10000 });
 ok("Remove from this device: forgets the link and key here", !(await phoneCtx.cookies()).some((c) => c.name.startsWith("fc_client_")) && (await fresh.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("framecast.key.client:")))) === false);
 

@@ -9,11 +9,15 @@ import MadeWith from "@/components/MadeWith";
 import { brandOf, brandStyle, type Brand } from "@/lib/branding";
 import WatchView from "@/components/WatchView";
 import CantOpen from "@/components/CantOpen";
+import { AskForLink, ClientKeyGate } from "@/components/LostKey";
 import Logo from "@/components/Logo";
 import { aiAssistActive, PLANS } from "@/lib/plans";
 import { db } from "@/lib/db";
-import { clientBlock, clientCookie, clientGate, viewerFor } from "@/lib/access";
+import { clientBlock, clientCookie, clientGate, viewerFor, type Viewer } from "@/lib/access";
 import { agreePath, currentUser } from "@/lib/session";
+import { keyHeldCookie } from "@/lib/e2e/keyHeld";
+import { findReplaced } from "@/lib/replacedLinks";
+import { formerTeams } from "@/lib/team";
 import { reactionsBy } from "@/lib/reactions";
 import { clientLink } from "@/lib/clients";
 import { publicVideo } from "@/lib/videos";
@@ -29,11 +33,21 @@ async function load(id: string) {
   return { video, viewer: await viewerFor(video) };
 }
 
+/**
+ * A client whose key this browser isn't known to hold (lib/e2e/keyHeld.ts): an email link opened on a device
+ * that never had the personal link. They're shown how to get the key here, not the video's details. Clients
+ * from before encryption have no key to hold.
+ */
+async function keyless(viewer: Viewer | null) {
+  return viewer?.kind === "client" && !!viewer.client.teamKeyWrap && !(await cookies()).get(keyHeldCookie(viewer.client.id))?.value;
+}
+
 // Titles and thumbnails are never put in link previews: videos are private.
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const found = await load(id);
-  return { title: found?.viewer ? found.video.title : "Private video", robots: { index: false } };
+  const title = !found ? "Video not found" : !found.viewer || (await keyless(found.viewer)) ? "Private video" : found.video.title;
+  return { title, robots: { index: false } };
 }
 
 export default async function Watch({ params, searchParams }: Props) {
@@ -61,6 +75,17 @@ export default async function Watch({ params, searchParams }: Props) {
     // Their own team's video, before they've agreed to the current terms (lib/terms.ts).
     if (me && !me.agreed && !me.paused && me.workspace.id === video.workspaceId) redirect(agreePath(`/v/${id}`));
     return <CantOpenVideo video={video} me={me} />;
+  }
+
+  if (viewer.kind === "client" && (await keyless(viewer))) {
+    const workspace = await db.workspace.findUniqueOrThrow({ where: { id: video.workspaceId }, select: brandFields });
+    return (
+      <CantOpenShell brand={brandOf(workspace)}>
+        <div className="mx-auto max-w-md">
+          <ClientKeyGate clientId={viewer.client.id} business={workspace.name} signInNext={`/v/${id}`} />
+        </div>
+      </CantOpenShell>
+    );
   }
 
   const isMember = viewer.kind === "member";
@@ -108,8 +133,8 @@ export default async function Watch({ params, searchParams }: Props) {
       ])
     : [undefined, 0];
 
-  // The reactions this viewer left, highlighted so a second tap takes one back.
-  const myReactions = (await db.reaction.findMany({ where: { videoId: id, ...reactionsBy(viewer.kind === "member" ? { kind: "member", userId: viewer.userId } : { kind: "client" }) }, select: { emoji: true } })).map((r) => r.emoji);
+  // The reaction this viewer left (the latest, for an older conversation with several), highlighted so a second tap takes it back.
+  const myReactions = (await db.reaction.findMany({ where: { videoId: id, ...reactionsBy(viewer.kind === "member" ? { kind: "member", userId: viewer.userId } : { kind: "client" }) }, orderBy: { createdAt: "asc" }, select: { emoji: true } })).map((r) => r.emoji);
   const who = replyViewer(viewer);
   const held = await db.reply.findMany({ where: { videoId: id, ...heldRepliesOf(who) }, orderBy: { createdAt: "asc" }, include: { media: true } });
 
@@ -128,7 +153,8 @@ export default async function Watch({ params, searchParams }: Props) {
           </CantOpen>
         ) : (
           <WatchView
-            video={{ ...publicVideo(video), viewCount: video.viewCount + copyViews }}
+            // Only the team sees how often the client opened it; clients aren't sent the count at all.
+            video={{ ...publicVideo(video), viewCount: isMember ? video.viewCount + copyViews : 0 }}
             ownerName={
               // Clients see "Sam from Business" (never an email); the team sees the name or email.
               isMember ? (video.owner.name ?? video.owner.email.split("@")[0]) : video.owner.name ? `${video.owner.name} from ${workspace.name}` : workspace.name
@@ -227,7 +253,34 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
     );
   }
 
+  // This device's link for the business was replaced by a key reset: say so, and how to get the new one.
+  if (token && !mine && video.clientId) {
+    const replaced = (await findReplaced([token])).find((r) => r.client.id === video.clientId);
+    if (replaced) {
+      const name = replaced.client.workspace.name;
+      return (
+        <CantOpenShell brand={brandOf(replaced.client.workspace)}>
+          <CantOpen title="Your link was replaced" testId="video-replaced" action={<AskForLink business={name} url={`/api/videos/${video.id}/ask-link`} />}>
+            <p>{name} replaced your personal link for security, so the old one no longer opens your videos. Nothing has been deleted.</p>
+            <p>{replaced.emailed ? "They've emailed you your new link. Open it on this device and this video opens here again." : "Ask them for your new link, then open it on this device."}</p>
+          </CantOpen>
+        </CantOpenShell>
+      );
+    }
+  }
+
   if (me) {
+    // Someone removed from the business's team: told so plainly, as everywhere else in the app (RemovedNotice).
+    const former = (await formerTeams(me.user.id)).find((t) => t.id === video.workspaceId);
+    if (former && !me.user.memberships.some((m) => m.workspaceId === video.workspaceId)) {
+      return (
+        <CantOpenShell brand={null} team>
+          <CantOpen title={`You're no longer on ${former.name}'s team`} testId="video-removed-member">
+            <p>An owner or admin removed you, so you can&apos;t open that team&apos;s videos any more. If that&apos;s a mistake, ask them for a new invite link.</p>
+          </CantOpen>
+        </CantOpenShell>
+      );
+    }
     // Signed in to the team: say what's actually in the way rather than "sign in".
     const membership = me.user.memberships.find((m) => m.workspaceId === video.workspaceId);
     const ws = membership?.workspace;
@@ -263,7 +316,13 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
   // Anyone else: a client on a device that hasn't opened their link, a different client, or someone with just the address.
   return (
     <CantOpenShell brand={null}>
-      <CantOpen title="This video is private" testId="video-private" signInNext={me ? undefined : path}>
+      <CantOpen
+        title="This video is private"
+        testId="video-private"
+        signInNext={me ? undefined : path}
+        // The business sends the link to their client themselves, so asking reveals nothing (not even who they are).
+        action={!me && video.clientId ? <AskForLink business="the business that sent it" url={`/api/videos/${video.id}/ask-link`} /> : undefined}
+      >
         <p>To watch it, open the personal link you were sent. It unlocks the video on that device.</p>
         <p>An address like this one (ending in /v/{video.id}) only opens on a device that has already used that personal link.</p>
         {me && <p>You&apos;re signed in as {me.user.email}, and this video isn&apos;t in your account.</p>}

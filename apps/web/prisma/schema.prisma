@@ -476,6 +476,7 @@ model Client {
   videos             Video[]
   items              Item[]
   keyRotations       KeyRotation[]
+  replacedLinks      ReplacedLink[]
 
   @@index([workspaceId, removedAt])
   @@index([assignedToId])
@@ -573,6 +574,21 @@ model MobileCode {
 /// A key replaced after someone left the team: the new key, wrapped with the
 /// old one. Devices still holding the old key follow these to the current
 /// key. Served only to current members (team key) or the client themselves.
+/// A client's personal-link token that a key reset (or a restore after one) replaced, kept only as a hash so
+/// the old link can say "your link was replaced" rather than "mistyped". It opens nothing.
+model ReplacedLink {
+  id        String   @id @default(cuid())
+  /// sha256 of the old token (lib/replacedLinks.ts).
+  tokenHash String   @unique
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  /// The client was sent their new link by email.
+  emailed   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+}
+
 model KeyRotation {
   id              String    @id @default(cuid())
   /// Fingerprint of the key that unwraps `wrap`.

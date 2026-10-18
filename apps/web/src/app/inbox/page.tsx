@@ -8,15 +8,19 @@ import MadeWith from "@/components/MadeWith";
 import AiNotice from "@/components/AiNotice";
 import { aiAssistActive } from "@/lib/plans";
 import { brandOf, brandStyle } from "@/lib/branding";
-import ClientKeyCapture from "@/components/ClientKeyCapture";
+import ClientKeyCapture, { HideKeyFromAddress } from "@/components/ClientKeyCapture";
 import ClientPlanner from "@/components/ClientPlanner";
 import CantOpen from "@/components/CantOpen";
 import ForgetDevice from "@/components/ForgetDevice";
+import { AskForLink, ClientKeyGate } from "@/components/LostKey";
 import { db } from "@/lib/db";
 import { unsubscribeUrl } from "@/lib/reminders";
 import { zoned } from "@/lib/dates";
 import { clientCookie, REMOVED_COOKIE, usableClientWhere } from "@/lib/access";
 import { visibleReplies } from "@/lib/replies";
+import { askForLink } from "@/lib/askForLink";
+import { findReplaced } from "@/lib/replacedLinks";
+import { keyHeldCookie } from "@/lib/e2e/keyHeld";
 
 /** "jo@example.com" as "j•••@example.com": enough to recognise, without showing the whole address on screen. */
 const masked = (email: string) => email.replace(/^(.)[^@]*/, "$1•••");
@@ -30,8 +34,12 @@ async function clientOnDevice(clientId: string) {
 export const metadata: Metadata = { title: "Your videos" };
 
 /** A client's view: every video their coach (or coaches) sent them. */
-export default async function Inbox({ searchParams }: { searchParams: Promise<{ invalid?: string; paused?: string; removed?: string; closed?: string; unavailable?: string; off?: string; c?: string }> }) {
-  const { invalid, paused, removed, closed, unavailable, off, c: arrivedAs } = await searchParams;
+export default async function Inbox({
+  searchParams,
+}: {
+  searchParams: Promise<{ invalid?: string; paused?: string; removed?: string; closed?: string; unavailable?: string; off?: string; replaced?: string; c?: string }>;
+}) {
+  const { invalid, paused, removed, closed, unavailable, off, replaced, c: arrivedAs } = await searchParams;
   const jar = await cookies();
   const tokens = jar
     .getAll()
@@ -77,6 +85,13 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
   // Newest first by when each video reached the client, not when it was recorded.
   for (const c of clients) c.videos.sort((a, b) => +(b.sentAt ?? b.createdAt) - +(a.sentAt ?? a.createdAt));
   const pausedNames = [...new Set(pausedBy.map((p) => p.workspace.name))];
+  // A client with a key is only listed on a device that holds it (lib/e2e/keyHeld.ts): one that only opened an
+  // email link sees how to get the key here instead. Clients from before encryption have no key to hold.
+  const keyless = clients.filter((c) => c.teamKeyWrap && !jar.get(keyHeldCookie(c.id))?.value);
+  const listed = clients.filter((c) => !keyless.includes(c));
+  // Links a key reset replaced (lib/replacedLinks.ts): this device's old one, or the old link just opened. Not
+  // when that client's current link already works here.
+  const replacedBy = (await findReplaced(removedTokens)).filter((r) => !clients.some((c) => c.id === r.client.id));
 
   // Emails back on in one tap, landing on a page that says so (reminders/off).
   async function turnOn(formData: FormData) {
@@ -87,17 +102,42 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
     redirect(`/reminders/off${new URL(unsubscribeUrl(client.id)).search}&done=on`);
   }
   // "Remove from this device": this browser forgets the personal link for that business (nothing is deleted).
-  async function forget(workspaceId: string) {
+  async function forget(workspaceId: string, clientId: string) {
     "use server";
-    (await cookies()).delete(clientCookie(workspaceId));
+    const jar = await cookies();
+    jar.delete(clientCookie(workspaceId));
+    jar.delete(keyHeldCookie(clientId));
+  }
+  // "Ask for my link again" after a key reset replaced the link this device had (it no longer identifies them).
+  async function askReplaced(clientId: string) {
+    "use server";
+    const jar = await cookies();
+    const mine = [...jar.getAll().filter((c) => c.name.startsWith("fc_client_")).map((c) => c.value), jar.get(REMOVED_COOKIE)?.value].filter((t): t is string => !!t);
+    const row = (await findReplaced(mine)).find((r) => r.client.id === clientId);
+    return row ? askForLink(row.client.id) : false;
   }
 
   // Why links on this device open nothing right now. The one just opened (from ?removed=1 and the like) is
   // explained in the same "can't open" card every dead end uses; anything else is a banner.
-  type Why = "invalid" | "removed" | "closed" | "unavailable" | "off" | "paused";
-  const arrived: Why | null = invalid ? "invalid" : removed ? "removed" : closed ? "closed" : unavailable ? "unavailable" : off ? "off" : paused ? "paused" : null;
+  type Why = "invalid" | "removed" | "closed" | "unavailable" | "off" | "paused" | "replaced";
+  const arrived: Why | null = invalid
+    ? "invalid"
+    : removed
+      ? "removed"
+      : closed
+        ? "closed"
+        : unavailable
+          ? "unavailable"
+          : off
+            ? "off"
+            : paused
+              ? "paused"
+              : replaced
+                ? "replaced"
+                : null;
   const titles: Record<Why, string> = {
     invalid: "This link doesn't look right",
+    replaced: "Your link was replaced",
     removed: "Your access has ended",
     closed: "This link no longer opens your videos",
     unavailable: "Unavailable right now",
@@ -157,14 +197,35 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
   const banners = notices.filter((n) => n.why !== arrived);
 
   // With one business, the whole page wears its branding.
-  const brand = clients.length === 1 ? brandOf(clients[0].workspace) : null;
+  const brand = clients.length === 1 ? brandOf(clients[0].workspace) : !clients.length && replacedBy.length === 1 ? brandOf(replacedBy[0].client.workspace) : null;
 
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
-      {arrivedAs && clients.some((c) => c.id === arrivedAs) && <ClientKeyCapture clientId={arrivedAs} />}
+      {/* For a client not yet known to have the key here, the gate below takes the key from the link instead. */}
+      {arrivedAs && listed.some((c) => c.id === arrivedAs) && <ClientKeyCapture clientId={arrivedAs} />}
       <ClientHeader brand={brand} />
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-        {arrived && (
+        {/* The link's key is no use on a page that couldn't open it, so it leaves the address bar too. */}
+        {arrived && <HideKeyFromAddress />}
+        {replacedBy.map((r) => (
+          <div key={r.client.id} className="mb-8">
+            <CantOpen
+              title={titles.replaced}
+              testId="client-replaced"
+              action={<AskForLink business={r.client.workspace.name} action={askReplaced.bind(null, r.client.id)} unlocks="your videos" />}
+            >
+              <p>
+                {r.client.workspace.name} replaced your personal link for security, so the old one no longer opens your videos. Nothing has been deleted.
+              </p>
+              <p>
+                {r.emailed
+                  ? `They've emailed you your new link. Open it on this device and your videos show here again.`
+                  : `Ask them for your new link, then open it on this device.`}
+              </p>
+            </CantOpen>
+          </div>
+        ))}
+        {arrived && (arrived !== "replaced" || replacedBy.length === 0) && (
           <div className="mb-8">
             <CantOpen title={titles[arrived]} testId="client-cant-open">
               {arrived === "invalid" && (
@@ -173,18 +234,25 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
                   business that sent it for your personal link.
                 </p>
               )}
+              {arrived === "replaced" && <p data-testid="client-replaced">This link was replaced by a newer one. Ask the business that sent it for your new link.</p>}
               {inCard.map((n) => (
                 <p key={n.key} data-testid={n.testId}>{n.text}</p>
               ))}
             </CantOpen>
           </div>
         )}
-        {(clients.length > 0 || !arrived) && <h1 className="text-2xl font-semibold tracking-tight text-ink">Your videos</h1>}
+        {(listed.length > 0 || (!arrived && !keyless.length && !replacedBy.length)) && <h1 className="text-2xl font-semibold tracking-tight text-ink">Your videos</h1>}
         {banners.map((n) => (
           <p key={n.key} className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid={n.testId}>{n.text}</p>
         ))}
+        {keyless.map((c) => (
+          // Only how to get the key here: no titles, email address or other details until this device has it.
+          <div key={c.id} className="mt-6" data-testid="inbox-keyless">
+            <ClientKeyGate clientId={c.id} business={c.workspace.name} unlocks="your videos" />
+          </div>
+        ))}
         {clients.length === 0 ? (
-          notices.length > 0 || arrived ? null : (
+          notices.length > 0 || arrived || replacedBy.length ? null : (
             <div className="mt-6">
               <CantOpen title="No videos on this device yet" testId="inbox-empty" signInNext="/library">
                 <p>Open the personal link you were sent, and your videos show here on this device.</p>
@@ -192,11 +260,11 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
             </div>
           )
         ) : (
-          clients.map((c) => (
+          listed.map((c) => (
             <section key={c.id} className="mt-8">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-dim">From {c.workspace.name}</h2>
-                <ForgetDevice clientId={c.id} business={c.workspace.name} forget={forget.bind(null, c.workspaceId)} />
+                <ForgetDevice clientId={c.id} business={c.workspace.name} workspaceId={c.workspaceId} forget={forget.bind(null, c.workspaceId, c.id)} />
               </div>
               {aiAssistActive(c.workspace) && <AiNotice className="mt-2" />}
               {c.videos.length === 0 ? (

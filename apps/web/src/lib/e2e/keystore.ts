@@ -1,10 +1,12 @@
 import { exportKey, fingerprint, importKey, unwrapKey } from "./crypto";
+import { markKeyHeld } from "./keyHeld";
 
 /**
  * Keys kept on this device only. The team key unlocks everything the team
  * owns; a client key unlocks what was sent to that client.
  */
 const PREFIX = "framecast.key.";
+const CLIENT_PREFIX = "client:";
 
 function get(name: string) {
   try {
@@ -34,12 +36,14 @@ export async function loadKey(name: string) {
 
 export async function saveKey(name: string, key: CryptoKey) {
   set(name, await exportKey(key));
+  // The server then lists this client's videos on this device (lib/e2e/keyHeld.ts).
+  if (name.startsWith(CLIENT_PREFIX) && get(name)) markKeyHeld(name.slice(CLIENT_PREFIX.length), true);
   // Ask the browser not to clear this site's storage on its own (Safari otherwise can after a week without a visit).
   void navigator.storage?.persist?.().catch(() => {});
 }
 
 export const teamKeyName = (workspaceId: string) => `team:${workspaceId}`;
-export const clientKeyName = (clientId: string) => `client:${clientId}`;
+export const clientKeyName = (clientId: string) => `${CLIENT_PREFIX}${clientId}`;
 
 type Chain = { fingerprint: string | null; rotations: { from: string; wrap: string }[] };
 
@@ -66,10 +70,15 @@ export async function followRotations(key: CryptoKey, chain: Chain): Promise<Cry
  */
 export async function loadClientKey(clientId: string): Promise<CryptoKey | null> {
   const local = await loadKey(clientKeyName(clientId));
-  if (!local) return null;
+  if (!local) {
+    markKeyHeld(clientId, false);
+    return null;
+  }
   const res = await fetch(`/api/clients/${clientId}/key`).catch(() => null);
   if (!res?.ok) return local;
   const next = await followRotations(local, await res.json()).catch(() => null);
   if (next && next !== local) await saveKey(clientKeyName(clientId), next);
+  // A key that can't reach the current one opens nothing here.
+  markKeyHeld(clientId, !!next);
   return next;
 }

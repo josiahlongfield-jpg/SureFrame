@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import LogoMark from "./LogoMark";
 
 /** Seconds before the intro can be skipped. */
@@ -19,6 +19,8 @@ export default function SureFramePromo({ workspaceId, business, onWatch }: { wor
   // Unknown until this device's storage is checked, so a returning viewer never sees it flash.
   const [open, setOpen] = useState<boolean | null>(null);
   const [left, setLeft] = useState(WAIT_SECONDS);
+  const box = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let seen = false;
@@ -34,6 +36,15 @@ export default function SureFramePromo({ workspaceId, business, onWatch }: { wor
     return () => clearTimeout(t);
   }, [open, left]);
 
+  // The keyboard starts in the card, and lands on Watch now once it can be pressed.
+  useEffect(() => {
+    if (!open) return;
+    const inCard = box.current?.contains(document.activeElement) && document.activeElement !== box.current;
+    if (inCard) return;
+    if (left > 0) box.current?.focus();
+    else button.current?.focus();
+  }, [open, left]);
+
   if (!open) return null;
   const watch = () => {
     try {
@@ -46,9 +57,26 @@ export default function SureFramePromo({ workspaceId, business, onWatch }: { wor
   };
 
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="promo-title" data-testid="sureframe-promo" className="fixed inset-0 z-[70] grid place-items-center overflow-y-auto bg-solid/70 px-4 py-6">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="promo-title"
+      aria-describedby="promo-wait"
+      data-testid="sureframe-promo"
+      className="fixed inset-0 z-[70] grid place-items-center overflow-y-auto bg-solid/70 px-4 py-6"
+      onKeyDown={(e) => {
+        // Tab stays in the card: the page behind it isn't usable until the intro closes.
+        if (e.key !== "Tab") return;
+        const stops = [...(box.current?.querySelectorAll<HTMLElement>("button:not([disabled]), a[href]") ?? [])];
+        if (!stops.length) return e.preventDefault();
+        const i = stops.indexOf(document.activeElement as HTMLElement);
+        const next = e.shiftKey ? (i <= 0 ? stops.length - 1 : i - 1) : i === stops.length - 1 ? 0 : i + 1;
+        e.preventDefault();
+        stops[next].focus();
+      }}
+    >
       <style>{PROMO_CSS}</style>
-      <div data-theme="navy" className="w-full max-w-md overflow-hidden rounded-2xl border border-line bg-surface text-center text-ink shadow-2xl">
+      <div ref={box} tabIndex={-1} data-theme="navy" className="w-full max-w-md overflow-hidden rounded-2xl border border-line bg-surface text-center text-ink shadow-2xl outline-none">
         {/* A short animation drawn on the page: no video file, nothing loaded from elsewhere. */}
         <div className="sf-promo relative aspect-[2/1] overflow-hidden bg-gradient-to-br from-[#0f2747] via-[#0f2747] to-[#173357]" aria-hidden="true">
           <div className="sf-s2 absolute inset-0 flex items-center justify-center gap-4 px-6">
@@ -72,12 +100,17 @@ export default function SureFramePromo({ workspaceId, business, onWatch }: { wor
           </h2>
           <p className="mt-2 text-sm text-muted">Watch it, then reply with a message, a voice note or a video. Only you and {business} can see your conversation.</p>
           <button
+            ref={button}
             onClick={watch}
             disabled={left > 0}
             className="mt-5 w-full rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover disabled:bg-line-strong disabled:text-muted"
           >
-            {left > 0 ? `Watch now (${left})` : "Watch now"}
+            Watch now
           </button>
+          {/* A countdown on a greyed-out button reads like a fault, so the short wait is said in words. */}
+          <p id="promo-wait" className="mt-2 text-xs text-muted" data-testid="promo-wait">
+            {left > 0 ? `You can start watching in ${left} ${left === 1 ? "second" : "seconds"}. ` : ""}This short intro only shows once on this device.
+          </p>
           <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-dim">
             <LogoMark size={14} tone="mono" />
             <span>

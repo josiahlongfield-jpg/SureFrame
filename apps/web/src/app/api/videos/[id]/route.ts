@@ -13,8 +13,10 @@ import { emailClientVideo } from "@/lib/emailClientVideo";
 
 export const GET = handle(async (_req: Request, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params;
-  const { video } = await viewableVideo(id);
-  return Response.json({ video: publicVideo(video) });
+  const { video, viewer } = await viewableVideo(id);
+  // How often the client opened it is for the team only.
+  const { viewCount, ...shared } = publicVideo(video);
+  return Response.json({ video: viewer.kind === "member" ? { ...shared, viewCount } : shared });
 });
 
 const Patch = z.object({

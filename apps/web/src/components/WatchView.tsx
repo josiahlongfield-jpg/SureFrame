@@ -11,7 +11,7 @@ import SecureMedia, { useDecryptedUrl } from "./SecureMedia";
 import TeamKeyGate from "./TeamKeyGate";
 import AiInsight, { type SealedInsight } from "./AiInsight";
 import AiNotice from "./AiNotice";
-import CantOpen from "./CantOpen";
+import LostKey from "./LostKey";
 import SureFramePromo from "./SureFramePromo";
 import { markLinkSent } from "./ClientsManager";
 import SendPanel from "./SendPanel";
@@ -152,53 +152,9 @@ function ClientUnlock({ clientId, ...props }: Props & { clientId: string }) {
       setRootKey(await unwrapKey(props.video.clientKeyWrap, clientKey));
     })().catch(() => setMissing(true));
   }, [clientId, props.video.clientKeyWrap]);
-  if (missing) return <LostKey clientId={clientId} business={props.business} videoId={props.video.id} />;
+  if (missing) return <LostKey clientId={clientId} business={props.business} signInNext={`/v/${props.video.id}`} />;
   if (!rootKey) return <Locked text="Unlocking…" />;
   return <WatchBody {...props} canEdit={false} rootKey={rootKey} />;
-}
-
-/**
- * A client this browser recognises (it has opened one of their links) but without the key that unlocks
- * their videos: an email link opened on a new device, a link missing its #k= part, or a browser that
- * cleared its storage (Safari does after a week or so without a visit). Only the business can send the
- * personal link again, so this asks them to.
- */
-function LostKey({ clientId, business, videoId }: { clientId: string; business: string; videoId: string }) {
-  const [state, setState] = useState<"idle" | "busy" | "asked" | "failed">("idle");
-  async function ask() {
-    setState("busy");
-    const res = await fetch(`/api/clients/${clientId}/lost-key`, { method: "POST" }).catch(() => null);
-    const body = res?.ok ? ((await res.json().catch(() => ({}))) as { asked?: boolean }) : null;
-    setState(body?.asked ? "asked" : "failed");
-  }
-  return (
-    <CantOpen
-      title="This device needs your personal link"
-      testId="lost-key"
-      signInNext={`/v/${videoId}`}
-      action={
-        state === "asked" ? (
-          <p className="rounded-xl bg-ok-bg p-3 text-sm text-ok-fg" role="status" data-testid="lost-key-asked">
-            Done. We&rsquo;ve emailed {business} to ask them to send you your personal link again. They&rsquo;ll send it to you themselves. When it
-            arrives, open it on this device and this video will unlock.
-          </p>
-        ) : (
-          <>
-            <button onClick={ask} disabled={state === "busy"} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60">
-              {state === "busy" ? "Asking…" : "Ask for my link again"}
-            </button>
-            {state === "failed" && <p role="alert" className="mt-2 text-sm text-danger-fg">That didn&rsquo;t go through. Please contact {business} directly.</p>}
-          </>
-        )
-      }
-    >
-      <p>
-        Videos from {business} unlock with the personal link they gave you: the full link, including the part after <span className="whitespace-nowrap">#k=</span>. This
-        device hasn&rsquo;t opened that link yet, or this browser has since cleared it.
-      </p>
-      <p>Open your personal link on this device once, and this video and future email links from {business} will open here.</p>
-    </CantOpen>
-  );
 }
 
 /** Lets the business know this client has their personal link working (see api/clients/[id]/opened). */
@@ -443,9 +399,12 @@ function WatchBody({
   const unread = replies.filter((r) => !r.mine && r.createdAt > seenAt).length;
 
   const [burst, setBurst] = useState<{ id: number; emoji: string }[]>([]);
-  const [mine, setMine] = useState<ReadonlySet<string>>(() => new Set(myReactions));
-  // Reactions on their way to the server (a ref, so taps in the same instant see it too).
-  const inFlight = useRef(new Set<string>());
+  // One reaction at a time (an older conversation may have several; the latest shows).
+  const [mine, setMine] = useState<string | null>(() => myReactions.at(-1) ?? null);
+  // What the last tap did, said under the row so a client knows it reached the business.
+  const [reactNote, setReactNote] = useState<"sent" | "removed" | "failed" | null>(null);
+  // A reaction on its way to the server (a ref, so taps in the same instant see it too).
+  const inFlight = useRef(false);
 
   // Encrypted recordings are downloaded and decrypted here, on the viewer's device.
   const expired = video.status === "EXPIRED";
@@ -496,17 +455,13 @@ function WatchBody({
     return Math.round(el.currentTime * 1000);
   }
 
-  /** Adds a reaction, or takes it back on a second tap. One request at a time per reaction, so taps never double up. */
+  /** Picks a reaction (replacing any other), or takes it back on a second tap. One request at a time, so taps never double up. */
   async function react(emoji: string) {
-    if (inFlight.current.has(emoji)) return;
-    inFlight.current.add(emoji);
-    const on = !mine.has(emoji);
-    setMine((cur) => {
-      const next = new Set(cur);
-      if (on) next.add(emoji);
-      else next.delete(emoji);
-      return next;
-    });
+    if (inFlight.current) return;
+    inFlight.current = true;
+    const before = mine;
+    const on = mine !== emoji;
+    setMine(on ? emoji : null);
     if (on) {
       const id = Date.now() + Math.random();
       setBurst((b) => [...b, { id, emoji }]);
@@ -519,13 +474,10 @@ function WatchBody({
     }).catch(() => null);
     const result = res?.ok ? ((await res.json().catch(() => null)) as { on?: boolean } | null) : null;
     // The server has the last word (another tab may have changed it).
-    setMine((cur) => {
-      const next = new Set(cur);
-      if (result ? result.on : !on) next.add(emoji);
-      else next.delete(emoji);
-      return next;
-    });
-    inFlight.current.delete(emoji);
+    if (!result) setMine(before);
+    else setMine(result.on ? emoji : null);
+    setReactNote(!result ? "failed" : result.on ? "sent" : "removed");
+    inFlight.current = false;
   }
 
   const refresh = useCallback(async () => {
@@ -561,22 +513,52 @@ function WatchBody({
     setReplies((cur) => (cur.some((x) => x.id === r.id) ? cur : [...cur, r]));
   }
 
+  // Deleting a reply asks first, in the page: which one is being asked about, one in progress, and any error.
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [replyBusy, setReplyBusy] = useState<string | null>(null);
+  const [replyError, setReplyError] = useState<{ id: string; text: string } | null>(null);
+  // Where keyboard focus goes once a question closes (the button that asked), so it never drops to the page top.
+  const [refocus, setRefocus] = useState<string | null>(null);
+  useEffect(() => {
+    if (!refocus) return;
+    panel.current?.querySelector<HTMLElement>(`[data-focus="${refocus}"]`)?.focus();
+    setRefocus(null);
+  }, [refocus]);
+
+  function askDelete(r: ReplyDTO) {
+    setReplyError(null);
+    setConfirming(r.id);
+    setRefocus(`keep:${r.id}`);
+  }
+  function keepReply(r: ReplyDTO) {
+    setConfirming(null);
+    setRefocus(`delete:${r.id}`);
+  }
+
   async function removeReply(r: ReplyDTO) {
-    const what = r.kind === "TEXT" ? "message" : r.kind === "VIDEO" ? "video reply" : "voice reply";
-    if (!confirm(`Delete this ${what}? It's removed for ${counterpart ?? "everyone"} too, and can't be undone.`)) return;
-    if (!(await deleteReply(video.id, r.id))) return alert("Couldn't delete it. Check your connection and try again.");
+    setReplyBusy(r.id);
+    const done = await deleteReply(video.id, r.id);
+    setReplyBusy(null);
+    if (!done) return setReplyError({ id: r.id, text: "Couldn't delete it. Check your connection and try again." });
+    setConfirming(null);
     setReplies((cur) => cur.filter((x) => x.id !== r.id));
     setHeld((cur) => cur.filter((x) => x.id !== r.id));
+    composer.current?.focus();
   }
 
   async function sendHeld(r: ReplyDTO) {
+    setReplyError(null);
+    setReplyBusy(r.id);
     const { reply, error } = await sendHeldReply(video.id, r.id);
-    if (!reply) return alert(error);
+    setReplyBusy(null);
+    if (!reply) return setReplyError({ id: r.id, text: error ?? "Couldn't send your reply. Check your connection and try again." });
     setHeld((cur) => cur.filter((x) => x.id !== r.id));
     addReply(reply);
+    composer.current?.focus();
   }
 
   const [titleSaved, setTitleSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const titleBox = useRef<HTMLTextAreaElement>(null);
   // The title box grows with its text, so a long title wraps instead of being cut off.
   useLayoutEffect(() => {
@@ -732,6 +714,10 @@ function WatchBody({
             {playable && (
               <a
                 href={playable}
+                onClick={() => {
+                  setSaving(true);
+                  setTimeout(() => setSaving(false), 6000);
+                }}
                 download={`${fileName(business, title)}.${isWebm ? "webm" : "mp4"}`}
                 title={isWebm ? "Saves as a .webm file. Some iPhones and iPads can't play these; a computer can." : undefined}
                 className="rounded-xl border border-line-strong px-4 py-2 text-sm text-muted hover:bg-hover"
@@ -744,16 +730,63 @@ function WatchBody({
             )}
           </div>
         </div>
+        {/* A phone shows nothing of its own when a download starts, so the page says where it went. */}
+        {saving && (
+          <p role="status" className="mt-2 px-1 text-xs text-ok-fg" data-testid="saving-note">
+            Saving to your device. Look in your browser&apos;s downloads.
+          </p>
+        )}
 
         {video.purgeAt && !expired && (
           <p className="mt-3 flex items-start gap-2 px-1 text-xs text-dim" data-testid="purge-note">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-px shrink-0" aria-hidden><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
             <span>
               End-to-end encrypted. This video will be deleted from SureFrame on {day(video.purgeAt)}. Save it to your device if you want to keep a copy.
+              {/* Clients ask how long they have to reply: there's no deadline (How this works says how long replies are kept). */}
+              {!canEdit && " You can still reply after that date."}
               {isWebm && playable && " It saves as a .webm file, which some iPhones can't play; a computer can."}
             </span>
           </p>
         )}
+
+        {/* Reactions belong to a conversation with a client, so not on a video that hasn't been sent yet. Under the video, where they're about. */}
+        {!unsent && (
+          <div className="mt-4">
+            <p className="mb-1.5 px-1 text-xs text-dim" data-testid="reactions-label">
+              {/* Clients see the team's reactions nowhere, so the team is told whose these are and who sees them. */}
+              {canEdit ? "Your reaction (only you see it)" : `Your reaction · ${business} sees the one you pick`}
+            </p>
+            <div ref={reactionsRow} className="grid grid-cols-6 gap-1.5 sm:flex sm:flex-wrap sm:gap-2" data-testid="reactions">
+              {REACTIONS.map((e) => {
+                const on = mine === e;
+                return (
+                  <button
+                    key={e}
+                    onClick={() => react(e)}
+                    aria-label={`React ${e}`}
+                    aria-pressed={on}
+                    title={on ? "Tap again to take it back" : undefined}
+                    className={`rounded-full border py-1.5 text-lg transition sm:px-3 ${on ? "border-primary bg-primary-soft ring-1 ring-primary" : "border-line bg-surface hover:bg-hover"}`}
+                  >
+                    {e}
+                  </button>
+                );
+              })}
+            </div>
+            <p role="status" className="px-1 pt-1.5 text-xs text-muted" data-testid="reaction-note">
+              {reactNote === "failed"
+                ? "That didn't go through. Check your connection and try again."
+                : reactNote === "removed"
+                  ? "Reaction taken back."
+                  : reactNote === "sent" && mine
+                    ? canEdit
+                      ? "Saved."
+                      : `Sent. ${business} can see your ${mine}. Tap it again to take it back.`
+                    : ""}
+            </p>
+          </div>
+        )}
+        {canEdit && clientReactions && clientReactions.length > 0 && <ReactionSummary reactions={clientReactions} onSeek={seek} who={recipient?.name ?? "The client"} />}
 
         {canEdit && <MessageEditor videoId={video.id} rootKey={rootKey} sealed={sealedMessage} to={recipient?.name ?? null} />}
 
@@ -782,28 +815,6 @@ function WatchBody({
           />
         )}
 
-        {/* Reactions belong to a conversation with a client, so not on a video that hasn't been sent yet. */}
-        {!unsent && (
-          <div ref={reactionsRow} className="mt-4 flex flex-wrap gap-2" data-testid="reactions">
-            {REACTIONS.map((e) => {
-              const on = mine.has(e);
-              return (
-                <button
-                  key={e}
-                  onClick={() => react(e)}
-                  aria-label={`React ${e}`}
-                  aria-pressed={on}
-                  title={on ? "Tap again to take it back" : undefined}
-                  className={`rounded-full border px-3 py-1.5 text-lg transition ${on ? "border-primary bg-primary-soft ring-1 ring-primary" : "border-line bg-surface hover:bg-hover"}`}
-                >
-                  {e}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {canEdit && clientReactions && clientReactions.length > 0 && <ReactionSummary reactions={clientReactions} onSeek={seek} who={recipient?.name ?? "The client"} />}
-
         {/* Phones: the way into the conversation, in the page itself, right under the reactions. */}
         <div ref={inline} data-testid="chat-inline" className="mt-4 rounded-2xl border border-line bg-surface p-4 lg:hidden">
           <div className="flex items-center justify-between gap-3">
@@ -813,6 +824,12 @@ function WatchBody({
                 {replies.length === 0 ? "No messages yet" : `${replies.length} ${replies.length === 1 ? "message" : "messages"}`}
                 {unread > 0 && <span className="font-medium text-accent"> · {unread} new</span>}
               </p>
+              {/* A reply recorded but never sent waits inside the conversation; say so before it's forgotten. */}
+              {held.length > 0 && (
+                <p className="mt-0.5 text-xs font-medium text-warn-fg" data-testid="inline-unsent">
+                  You have an unsent reply. Open the conversation to send or delete it.
+                </p>
+              )}
             </div>
             {unread > 0 && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" aria-hidden data-testid="inline-unread" />}
           </div>
@@ -843,7 +860,7 @@ function WatchBody({
           type="button"
           onClick={openSheet}
           data-testid="chat-bubble"
-          aria-label={`Open conversation (${replies.length} ${replies.length === 1 ? "reply" : "replies"}${unread ? `, ${unread} new` : ""})`}
+          aria-label={`Open conversation (${replies.length} ${replies.length === 1 ? "reply" : "replies"}${unread ? `, ${unread} new` : ""}${held.length ? ", 1 unsent reply" : ""})`}
           className="fixed bottom-5 left-5 z-50 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-semibold text-on-primary shadow-lg hover:bg-primary-hover lg:hidden"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -938,11 +955,28 @@ function WatchBody({
                     <ReplyMedia reply={r} conversationKey={rootKey} />
                   </div>
                 ) : null}
-                {r.mine && (
-                  <button onClick={() => removeReply(r)} className="mt-1 text-xs text-dim underline-offset-2 hover:text-danger-fg hover:underline" data-testid="reply-delete">
-                    Delete
-                  </button>
-                )}
+                {r.mine &&
+                  (confirming === r.id ? (
+                    <div className="mt-1 max-w-[90%] rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-ink" data-testid="reply-delete-confirm">
+                      <p>
+                        Delete this {r.kind === "TEXT" ? "message" : r.kind === "VIDEO" ? "video reply" : "voice reply"}? It&apos;s removed for {counterpart ?? "everyone"} too, and
+                        can&apos;t be undone.
+                      </p>
+                      <div className="mt-2 flex flex-wrap justify-end gap-2">
+                        <button onClick={() => keepReply(r)} data-focus={`keep:${r.id}`} className="rounded-md border border-line-strong bg-surface px-2.5 py-1 font-medium hover:bg-hover">
+                          Keep it
+                        </button>
+                        <button onClick={() => removeReply(r)} disabled={replyBusy === r.id} data-testid="reply-delete-yes" className="rounded-md bg-red-600 px-2.5 py-1 font-semibold text-white hover:bg-red-700 disabled:opacity-60">
+                          {replyBusy === r.id ? "Deleting…" : "Delete"}
+                        </button>
+                      </div>
+                      {replyError?.id === r.id && <p role="alert" className="mt-1 text-danger-fg">{replyError.text}</p>}
+                    </div>
+                  ) : (
+                    <button onClick={() => askDelete(r)} data-focus={`delete:${r.id}`} className="mt-1 text-xs text-dim underline-offset-2 hover:text-danger-fg hover:underline" data-testid="reply-delete">
+                      Delete
+                    </button>
+                  ))}
               </li>
             ))}
             <li aria-hidden />
@@ -960,10 +994,30 @@ function WatchBody({
             <div className="mt-2">
               <ReplyMedia reply={r} conversationKey={rootKey} />
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <button onClick={() => sendHeld(r)} className="rounded-lg bg-primary px-3 py-2 font-semibold text-on-primary hover:bg-primary-hover">Send it</button>
-              <button onClick={() => removeReply(r)} className="rounded-lg border border-line-strong bg-surface px-3 py-2 font-medium text-danger-fg hover:bg-hover">Delete it</button>
-            </div>
+            {confirming === r.id ? (
+              // It was never sent, so nobody else is affected: the question says only that.
+              <div className="mt-2 rounded-lg border border-warn-line bg-surface p-2.5 text-ink" data-testid="held-delete-confirm">
+                <p className="text-xs">Delete this unsent {r.kind === "VIDEO" ? "video" : "voice"} reply? It was never sent, so nobody else has seen it. This can&apos;t be undone.</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button onClick={() => keepReply(r)} data-focus={`keep:${r.id}`} className="rounded-lg border border-line-strong bg-surface px-3 py-2 font-medium hover:bg-hover">
+                    Keep it
+                  </button>
+                  <button onClick={() => removeReply(r)} disabled={replyBusy === r.id} data-testid="held-delete-yes" className="rounded-lg bg-red-600 px-3 py-2 font-semibold text-white hover:bg-red-700 disabled:opacity-60">
+                    {replyBusy === r.id ? "Deleting…" : "Delete it"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button onClick={() => sendHeld(r)} disabled={replyBusy === r.id} className="rounded-lg bg-primary px-3 py-2 font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60">
+                  {replyBusy === r.id ? "Sending…" : "Send it"}
+                </button>
+                <button onClick={() => askDelete(r)} data-focus={`delete:${r.id}`} className="rounded-lg border border-line-strong bg-surface px-3 py-2 font-medium text-danger-fg hover:bg-hover">
+                  Delete it
+                </button>
+              </div>
+            )}
+            {replyError?.id === r.id && <p role="alert" className="mt-2 text-xs text-danger-fg">{replyError.text}</p>}
           </div>
         ))}
         <ReplyComposer
@@ -1131,18 +1185,18 @@ function HowThisWorks({ business, purgeAt, expired }: { business: string; purgeA
       "Yes. Video and voice replies can be played back before you send them, and nothing sends by itself. After sending, tap Delete under any of your replies to remove it for both of you, recording included.",
     ],
     [
-      "When is this video deleted?",
+      "When are this video and my replies deleted?",
       expired
-        ? "This video's recording has already been deleted from SureFrame. Written replies stay until the conversation is deleted."
+        ? `This video's recording has already been deleted from SureFrame. You can still reply here. Written replies stay until ${business} deletes this video or stops sharing it with you.`
         : purgeAt
-          ? `This video will be deleted from SureFrame on ${day(purgeAt)}. Video and voice replies are kept for the same length of time, counted from when each was sent. Written replies stay until the conversation is deleted. Save anything you want to keep.`
-          : `${business} keeps this video until they delete it. Your replies are deleted along with it.`,
+          ? `This video will be deleted from SureFrame on ${day(purgeAt)}. There's no deadline to reply: you can reply before or after that date. Video and voice replies are kept for the same length of time as the video, counted from when each was sent. Written replies stay until ${business} deletes this video or stops sharing it with you. Save anything you want to keep.`
+          : `${business} keeps this video until they delete it, and there's no deadline to reply. Your replies are deleted along with the video, or if ${business} stops sharing it with you.`,
     ],
     [
       "Watching on another device?",
       `Open the personal link ${business} gave you on that device once (the full link, including the part after #k=). After that, their videos and email links open there too. The address in your browser bar (ending in /v/…) doesn't unlock anything on its own.`,
     ],
-    ["Can anyone see that I watched?", `${business} can see how many times you've opened this video. Other clients can't.`],
+    ["Can anyone see that I watched?", `${business} can see how many times you've opened this video, and the reaction you pick. Other clients can't.`],
   ];
   return (
     <details className="mt-5 rounded-2xl border border-line bg-surface text-sm" data-testid="how-this-works">

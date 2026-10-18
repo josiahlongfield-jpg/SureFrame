@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { clientBlock, clientCookie, clientGate, REMOVED_COOKIE } from "@/lib/access";
+import { findReplaced } from "@/lib/replacedLinks";
 
 /**
  * A client's personal link. Remembers them on this device (no password or
@@ -10,7 +11,14 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   const { token } = await ctx.params;
   const client = await db.client.findUnique({ where: { token }, include: { workspace: { select: clientGate } } });
   const url = new URL(req.url);
-  if (!client) return Response.redirect(new URL("/inbox?invalid=1", url), 302);
+  if (!client) {
+    // A link a key reset replaced says so (and who sent the new one), rather than that it was mistyped.
+    if ((await findReplaced([token])).length) {
+      (await cookies()).set(REMOVED_COOKIE, token, { httpOnly: true, sameSite: "lax", secure: url.protocol === "https:", path: "/inbox", maxAge: 600 });
+      return Response.redirect(new URL("/inbox?replaced=1", url), 302);
+    }
+    return Response.redirect(new URL("/inbox?invalid=1", url), 302);
+  }
   // A link that opens nothing right now. Their inbox says who and why from a short-lived note (the same one in
   // each case), without remembering them on this device.
   const note = async () =>

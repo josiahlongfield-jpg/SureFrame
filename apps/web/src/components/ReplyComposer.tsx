@@ -51,7 +51,12 @@ export async function sendHeldReply(videoId: string, replyId: string): Promise<{
 export type ReplyComposerHandle = {
   /** Stops and throws away a recording in progress (closing the conversation mid-recording). */
   discard: () => Promise<void>;
+  /** Puts keyboard focus in the reply box (after a reply above it is sent or deleted). */
+  focus: () => void;
 };
+
+/** Where keyboard focus goes after a button that disappears (Record, Stop, Send, Discard…), so it never drops to the page top. */
+type FocusTarget = "stop" | "send" | "another" | "text" | "record" | "keep";
 
 type Props = {
   videoId: string;
@@ -88,6 +93,15 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   const [session, setSession] = useState(0);
   // The recording under review: played back from this device's own copy while its upload finishes.
   const [review, setReview] = useState<{ url: string; kind: "VIDEO" | "AUDIO"; uploaded: boolean } | null>(null);
+  // A text reply just went: said under the box, like "Sent" for voice and video, until the next one is typed.
+  const [textSent, setTextSent] = useState(false);
+  // Discarding a reviewed recording asks first, in the page (as deleting an unsent reply does).
+  const [askDiscard, setAskDiscard] = useState(false);
+  // Phones and tablets: Enter makes a new line, as on their keyboards, and the Send button sends.
+  const [touch, setTouch] = useState(false);
+  useEffect(() => setTouch(window.matchMedia("(hover: none) and (pointer: coarse)").matches), []);
+  const root = useRef<HTMLDivElement>(null);
+  const focusNext = useRef<FocusTarget | null>(null);
 
   const preview = useRef<HTMLVideoElement>(null);
   // The camera preview takes the camera's own shape (portrait on most phones), so it fills its frame.
@@ -201,6 +215,8 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
     setTextBusy(false);
     if (!res?.ok) return setError(data?.error ?? "Couldn't send your reply. Check your connection and try again.");
     setText("");
+    setTextSent(true);
+    focusNext.current = "text";
     onReplied(data.reply);
   }
 
@@ -263,6 +279,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
     live.current = { recorder, uploader, mediaId, replyId: data.reply.id, startedAt: performance.now(), release, sealing: Promise.resolve(), raw: [] };
     recorder.start(2000);
     setElapsed(0);
+    focusNext.current = "stop";
     setPhase("recording");
   }
 
@@ -278,6 +295,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
     if (l.discarded) return;
     releaseCamera();
     setReview({ url: URL.createObjectURL(new Blob(l.raw, { type: l.recorder.mimeType.split(";")[0] })), kind: mode === "VIDEO" ? "VIDEO" : "AUDIO", uploaded: false });
+    if (focusInside()) focusNext.current = "send";
     setPhase("review");
     l.finishing = (async () => {
       try {
@@ -316,6 +334,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
     live.current = null;
     setReview(null);
     setUpload(undefined);
+    focusNext.current = "another";
     setPhase("sent");
   }
 
@@ -346,18 +365,47 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   async function rerecord() {
     setPhase("sending");
     await throwAway();
+    focusNext.current = "record";
     setSession((n) => n + 1);
   }
 
   const discard = useCallback(async () => {
+    setAskDiscard(false);
     setPhase("sending");
     await throwAway();
     setNotice("Recording deleted. Nothing was sent.");
+    focusNext.current = "text";
     setMode("TEXT");
     setPhase("idle");
   }, [throwAway]);
 
-  useImperativeHandle(ref, () => ({ discard }), [discard]);
+  /** Whether keyboard focus is in the reply box (or nowhere), so moving it on doesn't pull it from elsewhere. */
+  function focusInside() {
+    const at = document.activeElement;
+    return !at || at === document.body || !!root.current?.contains(at);
+  }
+
+  // Focus follows the step: Stop once recording, Send once it's ready to review, and so on.
+  useEffect(() => {
+    const want = focusNext.current;
+    if (!want || !root.current) return;
+    const el = root.current.querySelector<HTMLElement>(`[data-focus-target="${want}"]:not([disabled])`);
+    if (!el) return;
+    focusNext.current = null;
+    el.focus();
+  });
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      discard,
+      focus: () => {
+        const box = root.current?.querySelector<HTMLElement>("textarea, [data-focus-target]:not([disabled])");
+        box?.focus();
+      },
+    }),
+    [discard],
+  );
 
   const tabs: { id: Mode; label: string }[] = [
     { id: "TEXT", label: "Text" },
@@ -368,20 +416,44 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   const locked = phase === "recording" || phase === "review" || phase === "sending";
   const noun = mode === "VIDEO" ? "video" : "voice";
 
+  function pickTab(id: Mode) {
+    // Tapping another tab mid-recording says why nothing happens, rather than doing nothing.
+    if (locked) {
+      if (id !== mode) setNotice(phase === "recording" ? "Stop the recording first, then send or discard it." : "Send or discard this recording first.");
+      return;
+    }
+    if (textBusy) return;
+    setNotice(undefined);
+    setTextSent(false);
+    setMode(id);
+  }
+
   return (
-    <div className="border-t border-line p-4" data-testid="reply-composer">
-      <div role="tablist" aria-label="Reply type" className="mb-3 grid grid-cols-3 gap-1 rounded-lg bg-surface-2 p-1 text-sm">
+    <div ref={root} className="border-t border-line p-4" data-testid="reply-composer">
+      <div
+        role="tablist"
+        aria-label="Reply type"
+        className="mb-3 grid grid-cols-3 gap-1 rounded-lg bg-surface-2 p-1 text-sm"
+        onKeyDown={(e) => {
+          // Arrow keys move between the tabs, as a keyboard user expects of tabs.
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+          e.preventDefault();
+          const i = tabs.findIndex((t) => t.id === mode);
+          const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+          pickTab(next.id);
+          if (!locked) e.currentTarget.querySelector<HTMLElement>(`[data-tab="${next.id}"]`)?.focus();
+        }}
+      >
         {tabs.map((t) => (
           <button
             key={t.id}
             role="tab"
+            data-tab={t.id}
             aria-selected={mode === t.id}
-            disabled={locked || textBusy}
-            onClick={() => {
-              setNotice(undefined);
-              setMode(t.id);
-            }}
-            className={`rounded-md px-2 py-1.5 font-medium transition disabled:opacity-50 ${mode === t.id ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"}`}
+            tabIndex={mode === t.id ? 0 : -1}
+            aria-disabled={locked || textBusy || undefined}
+            onClick={() => pickTab(t.id)}
+            className={`rounded-md px-2 py-1.5 font-medium transition aria-disabled:opacity-50 ${mode === t.id ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"}`}
           >
             {t.label}
           </button>
@@ -392,28 +464,51 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
         <form onSubmit={sendText}>
           <textarea
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value);
+              setTextSent(false);
+            }}
             onKeyDown={(e) => {
-              // Enter sends; Shift+Enter starts a new line.
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              // On a computer Enter sends and Shift+Enter starts a new line (the hint below says so); on a phone Enter is a new line.
+              if (!touch && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 e.currentTarget.form?.requestSubmit();
               }
             }}
             placeholder="Write a reply…"
             aria-label="Reply"
+            aria-describedby={touch ? undefined : `${videoId}-enter-hint`}
+            enterKeyHint={touch ? "enter" : "send"}
+            data-focus-target="text"
             rows={3}
-            className="w-full resize-none rounded-lg border border-line-strong px-3 py-2 text-sm focus:border-primary focus:outline-none"
+            className="w-full resize-none rounded-lg border border-line-strong px-3 py-2 text-sm focus:border-primary focus:outline-2 focus:outline-offset-0 focus:outline-primary"
           />
+          {!touch && (
+            <p id={`${videoId}-enter-hint`} className="mt-1 text-xs text-dim" data-testid="enter-hint">
+              Enter sends. Shift+Enter starts a new line.
+            </p>
+          )}
           <button disabled={textBusy || !text.trim()} className="mt-2 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
             {textBusy ? "Sending…" : "Send reply"}
           </button>
+          {textSent && (
+            <p role="status" data-testid="text-sent" className="mt-2 text-xs text-ok-fg">
+              <span className="font-semibold">Sent.</span> {sentNote}
+            </p>
+          )}
         </form>
       ) : phase === "sent" ? (
         <div role="status" data-testid="reply-sent" className="rounded-lg border border-ok-line bg-ok-bg px-4 py-4 text-center text-sm text-ok-fg">
           <p className="font-semibold">Sent</p>
           <p className="mt-1">{sentNote}</p>
-          <button onClick={() => setSession((n) => n + 1)} className="mt-3 rounded-lg border border-line-strong bg-surface px-3 py-1.5 font-medium text-ink hover:bg-hover">
+          <button
+            onClick={() => {
+              focusNext.current = "record";
+              setSession((n) => n + 1);
+            }}
+            data-focus-target="another"
+            className="mt-3 rounded-lg border border-line-strong bg-surface px-3 py-1.5 font-medium text-ink hover:bg-hover"
+          >
             Record another
           </button>
         </div>
@@ -432,18 +527,47 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
           <button
             onClick={send}
             disabled={phase === "sending"}
+            data-focus-target="send"
             className="mt-2 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
           >
             {phase === "sending" ? "Sending…" : `Send ${noun} reply`}
           </button>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <button onClick={rerecord} disabled={phase === "sending"} className="rounded-lg border border-line-strong px-3 py-2 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50">
-              Re-record
-            </button>
-            <button onClick={discard} disabled={phase === "sending"} className="rounded-lg border border-line-strong px-3 py-2 text-sm font-medium text-danger-fg hover:bg-hover disabled:opacity-50">
-              Discard
-            </button>
-          </div>
+          {askDiscard ? (
+            <div className="mt-2 rounded-lg border border-line bg-surface-2 p-2.5 text-sm text-ink" data-testid="discard-confirm">
+              <p className="text-xs">Discard this {noun} reply? It was never sent, so nobody else has seen it. This can&apos;t be undone.</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    setAskDiscard(false);
+                    focusNext.current = "send";
+                  }}
+                  data-focus-target="keep"
+                  className="rounded-lg border border-line-strong bg-surface px-3 py-2 font-medium hover:bg-hover"
+                >
+                  Keep it
+                </button>
+                <button onClick={discard} disabled={phase === "sending"} data-testid="discard-yes" className="rounded-lg bg-red-600 px-3 py-2 font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+                  Discard
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button onClick={rerecord} disabled={phase === "sending"} className="rounded-lg border border-line-strong px-3 py-2 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50">
+                Re-record
+              </button>
+              <button
+                onClick={() => {
+                  setAskDiscard(true);
+                  focusNext.current = "keep";
+                }}
+                disabled={phase === "sending"}
+                className="rounded-lg border border-line-strong px-3 py-2 text-sm font-medium text-danger-fg hover:bg-hover disabled:opacity-50"
+              >
+                Discard
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div>
@@ -469,7 +593,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
           )}
           {phase === "recording" ? (
             <>
-              <button onClick={stop} className="mt-2 w-full rounded-lg bg-red-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
+              <button onClick={stop} data-focus-target="stop" className="mt-2 w-full rounded-lg bg-red-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
                 Stop recording
               </button>
               <p className="mt-1 text-center text-xs text-dim">
@@ -477,7 +601,12 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
               </p>
             </>
           ) : (
-            <button onClick={start} disabled={phase !== "preview"} className="mt-2 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
+            <button
+              onClick={start}
+              disabled={phase !== "preview"}
+              data-focus-target="record"
+              className="mt-2 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
+            >
               {phase === "sending" ? "One moment…" : `Record ${noun} reply`}
             </button>
           )}

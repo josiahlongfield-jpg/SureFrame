@@ -8,6 +8,7 @@ import { brandOf } from "@/lib/branding";
 import { HttpError } from "@/lib/session";
 import { appUrl } from "@/lib/stripe";
 import { clientMailSettings } from "@/lib/reminders";
+import { recordReplaced } from "@/lib/replacedLinks";
 
 const Wrap = z.string().min(40).max(200);
 const Fp = z.string().min(16).max(64);
@@ -50,7 +51,7 @@ export async function applyRekey(workspace: Workspace, d: z.infer<typeof RekeyBo
       const locked = await tx.$queryRaw<{ keyFingerprint: string | null }[]>`SELECT "keyFingerprint" FROM "Workspace" WHERE id = ${workspace.id} FOR UPDATE`;
       if (locked[0]?.keyFingerprint !== d.from) throw new HttpError(409, "Your team's keys already changed. Reload the page and try again.");
       const [clients, videos, items] = await Promise.all([
-        tx.client.findMany({ where: { workspaceId: workspace.id, teamKeyWrap: { not: null } }, select: { id: true, removedAt: true, pausedAt: true, linkDisabledAt: true, email: true, name: true, assignedToId: true } }),
+        tx.client.findMany({ where: { workspaceId: workspace.id, teamKeyWrap: { not: null } }, select: { id: true, token: true, removedAt: true, pausedAt: true, linkDisabledAt: true, email: true, name: true, assignedToId: true } }),
         tx.video.findMany({ where: { workspaceId: workspace.id, teamKeyWrap: { not: null } }, select: { id: true } }),
         tx.item.findMany({ where: { workspaceId: workspace.id }, select: { id: true } }),
       ]);
@@ -68,7 +69,10 @@ export async function applyRekey(workspace: Workspace, d: z.infer<typeof RekeyBo
           newTokens.set(c.id, token!);
           // A paused client gets their new link when they're restored (the team can copy it then). One whose link
           // support turned off keeps it off through the reset, so isn't emailed a link that wouldn't open.
-          if (live.email && !live.pausedAt && !live.linkDisabledAt) emails.push({ email: live.email, name: live.name, token: token!, assignedToId: live.assignedToId });
+          const emailed = !!live.email && !live.pausedAt && !live.linkDisabledAt;
+          if (emailed) emails.push({ email: live.email!, name: live.name, token: token!, assignedToId: live.assignedToId });
+          // So the old link says it was replaced, not that it was mistyped.
+          await recordReplaced(tx, c.id, live.token, emailed);
         }
       }
       // Clients from before encryption have no key to replace, but their links still change.
@@ -76,7 +80,9 @@ export async function applyRekey(workspace: Workspace, d: z.infer<typeof RekeyBo
         const token = newClientToken();
         await tx.client.update({ where: { id: c.id }, data: { token } });
         newTokens.set(c.id, token);
-        if (c.email && !c.pausedAt && !c.linkDisabledAt) emails.push({ email: c.email, name: c.name, token, assignedToId: c.assignedToId });
+        const emailed = !!c.email && !c.pausedAt && !c.linkDisabledAt;
+        if (emailed) emails.push({ email: c.email!, name: c.name, token, assignedToId: c.assignedToId });
+        await recordReplaced(tx, c.id, c.token, emailed);
       }
       for (const v of d.videos) await tx.video.update({ where: { id: v.id }, data: { teamKeyWrap: v.teamKeyWrap, clientKeyWrap: v.clientKeyWrap } });
       for (const i of d.items) await tx.item.update({ where: { id: i.id }, data: { body: i.body } });
