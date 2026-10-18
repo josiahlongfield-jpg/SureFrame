@@ -73,9 +73,14 @@ export default function Page() {
         <li>
           <strong>Team details:</strong> for businesses with staff, each team member&rsquo;s name, email address and role, which clients they look after, what
           they&rsquo;re allowed to see and do, and their own email and reminder settings (such as a reply-to address for their clients). Reminders that owners and admins send to staff are stored and emailed as written, so
-          they aren&rsquo;t end-to-end encrypted.
+          they aren&rsquo;t end-to-end encrypted. If you invite someone by their email address, we email them to say they&rsquo;ve been invited, and we email
+          staff you remove to tell them.
         </li>
-        <li><strong>Client details you add:</strong> the names and email addresses of clients you invite, so we can send them links and reminders.</li>
+        <li>
+          <strong>Client details you add:</strong> the names and email addresses of clients you invite, so we can send them links and reminders. When a
+          business resets its keys (after someone leaves its team), we keep a one-way fingerprint (a hash) of each client&rsquo;s old link until that client is
+          deleted, so the old link can say it was replaced.
+        </li>
         <li>
           <strong>Encrypted content:</strong> video and reply recordings, text replies, and the text of to-dos and notes. These are encrypted on your device before
           they reach us, and the keys stay with you and your clients, so we hold only scrambled copies of them. Some details aren&rsquo;t encrypted, because we need to

@@ -149,6 +149,7 @@ function Manager({
   const [tellClient, setTellClient] = useState(true);
   const [working, setWorking] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [assigned, setAssigned] = useState<{ id: string; text: string }>();
   const [listError, setListError] = useState<string>();
   // The clients just added: sending their first link is the next step.
   const [justAdded, setJustAdded] = useState<Client[]>([]);
@@ -310,6 +311,9 @@ function Manager({
     });
     if (!res.ok) return setError((await res.json().catch(() => ({}))).error ?? "Could not assign client");
     setClients((list) => list.map((x) => (x.id === c.id ? { ...x, assignedToId } : x)));
+    // Said beside the dropdown that changed.
+    setAssigned({ id: c.id, text: assignedToId ? `Saved: ${staffName(assignedToId) ?? "they"} ${assignedToId === meId ? "(you) look" : "looks"} after ${c.name}` : `Saved: ${c.name} is unassigned` });
+    setTimeout(() => setAssigned((cur) => (cur?.id === c.id ? undefined : cur)), 4000);
   }
 
   const linkOf = (c: Client) => personalLink(c.link, c.teamKeyWrap, teamKey);
@@ -346,6 +350,8 @@ function Manager({
 
   return (
     <div className="mt-8 grid gap-6">
+      {/* Seats are the business's to manage: staff aren't shown how many clients the business has. */}
+      {canManage && (
       <section id="buy-seats" className="scroll-mt-6 rounded-2xl border border-line bg-surface p-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -410,10 +416,12 @@ function Manager({
           </p>
         )}
       </section>
+      )}
 
       {canAdd && (
       <section className="rounded-2xl border border-line bg-surface p-6">
-        <h2 className="font-semibold text-ink">Add a client</h2>
+        <h2 className="font-semibold text-ink">{canManage ? "Add a client" : "Add a client of your own"}</h2>
+        {!canManage && <p className="mt-1 text-sm text-dim">Clients you add are assigned to you. The owner or an admin can also assign clients to you.</p>}
         <p className="mt-1 text-sm text-dim" data-testid="first-link-rule">
           The first time, you send each client their personal link yourself, by text, message or your own email. It holds the key to their videos, so only your team can send it.
           Once they&apos;ve opened it, we can email them new videos too.
@@ -600,6 +608,7 @@ function Manager({
                         {staff.map((p) => <option key={p.id} value={p.id}>{p.id === meId ? `${p.name} (you)` : p.name}</option>)}
                       </select>
                     )}
+                    {assigned?.id === c.id && <span role="status" className="self-center text-xs text-ok-fg" data-testid="assign-saved">{assigned.text}</span>}
                     {!c.linkOff && (
                       <>
                         <button onClick={() => copy(c)} aria-label={`Copy personal link for ${c.name}`} className="rounded-lg border border-line-strong px-3 py-1.5 hover:bg-hover">

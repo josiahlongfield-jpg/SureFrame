@@ -82,7 +82,9 @@ export const LEGAL = {
    * (17 October 2026): they explain what we do or add choices, and take nothing away. Unsent video and voice replies
    * being deleted after 7 days (18 October 2026) keeps less, for less time, so it keeps privacyVersion too. Describing the
    * help chat on client pages and the question text it keeps for 90 days (18 October 2026) explains a new, optional help
-   * feature that takes nothing away, so it keeps privacyVersion too.
+   * feature that takes nothing away, so it keeps privacyVersion too. So does saying that an invited team member is
+   * emailed to expect their link, and that a replaced client link is kept only as a one-way fingerprint (18 October
+   * 2026): both explain what the service does, and the fingerprint holds nothing usable.
    */
   privacyUpdated: "18 October 2026",
 };

@@ -8,7 +8,8 @@ import { EMAIL_BLOCKED, isEmailBlocked } from "@/lib/blockedEmail";
 import { ACCOUNT_CLOSED_JOIN, hashToken, staffUsage, TEAM_CLOSED_JOIN, TEAM_UNAVAILABLE_JOIN } from "@/lib/team";
 
 /** `agree`: ticked on the invite page, so agreeing to the terms and joining are one step. */
-const Body = z.object({ token: z.string().min(20).max(100), agree: z.boolean().optional() });
+/** `name`: given on the invite page by someone without one, for the videos they send. */
+const Body = z.object({ token: z.string().min(20).max(100), agree: z.boolean().optional(), name: z.string().trim().min(1).max(80).optional() });
 
 /**
  * Accept an invite. Deliberately doesn't use currentUser(), which would
@@ -71,6 +72,8 @@ export const POST = handle(async (req: Request) => {
     });
   }
   if (!existing && again) throw new HttpError(410, "You were removed from this team. Ask for a new invite.");
+  // A name given here is kept only if they had none (Settings > Account changes it).
   await db.user.update({ where: { id: userId }, data: { activeWorkspaceId: invite.workspaceId } });
+  if (body.data.name) await db.user.updateMany({ where: { id: userId, name: null }, data: { name: body.data.name } });
   return Response.json({ workspaceId: invite.workspaceId, workspaceName: invite.workspace.name, fingerprint: invite.workspace.keyFingerprint, teamKeyWrap: invite.teamKeyWrap });
 });

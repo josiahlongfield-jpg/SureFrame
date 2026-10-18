@@ -18,6 +18,8 @@ import { zoned } from "@/lib/dates";
 import { clientCookie, REMOVED_COOKIE, usableClientWhere } from "@/lib/access";
 import { visibleReplies } from "@/lib/replies";
 import { helpForDevice } from "@/lib/support/clientHelp";
+import { senderName } from "@/lib/team";
+import { replacedLinks } from "@/lib/replacedLinks";
 
 /** "jo@example.com" as "j•••@example.com": enough to recognise, without showing the whole address on screen. */
 const masked = (email: string) => email.replace(/^(.)[^@]*/, "$1•••");
@@ -31,8 +33,8 @@ async function clientOnDevice(clientId: string) {
 export const metadata: Metadata = { title: "Your videos" };
 
 /** A client's view: every video their coach (or coaches) sent them. */
-export default async function Inbox({ searchParams }: { searchParams: Promise<{ invalid?: string; paused?: string; removed?: string; closed?: string; unavailable?: string; off?: string; c?: string }> }) {
-  const { invalid, paused, removed, closed, unavailable, off, c: arrivedAs } = await searchParams;
+export default async function Inbox({ searchParams }: { searchParams: Promise<{ invalid?: string; paused?: string; removed?: string; closed?: string; unavailable?: string; off?: string; replaced?: string; c?: string }> }) {
+  const { invalid, paused, removed, closed, unavailable, off, replaced, c: arrivedAs } = await searchParams;
   const jar = await cookies();
   const tokens = jar
     .getAll()
@@ -57,6 +59,8 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
   const closedNames = [...new Set(closedBy.map((c) => c.workspace.name))];
   const unavailableNames = [...new Set(unavailableBy.map((c) => c.workspace.name))];
   const offNames = [...new Set(offBy.map((c) => c.workspace.name))];
+  // Links a business replaced when it reset its keys (someone left their team): the one just opened, or one this device kept.
+  const replacedBy = await replacedLinks(removedTokens);
   const [clients, pausedBy] = tokens.length
     ? await Promise.all([
         db.client.findMany({
@@ -95,8 +99,8 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
 
   // Why links on this device open nothing right now. The one just opened (from ?removed=1 and the like) is
   // explained in the same "can't open" card every dead end uses; anything else is a banner.
-  type Why = "invalid" | "removed" | "closed" | "unavailable" | "off" | "paused";
-  const arrived: Why | null = invalid ? "invalid" : removed ? "removed" : closed ? "closed" : unavailable ? "unavailable" : off ? "off" : paused ? "paused" : null;
+  type Why = "invalid" | "removed" | "closed" | "unavailable" | "off" | "paused" | "replaced";
+  const arrived: Why | null = invalid ? "invalid" : removed ? "removed" : closed ? "closed" : unavailable ? "unavailable" : off ? "off" : paused ? "paused" : replaced ? "replaced" : null;
   const titles: Record<Why, string> = {
     invalid: "This link doesn't look right",
     removed: "Your access has ended",
@@ -104,6 +108,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
     unavailable: "Unavailable right now",
     off: "This link has been turned off",
     paused: "Your access is paused",
+    replaced: "This link was replaced",
   };
   const notices: { why: Why; key: string; testId: string; text: ReactNode }[] = [
     ...ended.map((r) => ({
@@ -136,6 +141,19 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
       ? [{ why: "unavailable" as const, key: "unavailable", testId: "client-unavailable", text: <>Videos from the business that sent you this link are unavailable right now.</> }]
       : []),
     ...offNames.map((name) => ({ why: "off" as const, key: `off:${name}`, testId: "client-link-off", text: <>This link has been turned off, so it no longer opens your videos from {name}.</> })),
+    ...replacedBy.map((r) => ({
+      why: "replaced" as const,
+      key: `replaced:${r.business}`,
+      testId: "client-link-replaced",
+      text: r.emailed ? (
+        <>{r.business} replaced your personal link to keep your videos secure, so the old one no longer opens them. We&rsquo;ve emailed you the new link: open it on this device and your videos and replies are all here.</>
+      ) : (
+        <>{r.business} replaced your personal link to keep your videos secure, so the old one no longer opens them. Ask {r.business} for your new link.</>
+      ),
+    })),
+    ...(replaced && replacedBy.length === 0
+      ? [{ why: "replaced" as const, key: "replaced", testId: "client-link-replaced", text: <>The business that sent you this link replaced it to keep your videos secure. Ask them for your new link.</> }]
+      : []),
     ...(off && offNames.length === 0 ? [{ why: "off" as const, key: "off", testId: "client-link-off", text: <>This link has been turned off.</> }] : []),
     ...(paused || pausedNames.length > 0
       ? [
@@ -218,8 +236,8 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
                               <span className={`line-clamp-2 text-ink [overflow-wrap:anywhere] ${unwatched ? "font-semibold" : "font-medium"}`}>{v.title}</span>
                             </span>
                             <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-dim">
-                              {/* Who sent it, never their email: "Sam from Business". */}
-                              {v.owner.name && <span>{v.owner.name} from {c.workspace.name}</span>}
+                              {/* Who sent it, never their email: "Sam from Business", or a former team member's (lib/team.ts). */}
+                              {(v.owner.name || v.formerStaffAt) && <span>{senderName(v, c.workspace.name, "client")}</span>}
                               {unwatched && <span className="rounded-full bg-primary-soft px-2 py-0.5 font-medium text-accent" data-testid="inbox-new">New</span>}
                               {replied && <span className="rounded-full bg-surface-2 px-2 py-0.5 font-medium text-muted" data-testid="inbox-replied">You replied</span>}
                             </span>

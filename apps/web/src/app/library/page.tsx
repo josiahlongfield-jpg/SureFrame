@@ -18,6 +18,7 @@ import { zoned } from "@/lib/dates";
 import { videosUsed } from "@/lib/videoAllowance";
 import { RETENTION_DAYS } from "@/lib/retention";
 import { visibleReplies } from "@/lib/replies";
+import { senderName } from "@/lib/team";
 
 export const metadata: Metadata = { title: "Library" };
 
@@ -87,6 +88,9 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   const steps = await firstStepsFor(me);
   // A new business starts on its clients: once they're in, sending a video is picking them from a list.
   const startHere = clients.length === 0 && videos.length === 0 && !soon && !searching && effectivePerms(access).addClients && !steps;
+  // Staff usually have clients assigned to them rather than adding their own: their first screen says so.
+  const staffStart = !isManager(access) && clients.length === 0 && videos.length === 0 && !soon && !searching;
+  const canAddClients = effectivePerms(access).addClients;
   // Free: videos in total for the life of the workspace, deleted ones included.
   const freeLeft = allowance && plan.maxVideos !== null ? Math.max(0, plan.maxVideos - allowance.used) : null;
   const withParams = (p: Record<string, string | undefined>) => {
@@ -158,6 +162,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
               <span data-testid="video-time">{when(v, inDay)}</span> · {views(v)} {views(v) === 1 ? "view" : "views"}
             </p>
             <p className="truncate text-xs text-muted" data-testid="video-recipients" title={sentTo(v).join(", ") || undefined}>{recipients(v)}</p>
+            {/* Kept by the business after its recorder left: not shown as the owner's (lib/team.ts). */}
+            {v.formerStaffAt && <p className="truncate text-xs text-dim" data-testid="video-former">{senderName({ ...v, owner: { name: null } }, workspace.name, "team")}</p>}
             <span className="mt-1 block empty:hidden">
               <ReplyBadges convs={convsOf(v)} />
             </span>
@@ -284,6 +290,19 @@ export default async function Library({ searchParams }: { searchParams: Promise<
           <div className="rounded-2xl border border-dashed border-line-strong p-16 text-center">
             <h2 className="font-semibold text-ink">Nothing deleting soon</h2>
             <p className="mt-1 text-sm text-dim">No recordings are due to be deleted from our servers in the next 7 days.</p>
+          </div>
+        ) : staffStart ? (
+          <div className="rounded-2xl border border-line bg-surface p-8 sm:p-10" data-testid="staff-start">
+            <p className="font-mono text-xs uppercase tracking-widest text-accent">Welcome to {workspace.name}</p>
+            <h2 className="mt-2 text-xl font-semibold text-ink">Your clients will show here</h2>
+            <p className="mt-2 max-w-xl text-sm text-muted">
+              The owner or an admin assigns clients to you. Once they have, record a video and pick those clients to send it to.
+              {canAddClients && " You can also add clients of your own: they're assigned to you."}
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-4">
+              <Link href="/team" className="rounded-xl bg-primary px-5 py-2.5 font-semibold text-on-primary hover:bg-primary-hover">See your team</Link>
+              {canAddClients && <Link href="/clients" className="text-sm text-dim hover:text-ink">Add a client of your own</Link>}
+            </div>
           </div>
         ) : startHere ? (
           <div className="rounded-2xl border border-line bg-surface p-8 sm:p-10" data-testid="start-here">

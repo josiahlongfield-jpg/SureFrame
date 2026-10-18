@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { firstStepsFor } from "@/lib/firstSteps";
 import { currentUser } from "@/lib/session";
 import { formerTeams } from "@/lib/team";
+import { TEAM_PLANS } from "@/lib/plans";
 import NamePrompt from "./NamePrompt";
 import StaffNotices from "./StaffNotices";
 import Logo from "./Logo";
@@ -32,12 +33,14 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
         db.staffNotice.findMany({ where: { toUserId: me.user.id, workspaceId: me.workspace.id, dismissedAt: null }, include: { from: { select: { name: true, email: true } } }, orderBy: { createdAt: "desc" }, take: 5 }),
       ])
     : [1, null, [], []];
-  // Clients come first: a business adds them before sending anything. A business of one has no team pages.
-  const links: Links = [["/clients", "Clients"], ["/library", "Library"], ...(teamSize > 1 ? [["/team", "Team"] as const] : [])];
+  // A team plan keeps its Team pages while the owner is on their own; a business of one on another plan has none.
+  const teamPages = teamSize > 1 || (manager && TEAM_PLANS.includes(me.workspace.plan));
+  // Clients come first: a business adds them before sending anything.
+  const links: Links = [["/clients", "Clients"], ["/library", "Library"], ...(teamPages ? [["/team", "Team"] as const] : [])];
   // Everything else is under Settings. Staff don't see Billing or Branding (only owners and admins can change them).
   const settings: Links = manager
-    ? [["/settings/reminders", "Reminders"], ["/settings/branding", "Branding"], ["/settings/team", teamSize > 1 ? "Team and staff" : "Invite staff"], ["/settings/billing", "Billing"], ["/settings/account", "Account"]]
-    : [["/settings/reminders", "Reminders"], ["/settings/account", "Account"], ...((me?.user.memberships.length ?? 0) > 1 ? [["/settings/team", "Your workspaces"] as const] : [])];
+    ? [["/settings/reminders", "Reminders"], ["/settings/branding", "Branding"], ["/settings/team", teamPages ? "Team and staff" : "Invite staff"], ["/settings/billing", "Billing"], ["/settings/account", "Account"]]
+    : [["/settings/reminders", "Reminders"], ["/settings/account", "Account"], ...((me?.user.memberships.length ?? 0) > 1 ? [["/settings/team", "Switch business"] as const] : [])];
   const signOutForm = (
     <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
       <button className="whitespace-nowrap text-dim hover:text-ink">Sign out</button>
@@ -85,10 +88,19 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
       <RecoverUploads />
       {/* Owners give their name in the welcome step (app/welcome); staff are asked here. */}
       {me && !owner && !me.user.name && <NamePrompt />}
-      {me && owner && !me.workspace.recoveryKeySavedAt && (
+      {me && owner && !me.workspace.recoveryKeySavedAt ? (
         // On the library the first steps show the key instead (components/FirstSteps.tsx).
         <RecoveryKeyReminder workspaceId={me.workspace.id} fingerprint={me.workspace.keyFingerprint} business={me.workspace.name} hiddenOn={steps ? "/library" : null} />
-      )}
+      ) : me && !me.paused && !me.membership.recoveryKeySavedAt ? (
+        // Staff save the team's key too, and everyone saves the new one after a key reset (lib/rekey.ts).
+        <RecoveryKeyReminder
+          workspaceId={me.workspace.id}
+          fingerprint={me.workspace.keyFingerprint}
+          business={me.workspace.name}
+          hiddenOn={null}
+          note={owner ? "Your team's keys were reset, so your recovery key changed. Save the new one: you need it to open your videos on another device." : undefined}
+        />
+      ) : null}
       {me && <TimeZoneSync shownZone={zoned(me.workspace.timezone).zone} setWorkspace={manager && !me.workspace.timezone} />}
       <SupportWidget signedIn />
     </header>

@@ -109,7 +109,7 @@ await amy.fill('input[aria-label="Your reply-to email"]', `amy-desk${stamp}@summ
 await amy.fill('textarea[aria-label="Your personal message"]', "Amy here: text me to move it.");
 ok("preview shows her message", (await amy.textContent("[data-testid=preview-body]")).includes("Amy here: text me to move it."));
 await amy.click("text=Save changes");
-await amy.waitForSelector("role=status >> text=Saved");
+await amy.waitForSelector("role=status >> text=/^Saved$/");
 let am = await amyMembership();
 ok("her settings are saved on her membership", am.myRemindTeamDefault === true && am.myRemindClientDefault === true && am.myReminderDefaults?.length === 2 &&
   am.myReminderReplyTo === `amy-desk${stamp}@summit.test` && am.myReminderMessage === "Amy here: text me to move it.", JSON.stringify(am));
@@ -278,7 +278,7 @@ for (let i = 0; i < 20 && !(await amy.textContent("[data-testid=defaults-source]
   await amy.waitForTimeout(250);
 }
 await amy.click("text=Save changes");
-await amy.waitForSelector("role=status >> text=Saved");
+await amy.waitForSelector("role=status >> text=/^Saved$/");
 am = await amyMembership();
 ok("Amy goes back to the business's defaults, keeping her message", am.myReminderDefaults === null && am.myRemindTeamDefault === null && am.myReminderMessage === "Amy here: text me to move it.");
 

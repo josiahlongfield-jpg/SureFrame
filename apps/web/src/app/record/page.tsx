@@ -28,8 +28,17 @@ export default async function RecordPage() {
         <h1 className="mb-6 text-2xl font-semibold tracking-tight text-ink">New recording</h1>
         {noClients && (
           <p className="mb-6 max-w-2xl rounded-xl border border-line bg-surface p-3 text-sm text-muted" data-testid="no-clients-note">
-            You haven&apos;t added any clients yet. Add them first and you can send this video the moment it&apos;s done.{" "}
-            <Link href="/clients" className="font-medium text-accent hover:underline">Add your clients</Link>
+            {me.role === "MEMBER" ? (
+              <>
+                No clients are assigned to you yet. Once the owner or an admin assigns some, or you add your own, you can send this video the moment it&apos;s done.{" "}
+                <Link href="/clients" className="font-medium text-accent hover:underline">Open Clients</Link>
+              </>
+            ) : (
+              <>
+                You haven&apos;t added any clients yet. Add them first and you can send this video the moment it&apos;s done.{" "}
+                <Link href="/clients" className="font-medium text-accent hover:underline">Add your clients</Link>
+              </>
+            )}
           </p>
         )}
         {allowance && left === 0 ? (
