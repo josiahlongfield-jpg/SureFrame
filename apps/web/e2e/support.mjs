@@ -80,6 +80,7 @@ await other.click("text=Continue");
 await other.waitForURL("**/support");
 await other.waitForSelector("text=Page not found");
 ok("inbox hidden from customers", !(await other.textContent("body")).includes("visitor@example.com"));
+ok("with a real 404", (await other.request.get(BASE + "/support/accounts")).status() === 404);
 
 // 5. The agent answers from the inbox
 const agentCtx = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
@@ -89,6 +90,8 @@ await agreed(AGENT);
 await agent.fill('input[name="email"]', AGENT);
 await agent.click("text=Continue");
 await agent.waitForURL("**/support");
+// Past the loading screen (app/support/loading.tsx).
+await agent.waitForSelector("[data-testid=inbox-list]");
 ok("inbox lists the ticket as urgent", (await agent.textContent("main")).includes("visitor@example.com") && (await agent.textContent("main")).toLowerCase().includes("urgent"));
 await agent.goto(link.replace(/^https?:\/\/[^/]+/, BASE));
 ok("agent sees the summary", (await agent.textContent("main")).includes("Customer wants a refund"));

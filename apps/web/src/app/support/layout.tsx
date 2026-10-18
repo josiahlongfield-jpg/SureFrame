@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import Logo from "@/components/Logo";
 import { db } from "@/lib/db";
@@ -8,13 +9,14 @@ import SupportNav from "./_console/SupportNav";
 
 /**
  * The frame of every support page: SureFrame's navy bar with a way back to the app, then one row of
- * links. Anyone who doesn't answer support gets the page alone, which refuses them with the site's
- * not-found page, so nothing here says the support pages exist.
+ * links. Anyone signed in who doesn't answer support gets the site's not-found page, with a real 404 since
+ * it's refused here, before the loading screen streams; signed out, the page sends them to sign in.
  */
 export default async function SupportLayout({ children }: { children: React.ReactNode }) {
   const id = (await auth())?.user?.id;
   const me = id ? await db.user.findUnique({ where: { id }, select: { email: true } }) : null;
-  if (!me || !isSupportAgent(me.email)) return children;
+  if (!me) return children;
+  if (!isSupportAgent(me.email)) notFound();
   const admin = isSupportAdmin(me.email);
   const links = [
     ["/support", "Inbox"],
