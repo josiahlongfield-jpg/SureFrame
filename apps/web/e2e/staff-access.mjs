@@ -416,6 +416,8 @@ ok("Amy's name is saved", (await prisma.user.findUnique({ where: { id: amyUser.i
 await amy.goto(BASE + "/library");
 ok("the name prompt is gone once set", !(await amy.isVisible("[data-testid=name-prompt]")));
 await anaClient.goto(BASE + "/inbox");
+// Past the loading screen and the key check ("One moment…").
+await anaClient.waitForFunction(() => !document.querySelector("main")?.textContent?.includes("One moment"), null, { timeout: 15000 }).catch(() => {});
 const inbox = await anaClient.textContent("main");
 ok("client inbox shows 'Amy Lee from Business'", inbox.includes(`Amy Lee from Peak ${stamp}`), inbox);
 ok("client inbox never shows staff emails", ![amyUser.email, bobUser.email, `sa-owner${stamp}@example.com`].some((e) => inbox.includes(e)));

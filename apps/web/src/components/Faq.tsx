@@ -39,7 +39,7 @@ export const BUSINESS_FAQ: Qa[] = [
     q: "What does the Free plan include?",
     a: (
       <p>
-        {free.clientSeats} clients, {free.maxVideos} videos in total (not per month; deleted videos still count), up to {free.maxDurationMin} minutes per video and{" "}
+        {free.clientSeats} clients, {free.maxVideos} videos in total (not per month; videos recorded on any plan count, deleted ones too), up to {free.maxDurationMin} minutes per video and{" "}
         {free.maxResolution}p recording. Your clients see a short {BRAND.name} intro, once on each device. Videos are deleted from our servers {RETENTION_DAYS} days
         after they&rsquo;re recorded, and we may delete a Free workspace that hasn&rsquo;t been used for 12 months, after emailing you at least 30 days beforehand.{" "}
         <Link href="/pricing#free-in-full">See the Free plan in full</Link>.

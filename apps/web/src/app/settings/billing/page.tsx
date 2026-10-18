@@ -12,7 +12,6 @@ import { readManifest } from "@/lib/ai/speechModel";
 import { RETENTION_DAYS } from "@/lib/retention";
 import { AI_ASSIST_PRICES, aiAssistActive, CLOUD_BACKUP_PRICE, CLOUD_BACKUP_PRICE_YEARLY, PLANS, TEAM_PLANS, type Interval } from "@/lib/plans";
 import { AI_ITEM, CATALOG, keyFor, PLAN_ITEM, type CatalogItem } from "@/lib/billing";
-import type { Workspace } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { agreePath, followTeamLink, requirePageUser } from "@/lib/session";
 import { BRAND } from "@/lib/brand";
@@ -20,6 +19,7 @@ import { zoned } from "@/lib/dates";
 import { videosUsed } from "@/lib/videoAllowance";
 import { paying, REFERRAL_PERCENT, referralCodeFor, referredBy } from "@/lib/referrals";
 import { appUrl } from "@/lib/stripe";
+import { db, type Workspace } from "@/lib/db";
 
 export const metadata: Metadata = { title: "Billing" };
 
@@ -36,6 +36,44 @@ async function AiAddOn({ workspace }: { workspace: Workspace }) {
       usage={aiAssistActive(workspace) ? await summaryUsage(workspace) : null}
       modelReady={!!(await readManifest().catch(() => null))}
     />
+  );
+}
+
+/**
+ * In the cancel dialog: exactly what moving to Free takes away from this workspace, so dropping back is never
+ * mistaken for a better deal (Josiah, 18 October 2026).
+ */
+async function FreeLosses({ workspace }: { workspace: Workspace }) {
+  const free = PLANS.FREE;
+  const [{ used }, clients, staff] = await Promise.all([
+    videosUsed(workspace.id),
+    db.client.count({ where: { workspaceId: workspace.id, removedAt: null } }),
+    db.membership.count({ where: { workspaceId: workspace.id } }),
+  ]);
+  const lines: string[] = [];
+  if (free.maxVideos !== null) {
+    lines.push(
+      used >= free.maxVideos
+        ? `Recording new videos: you've recorded ${used}, and Free's ${free.maxVideos} counts every video ever recorded on any plan, so you couldn't record more.`
+        : `Most of Free's videos: you've recorded ${used}, and Free's ${free.maxVideos} counts every video ever recorded on any plan, so ${free.maxVideos - used} would be left.`,
+    );
+  }
+  if (clients > free.clientSeats) lines.push(`${clients - free.clientSeats} of your ${clients} clients, paused until you upgrade (Free covers ${free.clientSeats}).`);
+  if (staff > free.staffSeats) lines.push(`Your team: everyone but the owner is paused (Free has ${free.staffSeats} login).`);
+  if (workspace.cloudBackup) lines.push(`Cloud backup: our copies of your recordings are deleted ${RETENTION_DAYS} days after they were recorded.`);
+  if (aiAssistActive(workspace)) lines.push("AI transcripts and summaries.");
+  if (workspace.foundingPrices) lines.push("Your founding prices, for good: a later plan is at the prices of the day.");
+  if (workspace.discountLabel) lines.push(`Your discount (${workspace.discountLabel}).`);
+  lines.push(`Videos up to ${free.maxDurationMin} minutes, ${free.maxResolution}p, and your clients see a short ${BRAND.name} intro.`);
+  return (
+    <div data-testid="free-losses">
+      <p className="font-medium text-ink">On Free you&apos;d lose:</p>
+      <ul className="mt-1 list-disc space-y-0.5 pl-5">
+        {lines.map((l) => (
+          <li key={l}>{l}</li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -320,7 +358,12 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
               planName={plan.name}
               periodEnd={workspace.currentPeriodEnd ? day(workspace.currentPeriodEnd, workspace.timezone) : null}
               cancelsOn={workspace.cancelsAt ? day(workspace.cancelsAt, workspace.timezone) : null}
-              whatHappens={<p>{afterCancel}</p>}
+              whatHappens={
+                <>
+                  <p>{afterCancel}</p>
+                  {!workspace.complimentaryPlan && <FreeLosses workspace={workspace} />}
+                </>
+              }
             />
           )}
           {!agreed && (

@@ -46,8 +46,9 @@ export default function About() {
         <div className="mt-8 grid gap-6">
           <Section id="who" title="Who runs it">
             <p data-testid="about-operator">
-              {LEGAL.product} is a registered business name of a sole trader based in {LEGAL.state}, {LEGAL.country}.
-              {LEGAL.abn && <> ABN {LEGAL.abn}.</>}
+              {/* Josiah's pick (18 October 2026); no person is named. */}
+              Made in {LEGAL.state}. {LEGAL.product} is a registered business name{LEGAL.abn && <> (ABN {LEGAL.abn})</>} of a sole trader who builds it, runs
+              it and answers support.
             </p>
             {LEGAL.postalAddress && <p>Postal address: {LEGAL.postalAddress}.</p>}
           </Section>

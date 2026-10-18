@@ -320,7 +320,8 @@ ok("owner: client's message on the left", await owner.evaluate(() => {
   return !!li && !li.dataset.mine && getComputedStyle(li).alignItems === "flex-start";
 }));
 ok("owner: sees the view", /[1-9]\d* views?/.test(await owner.textContent("[data-testid=video-meta]")));
-ok("owner: the reactions row says whose it is", (await owner.textContent("[data-testid=reactions-label]")) === "Your reaction (only you see it)");
+ok("owner: no reaction buttons for the team", (await owner.locator("[data-testid=reactions]").count()) === 0);
+ok("owner: the team can't react through the API", (await owner.request.post(owner.url().replace(/\/v\/([^/?#]+).*/, "/api/videos/$1/reactions"), { data: { emoji: "👍" } })).status() === 403);
 ok("owner: the client's reaction is labelled with their name", (await owner.textContent("[data-testid=reaction-summary]")).startsWith("Client A reacted:"));
 ok("computer: the reply box says Enter sends", (await owner.textContent("[data-testid=enter-hint]")) === "Enter sends. Shift+Enter starts a new line.");
 await owner.focus('textarea[aria-label="Reply"]');

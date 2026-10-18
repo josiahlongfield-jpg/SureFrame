@@ -776,12 +776,11 @@ function WatchBody({
           </p>
         )}
 
-        {/* Reactions belong to a conversation with a client, so not on a video that hasn't been sent yet. Under the video, where they're about. */}
-        {!unsent && (
+        {/* A client's reaction to the business, under the video it's about. The team doesn't react: nobody else would see it. */}
+        {!unsent && !canEdit && (
           <div className="mt-4">
             <p className="mb-1.5 px-1 text-xs text-dim" data-testid="reactions-label">
-              {/* Clients see the team's reactions nowhere, so the team is told whose these are and who sees them. */}
-              {canEdit ? "Your reaction (only you see it)" : `Your reaction · ${business} sees the one you pick`}
+              Your reaction · {business} sees the one you pick
             </p>
             <div ref={reactionsRow} className="grid grid-cols-6 gap-1.5 sm:flex sm:flex-wrap sm:gap-2" data-testid="reactions">
               {REACTIONS.map((e) => {
@@ -806,9 +805,7 @@ function WatchBody({
                 : reactNote === "removed"
                   ? "Reaction taken back."
                   : reactNote === "sent" && mine
-                    ? canEdit
-                      ? "Saved."
-                      : `Sent. ${business} can see your ${mine}. Tap it again to take it back.`
+                    ? `Sent. ${business} can see your ${mine}. Tap it again to take it back.`
                     : ""}
             </p>
           </div>
