@@ -14,6 +14,7 @@ import {
 } from "@/lib/offers";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
 import { currentSubscription } from "@/lib/subscription";
+import { stripe } from "@/lib/stripe";
 import { limitByIp } from "@/lib/rateLimit";
 import { isReferralCode, REFERRAL_SUMMARY, usableReferral } from "@/lib/referrals";
 
@@ -21,10 +22,9 @@ const Body = z.object({ code: z.string().trim().max(40) });
 
 /**
  * A discount code typed on Settings > Billing. Without a subscription it's
- * kept for checkout, like a share link. A running subscription only takes a
- * code when moving up to a bigger plan (Terms, Discounts; lib/offers.ts
- * upgradeOffer), so for a subscriber the code is checked here and the reply
- * says how to use it; nothing is applied.
+ * kept for checkout, like a share link. On a running subscription a code given
+ * to this business comes off from the next bill (Terms, Discounts): nothing is
+ * charged or refunded now.
  */
 export const POST = handle(async (req: Request) => {
   const me = await requireUser();
@@ -44,7 +44,8 @@ export const POST = handle(async (req: Request) => {
     if ((sub.discounts ?? []).some((d) => typeof d === "string" || (!d.deleted && !(d.end && d.end * 1000 <= Date.now())))) {
       throw new HttpError(400, "Your subscription already has a discount, and codes can't be combined.");
     }
-    return Response.json({ applied: false, subscribed: true, code: offer.code, summary: offer.summary, biggest: me.workspace.plan === "AGENCY" });
+    await stripe().subscriptions.update(sub.id, { discounts: [{ promotion_code: offer.id }], proration_behavior: "none" });
+    return Response.json({ applied: true, subscribed: true, code: offer.code, summary: offer.summary });
   }
   if (isReferralCode(code)) {
     // A business's referral code (lib/referrals.ts): checked for this business now, and again at checkout.

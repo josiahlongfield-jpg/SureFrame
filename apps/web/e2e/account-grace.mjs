@@ -188,6 +188,8 @@ ok("restore page: the date and what keeping it does", msg.includes(`Your account
 await back.screenshot({ path: `${shots}/account-grace-restore.png`, fullPage: true });
 await back.click("button:text-is('Continue')");
 await back.waitForURL((u) => u.pathname === "/login" && u.searchParams.get("closed") === "1");
+// Past the loading screen (app/login/loading.tsx).
+await back.waitForSelector('input[name="email"]');
 ok("Continue: signed out, still closed", (await back.locator("[data-testid=closed-note]").count()) === 1 && !!(await prisma.user.findUnique({ where: { id: ownerUser.id } })).deleteAt);
 ok("the sign-in page doesn't bounce a closed account", (await back.locator('input[name="email"]').count()) === 1);
 

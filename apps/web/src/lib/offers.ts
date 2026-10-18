@@ -12,8 +12,8 @@ import { stripe } from "@/lib/stripe";
  * share link (/offer/CODE, which leaves the code in a cookie for checkout),
  * the one automatic offer applied to every new subscription, or typed on
  * Settings > Billing before choosing a plan (kept in the same cookie), or
- * typed when moving up to a bigger plan (upgradeOffer). A subscription that's
- * running never takes one otherwise.
+ * typed when moving up to a bigger plan (upgradeOffer), or typed on Settings >
+ * Billing while subscribed, which adds it from the next bill (api/billing/code).
  */
 
 /** The cookie a share link leaves, so checkout applies its code. */

@@ -244,8 +244,7 @@ ok("billing records the discount and its end", linkAfter.discountLabel === `${CO
 await visitor.goto(BASE + "/settings/billing");
 t = ((await visitor.textContent('[data-testid="discount"]').catch(() => "")) ?? "").replace(/\s+/g, " ");
 ok("billing page shows the discount", t.startsWith(`Discount: ${CODE}: 20% off your plan, until `), t);
-// A running subscription takes codes only when moving up a plan (Terms, Discounts): a subscriber with a discount has no
-// code box, and one without gets a box that only checks the code and says how to use it. Nothing is applied.
+// A subscriber with a discount has no code box; one without gets a box that adds a code from the next bill.
 ok("no code box for a subscriber with a discount", (await visitor.locator('[data-testid="have-code"]').count()) === 0);
 res = await api(visitor, "/api/billing/code", { code: CODE });
 ok("a used code is refused for a subscriber", res.status() === 400 && /isn't valid or has ended/.test((await res.json()).error));
@@ -271,15 +270,15 @@ ok("a new-customers code is refused for a subscriber", res.status() === 400 && /
 const once = await fake.coupons.create({ name: "ONCE", percent_off: 30, duration: "once", metadata: { sureframe_scope: "all" } });
 const ONCECODE = `ONCE-${String(stamp).slice(-6)}`;
 await fake.promotionCodes.create({ promotion: { type: "coupon", coupon: once.id }, code: ONCECODE });
-res = await api(third, "/api/billing/code", { code: ONCECODE });
-body = await res.json();
-ok("a subscriber's valid code is only checked, not applied", res.ok() && body.subscribed === true && body.applied === false && !sub3.discounts.length, JSON.stringify(body));
+// A code given to a subscriber is added to the running plan, from the next bill (Terms, Discounts).
 await third.goto(BASE + "/settings/billing");
 await third.click('[data-testid="have-code"]');
 await third.fill("#discount-code", ONCECODE);
-await third.click("text=Check code");
+await third.click("text=Add to my plan");
 t = ((await third.waitForSelector('[data-testid="code-done"]', { timeout: 10000 }).then((el) => el.textContent()).catch(() => "")) ?? "").replace(/\s+/g, " ");
-ok("and the box says to use it when moving up a plan", t.includes(`${ONCECODE} works:`) && /move up to a bigger plan/.test(t) && !sub3.discounts.length, t);
+ok("a subscriber's code is added from the next bill", t.includes(`${ONCECODE} added:`) && t.includes("comes off from your next bill") && sub3.discounts.length === 1, t);
+res = await api(third, "/api/billing/code", { code: ONCECODE });
+ok("and can't be added twice", res.status() === 400, String(res.status()));
 const yearlyEmail = `yearly${stamp}@example.com`;
 const yearly = await signIn(yearlyEmail);
 await api(yearly, "/api/billing/checkout", { plan: "SOLO", interval: "year" });

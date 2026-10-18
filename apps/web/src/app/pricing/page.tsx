@@ -127,7 +127,7 @@ function GoodToKnow() {
       "Offers and codes",
       <>
         When we run founding prices or a discount offer, it&rsquo;s shown at the top of this page. A discount or referral code comes off at checkout when you
-        start a subscription.
+        start a subscription. A discount code we give you while you&rsquo;re subscribed can be added in Settings &gt; Billing, from your next bill.
       </>,
     ],
   ];

@@ -72,6 +72,8 @@ export const LEGAL = {
    * Discount codes limited to starting a subscription or moving up a plan, codes given to one business for one use, and the
    * referral programme (16 October 2026) keep it too: they only add to what customers get, and the site was closed for maintenance.
    * "Keep me signed in" and cancelling in Settings > Billing (17 October 2026) only add choices, so they keep it too.
+   * Letting a code given to one business be added to a plan it already pays for, from its next bill (18 October 2026), only adds to
+   * what customers get, so it keeps it too.
    * Saying the help chat on client pages is AI only and points clients to the business (18 October 2026) explains a new help option, so it keeps it too.
    */
   termsUpdated: "18 October 2026",
