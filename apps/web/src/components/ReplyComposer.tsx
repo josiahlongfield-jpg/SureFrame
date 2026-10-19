@@ -104,17 +104,28 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   const focusNext = useRef<FocusTarget | null>(null);
 
   const preview = useRef<HTMLVideoElement>(null);
-  // The camera preview takes the camera's own shape (portrait on most phones), so it fills its frame.
-  const frame = useVideoFrame("55vh");
+  // The camera preview takes the camera's own shape (portrait on most phones), so it fills its frame. On a phone it
+  // also leaves room for the reply tabs, the sound bar and the Record button below it, which would otherwise be pushed
+  // out of the conversation panel. svh: the height with the browser's own bars showing.
+  const frame = useVideoFrame("min(55vh, 100svh - 22rem)");
   const frameRef = frame.ref;
   const previewRef = useCallback(
     (v: HTMLVideoElement | null) => {
       preview.current = v;
+      // A new element for each new camera stream (previewKey). Pictures only: the stream also carries the mic.
+      if (v && stream.current && !v.srcObject) v.srcObject = new MediaStream(stream.current.getVideoTracks());
       frameRef(v);
     },
     [frameRef],
   );
   const stream = useRef<MediaStream | null>(null);
+  /**
+   * A new preview <video> for each new camera stream. Safari keeps drawing a replaced stream at the old one's size
+   * (after flipping the camera, a small picture with a wide border), so the preview is drawn fresh instead.
+   */
+  const [previewKey, setPreviewKey] = useState(0);
+  /** The latest ask for the camera; the next waits for it, so the camera is never opened twice at once. */
+  const cameraAsk = useRef<Promise<unknown>>(Promise.resolve());
   const live = useRef<{
     recorder: MediaRecorder;
     uploader: ChunkedUploader;
@@ -137,24 +148,34 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
     let cancelled = false;
     setPhase("idle");
     setError(undefined);
-    navigator.mediaDevices
-      .getUserMedia({
+    // Let go of the camera before asking again (the other camera, or after a reply), once any earlier ask has settled.
+    // A camera still open is shared with the new request, which gets its picture cut to the old size; phones also
+    // cope badly with the camera opened twice at once.
+    const asked = cameraAsk.current.then(() => {
+      if (cancelled) return null;
+      stopAll(stream.current);
+      stream.current = null;
+      return navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
         video: mode === "VIDEO" ? { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } } : false,
-      })
+      });
+    });
+    cameraAsk.current = asked.catch(() => {});
+    asked
       .then((s) => {
+        if (!s) return;
         if (cancelled) return stopAll(s);
         stopAll(stream.current);
         stream.current = s;
         setLiveStream(s);
-        if (preview.current) preview.current.srcObject = s;
+        setPreviewKey((k) => k + 1);
         setPhase("preview");
         // The list of cameras is only complete once access is allowed.
         if (mode === "VIDEO") {
           navigator.mediaDevices.enumerateDevices().then((d) => setCameras(d.filter((x) => x.kind === "videoinput").length), () => {});
         }
       })
-      .catch(() => setError(`Allow ${mode === "VIDEO" ? "camera and microphone" : "microphone"} access in your browser to record a reply.`));
+      .catch(() => !cancelled && setError(`Allow ${mode === "VIDEO" ? "camera and microphone" : "microphone"} access in your browser to record a reply.`));
     return () => {
       cancelled = true;
     };
@@ -429,7 +450,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   }
 
   return (
-    <div ref={root} className="border-t border-line p-4" data-testid="reply-composer">
+    <div ref={root} className="max-h-[85svh] shrink-0 overflow-y-auto border-t border-line p-4" data-testid="reply-composer">
       <div
         role="tablist"
         aria-label="Reply type"
@@ -573,7 +594,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
         <div>
           {mode === "VIDEO" ? (
             <div style={frame.style} className="relative mx-auto overflow-hidden rounded-lg bg-solid">
-              <video ref={previewRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full object-cover ${facing === "user" ? "-scale-x-100" : ""}`} />
+              <video key={previewKey} ref={previewRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full object-cover ${facing === "user" ? "-scale-x-100" : ""}`} />
               {phase === "preview" && cameras > 1 && (
                 <button onClick={() => setFacing((f) => (f === "user" ? "environment" : "user"))} className="absolute right-2 top-2 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white">
                   Flip camera
