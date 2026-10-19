@@ -156,6 +156,14 @@ html {
   select, input, textarea { max-width: 100%; }
 }
 
+/* Phones and tablets: typing boxes at least 16px, or Safari zooms the page in when one is tapped (and leaves it
+   zoomed). Outside any layer, so it wins over the text-sm on the boxes. Computers keep the smaller text. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea, select {
+    font-size: max(1rem, 16px);
+  }
+}
+
 /* SVG icons sized by width/height attributes grow with it too (any CSS beats those attributes; :where keeps classes winning). */
 :where(svg[width="8"]) { width: 0.5rem; } :where(svg[height="8"]) { height: 0.5rem; }
 :where(svg[width="9"]) { width: 0.5625rem; } :where(svg[height="9"]) { height: 0.5625rem; }
