@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { LAYOUT_COOKIE, VIEW_COOKIE } from "@/lib/libraryGroups";
 
 /** One conversation about a recording: when each of the client's replies came, newest first. */
 export type Conv = { id: string; fromClient: string[] };
@@ -119,5 +120,49 @@ export function LibrarySearch({ q, client, clients, keep }: { q: string; client:
         </Link>
       )}
     </form>
+  );
+}
+
+/** "By date" or "By client", and big tiles or one line per video. */
+export function LibraryViewSwitch({ view, layout, canGroupByClient }: { view: "date" | "client"; layout: "tiles" | "list"; canGroupByClient: boolean }) {
+  const router = useRouter();
+  const set = (name: string, value: string) => {
+    document.cookie = `${name}=${value}; path=/; max-age=31536000; samesite=lax`;
+    router.refresh();
+  };
+  const pill = (active: boolean) => `flex items-center gap-1.5 rounded-md px-3 py-1.5 ${active ? "bg-surface font-medium text-ink shadow-sm" : "text-muted hover:text-ink"}`;
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm">
+      {canGroupByClient ? (
+        <div role="group" aria-label="Group videos" className="flex gap-1 rounded-lg bg-surface-2 p-1">
+          {(["date", "client"] as const).map((v) => (
+            <button key={v} type="button" aria-pressed={view === v} onClick={() => set(VIEW_COOKIE, v)} className={pill(view === v)} data-testid={`view-${v}`}>
+              {v === "date" ? "By date" : "By client"}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <span />
+      )}
+      <div role="group" aria-label="Layout" className="flex gap-1 rounded-lg bg-surface-2 p-1">
+        {(["tiles", "list"] as const).map((l) => (
+          <button key={l} type="button" aria-pressed={layout === l} onClick={() => set(LAYOUT_COOKIE, l)} className={pill(layout === l)} data-testid={`layout-${l}`}>
+            <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              {l === "tiles" ? (
+                <>
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                </>
+              ) : (
+                <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+              )}
+            </svg>
+            {l === "tiles" ? "Tiles" : "List"}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

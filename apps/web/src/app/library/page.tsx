@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import MemberPlanner from "@/components/MemberPlanner";
 import StorageStatus from "@/components/StorageStatus";
 import LibraryThumb from "@/components/LibraryThumb";
 import DayFolder from "@/components/DayFolder";
-import { LibrarySearch, ReplyBadges, type Conv } from "@/components/LibraryTools";
+import { LibrarySearch, LibraryViewSwitch, ReplyBadges, type Conv } from "@/components/LibraryTools";
+import { groupByAge, groupByMonth, LAYOUT_COOKIE, VIEW_COOKIE, type Group } from "@/lib/libraryGroups";
 import FirstSteps from "@/components/FirstSteps";
 import { LibraryUnlock } from "@/components/TeamKeyGate";
 import { dueTodos } from "@/lib/dueTodos";
@@ -36,6 +38,10 @@ const NEAR_MS = 7 * 86_400_000;
 export default async function Library({ searchParams }: { searchParams: Promise<{ show?: string; filter?: string; ws?: string; restored?: string; q?: string; client?: string }> }) {
   const { show, filter, ws, restored, q: rawQ, client: rawClient } = await searchParams;
   const q = (rawQ ?? "").trim().slice(0, 100);
+  // By date or by client, tiles or one line each: as this browser last chose (components/LibraryTools.tsx).
+  const jar = await cookies();
+  const layout = jar.get(LAYOUT_COOKIE)?.value === "list" ? "list" : "tiles";
+  const pickedView = jar.get(VIEW_COOKIE)?.value === "client" ? "client" : "date";
   await followTeamLink(ws, filter ? `/library?filter=${encodeURIComponent(filter)}` : "/library");
   // Kept the "restored" note through /agree, for a kept account that has to agree to new terms first.
   const me = await requirePageUser(restored ? `/library?restored=${encodeURIComponent(restored)}` : "/library");
@@ -67,8 +73,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
       where: { AND: [soon ? soonWhere : scope, ...search] },
       orderBy: soon ? { purgeAt: "asc" } : { createdAt: "desc" },
       include: {
-        copies: { select: { id: true, viewCount: true, client: { select: { name: true, assignedToId: true } } } },
-        client: { select: { name: true, removedAt: true, purgeAt: true } },
+        copies: { select: { id: true, viewCount: true, client: { select: { id: true, name: true, assignedToId: true, removedAt: true } } } },
+        client: { select: { id: true, name: true, removedAt: true, purgeAt: true } },
         thumb: { select: { videoId: true } },
         source: { select: { thumb: { select: { videoId: true } } } },
       },
@@ -142,7 +148,28 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     ) : v.status !== "RECORDING" ? (
       <video src={`/api/videos/${v.id}/stream#t=0.5`} preload="metadata" muted className="h-full w-full object-cover" />
     ) : null;
-  // Inside a day's folder the time says when; in "Deleting soon" the date does.
+  // Under a card or a line: who kept it, new replies, and anything about its server copy or its client.
+  const extras = (v: Item, inDay: boolean) => (
+    <>
+      {/* Kept by the business after its recorder left: not shown as the owner's (lib/team.ts). */}
+      {v.formerStaffAt && <p className="truncate text-xs text-dim" data-testid="video-former">{senderName({ ...v, owner: { name: null } }, workspace.name, "team")}</p>}
+      <span className="mt-1 block empty:hidden">
+        <ReplyBadges convs={convsOf(v)} />
+      </span>
+      {soon || v.status === "EXPIRED" || nearDeletion(v) ? (
+        <StorageStatus status={v.status} purgeAt={v.purgeAt?.toISOString() ?? null} cloudBackup={workspace.cloudBackup} />
+      ) : (
+        // Search results have no day row to carry the date.
+        !inDay && !workspace.cloudBackup && v.purgeAt && v.status !== "RECORDING" && <p className="text-xs text-dim" data-testid="card-deletes">Deletes from our servers {dates.shortDay(v.purgeAt)}</p>
+      )}
+      {v.client?.removedAt && (
+        <p className="text-xs text-warn-fg" data-testid="client-removed-badge">
+          Client removed{v.client.purgeAt && v.client.purgeAt > now ? ` · conversation deleted ${dates.shortDay(v.client.purgeAt)}` : ""}
+        </p>
+      )}
+    </>
+  );
+  // Inside a day's folder the time says when; elsewhere the date does.
   const grid = (items: Item[], inDay: boolean) => (
     <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((v) => (
@@ -165,42 +192,153 @@ export default async function Library({ searchParams }: { searchParams: Promise<
               <span data-testid="video-time">{when(v, inDay)}</span> · {views(v)} {views(v) === 1 ? "view" : "views"}
             </p>
             <p className="truncate text-xs text-muted" data-testid="video-recipients" title={sentTo(v).join(", ") || undefined}>{recipients(v)}</p>
-            {/* Kept by the business after its recorder left: not shown as the owner's (lib/team.ts). */}
-            {v.formerStaffAt && <p className="truncate text-xs text-dim" data-testid="video-former">{senderName({ ...v, owner: { name: null } }, workspace.name, "team")}</p>}
-            <span className="mt-1 block empty:hidden">
-              <ReplyBadges convs={convsOf(v)} />
-            </span>
-            {soon || v.status === "EXPIRED" || nearDeletion(v) ? (
-              <StorageStatus status={v.status} purgeAt={v.purgeAt?.toISOString() ?? null} cloudBackup={workspace.cloudBackup} />
-            ) : (
-              // Search results have no day row to carry the date.
-              !inDay && !workspace.cloudBackup && v.purgeAt && v.status !== "RECORDING" && <p className="text-xs text-dim" data-testid="card-deletes">Deletes from our servers {dates.shortDay(v.purgeAt)}</p>
-            )}
-            {v.client?.removedAt && (
-              <p className="text-xs text-warn-fg" data-testid="client-removed-badge">
-                Client removed{v.client.purgeAt && v.client.purgeAt > now ? ` · conversation deleted ${dates.shortDay(v.client.purgeAt)}` : ""}
-              </p>
-            )}
+            {extras(v, inDay)}
           </Link>
         </li>
       ))}
     </ul>
   );
-  // Days in the workspace's time zone; videos are already newest first.
-  const today = dates.day(now);
-  const yesterday = dates.day(new Date(now.getTime() - 86_400_000));
-  const days: { key: string; label: string; items: Item[] }[] = [];
-  for (const v of videos) {
-    const key = dates.day(v.createdAt);
-    const last = days[days.length - 1];
-    if (last?.key === key) last.items.push(v);
-    else days.push({ key, label: key === today ? "Today" : key === yesterday ? "Yesterday" : dates.weekdayDay(v.createdAt), items: [v] });
-  }
-  // When a day's recordings leave our servers: said once on the day's row rather than on every card.
+  // The compact layout: one line per video, a small still beside it.
+  const list = (items: Item[], inDay: boolean) => (
+    <ul className="-my-2 divide-y divide-line" data-testid="video-list">
+      {items.map((v) => (
+        <li key={v.id}>
+          <Link href={`/v/${v.id}`} className="group flex items-start gap-3 py-2">
+            <span className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-solid sm:w-28">
+              {still(v)}
+              {v.durationMs ? (
+                <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-[10px] leading-4 text-white">{fmt(v.durationMs)}</span>
+              ) : null}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium text-ink group-hover:text-accent">{v.title}</span>
+              <span className="block truncate text-xs text-dim">
+                <span data-testid="video-time">{when(v, inDay)}</span> · <span data-testid="video-recipients" title={sentTo(v).join(", ") || undefined}>{recipients(v)}</span>
+              </span>
+              {v.status === "RECORDING" && <span className="block text-xs text-dim">Incomplete upload</span>}
+              {extras(v, inDay)}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+  const cards = (items: Item[], inDay: boolean) => (layout === "list" ? list(items, inDay) : grid(items, inDay));
+  // When a folder's recordings leave our servers: said once on the folder's row rather than on every card.
   const dayDeletes = (items: Item[]) => {
     if (workspace.cloudBackup) return null;
     const at = items.flatMap((v) => (v.purgeAt && v.status !== "EXPIRED" && v.status !== "RECORDING" ? [v.purgeAt.getTime()] : [])).sort((a, b) => a - b)[0];
     return at ? new Date(at) : null;
+  };
+  // A folder's picture: its newest still on a little stack of cards, and on wider screens the next two beside it.
+  const cover = (items: Item[], depth: number, strip: boolean) => (
+    <>
+      <span className={`relative aspect-video shrink-0 ${depth === 0 ? "w-24 sm:w-36" : "w-16 sm:w-24"}`}>
+        {items.length > 2 && <span aria-hidden className="absolute inset-0 translate-x-2 -translate-y-2 rounded-lg border border-line bg-solid opacity-60" />}
+        {items.length > 1 && <span aria-hidden className="absolute inset-0 translate-x-1 -translate-y-1 rounded-lg border border-line bg-solid opacity-80" />}
+        <span className="absolute inset-0 overflow-hidden rounded-lg border border-line bg-solid">{still(items[0])}</span>
+      </span>
+      {strip && items.length > 1 && (
+        <span className="hidden shrink-0 gap-2 pl-1 md:flex" data-testid="folder-strip">
+          {items.slice(1, 3).map((v) => (
+            <span key={v.id} className="relative aspect-video w-24 overflow-hidden rounded-lg border border-line bg-solid">{still(v)}</span>
+          ))}
+        </span>
+      )}
+    </>
+  );
+  const summary = (kind: string, label: string, items: Item[], depth: number, opts: { strip?: boolean; note?: string; convs?: Conv[] } = {}) => {
+    const deletes = dayDeletes(items);
+    return (
+      <>
+        {cover(items, depth, !!opts.strip)}
+        <span className="min-w-0 flex-1">
+          <span className={`block break-words text-ink ${depth === 0 ? "font-semibold" : "text-sm font-medium"}`} data-testid={`${kind}-label`}>{label}</span>
+          <span className={`block text-dim ${depth === 0 ? "text-sm" : "text-xs"}`}>
+            <span data-testid={`${kind}-count`}>{items.length} {items.length === 1 ? "video" : "videos"}</span>
+            {opts.note}
+            {deletes && <span data-testid="day-deletes"> · deletes<span className="max-sm:hidden"> from our servers</span> {dates.shortDay(deletes)}</span>}
+          </span>
+          <span className="mt-1 block empty:hidden">
+            <ReplyBadges convs={opts.convs ?? items.flatMap(convsOf)} onlyNew />
+          </span>
+        </span>
+      </>
+    );
+  };
+
+  // By date: the last week a folder a day, then weeks, then months (lib/libraryGroups.ts). The first folder starts
+  // open, so the latest videos are on screen straight away.
+  const folder = (g: Group<Item>, depth: 0 | 1 | 2, open: boolean) => (
+    <DayFolder key={g.key} day={g.key} kind={g.kind} depth={depth} defaultOpen={open} summary={summary(g.kind, g.label, g.items, depth, { strip: !!g.children })}>
+      {g.children ? (
+        <div className="space-y-3">{g.children.map((c) => folder(c, (depth + 1) as 1 | 2, false))}</div>
+      ) : (
+        cards(g.items, g.kind === "day")
+      )}
+    </DayFolder>
+  );
+
+  // By client: a folder per client, the one with the newest video first, then videos not sent to anyone.
+  // A video sent to several clients is in each of their folders. Staff who only see their own clients
+  // aren't shown folders for the others.
+  const byClient = pickedView === "client" && !soon && !searching && clients.length > 0;
+  const clientFolders = () => {
+    const map = new Map<string, { id: string; name: string; removed: boolean; items: Item[]; convs: Conv[] }>();
+    const unsent: Item[] = [];
+    for (const v of videos) {
+      const to = [
+        ...(v.client ? [{ c: v.client, conv: v.id }] : []),
+        ...v.copies.filter((c) => c.client && (seesAll || c.client.assignedToId === user.id)).map((c) => ({ c: c.client!, conv: c.id })),
+      ];
+      if (!to.length) unsent.push(v);
+      for (const { c, conv } of to) {
+        let g = map.get(c.id);
+        if (!g) map.set(c.id, (g = { id: c.id, name: c.name, removed: !!c.removedAt, items: [], convs: [] }));
+        if (g.items[g.items.length - 1] !== v) g.items.push(v);
+        g.convs.push({ id: conv, fromClient: fromClients.get(conv) ?? [] });
+      }
+    }
+    // Removed clients after the current ones.
+    const all = [...map.values()];
+    return { clients: [...all.filter((g) => !g.removed), ...all.filter((g) => g.removed)], unsent };
+  };
+  // Inside a client's folder: a long run of videos is split by month.
+  const clientContents = (key: string, items: Item[]) => {
+    const months = items.length > 12 ? groupByMonth(items, dates.zone, key) : [];
+    if (months.length < 2) return cards(items, false);
+    return (
+      <div className="space-y-3">
+        {months.map((m) => (
+          <DayFolder key={m.key} day={m.key} kind="month" depth={1} summary={summary("month", m.label, m.items, 1)}>
+            {cards(m.items, false)}
+          </DayFolder>
+        ))}
+      </div>
+    );
+  };
+  const clientView = () => {
+    const { clients: folders, unsent } = clientFolders();
+    return (
+      <div className="space-y-4">
+        {folders.map((g, i) => (
+          <DayFolder
+            key={g.id}
+            day={`c${g.id}`}
+            kind="client"
+            defaultOpen={i === 0}
+            summary={summary("client", g.name, g.items, 0, { strip: true, convs: g.convs, note: `${g.removed ? " · client removed" : ""} · latest ${dates.shortDay(g.items[0].createdAt)}` })}
+          >
+            {clientContents(`c${g.id}`, g.items)}
+          </DayFolder>
+        ))}
+        {unsent.length > 0 && (
+          <DayFolder day="unsent" kind="client" defaultOpen={folders.length === 0} summary={summary("client", "Not sent yet", unsent, 0, { strip: true })}>
+            {clientContents("unsent", unsent)}
+          </DayFolder>
+        )}
+      </div>
+    );
   };
   const pill = (active: boolean) => `rounded-md px-3 py-1.5 ${active ? "bg-surface font-medium text-ink shadow-sm" : "text-muted hover:text-ink"}`;
 
@@ -281,6 +419,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
         {(videos.length > 0 || searching) && !startHere && (
           <LibrarySearch q={q} client={clientId} clients={clients} keep={{ show, filter }} />
         )}
+        {videos.length > 0 && !startHere && !staffStart && <LibraryViewSwitch view={byClient ? "client" : "date"} layout={layout} canGroupByClient={!soon && !searching && clients.length > 0} />}
         {searching && (
           <p className="-mt-3 mb-4 text-sm text-muted" data-testid="search-summary">
             {videos.length} {videos.length === 1 ? "video" : "videos"}
@@ -346,41 +485,11 @@ export default async function Library({ searchParams }: { searchParams: Promise<
           </div>
         ) : (
           soon || searching ? (
-            grid(videos, false)
+            cards(videos, false)
+          ) : byClient ? (
+            clientView()
           ) : (
-            // One folder per day something was recorded, newest first; opening it shows that day's videos.
-            <div className="space-y-4">
-              {days.map(({ key, label, items }, i) => (
-                <DayFolder
-                  key={key}
-                  day={key}
-                  // The newest day starts open, so the latest videos are on screen straight away.
-                  defaultOpen={i === 0}
-                  summary={
-                    <>
-                      <span className="relative aspect-video w-24 shrink-0 sm:w-36">
-                        {/* A stack of cards: the day's newest still in front. */}
-                        {items.length > 2 && <span aria-hidden className="absolute inset-0 translate-x-2 -translate-y-2 rounded-lg border border-line bg-solid opacity-60" />}
-                        {items.length > 1 && <span aria-hidden className="absolute inset-0 translate-x-1 -translate-y-1 rounded-lg border border-line bg-solid opacity-80" />}
-                        <span className="absolute inset-0 overflow-hidden rounded-lg border border-line bg-solid">{still(items[0])}</span>
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-semibold text-ink" data-testid="day-label">{label}</span>
-                        <span className="block text-sm text-dim">
-                          <span data-testid="day-count">{items.length} {items.length === 1 ? "video" : "videos"}</span>
-                          {dayDeletes(items) && <span data-testid="day-deletes"> · deletes from our servers {dates.shortDay(dayDeletes(items)!)}</span>}
-                        </span>
-                        <span className="mt-1 block empty:hidden">
-                          <ReplyBadges convs={items.flatMap(convsOf)} onlyNew />
-                        </span>
-                      </span>
-                    </>
-                  }
-                >
-                  {grid(items, true)}
-                </DayFolder>
-              ))}
-            </div>
+            <div className="space-y-4">{groupByAge(videos, dates.zone, now).map((g, i) => folder(g, 0, i === 0))}</div>
           )
         )}
         <div id="todos" className="mt-12 max-w-2xl scroll-mt-6">

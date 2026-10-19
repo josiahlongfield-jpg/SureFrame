@@ -432,6 +432,13 @@ await owner.waitForSelector("a:has-text('Sha')");
 const counts = await Promise.all(["Ana", "Ben", "Sha", "Zed"].map((n) => owner.locator(`a:has-text('${n}')`).count()));
 ok("owner's Clients page lists everyone", counts.every((n) => n > 0), counts.join());
 await owner.goto(BASE + "/library");
+// Older videos are in folders whose videos are only drawn once opened: open them all.
+for (let i = 0; i < 20; i++) {
+  const closed = owner.locator("main details:not([open]) > summary").first();
+  if (!(await closed.count())) break;
+  await closed.click();
+  await owner.waitForTimeout(150);
+}
 const ownerLib = await owner.textContent("main");
 ok("owner's library lists every video", ["Owner to Ben", "Bob to Ben", "Amy draft", "Owner to Sha"].every((t) => ownerLib.includes(t)));
 

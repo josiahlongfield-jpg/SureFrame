@@ -68,7 +68,7 @@ await prisma.video.update({ where: { id: first }, data: { createdAt: threeDaysAg
 
 await owner.goto(BASE + "/library");
 const labels = await owner.$$eval("[data-testid=day-label]", (els) => els.map((e) => e.textContent));
-const expected = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(threeDaysAgo);
+const expected = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" }).format(threeDaysAgo);
 ok("one folder per day, newest first", labels.length === 2 && labels[0] === "Today" && labels[1] === expected, JSON.stringify(labels));
 ok("each folder counts its videos", (await owner.textContent("[data-testid=day-folder] >> nth=0 >> [data-testid=day-count]")) === "1 video");
 ok("the newest day starts open", !!(await owner.waitForSelector(`main a[href="/v/${second}"]`, { state: "visible", timeout: 10000 }).catch(() => null)));
