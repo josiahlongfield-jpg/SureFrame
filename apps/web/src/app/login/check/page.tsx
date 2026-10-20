@@ -33,7 +33,7 @@ export default async function CheckEmail({ searchParams }: { searchParams: Promi
               </span>
             </>
           ) : null}
-          . Open it on this device to continue. It works once and expires in 24 hours.
+          . Open it on this device, in the browser you use for SureFrame, to continue. It works once and expires in 24 hours.
         </p>
         {error && <p role="alert" className="mt-3 text-sm text-danger-fg">{errorText(error)}</p>}
         <p className="mt-4 text-sm text-dim">Nothing there? Check your spam or junk folder.</p>

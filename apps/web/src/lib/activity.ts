@@ -12,6 +12,20 @@ export const ACTIVITY_COOKIE = "sf_active";
  */
 export const KEEP_COOKIE = "sf_keep";
 export const KEEP_NEXT_COOKIE = "sf_keep_next";
+/**
+ * The same choice carried in an emailed sign-in link (on the page it returns to), because the link often opens in
+ * another browser than the one it was asked for in (a mail app's own, or the device's default), which has no
+ * KEEP_NEXT. src/middleware.ts passes it to the sign-in as KEEP_HEADER and takes it off the address afterwards.
+ */
+export const KEEP_PARAM = "sf_keep";
+export const KEEP_HEADER = "x-sf-keep";
+
+/** `next` with the "keep me signed in" mark added (lib/activity.ts KEEP_PARAM). */
+export function withKeep(next: string) {
+  const u = new URL(next, "http://x");
+  u.searchParams.set(KEEP_PARAM, "1");
+  return u.pathname + u.search + u.hash;
+}
 export const KEEP_DAYS = 30;
 
 /** With `keep`, the activity cookie outlives the browser for as long as KEEP does. */

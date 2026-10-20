@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { ACTIVITY_COOKIE as MARKER, activityCookie, KEEP_COOKIE, KEEP_DAYS, KEEP_NEXT_COOKIE } from "@/lib/activity";
+import { ACTIVITY_COOKIE as MARKER, activityCookie, KEEP_COOKIE, KEEP_DAYS, KEEP_HEADER, KEEP_NEXT_COOKIE, KEEP_PARAM } from "@/lib/activity";
 import { OWNER_COOKIE, OWNER_PARAM, maintenanceOn, ownerPass, sameText } from "@/lib/maintenance";
 
 /**
@@ -38,8 +38,25 @@ const sessionCookies = (req: NextRequest) =>
 
 const isCallback = (req: NextRequest) => req.nextUrl.pathname.startsWith("/api/auth/callback/");
 
+/** An emailed sign-in link asked to keep this device signed in: the mark rides on the page it returns to. */
+function linkKeeps(req: NextRequest) {
+  try {
+    return new URL(req.nextUrl.searchParams.get("callbackUrl") ?? "", req.nextUrl.origin).searchParams.get(KEEP_PARAM) === "1";
+  } catch {
+    return false;
+  }
+}
+
 /** Kept signed in on this device: ticked for the sign-in being completed now, or for the one in place. */
-const keeping = (req: NextRequest) => (isCallback(req) ? req.cookies.get(KEEP_NEXT_COOKIE)?.value === "1" : req.cookies.get(KEEP_COOKIE)?.value === "1");
+const keeping = (req: NextRequest) =>
+  isCallback(req) ? req.cookies.get(KEEP_NEXT_COOKIE)?.value === "1" || linkKeeps(req) : req.cookies.get(KEEP_COOKIE)?.value === "1";
+
+/** The sign-in request as passed on, telling events.signIn (src/auth.ts) when the link asked to keep the device. */
+function signInHeaders(req: NextRequest, base: Headers = new Headers(req.headers)) {
+  if (linkKeeps(req)) base.set(KEEP_HEADER, "1");
+  else base.delete(KEEP_HEADER);
+  return base;
+}
 
 function mark(res: NextResponse, req: NextRequest) {
   const secure = req.nextUrl.protocol === "https:";
@@ -93,24 +110,35 @@ async function maintenance(req: NextRequest) {
 }
 
 export async function middleware(req: NextRequest) {
-  return (await maintenance(req)) ?? sessionActivity(req);
+  return (await maintenance(req)) ?? withoutKeepMark(req) ?? sessionActivity(req);
+}
+
+/** Back from a sign-in link that carried "keep me signed in": the same page, without the mark in its address. */
+function withoutKeepMark(req: NextRequest) {
+  if (!req.nextUrl.searchParams.has(KEEP_PARAM) || req.nextUrl.pathname.startsWith("/api/") || req.method !== "GET") return null;
+  const url = req.nextUrl.clone();
+  url.searchParams.delete(KEEP_PARAM);
+  return NextResponse.redirect(url);
 }
 
 function sessionActivity(req: NextRequest) {
   const session = sessionCookies(req);
   // Completing a sign-in from signed out (email link, Google, dev login) starts the browser session.
-  if (!session.length) return isCallback(req) ? mark(NextResponse.next(), req) : NextResponse.next();
+  if (!session.length) return isCallback(req) ? mark(NextResponse.next({ request: { headers: signInHeaders(req) } }), req) : NextResponse.next();
 
   const last = Number(req.cookies.get(MARKER)?.value);
   const idle = req.cookies.get(KEEP_COOKIE)?.value === "1" ? KEEP_DAYS * 86_400_000 : IDLE_MS;
   const fresh = Number.isFinite(last) && last > 0 && Date.now() - last < idle;
-  if (fresh) return req.headers.get(BACKGROUND_HEADER) || req.headers.has(ACTION_HEADER) ? NextResponse.next() : mark(NextResponse.next(), req);
+  if (fresh) {
+    if (isCallback(req)) return mark(NextResponse.next({ request: { headers: signInHeaders(req) } }), req);
+    return req.headers.get(BACKGROUND_HEADER) || req.headers.has(ACTION_HEADER) ? NextResponse.next() : mark(NextResponse.next(), req);
+  }
 
   const names = new Set(session.map((c) => c.name));
   // Completing a new sign-in over an expired one: it goes ahead without the old session and sets
   // its own cookies and activity time (src/auth.ts). If the link was bad, the old cookies are
   // cleared on the next request.
-  if (isCallback(req)) return NextResponse.next({ request: { headers: withoutSession(req, names) } });
+  if (isCallback(req)) return NextResponse.next({ request: { headers: signInHeaders(req, withoutSession(req, names)) } });
 
   // The browser was closed, or nothing happened for too long: sign out here.
   // This request carries on as signed out (pages that need an account send

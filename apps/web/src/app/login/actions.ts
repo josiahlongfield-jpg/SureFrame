@@ -9,6 +9,7 @@ import { plainEmail } from "@/lib/emailAddress";
 import { safeNext } from "@/lib/secrets";
 import { countSignInEmail, signInEmailLimited } from "@/lib/signInGuard";
 import { SENT_TO_COOKIE } from "./errors";
+import { withKeep } from "@/lib/activity";
 
 /**
  * Emails a sign-in link, from the sign-in page or "Send again" on the check
@@ -16,7 +17,9 @@ import { SENT_TO_COOKIE } from "./errors";
  */
 export async function emailLink(fd: FormData) {
   const email = plainEmail(String(fd.get("email") ?? ""));
-  const redirectTo = safeNext(String(fd.get("next") ?? ""));
+  // "Keep me signed in" goes in the link too, for when it's opened in another browser (lib/activity.ts KEEP_PARAM).
+  const asked = safeNext(String(fd.get("next") ?? ""));
+  const redirectTo = fd.get("keep") === "1" ? withKeep(asked) : asked;
   const again = fd.get("again") === "1";
   const signup = fd.get("signup") === "1" ? "&signup=1" : "";
   const back = (code: string) => redirect(`${again ? "/login/check" : "/login"}?error=${code}&next=${encodeURIComponent(redirectTo)}${signup}`);

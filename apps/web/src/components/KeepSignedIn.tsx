@@ -15,7 +15,7 @@ export default function KeepSignedIn() {
   }, [keep]);
   return (
     <label className="flex items-start gap-2.5 text-sm text-muted">
-      <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} data-testid="keep-signed-in" className="mt-0.5 h-4 w-4 shrink-0 accent-primary" />
+      <input type="checkbox" name="keep" value="1" checked={keep} onChange={(e) => setKeep(e.target.checked)} data-testid="keep-signed-in" className="mt-0.5 h-4 w-4 shrink-0 accent-primary" />
       <span>
         Keep me signed in on this device
         <span className="block text-xs text-dim">For {KEEP_DAYS} days. Only on a device you don&apos;t share.</span>

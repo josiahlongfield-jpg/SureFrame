@@ -106,11 +106,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // Also settles "Keep me signed in on this device" (lib/activity.ts): kept for KEEP_DAYS from now if it was
     // ticked before this sign-in, else not at all.
     async signIn() {
-      const { cookies } = await import("next/headers");
-      const { ACTIVITY_COOKIE, KEEP_COOKIE, KEEP_NEXT_COOKIE, activityCookie, keepCookie } = await import("@/lib/activity");
+      const { cookies, headers } = await import("next/headers");
+      const { ACTIVITY_COOKIE, KEEP_COOKIE, KEEP_HEADER, KEEP_NEXT_COOKIE, activityCookie, keepCookie } = await import("@/lib/activity");
       try {
         const jar = await cookies();
-        const keep = jar.get(KEEP_NEXT_COOKIE)?.value === "1";
+        // Ticked in this browser, or carried in the emailed link (src/middleware.ts passes it on as KEEP_HEADER).
+        const keep = jar.get(KEEP_NEXT_COOKIE)?.value === "1" || (await headers()).get(KEEP_HEADER) === "1";
         jar.set(ACTIVITY_COOKIE, String(Date.now()), activityCookie(undefined, keep));
         if (keep) jar.set(KEEP_COOKIE, "1", keepCookie());
         else jar.delete(KEEP_COOKIE);
