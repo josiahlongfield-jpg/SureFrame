@@ -643,6 +643,9 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
               <p className="mt-1 text-center text-xs text-dim">
                 You can play it back before sending. Replies can be up to {Math.round(maxMs / 60_000)} minutes; recording stops by itself at the limit.
               </p>
+              <p className="mt-1 text-center text-xs text-dim" data-testid="reply-crash-note">
+                Your reply is saved as you record. If this page closes, open the link again and it&rsquo;s ready to send within about 90 seconds.
+              </p>
             </>
           ) : (
             <button

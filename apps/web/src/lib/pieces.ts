@@ -265,8 +265,9 @@ export async function salvageFor(userId: string | null, local: string[]) {
     orderBy: { piecesAt: "asc" },
     select: { piecesAt: true },
   });
-  const retryInMs = recent?.piecesAt ? Math.max(0, recent.piecesAt.getTime() + SALVAGE_AFTER_MS - Date.now()) + 2000 : null;
-  return { recovered: done, retryInMs };
+  const quietMs = recent?.piecesAt ? Date.now() - recent.piecesAt.getTime() : null;
+  const retryInMs = quietMs !== null ? Math.max(0, SALVAGE_AFTER_MS - quietMs) + 2000 : null;
+  return { recovered: done, retryInMs, quietMs };
 }
 
 /**

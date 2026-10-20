@@ -89,6 +89,17 @@ export const BUSINESS_FAQ: Qa[] = [
     ),
   },
   {
+    id: "interrupted",
+    q: "What if my browser closes while I'm recording?",
+    a: (
+      <p>
+        Your recording is saved as you go, a few seconds at a time. Reopen SureFrame in the same browser and it carries on straight away. On another
+        browser or device, it&rsquo;s finished from the copy we already have within about 90 seconds of when it stopped, up to the last few seconds. The
+        same goes for replies from your team and your clients.
+      </p>
+    ),
+  },
+  {
     id: "recovery-key",
     q: "What is the recovery key, and what if I lose it?",
     a: (
@@ -188,6 +199,16 @@ export const CLIENT_FAQ: Qa[] = [
     id: "business-told",
     q: "Is the business told when I reply?",
     a: <p>Usually, yes: the team member looking after you gets an email saying you replied. The email never includes your reply, because it&rsquo;s encrypted.</p>,
+  },
+  {
+    id: "reply-interrupted",
+    q: "What if the page closes while I'm recording a reply?",
+    a: (
+      <p>
+        Your reply is saved as you record. Open the link again, on any phone or browser, and within about 90 seconds it&rsquo;s back, ready for you to send
+        or delete. It&rsquo;s never sent by itself.
+      </p>
+    ),
   },
   {
     id: "replies-kept",

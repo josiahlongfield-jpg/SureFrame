@@ -339,7 +339,11 @@ class LegacyUploader {
  * (leftover chunks are re-sent, which the server treats idempotently), then any the person left elsewhere, which
  * the server finishes from its own copy (lib/pieces.ts). `onRecovered` gets the server's ones with only `replyTo`.
  */
-export async function recoverInterrupted(onRecovered: (videoId: string, s: Pick<store.PendingSession, "replyTo">) => void) {
+export async function recoverInterrupted(
+  onRecovered: (videoId: string, s: Pick<store.PendingSession, "replyTo">) => void,
+  /** The server is waiting before it finishes one (`ms` from now), then `null` once it has asked again. */
+  onWaiting: (ms: number | null) => void = () => {},
+) {
   const sessions = await store.listSessions().catch(() => [] as store.PendingSession[]);
   for (const s of sessions) {
     // A recording still running in another tab holds this lock; leave it alone.
@@ -383,15 +387,28 @@ export async function recoverInterrupted(onRecovered: (videoId: string, s: Pick<
     });
   }
   // Left unfinished somewhere else: the server finishes those from its copy. Not the ones this browser holds.
-  // One that stopped moments ago isn't finished yet (it may still be going): asked about once more when it may be.
-  for (let ask = 0; ask < 2; ask++) {
+  // One that stopped moments ago isn't finished yet: asked about again when it may be. One still sending pieces is
+  // probably being recorded right now, so it's only checked once more shortly, and not shown as interrupted.
+  let waiting = false;
+  for (let ask = 0; ask < 3; ask++) {
     const local = (await store.listSessions().catch(() => [] as store.PendingSession[])).map((s) => s.videoId);
     const res = await fetch("/api/uploads/salvage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ local }) }).catch(() => null);
-    const data = res?.ok ? ((await res.json().catch(() => null)) as { recovered?: { videoId: string; replyTo: string | null }[]; retryInMs?: number | null } | null) : null;
+    type Salvage = { recovered?: { videoId: string; replyTo: string | null }[]; retryInMs?: number | null; quietMs?: number | null };
+    const data = res?.ok ? ((await res.json().catch(() => null)) as Salvage | null) : null;
     for (const r of data?.recovered ?? []) onRecovered(r.videoId, { replyTo: r.replyTo ?? undefined });
-    if (!data?.retryInMs) break;
-    await new Promise((r) => setTimeout(r, data.retryInMs!));
+    const quiet = (data?.quietMs ?? 0) >= STILL_GOING_MS;
+    if (!data?.retryInMs || ask === 2 || (ask === 1 && !quiet && !waiting)) break;
+    waiting = quiet;
+    onWaiting(quiet ? data.retryInMs : null);
+    await new Promise((r) => setTimeout(r, quiet ? data.retryInMs! : STILL_GOING_MS));
   }
+  onWaiting(null);
 }
+
+/** Pieces arrive every couple of seconds while recording: quieter than this, a recording was most likely interrupted. */
+const STILL_GOING_MS = 8_000;
+
+/** "in about 40 seconds": how long until an interrupted recording is finished from the server's copy. */
+export const readyIn = (ms: number) => `in about ${Math.max(10, Math.round(ms / 10_000) * 10)} seconds`;
 
 export const lockName = (videoId: string) => `framecast-recording-${videoId}`;

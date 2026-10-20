@@ -9,7 +9,7 @@ import * as store from "@/lib/recorder/store";
 import { encryptFrame, fingerprint, generateKey, wrapKey } from "@/lib/e2e/crypto";
 import { browserTimeZone } from "@/lib/schedule";
 import { thumbFromTrack } from "@/lib/thumb";
-import { ChunkedUploader, FatalUploadError, lockName, mayRecover, recoverInterrupted, type UploadState } from "@/lib/recorder/uploader";
+import { ChunkedUploader, FatalUploadError, lockName, mayRecover, readyIn, recoverInterrupted, type UploadState } from "@/lib/recorder/uploader";
 import {
   bitrateFor,
   getCamera,
@@ -85,6 +85,7 @@ export default function Recorder({
   const [camRetry, setCamRetry] = useState(0);
   const [flash, setFlash] = useState(0);
   const [recovered, setRecovered] = useState<string[]>([]);
+  const [recovering, setRecovering] = useState<number | null>(null);
   // "Discard and start over" asks first; the recording is paused meanwhile, and carries on if they keep it.
   const [confirmDiscard, setConfirmDiscard] = useState<{ wasRecording: boolean } | null>(null);
   const [bubbleOpen, setBubbleOpen] = useState(false);
@@ -184,7 +185,7 @@ export default function Recorder({
 
   // Finish anything a previous crash left behind.
   useEffect(() => {
-    recoverInterrupted((id, s) => setRecovered((r) => [...r, s.replyTo ?? id])).catch(() => {});
+    recoverInterrupted((id, s) => setRecovered((r) => [...r, s.replyTo ?? id]), setRecovering).catch(() => {});
   }, []);
 
   const loadDevices = useCallback(async () => {
@@ -664,6 +665,11 @@ export default function Recorder({
       </div>
 
       <aside className="flex min-w-0 flex-col gap-5">
+        {recovering !== null && !recovered.length && phase === "setup" && (
+          <p role="status" data-testid="recorder-recovering" className="rounded-xl border border-line bg-surface p-3 text-sm text-muted">
+            Finishing a recording that was interrupted. It&rsquo;ll be ready {readyIn(recovering)}.
+          </p>
+        )}
         {recovered.length > 0 && phase === "setup" && (
           <div className="flex items-start gap-3 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="recorder-recovered">
             <p className="min-w-0 flex-1">
@@ -773,7 +779,8 @@ export default function Recorder({
               </p>
             )}
             <p className="text-xs text-dim">
-              Your recording uploads while you talk. Until it&rsquo;s safely up, a copy is kept in this browser, so after a crash or dropped connection it picks up where it left off.
+              Your recording uploads while you talk, and a copy is kept in this browser until it&rsquo;s safely up. If the page closes, reopen
+              SureFrame: in this browser it carries on straight away, and on another device it&rsquo;s ready within about 90 seconds.
             </p>
           </>
         )}

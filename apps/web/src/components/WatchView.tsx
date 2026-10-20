@@ -18,7 +18,7 @@ import SureFramePromo from "./SureFramePromo";
 import { markLinkSent } from "./ClientsManager";
 import SendPanel from "./SendPanel";
 import ConfirmDialog from "./ConfirmDialog";
-import { recoverInterrupted } from "@/lib/recorder/uploader";
+import { readyIn, recoverInterrupted } from "@/lib/recorder/uploader";
 import { useVideoFrame } from "@/lib/videoFrame";
 import { makeThumb } from "@/lib/thumb";
 import { decryptText, encryptText, importKey, unwrapKey } from "@/lib/e2e/crypto";
@@ -507,10 +507,11 @@ function WatchBody({
 
   // A reply recording interrupted by a crash or closed tab finishes uploading here, then waits for its
   // author to send or delete it (it's never sent by itself).
+  const [recovering, setRecovering] = useState<number | null>(null);
   useEffect(() => {
     recoverInterrupted((_id, s) => {
       if (s.replyTo === video.id) void refresh();
-    }).catch(() => {});
+    }, setRecovering).catch(() => {});
   }, [video.id, refresh]);
 
   // Keep the conversation fresh while the page is open.
@@ -648,10 +649,15 @@ function WatchBody({
       {promo && !canEdit && <SureFramePromo workspaceId={promo.workspaceId} business={business} onWatch={watchNow} />}
       <style>{BURST_CSS}</style>
       <section className="min-w-0">
+        {recovering !== null && (
+          <p role="status" data-testid="recovering-upload" className="mb-4 rounded-xl border border-line bg-surface p-3 text-sm text-muted">
+            Finishing {canEdit ? "a recording" : "your reply"} that was interrupted. It&rsquo;ll be ready {readyIn(recovering)}.
+          </p>
+        )}
         {sealedMessage && !canEdit && <BusinessMessage sealed={sealedMessage} rootKey={rootKey} from={ownerName} />}
         <div style={showPlayer ? frame.style : undefined} className="relative mx-auto overflow-hidden rounded-2xl bg-black shadow-sm">
           {video.status === "RECORDING" ? (
-            <div className="grid aspect-video place-items-center text-dim">This recording is still uploading. Refresh in a moment.</div>
+            <div className="grid aspect-video place-items-center text-dim">This recording is still uploading. If its page was closed, it&rsquo;s finished within about 90 seconds. Refresh in a moment.</div>
           ) : expired ? (
             <div className="grid aspect-video place-items-center px-6 text-center text-dim">
               This recording has been deleted from SureFrame. Ask the sender if they kept a copy.
