@@ -26,6 +26,7 @@ export default function DayFolder({
   defaultOpen = false,
   kind = "day",
   depth = 0,
+  compact = false,
 }: {
   day: string;
   summary: ReactNode;
@@ -34,6 +35,8 @@ export default function DayFolder({
   kind?: "day" | "week" | "month" | "client";
   /** 0 at the top, 1 inside another folder, 2 inside two (a month's week, or a client's month). */
   depth?: 0 | 1 | 2;
+  /** Smaller rows, for the list layout. */
+  compact?: boolean;
 }) {
   const nested = depth > 0;
   // Each level its own group name, so an open folder doesn't turn the arrows of closed ones inside it.
@@ -73,7 +76,7 @@ export default function DayFolder({
       data-testid={`${kind}-folder`}
       data-key={day}
     >
-      <summary className={`flex cursor-pointer list-none items-center gap-3 p-3 hover:bg-surface-2 [&::-webkit-details-marker]:hidden ${nested ? "rounded-xl" : "rounded-2xl sm:gap-4 sm:p-4"}`}>
+      <summary className={`flex cursor-pointer list-none items-center gap-3 hover:bg-surface-2 [&::-webkit-details-marker]:hidden ${compact ? "px-3 py-2" : "p-3"} ${nested ? "rounded-xl" : compact ? "rounded-2xl" : "rounded-2xl sm:gap-4 sm:p-4"}`}>
         {summary}
         <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`shrink-0 text-dim transition ${turn}`}>
           <path d="m6 9 6 6 6-6" />

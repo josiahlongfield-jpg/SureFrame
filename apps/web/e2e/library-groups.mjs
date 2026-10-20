@@ -137,8 +137,12 @@ ok("By client is remembered", (await page.getAttribute("[data-testid=view-client
 await page.screenshot({ path: `${shots}/library-groups-client.png`, fullPage: true });
 
 // The one-line list.
+const rowTiles = await page.locator("[data-testid=client-folder] > summary").nth(1).evaluate((e) => e.getBoundingClientRect().height);
 await page.click("[data-testid=layout-list]");
 await page.waitForSelector("[data-testid=video-list]");
+const rowList = await page.locator("[data-testid=client-folder] > summary").nth(1).evaluate((e) => e.getBoundingClientRect().height);
+ok("List makes the folder rows smaller too", rowList < rowTiles - 15, JSON.stringify({ rowTiles, rowList }));
+ok("List drops the extra stills beside a folder", (await page.$$("[data-testid=folder-strip]")).length === 0);
 const rowHeight = await page.locator(`[data-testid=video-list] a[href="/v/${realId}"]`).evaluate((a) => a.getBoundingClientRect().height);
 ok("a list line is short", rowHeight < 110, String(rowHeight));
 await page.reload();

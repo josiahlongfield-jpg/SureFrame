@@ -233,12 +233,13 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // A folder's picture: its newest still on a little stack of cards, and on wider screens the next two beside it.
   const cover = (items: Item[], depth: number, strip: boolean) => (
     <>
-      <span className={`relative aspect-video shrink-0 ${depth === 0 ? "w-24 sm:w-36" : "w-16 sm:w-24"}`}>
+      {/* The list layout keeps folder rows small too, so the whole library is compact, not just inside folders. */}
+      <span className={`relative aspect-video shrink-0 ${layout === "list" ? "w-14 sm:w-16" : depth === 0 ? "w-24 sm:w-36" : "w-16 sm:w-24"}`}>
         {items.length > 2 && <span aria-hidden className="absolute inset-0 translate-x-2 -translate-y-2 rounded-lg border border-line bg-solid opacity-60" />}
         {items.length > 1 && <span aria-hidden className="absolute inset-0 translate-x-1 -translate-y-1 rounded-lg border border-line bg-solid opacity-80" />}
         <span className="absolute inset-0 overflow-hidden rounded-lg border border-line bg-solid">{still(items[0])}</span>
       </span>
-      {strip && items.length > 1 && (
+      {strip && layout !== "list" && items.length > 1 && (
         <span className="hidden shrink-0 gap-2 pl-1 md:flex" data-testid="folder-strip">
           {items.slice(1, 3).map((v) => (
             <span key={v.id} className="relative aspect-video w-24 overflow-hidden rounded-lg border border-line bg-solid">{still(v)}</span>
@@ -270,9 +271,9 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // By date: the last week a folder a day, then weeks, then months (lib/libraryGroups.ts). The first folder starts
   // open, so the latest videos are on screen straight away.
   const folder = (g: Group<Item>, depth: 0 | 1 | 2, open: boolean) => (
-    <DayFolder key={g.key} day={g.key} kind={g.kind} depth={depth} defaultOpen={open} summary={summary(g.kind, g.label, g.items, depth, { strip: !!g.children })}>
+    <DayFolder key={g.key} day={g.key} kind={g.kind} depth={depth} compact={layout === "list"} defaultOpen={open} summary={summary(g.kind, g.label, g.items, depth, { strip: !!g.children })}>
       {g.children ? (
-        <div className="space-y-3">{g.children.map((c) => folder(c, (depth + 1) as 1 | 2, false))}</div>
+        <div className={layout === "list" ? "space-y-2" : "space-y-3"}>{g.children.map((c) => folder(c, (depth + 1) as 1 | 2, false))}</div>
       ) : (
         cards(g.items, g.kind === "day")
       )}
@@ -310,7 +311,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     return (
       <div className="space-y-3">
         {months.map((m) => (
-          <DayFolder key={m.key} day={m.key} kind="month" depth={1} summary={summary("month", m.label, m.items, 1)}>
+          <DayFolder key={m.key} day={m.key} kind="month" depth={1} compact={layout === "list"} summary={summary("month", m.label, m.items, 1)}>
             {cards(m.items, false)}
           </DayFolder>
         ))}
@@ -320,12 +321,13 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   const clientView = () => {
     const { clients: folders, unsent } = clientFolders();
     return (
-      <div className="space-y-4">
+      <div className={layout === "list" ? "space-y-2" : "space-y-4"}>
         {folders.map((g, i) => (
           <DayFolder
             key={g.id}
             day={`c${g.id}`}
             kind="client"
+            compact={layout === "list"}
             defaultOpen={i === 0}
             summary={summary("client", g.name, g.items, 0, { strip: true, convs: g.convs, note: `${g.removed ? " · client removed" : ""} · latest ${dates.shortDay(g.items[0].createdAt)}` })}
           >
@@ -333,7 +335,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
           </DayFolder>
         ))}
         {unsent.length > 0 && (
-          <DayFolder day="unsent" kind="client" defaultOpen={folders.length === 0} summary={summary("client", "Not sent yet", unsent, 0, { strip: true })}>
+          <DayFolder day="unsent" kind="client" compact={layout === "list"} defaultOpen={folders.length === 0} summary={summary("client", "Not sent yet", unsent, 0, { strip: true })}>
             {clientContents("unsent", unsent)}
           </DayFolder>
         )}
@@ -489,7 +491,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
           ) : byClient ? (
             clientView()
           ) : (
-            <div className="space-y-4">{groupByAge(videos, dates.zone, now).map((g, i) => folder(g, 0, i === 0))}</div>
+            <div className={layout === "list" ? "space-y-2" : "space-y-4"}>{groupByAge(videos, dates.zone, now).map((g, i) => folder(g, 0, i === 0))}</div>
           )
         )}
         <div id="todos" className="mt-12 max-w-2xl scroll-mt-6">
