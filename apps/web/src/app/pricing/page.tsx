@@ -227,7 +227,6 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
         <div className="text-center">
           <p className="kicker">Pricing</p>
           <h1 className="display mt-3 text-4xl   text-ink">Simple pricing. Clients always free.</h1>
-          <p className="mt-4 text-muted">Pick a plan by how many clients you work with.</p>
         </div>
         <Offers founding={foundingOpen() ? foundingLastDay() : null} ended={ended} busy={query.code === "busy"} linked={linked} auto={auto} referral={referral} />
         <PricingTable current={current} signedIn={signedIn} retentionDays={RETENTION_DAYS} start={start} />
@@ -239,10 +238,6 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
           back. Replies and sending a video to more clients don&rsquo;t count.
         </p>
         <p className="mt-2 text-center text-sm text-dim" data-testid="currency-note">All prices are in US dollars (USD), plus any sales tax, VAT or GST that applies where you are. Checkout may offer to charge you in your own currency at Stripe&rsquo;s exchange rate; otherwise your bank converts it.</p>
-
-        <GoodToKnow />
-
-        <FreePlanInFull />
 
         <section className="mx-auto mt-16 max-w-3xl" aria-labelledby="add-ons">
           <h2 id="add-ons" className="text-center text-2xl font-semibold tracking-tight text-ink">Optional add-ons</h2>
@@ -272,6 +267,11 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
             </div>
           </div>
         </section>
+
+        <GoodToKnow />
+
+        <FreePlanInFull />
+
       </main>
       {/* The app's header brings its own help button. */}
       <SiteFooter widget={!me} />

@@ -101,7 +101,12 @@ ok("AI add-on says what happens to longer videos", norm(await visitor.textConten
 await visitor.click("[role=radio]:has-text('Yearly')");
 const freeYear = norm(await visitor.textContent("[data-testid=plan-FREE] p.mt-4"));
 ok("Yearly: Free is US$0 with no period", freeYear === "US$0", freeYear);
-ok("Yearly: extras and backup are quoted by the year", norm(await visitor.textContent("[data-testid=plan-SOLO]")).includes("Extra clients US$15/year each") && norm(await visitor.textContent("[data-testid=plan-STUDIO]")).includes("Extra staff US$80/year each") && norm(await visitor.textContent("[data-testid=plan-SOLO] [data-testid=video-storage]")).includes("US$50 a year") && norm(await visitor.textContent("[data-testid=plan-SOLO] [data-testid=with-backup]")) === "With cloud backup: US$200 a year");
+const s0 = { STUDIO: norm(await visitor.textContent("[data-testid=plan-STUDIO]")), AGENCY: norm(await visitor.textContent("[data-testid=plan-AGENCY]")) };
+ok("pricing: add-ons come before Good to know, and no 'Pick a plan' line", await visitor.evaluate(() => {
+  const a = document.getElementById("add-ons"), g = document.getElementById("good-to-know");
+  return !!a && !!g && !!(a.compareDocumentPosition(g) & Node.DOCUMENT_POSITION_FOLLOWING) && !document.body.textContent.includes("Pick a plan by");
+}));
+ok("Yearly: extras and backup are quoted by the year", norm(await visitor.textContent("[data-testid=plan-SOLO]")).includes("Extra clients US$15/year each") && norm(await visitor.textContent("[data-testid=plan-STUDIO]")).includes("Extra staff US$80/year each") && ["STUDIO", "AGENCY"].every((p) => s0[p].includes("Extra clients US$15/year each") && s0[p].includes("Extra staff US$80/year each")) && norm(await visitor.textContent("[data-testid=plan-SOLO] [data-testid=video-storage]")).includes("US$50 a year") && norm(await visitor.textContent("[data-testid=plan-SOLO] [data-testid=with-backup]")) === "With cloud backup: US$200 a year");
 await visitor.keyboard.press("ArrowLeft");
 ok("the billing period switch works with arrow keys", (await visitor.getAttribute("[role=radio]:has-text('Monthly')", "aria-checked")) === "true" && (await visitor.evaluate(() => document.activeElement?.textContent)) === "Monthly");
 void freeCard;
