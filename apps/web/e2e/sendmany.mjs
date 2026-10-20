@@ -115,6 +115,21 @@ ok("all-clients pick adds only who's left", left.length === 1 && left[0] === "De
 await owner.click("[role=group] >> text=Clear");
 await owner.keyboard.press("Escape");
 
+// Waiting for their personal link: the owner's own clients who haven't opened it, saying whether it was sent.
+const waiting = async () => {
+  await owner.waitForSelector("[data-testid=waiting-list]", { timeout: 20000 });
+  return Object.fromEntries(await owner.locator("[data-testid=waiting-client]").evaluateAll((els) => els.map((e) => [e.firstElementChild.textContent, e.querySelector("[data-testid=waiting-status]").textContent])));
+};
+let w = await waiting();
+ok("waiting list: Ana's link sent, Dee's not yet", w.Ana === "Link sent, not opened yet" && w.Dee === "Link not sent yet" && Object.keys(w).length === 2, JSON.stringify(w));
+// Dee handed to the staff member: she's theirs to chase, so she leaves the owner's list.
+await prisma.client.update({ where: { id: clients.Dee.id }, data: { assignedToId: staffUser.id } });
+await owner.reload();
+w = await waiting();
+ok("waiting list: only the owner's own clients", Object.keys(w).join() === "Ana", JSON.stringify(w));
+await prisma.client.update({ where: { id: clients.Dee.id }, data: { assignedToId: clients.Dee.assignedToId } });
+await owner.reload();
+
 // Ben opens his copy from the link the owner copies for him.
 const benCopy = copies.find((c) => c.clientId === clients.Ben.id);
 const calCopy = copies.find((c) => c.clientId === clients.Cal.id);

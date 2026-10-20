@@ -63,7 +63,7 @@ await owner.fill("[data-testid=quick-add] input[aria-label='Client email']", `cl
 await owner.click("[data-testid=quick-add] button:has-text('Add client')");
 await owner.waitForSelector("[data-testid=first-links]", { timeout: 15000 });
 const box = norm(await owner.textContent("[data-testid=first-links]"));
-ok("added and chosen: says Client Q needs their personal link first", box.includes("Client Q needs their personal link first") && (await owner.textContent("[data-testid=client-picker]")).includes("Client Q"), box);
+ok("added and chosen: Client Q is listed as needing their personal link", box.includes("Client Q") && norm(await owner.textContent("[data-testid=first-time]")).includes("Clients listed need their personal link") && (await owner.textContent("[data-testid=client-picker]")).includes("Client Q"), box);
 ok("every way to send it is offered", ["Copy link", "Copy link + message", "Email from my email"].every((t) => box.includes(t)), box);
 const q = await prisma.client.findFirst({ where: { workspaceId: ws, name: "Client Q" } });
 ok("Client Q has their own key", !!q?.teamKeyWrap);

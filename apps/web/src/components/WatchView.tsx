@@ -49,6 +49,10 @@ export type ClientOption = {
   assignedToId?: string | null;
   /** The client has their personal link (they opened it, or the business copied it to send), so a plain Send emails them. */
   hasLink?: boolean;
+  /** Their personal link was copied, shared or emailed to them (not yet opened unless hasLink). */
+  linkSent?: boolean;
+  /** Assigned to the person viewing (or unassigned, for the owner): the clients they look after themselves. */
+  mine?: boolean;
   /** Has an email address and hasn't turned emails off. */
   emailable?: boolean;
   /** Has an email address but turned emails off. */

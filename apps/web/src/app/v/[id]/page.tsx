@@ -182,7 +182,7 @@ export default async function Watch({ params, searchParams }: Props) {
                 : { kind: "client", clientId: viewer.client.id }
             }
             clients={[
-              ...clients.map((c) => ({ id: c.id, name: c.name, email: c.email, link: clientLink(c.token, video.id), teamKeyWrap: c.teamKeyWrap, assignedToId: c.assignedToId, hasLink: !!c.linkOpenedAt, emailable: !!c.email && !c.remindersOff, emailsOff: !!c.email && c.remindersOff })),
+              ...clients.map((c) => ({ id: c.id, name: c.name, email: c.email, link: clientLink(c.token, video.id), teamKeyWrap: c.teamKeyWrap, assignedToId: c.assignedToId, hasLink: !!c.linkOpenedAt, linkSent: !!c.linkSentAt, mine: c.assignedToId === access?.userId || (!c.assignedToId && access?.role === "OWNER"), emailable: !!c.email && !c.remindersOff, emailsOff: !!c.email && c.remindersOff })),
               ...(recipient ? [{ id: recipient.id, name: recipient.name, link: "", teamKeyWrap: null, assignedToId: null, removed, paused: !!recipient.pausedAt, linkOff: !!recipient.linkDisabledAt }] : []),
             ]}
             sendMany={

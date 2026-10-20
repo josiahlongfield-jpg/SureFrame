@@ -73,7 +73,12 @@ const videoUrl = owner.url().split("?")[0];
 await chooseClients(owner, avery.name);
 await Promise.all([
   owner.waitForResponse((r) => r.request().method() === "PATCH" && r.url().includes("/api/videos/"), { timeout: 30000 }),
-  owner.click("[data-testid=send-link]"),
+  // Avery hasn't opened a personal link yet, so it's sent from the personal-link box.
+  (async () => {
+    const first = owner.locator("[data-testid=first-link-row] [data-testid=first-link-copy]");
+    if (await first.count()) await first.click();
+    else await owner.click("[data-testid=send-link]");
+  })(),
 ]);
 
 await owner.goto(`${BASE}/clients/${avery.id}`);
