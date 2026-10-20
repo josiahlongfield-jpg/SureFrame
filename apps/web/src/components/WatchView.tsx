@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { REACTIONS } from "@/lib/reactions";
 import type { ReplyDTO } from "@/lib/replies";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
-import { fixDuration } from "./MediaPlayer";
+import MediaPlayer, { fixDuration } from "./MediaPlayer";
 import ReplyComposer, { deleteReply, sendHeldReply, type ReplyComposerHandle } from "./ReplyComposer";
 import SecureMedia, { useDecryptedUrl } from "./SecureMedia";
 import TeamKeyGate from "./TeamKeyGate";
@@ -983,7 +983,8 @@ function WatchBody({
                     <ReplyText reply={r} conversationKey={rootKey} />
                   </div>
                 ) : r.media ? (
-                  <div className="w-full max-w-[90%]">
+                  // A video reply is a small still (VideoReplyChip) on its side of the conversation; a voice reply's player is full width.
+                  <div className={r.kind === "VIDEO" ? "max-w-[90%]" : "w-full max-w-[90%]"}>
                     <ReplyMedia reply={r} conversationKey={rootKey} />
                   </div>
                 ) : null}
@@ -1106,7 +1107,101 @@ function ReplyMedia({ reply, conversationKey }: { reply: ReplyDTO; conversationK
   if (media.expired) {
     return <p className="rounded-lg bg-surface-2 px-3 py-3 text-xs text-dim">This reply has been deleted from SureFrame.</p>;
   }
-  return <SecureMedia url={media.url} mediaKey={key} mimeType={media.mimeType} kind={reply.kind === "AUDIO" ? "AUDIO" : "VIDEO"} />;
+  if (reply.kind === "AUDIO") return <SecureMedia url={media.url} mediaKey={key} mimeType={media.mimeType} kind="AUDIO" />;
+  return <VideoReplyChip reply={reply} mediaKey={key} />;
+}
+
+const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
+
+/**
+ * A video reply in the conversation: a small still with a play button, so the chat isn't taken over by full-size
+ * players. Tapping it plays the reply large, over the page; Escape, Close or the dark edge closes it.
+ */
+function VideoReplyChip({ reply, mediaKey }: { reply: ReplyDTO; mediaKey: CryptoKey | null }) {
+  const media = reply.media!;
+  const { src, error } = useDecryptedUrl(media.url, mediaKey, media.mimeType);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const player = useRef<HTMLMediaElement | null>(null);
+  const still = useRef<HTMLVideoElement>(null);
+  const [open, setOpen] = useState(false);
+  const [length, setLength] = useState(media.durationMs);
+  // Opened by a tap, so it may start playing straight away.
+  useEffect(() => {
+    if (open) player.current?.play().catch(() => {});
+  }, [open]);
+  // Browser recordings don't say how long they are until scanned (components/MediaPlayer.tsx).
+  useEffect(() => (still.current ? fixDuration(still.current) : undefined), [src]);
+  const who = reply.mine ? "your" : `${reply.authorName}'s`;
+  if (error) {
+    return (
+      <p className="rounded-lg bg-surface-2 px-3 py-3 text-xs text-dim">
+        {error === "expired" ? "This recording has been deleted from SureFrame." : "Couldn't unlock this recording on this device."}
+      </p>
+    );
+  }
+  const show = () => {
+    setOpen(true);
+    dialog.current?.showModal();
+  };
+  const close = () => {
+    player.current?.pause();
+    dialog.current?.close();
+  };
+  return (
+    <>
+      <button
+        type="button"
+        onClick={show}
+        disabled={!src}
+        aria-label={`Play ${who} video reply`}
+        data-testid="reply-video-chip"
+        className="group relative block h-24 w-40 overflow-hidden rounded-xl border border-line bg-solid text-left disabled:cursor-wait"
+      >
+        {src ? (
+          <video
+            ref={still}
+            src={src}
+            muted
+            playsInline
+            preload="auto"
+            onDurationChange={(e) => Number.isFinite(e.currentTarget.duration) && !media.durationMs && setLength(e.currentTarget.duration * 1000)}
+            className="pointer-events-none h-full w-full object-cover"
+          />
+        ) : (
+          <span className="grid h-full w-full place-items-center text-xs text-on-solid/70">Unlocking…</span>
+        )}
+        <span className="absolute inset-0 grid place-items-center bg-black/20 transition group-hover:bg-black/30">
+          <span className="grid h-10 w-10 place-items-center rounded-full bg-white/90 text-black shadow">
+            <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z" /></svg>
+          </span>
+        </span>
+        {length ? <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-[11px] leading-4 text-white">{clock(length)}</span> : null}
+      </button>
+      <dialog
+        ref={dialog}
+        onClose={() => {
+          player.current?.pause();
+          setOpen(false);
+        }}
+        // A tap on the dark edge, outside the player, closes it.
+        onClick={(e) => e.target === dialog.current && close()}
+        aria-label={`${reply.mine ? "Your" : `${reply.authorName}'s`} video reply`}
+        data-testid="reply-video-dialog"
+        className="m-auto w-[min(96vw,64rem)] max-w-none overflow-visible bg-transparent p-0 backdrop:bg-black/85"
+      >
+        <div className="mb-2 flex items-center justify-between gap-3 text-sm text-white">
+          <span className="min-w-0 truncate">
+            {reply.mine ? "You" : reply.authorName} · {new Date(reply.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+          </span>
+          <button type="button" onClick={close} className="shrink-0 rounded-lg bg-white/15 px-3 py-1.5 font-medium hover:bg-white/25" data-testid="reply-video-close">
+            Close
+          </button>
+        </div>
+        {/* Drawn only while open, so it starts from the beginning each time and nothing plays hidden. */}
+        {open && src && <MediaPlayer ref={player} src={src} kind="VIDEO" className="mx-auto block max-h-[80svh] w-auto max-w-full rounded-xl bg-black" />}
+      </dialog>
+    </>
+  );
 }
 
 /** The business's message to the client, above the video. Sealed with the video's key; unlocked here. */

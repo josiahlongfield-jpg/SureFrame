@@ -87,9 +87,14 @@ await page.click("text=Record video reply");
 await page.waitForTimeout(2500);
 await page.click("text=Stop recording");
 await page.click("text=Send video reply");
-await page.waitForSelector("[data-testid=conversation] ul video[controls]", { timeout: 30000 });
-s = await shape(page, "[data-testid=conversation] ul video[controls]");
-ok("video reply playback: no black bars", fills(s) && s.wide, JSON.stringify(s));
+// The reply shows as a small still in the chat; tapping it plays it large.
+await page.waitForSelector("[data-testid=reply-video-chip]:not([disabled])", { timeout: 30000 });
+await page.click("[data-testid=reply-video-chip]");
+await page.waitForSelector("[data-testid=reply-video-dialog] video[controls]", { timeout: 30000 });
+await page.waitForTimeout(500);
+// Played large over the page, the video's box is its own shape (its frame is the whole overlay).
+s = await page.evaluate(measure, "[data-testid=reply-video-dialog] video[controls]");
+ok("video reply playback: no black bars", !!s && Math.abs(s.box - s.video) / s.video < 0.02 && s.wide, JSON.stringify(s));
 await page.screenshot({ path: `${shots}/phone-reply-playback.png` });
 
 await browser.close();

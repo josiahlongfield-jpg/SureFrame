@@ -90,6 +90,30 @@ for (const [name, device] of [["iPhone SE", devices["iPhone SE"]], ["iPhone 13",
   await page.click("button:has-text('Send video reply')");
   await page.waitForSelector("[data-testid=reply-sent]", { timeout: 30000 });
   ok(`${name}: video reply sends`, true);
+  // In the conversation it's a small still with a play button, not a full-size player.
+  const chip = page.locator("[data-testid=conversation] li [data-testid=reply-video-chip]").last();
+  await chip.waitFor({ timeout: 30000 });
+  await page.waitForSelector("[data-testid=conversation] li [data-testid=reply-video-chip]:not([disabled]) video", { timeout: 30000 });
+  const small = await chip.boundingBox();
+  ok(`${name}: the sent video reply is a small still in the chat`, !!small && small.height <= 100 && small.width <= 170, JSON.stringify(small));
+  ok(`${name}: no player in the chat until it's tapped`, (await page.locator("[data-testid=conversation] li video[controls]").count()) === 0);
+  await chip.tap();
+  const big = page.locator("[data-testid=reply-video-dialog][open] video[controls]");
+  await big.waitFor({ timeout: 15000 });
+  await page.waitForTimeout(800);
+  const box = await big.boundingBox();
+  const vw = page.viewportSize().width;
+  ok(`${name}: tapping it plays it large over the page`, !!box && box.width >= vw * 0.85, JSON.stringify({ box, vw }));
+  ok(`${name}: it starts playing`, await big.evaluate((v) => !v.paused || v.ended));
+  await page.screenshot({ path: `${shots}/phone-reply-open-${name.replace(/\s/g, "-")}.png` });
+  await page.click("[data-testid=reply-video-dialog][open] [data-testid=reply-video-close]");
+  await page.waitForTimeout(300);
+  ok(`${name}: Close shuts it and nothing keeps playing`, (await page.locator("[data-testid=reply-video-dialog][open]").count()) === 0 && (await page.locator("[data-testid=reply-video-dialog] video").count()) === 0);
+  await chip.tap();
+  await big.waitFor({ timeout: 15000 });
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  ok(`${name}: Escape closes it too`, (await page.locator("[data-testid=reply-video-dialog][open]").count()) === 0);
   await ctx.close();
 }
 
