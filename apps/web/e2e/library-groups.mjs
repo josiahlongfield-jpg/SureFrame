@@ -106,6 +106,7 @@ await page.screenshot({ path: `${shots}/library-groups-date.png`, fullPage: true
 const month = page.locator("[data-testid=month-folder]", { has: page.locator(`[data-testid=month-label]:text-is("${monthLabel}")`) }).first();
 await month.locator("> summary").click();
 const inner = month.locator("[data-testid=week-folder], [data-testid=day-folder]");
+await inner.first().waitFor({ timeout: 10000 }).catch(() => {});
 ok("an opened month shows folders inside", (await inner.count()) >= 1, String(await inner.count()));
 // Keep opening the first closed folder until the 46-day-old video shows.
 for (let i = 0; i < 3 && !(await page.isVisible(`main a[href="/v/${made[46]}"]`)); i++) {

@@ -334,6 +334,12 @@ model Video {
   /// Recorded by someone who has since left or been removed from the team. Their recordings move to the owner
   /// (ownerId) but are shown as "Former team member", never as the owner's (lib/team.ts senderName).
   formerStaffAt        DateTime?
+  /// Server backup while recording (lib/pieces.ts): when the last piece arrived, the length the recorder reported
+  /// with it, how many parts have been joined from pieces, and who's joining now.
+  piecesAt             DateTime?
+  recordedMs           Int?
+  partsJoined          Int           @default(0)
+  joinLockUntil        DateTime?
   owner                User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   workspace            Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   parts                UploadPart[]
@@ -387,6 +393,20 @@ model UploadPart {
   @@id([videoId, partNumber])
 }
 
+/// A few seconds of a recording (already encrypted) sent as it's made, kept until it's joined into an upload part
+/// (lib/pieces.ts). No relation on purpose: a row outlives a deleted video, so its stored file is still swept up.
+model UploadPiece {
+  videoId   String
+  seq       Int
+  /// Where it starts in the whole recording, in bytes.
+  offset    BigInt
+  sizeBytes Int
+  createdAt DateTime @default(now())
+
+  @@id([videoId, seq])
+  @@index([createdAt])
+}
+
 enum ReplyKind {
   TEXT
   VIDEO
@@ -395,27 +415,27 @@ enum ReplyKind {
 
 /// One message in a video's conversation. Viewers can reply without an account.
 model Reply {
-  id           String    @id @default(cuid())
-  kind         ReplyKind
+  id            String    @id @default(cuid())
+  kind          ReplyKind
   /// Ciphertext when encrypted (sealed with the conversation's video key).
-  body         String?
-  encrypted    Boolean   @default(false)
-  timestampMs  Int?
-  authorName   String
-  createdAt    DateTime  @default(now())
-  videoId      String
-  mediaId      String?   @unique
-  authorUserId String?
+  body          String?
+  encrypted     Boolean   @default(false)
+  timestampMs   Int?
+  authorName    String
+  createdAt     DateTime  @default(now())
+  videoId       String
+  mediaId       String?   @unique
+  authorUserId  String?
   /// A video or voice reply waiting for its author to review it: hidden from everyone else
   /// until they press Send (cleared then), or deleted if they discard it.
-  heldAt       DateTime?
+  heldAt        DateTime?
   /// Written by the client (not the team). Kept apart from authorUserId, which empties if a team member's login is deleted.
-  byClient     Boolean   @default(false)
+  byClient      Boolean   @default(false)
   /// Written by someone who has since left the team (authorUserId then moves to the owner): shown as "Former team member".
   formerStaffAt DateTime?
-  video        Video     @relation("Conversation", fields: [videoId], references: [id], onDelete: Cascade)
-  media        Video?    @relation("ReplyMedia", fields: [mediaId], references: [id], onDelete: Cascade)
-  authorUser   User?     @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  video         Video     @relation("Conversation", fields: [videoId], references: [id], onDelete: Cascade)
+  media         Video?    @relation("ReplyMedia", fields: [mediaId], references: [id], onDelete: Cascade)
+  authorUser    User?     @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
 
   @@index([videoId, createdAt])
   @@index([authorUserId])
@@ -440,11 +460,11 @@ model Reaction {
 /// never pay: each uses one of the workspace's client seats and gets a
 /// private link to watch and reply to the videos sent to them.
 model Client {
-  id                 String        @id @default(cuid())
+  id                 String               @id @default(cuid())
   name               String
   email              String?
   /// Secret in the client's personal link. Treat like a password.
-  token              String        @unique
+  token              String               @unique
   /// The client's end-to-end key, wrapped with the team key. The unwrapped key
   /// travels only in the link fragment (#k=…), which browsers never send to servers.
   teamKeyWrap        String?
@@ -452,7 +472,7 @@ model Client {
   /// Lets the client's device notice an old key and pick up the new one.
   keyFingerprint     String?
   /// The client turned reminder emails off (from an email's unsubscribe link or their inbox).
-  remindersOff       Boolean       @default(false)
+  remindersOff       Boolean              @default(false)
   /// First time the client opened their personal link (the one with their key).
   /// Until then a business is reminded to send it themselves.
   linkOpenedAt       DateTime?
@@ -464,8 +484,8 @@ model Client {
   pausedAt           DateTime?
   /// The staff member who looks after this client (Studio and Agency teams).
   assignedToId       String?
-  assignedTo         User?         @relation("ClientAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  createdAt          DateTime      @default(now())
+  assignedTo         User?                @relation("ClientAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdAt          DateTime             @default(now())
   /// Removed by the business: the link stops working and the seat is freed at once.
   removedAt          DateTime?
   /// When a removed client is deleted for good (removedAt + 30 days); until then they can be restored.
@@ -481,7 +501,7 @@ model Client {
   /// Why, for support only.
   linkDisabledReason String?
   workspaceId        String
-  workspace          Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace          Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   videos             Video[]
   items              Item[]
   keyRotations       KeyRotation[]

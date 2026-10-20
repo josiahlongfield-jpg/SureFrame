@@ -85,15 +85,135 @@ async function sendComplete(videoId: string, partCount: number, durationMs: numb
 /** A stored chunk, or what's left of one: `offset` bytes of it went into earlier parts. */
 type Piece = { seq: number; blob: Blob; offset: number };
 
+async function sendPiece(videoId: string, seq: number, offset: number, body: Blob, durationMs: number, headers: Record<string, string>) {
+  const api = `/api/videos/${videoId}/pieces/${seq}`;
+  if (DIRECT) {
+    // Note it, then store the (already encrypted) bytes straight in the bucket.
+    const res = await fetch(api, { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ offset, size: body.size, durationMs }) });
+    if (!res.ok) await rejectOrRetry(res, "Upload");
+    const { url, joined } = (await res.json()) as { url: string | null; joined?: boolean };
+    // Already in the recording on the server (sent again after a crash).
+    if (joined) return;
+    if (url) {
+      // A storage error (expired URL, network) is always retried with a fresh URL.
+      const put = await fetch(url, { method: "PUT", body });
+      if (!put.ok) throw new Error(`Storage upload failed (${put.status})`);
+      return;
+    }
+  }
+  const res = await fetch(`${api}?offset=${offset}&ms=${Math.round(durationMs)}`, { method: "PUT", body, headers });
+  if (!res.ok) await rejectOrRetry(res, "Upload");
+}
+
+async function sendFinish(videoId: string, durationMs: number, headers: Record<string, string>) {
+  const res = await fetch(`/api/videos/${videoId}/complete`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ pieces: true, durationMs: Math.round(durationMs) }),
+  });
+  if (!res.ok) await rejectOrRetry(res, "Finishing the upload");
+}
+
 /**
- * Streams a recording to the server while it is being made.
+ * Streams a recording to the server while it is being made: each chunk the recorder hands over (a couple of
+ * seconds, already encrypted) is kept in this browser, then sent as a piece, in order, with retries. The server
+ * joins the pieces into parts (lib/pieces.ts), so it holds nearly the whole recording at any moment and can finish
+ * it even if this page never comes back. A chunk is only forgotten here once the server confirms it.
+ */
+export class ChunkedUploader {
+  private seq: number;
+  private offset: number;
+  private queue: Promise<void> = Promise.resolve();
+  private intake: Promise<void> = Promise.resolve();
+  private uploadedBytes = 0;
+  private pendingBytes = 0;
+  private fatal?: Error;
+  private unsaved = false;
+  private headers: Record<string, string>;
+  private duration: () => number;
+
+  constructor(
+    private videoId: string,
+    opts: { startSeq?: number; startOffset?: number; uploadToken?: string; duration?: () => number } = {},
+    private onState: (s: UploadState) => void = () => {},
+  ) {
+    this.seq = opts.startSeq ?? 0;
+    this.offset = opts.startOffset ?? 0;
+    this.headers = opts.uploadToken ? { "x-upload-token": opts.uploadToken } : {};
+    this.duration = opts.duration ?? (() => 0);
+  }
+
+  /** Add a recorded chunk. Resolves once it is safely in IndexedDB. Chunks are kept in arrival order. */
+  push(blob: Blob) {
+    if (blob.size === 0) return this.intake;
+    const seq = this.seq++;
+    const offset = this.offset;
+    this.offset += blob.size;
+    this.intake = this.intake.then(async () => {
+      // If the local copy can't be written (storage full), keep going from memory:
+      // the upload still has the chunk, only the crash safety net is gone.
+      await store.putChunk(this.videoId, seq, blob, offset).catch(this.lostLocalCopy);
+      this.pendingBytes += blob.size;
+      this.emit(false);
+      this.send(seq, offset, blob);
+    });
+    return this.intake;
+  }
+
+  /** Re-queue chunks still in IndexedDB (used by crash recovery). */
+  restore(chunks: { seq: number; blob: Blob; offset?: number }[]) {
+    for (const c of chunks) {
+      this.pendingBytes += c.blob.size;
+      this.send(c.seq, c.offset ?? 0, c.blob);
+    }
+  }
+
+  /** Send everything left and finish. */
+  async finish(durationMs: number) {
+    await this.intake;
+    await this.queue;
+    if (this.fatal) throw this.fatal;
+    await withRetry(() => sendFinish(this.videoId, durationMs, this.headers), (r) => this.emit(r));
+    await store.removeSession(this.videoId).catch(this.lostLocalCopy);
+  }
+
+  private lostLocalCopy = (err: unknown) => {
+    console.warn("Couldn't update the local copy of the recording", err);
+    this.unsaved = true;
+  };
+
+  private send(seq: number, offset: number, blob: Blob) {
+    this.queue = this.queue.then(async () => {
+      if (this.fatal) return;
+      try {
+        await withRetry(() => sendPiece(this.videoId, seq, offset, blob, this.duration(), this.headers), (r) => this.emit(r));
+        await store.confirmPiece(this.videoId, seq).catch(this.lostLocalCopy);
+        this.uploadedBytes += blob.size;
+        this.pendingBytes -= blob.size;
+        this.emit(false);
+      } catch (err) {
+        this.fatal = err as Error;
+        // Upload failures otherwise only show in the customer's browser.
+        reportClientError("upload", err);
+        this.onState({ uploadedBytes: this.uploadedBytes, bufferedBytes: this.pendingBytes, retrying: false, error: this.fatal.message, unsaved: this.unsaved });
+      }
+    });
+  }
+
+  private emit(retrying: boolean) {
+    this.onState({ uploadedBytes: this.uploadedBytes, bufferedBytes: this.pendingBytes, retrying, unsaved: this.unsaved });
+  }
+}
+
+/**
+ * How recordings begun before pieces (lib/pieces.ts) upload, kept to finish any still on a device.
  * Chunks are persisted locally first, cut into parts of exactly PART_BYTES
  * (object storage such as R2 refuses an upload whose parts, bar the last,
  * differ in size; a chunk can straddle two parts), and sent strictly in order
  * with retries. A part is only forgotten locally once the server confirms it,
  * so a crash at any point loses nothing.
  */
-export class ChunkedUploader {
+class LegacyUploader {
   private seq = 0;
   private pending: Piece[] = [];
   private pendingBytes = 0;
@@ -215,12 +335,12 @@ export class ChunkedUploader {
 }
 
 /**
- * Finish any recordings interrupted by a crash or closed tab.
- * Leftover chunks are re-sent starting at the first unconfirmed part number,
- * which the server treats idempotently.
+ * Finish any recordings interrupted by a crash or closed tab: first the ones this browser still has a copy of
+ * (leftover chunks are re-sent, which the server treats idempotently), then any the person left elsewhere, which
+ * the server finishes from its own copy (lib/pieces.ts). `onRecovered` gets the server's ones with only `replyTo`.
  */
-export async function recoverInterrupted(onRecovered: (videoId: string, s: store.PendingSession) => void) {
-  const sessions = await store.listSessions();
+export async function recoverInterrupted(onRecovered: (videoId: string, s: Pick<store.PendingSession, "replyTo">) => void) {
+  const sessions = await store.listSessions().catch(() => [] as store.PendingSession[]);
   for (const s of sessions) {
     // A recording still running in another tab holds this lock; leave it alone.
     await navigator.locks.request(lockName(s.videoId), { ifAvailable: true }, async (lock) => {
@@ -233,20 +353,44 @@ export async function recoverInterrupted(onRecovered: (videoId: string, s: store
       }
       const chunks = await store.getChunks(s.videoId);
       try {
-        const up = new ChunkedUploader(s.videoId, {
-          nextPart: s.nextPart,
-          startSeq: (chunks.at(-1)?.seq ?? -1) + 1,
-          uploadToken: s.uploadToken,
-        });
-        up.restore(chunks, s.skip ?? 0);
-        await up.finish(s.durationMs);
+        if (s.pieces) {
+          const last = chunks.at(-1);
+          const up = new ChunkedUploader(s.videoId, {
+            startSeq: (last?.seq ?? -1) + 1,
+            startOffset: last ? (last.offset ?? 0) + last.blob.size : 0,
+            uploadToken: s.uploadToken,
+            duration: () => s.durationMs,
+          });
+          up.restore(chunks);
+          await up.finish(s.durationMs);
+        } else {
+          const up = new LegacyUploader(s.videoId, {
+            nextPart: s.nextPart,
+            startSeq: (chunks.at(-1)?.seq ?? -1) + 1,
+            uploadToken: s.uploadToken,
+          });
+          up.restore(chunks, s.skip ?? 0);
+          await up.finish(s.durationMs);
+        }
         onRecovered(s.videoId, s);
       } catch (err) {
         const stale = Date.now() - s.startedAt > KEEP_FOR_MS;
-        if (err instanceof FatalUploadError && (!mayRecover(err) || (stale && err.status === 404))) await store.removeSession(s.videoId);
+        // Already finished elsewhere (the server's copy, from another browser): nothing left to do here.
+        if (err instanceof FatalUploadError && err.status === 409 && s.pieces) await store.removeSession(s.videoId);
+        else if (err instanceof FatalUploadError && (!mayRecover(err) || (stale && err.status === 404))) await store.removeSession(s.videoId);
         else console.warn("Recovery deferred", s.videoId, err);
       }
     });
+  }
+  // Left unfinished somewhere else: the server finishes those from its copy. Not the ones this browser holds.
+  // One that stopped moments ago isn't finished yet (it may still be going): asked about once more when it may be.
+  for (let ask = 0; ask < 2; ask++) {
+    const local = (await store.listSessions().catch(() => [] as store.PendingSession[])).map((s) => s.videoId);
+    const res = await fetch("/api/uploads/salvage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ local }) }).catch(() => null);
+    const data = res?.ok ? ((await res.json().catch(() => null)) as { recovered?: { videoId: string; replyTo: string | null }[]; retryInMs?: number | null } | null) : null;
+    for (const r of data?.recovered ?? []) onRecovered(r.videoId, { replyTo: r.replyTo ?? undefined });
+    if (!data?.retryInMs) break;
+    await new Promise((r) => setTimeout(r, data.retryInMs!));
   }
 }
 

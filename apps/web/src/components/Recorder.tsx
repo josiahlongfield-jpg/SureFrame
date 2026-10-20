@@ -9,7 +9,7 @@ import * as store from "@/lib/recorder/store";
 import { encryptFrame, fingerprint, generateKey, wrapKey } from "@/lib/e2e/crypto";
 import { browserTimeZone } from "@/lib/schedule";
 import { thumbFromTrack } from "@/lib/thumb";
-import { ChunkedUploader, FatalUploadError, lockName, mayRecover, PART_BYTES, recoverInterrupted, type UploadState } from "@/lib/recorder/uploader";
+import { ChunkedUploader, FatalUploadError, lockName, mayRecover, recoverInterrupted, type UploadState } from "@/lib/recorder/uploader";
 import {
   bitrateFor,
   getCamera,
@@ -432,7 +432,7 @@ export default function Recorder({
       setFreeLeft((n) => (n === null ? n : Math.max(0, n - 1)));
 
       made = { videoId, releaseLock: () => {} };
-      await store.putSession({ videoId, title: data.video.title, mimeType, startedAt: Date.now(), nextPart: 1, durationMs: 0, stopped: false });
+      await store.putSession({ videoId, title: data.video.title, mimeType, startedAt: Date.now(), nextPart: 1, durationMs: 0, stopped: false, pieces: true });
 
       let releaseLock = () => {};
       await new Promise<void>((held) => {
@@ -445,7 +445,7 @@ export default function Recorder({
 
       const closeBubble = bubble ?? (() => {});
 
-      const uploader = new ChunkedUploader(videoId, {}, setUpload);
+      const uploader = new ChunkedUploader(videoId, { duration: durationNow }, setUpload);
       const recorder = new MediaRecorder(new MediaStream(tracks), { mimeType, videoBitsPerSecond: bitrateFor(quality) });
       recorder.ondataavailable = (e) => {
         const l = live.current;
@@ -950,10 +950,7 @@ function UploadBadge({ s }: { s: UploadState }) {
     <p className="text-sm text-ok-fg">
       Uploaded: {(s.uploadedBytes / 1024 / 1024).toFixed(1)} MB
       {s.bufferedBytes > 0 && <span className="text-dim"> (+{(s.bufferedBytes / 1024 / 1024).toFixed(1)} MB on device)</span>}
-      {/* Short takes go up in one piece at the end, so a still 0.0 isn't a stuck upload. */}
-      {s.uploadedBytes === 0 && (
-        <span className="block text-xs text-dim">It goes up in {Math.round(PART_BYTES / 1024 / 1024)} MB pieces while you record, and the rest when you stop. Until then it&rsquo;s kept safe in this browser.</span>
-      )}
+      {s.uploadedBytes === 0 && <span className="block text-xs text-dim">It goes up every few seconds while you record, and is kept safe in this browser until it&rsquo;s up.</span>}
     </p>
   );
 }

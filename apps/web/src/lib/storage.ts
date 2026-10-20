@@ -39,6 +39,11 @@ export interface StorageDriver {
    * request-size limits). The part's exact size is signed into the URL.
    */
   presignPart?(key: string, uploadId: string | null, partNumber: number, size: number): Promise<string>;
+  /**
+   * Object storage only: a short-lived URL the browser can PUT one small object of exactly `size` bytes to
+   * (a recording's piece, lib/pieces.ts).
+   */
+  presignObject?(key: string, size: number): Promise<string>;
   /** Object storage only: the parts actually stored, as the source of truth at completion. */
   listParts?(key: string, uploadId: string | null): Promise<{ partNumber: number; etag: string | null; sizeBytes: number }[]>;
   /** Object storage only: the size of a finished object, or null when there's none. */
@@ -192,6 +197,13 @@ class S3Driver implements StorageDriver {
       new UploadPartCommand({ Bucket: this.bucket, Key: key, UploadId: uploadId!, PartNumber: partNumber, ContentLength: size }),
       { expiresIn: 15 * 60, signableHeaders: new Set(["content-length"]) },
     );
+  }
+
+  async presignObject(key: string, size: number) {
+    return getSignedUrl(this.s3, new PutObjectCommand({ Bucket: this.bucket, Key: key, ContentLength: size }), {
+      expiresIn: 15 * 60,
+      signableHeaders: new Set(["content-length"]),
+    });
   }
 
   async listParts(key: string, uploadId: string | null) {

@@ -1,7 +1,7 @@
 /**
  * Crash-recovery buffer. Every MediaRecorder chunk lands here before it is
- * uploaded and is only removed once the server has confirmed the part that
- * contains it. If the tab, browser or machine dies mid-recording, whatever
+ * uploaded and is only removed once the server has confirmed it (or, for
+ * recordings begun before pieces, the part that contains it). If the tab, browser or machine dies mid-recording, whatever
  * is left here is uploaded on the next visit.
  */
 
@@ -22,9 +22,12 @@ export type PendingSession = {
   replyTo?: string;
   /** "Discard this recording?" was open: if the page closes now, recovery deletes it instead of uploading it. */
   discarding?: boolean;
+  /** Sent as pieces the server joins (lib/pieces.ts), not as parts cut here; nextPart and skip then go unused. */
+  pieces?: boolean;
 };
 
-type ChunkRow = { videoId: string; seq: number; blob: Blob };
+/** `offset`: where the chunk starts in the recording, in bytes (recordings sent as pieces). */
+type ChunkRow = { videoId: string; seq: number; blob: Blob; offset?: number };
 
 const DB_NAME = "framecast-recorder";
 const VERSION = 1;
@@ -82,9 +85,16 @@ export async function listSessions(): Promise<PendingSession[]> {
   return request(tx.objectStore("sessions").getAll());
 }
 
-export async function putChunk(videoId: string, seq: number, blob: Blob) {
+export async function putChunk(videoId: string, seq: number, blob: Blob, offset?: number) {
   const tx = (await open()).transaction("chunks", "readwrite");
-  tx.objectStore("chunks").put({ videoId, seq, blob } satisfies ChunkRow);
+  tx.objectStore("chunks").put({ videoId, seq, blob, offset } satisfies ChunkRow);
+  await done(tx);
+}
+
+/** The server has this piece: the local copy of it can go. */
+export async function confirmPiece(videoId: string, seq: number) {
+  const tx = (await open()).transaction("chunks", "readwrite");
+  tx.objectStore("chunks").delete([videoId, seq]);
   await done(tx);
 }
 

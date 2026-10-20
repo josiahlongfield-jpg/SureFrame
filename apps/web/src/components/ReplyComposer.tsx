@@ -290,6 +290,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
       stopped: false,
       uploadToken: data.uploadToken,
       replyTo: videoId,
+      pieces: true,
     });
     let release = () => {};
     await new Promise<void>((held) => {
@@ -299,7 +300,8 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
       }));
     });
 
-    const uploader = new ChunkedUploader(mediaId, { uploadToken: data.uploadToken }, setUpload);
+    const began = performance.now();
+    const uploader = new ChunkedUploader(mediaId, { uploadToken: data.uploadToken, duration: () => performance.now() - began }, setUpload);
     const recorder = new MediaRecorder(stream.current, {
       mimeType,
       ...(kind === "VIDEO" ? { videoBitsPerSecond: bitrateFor(1080) } : { audioBitsPerSecond: 128_000 }),

@@ -13,6 +13,7 @@ import { pruneAdminActions } from "@/lib/support/admin";
 import { pruneTermsAcceptances } from "@/lib/terms";
 import { sendTermsNotices } from "@/lib/termsNotice";
 import { purgeHeldReplies } from "@/lib/replies";
+import { salvageAbandoned } from "@/lib/pieces";
 import { pruneClientQuestions, sendClientQuestionDigest } from "@/lib/support/clientQuestions";
 
 export const maxDuration = 300;
@@ -32,7 +33,9 @@ export async function GET(req: Request) {
     pruneRateLimits(),
     // Help-chat allowance records for people who aren't paying, after 31 days.
     pruneSupportUse(),
-    abortStaleUploads(),
+    // Recordings their recorder never finished: finished from the server's copy after 6 hours (lib/pieces.ts), and
+    // only then, uploads with nothing to finish them from are given up after a week.
+    salvageAbandoned().then((salvaged) => abortStaleUploads().then((aborted) => ({ salvaged, aborted }))),
     pruneTeamNotifications(),
     pruneLeftovers(),
     // Normally sent by the 5-minute reminders job; this catches anything it missed.
