@@ -17,6 +17,8 @@ import { db } from "@/lib/db";
 import { LEGAL } from "@/lib/legal";
 import { PLANS } from "@/lib/plans";
 import { HttpError, requirePageUser } from "@/lib/session";
+import { cookies } from "next/headers";
+import { ACTIVITY_COOKIE, KEEP_COOKIE, KEEP_DAYS, activityCookie, keepCookie } from "@/lib/activity";
 
 export const metadata: Metadata = { title: "Account" };
 
@@ -40,6 +42,20 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
   const teamNames = mine.filter((m) => m.role !== "OWNER" && m.workspace._count.members > 1).map((m) => m.workspace.name);
   // Deleted for good this long after closing, unless they sign in and keep it (lib/accountDeletion.ts).
   const deletesOn = zoned(ownWorkspace?.timezone).longDay(deletionDate());
+  // "Keep me signed in on this device" (lib/activity.ts), for this browser.
+  const kept = (await cookies()).get(KEEP_COOKIE)?.value === "1";
+
+  // Turned on or off here while signed in, the same as ticking the box at sign-in, from now.
+  async function keepDevice(form: FormData) {
+    "use server";
+    await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: true });
+    const on = form.get("keep") === "1";
+    const jar = await cookies();
+    jar.set(ACTIVITY_COOKIE, String(Date.now()), activityCookie(undefined, on));
+    if (on) jar.set(KEEP_COOKIE, "1", keepCookie());
+    else jar.delete(KEEP_COOKIE);
+    redirect("/settings/account?saved=device#device");
+  }
 
   async function rename(form: FormData) {
     "use server";
@@ -118,6 +134,29 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
             />
           </section>
         ))}
+
+        <section id="device" className="mt-6 rounded-2xl border border-line bg-surface p-6" data-testid="keep-device">
+          <h2 className="font-semibold text-ink">This device</h2>
+          {kept ? (
+            <p className="mt-1 text-sm text-muted" data-testid="keep-device-on">
+              <span className="font-medium text-ok-fg">Kept signed in.</span> Closing the browser, a crash or switching off doesn&apos;t sign you out here, for {KEEP_DAYS} days from when it was turned on.
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-muted" data-testid="keep-device-off">
+              You&apos;re signed out here when you close the browser or after 8 hours without using SureFrame. On a device you don&apos;t share, you can stay signed in for {KEEP_DAYS} days.
+            </p>
+          )}
+          <form action={keepDevice} className="mt-4">
+            <input type="hidden" name="keep" value={kept ? "0" : "1"} />
+            <button
+              className={kept ? "rounded-lg border border-line-strong px-3 py-1.5 text-sm font-medium text-ink hover:bg-hover" : "rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-on-primary hover:bg-primary-hover"}
+              data-testid="keep-device-toggle"
+            >
+              {kept ? "Stop keeping me signed in here" : "Keep me signed in on this device"}
+            </button>
+            {saved === "device" && <span className="ml-3 text-sm text-ok-fg" role="status">Saved.</span>}
+          </form>
+        </section>
 
         {!limited && <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
           <h2 className="font-semibold text-ink" id="recovery-key">Recovery key</h2>
