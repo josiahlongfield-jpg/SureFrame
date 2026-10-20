@@ -206,7 +206,7 @@ await phone.tap("button:has-text('Stop recording')");
 await phone.waitForSelector("[data-testid=reply-review] video", { timeout: 15000 });
 ok("review: plays it back first, with Send, Re-record and Discard", (await Promise.all(["Send video reply", "Re-record", "Discard"].map((t) => phone.isVisible(`[data-testid=reply-review] >> text=${t}`)))).every(Boolean));
 ok("review: says an unsent reply is deleted after 7 days", (await phone.textContent("[data-testid=reply-review-expiry]")).includes("7 days"));
-ok("review: nothing in the conversation yet", (await phone.locator("[data-testid=conversation] ul video").count()) === 0);
+ok("review: nothing in the conversation yet", (await phone.locator("[data-testid=conversation] ul [data-testid=reply-video-still]").count()) === 0);
 await phone.screenshot({ path: `${shots}/review-320.png` });
 await phone.tap("text=Re-record");
 await phone.waitForSelector("button:has-text('Record video reply'):not([disabled])", { timeout: 15000 });
@@ -231,7 +231,7 @@ await phone.waitForSelector("[data-testid=reply-sent]", { timeout: 30000 });
 const sentText = await phone.textContent("[data-testid=reply-sent]");
 ok("Sent: says who sees it and that they're emailed", sentText.includes("Sent") && sentText.includes("Business A can see it now"), sentText);
 ok("Sent: stays on the Video tab", (await phone.getAttribute("role=tab[name='Video']", "aria-selected")) === "true");
-ok("video reply in the conversation", !!(await phone.waitForSelector("[data-testid=conversation] ul video", { timeout: 20000 }).catch(() => null)));
+ok("video reply in the conversation", !!(await phone.waitForSelector("[data-testid=conversation] ul [data-testid=reply-video-still]", { timeout: 20000 }).catch(() => null)));
 
 // Deleting your own reply removes it for everyone, after a question in the page (no browser pop-up).
 let popups = 0;
@@ -245,7 +245,7 @@ await phone.tap("[data-testid=reply-delete-yes]");
 await phone.waitForSelector("[data-testid=conversation] >> text=Hello from Client A", { state: "detached", timeout: 10000 });
 ok("own reply deleted from the server", (await prisma.reply.count({ where: { videoId, kind: "TEXT" } })) === 0);
 const sentVideo = await prisma.reply.findFirst({ where: { videoId, kind: "VIDEO" }, include: { media: true } });
-await phone.tap("[data-testid=conversation] li[data-mine]:has(video) >> [data-testid=reply-delete]");
+await phone.tap("[data-testid=conversation] li[data-mine]:has([data-testid=reply-video-chip]) >> [data-testid=reply-delete]");
 await phone.tap("[data-testid=reply-delete-yes]");
 await waitFor(async () => (await prisma.reply.count({ where: { videoId, kind: "VIDEO" } })) === 0, 10000);
 ok("video reply deleted, recording row and all", !(await prisma.video.findUnique({ where: { id: sentVideo.mediaId } })) && (await prisma.reply.count({ where: { videoId } })) === 0);
@@ -267,11 +267,11 @@ const heldRow = await prisma.reply.findFirst({ where: { videoId, kind: "VIDEO" }
 ok("recovered reply: uploaded but held, not sent", !!heldRow?.heldAt);
 ok("the video page says an unsent reply is waiting", (await phone2.textContent("[data-testid=inline-unsent]", { timeout: 10000 }).catch(() => "")).includes("You have an unsent reply"));
 await phone2.tap("[data-testid=chat-open]");
-ok("recovered reply: asks to send or delete, with a preview", (await phone2.textContent("[data-testid=held-reply]")).includes("Send or delete your unfinished reply?") && !!(await phone2.waitForSelector("[data-testid=held-reply] video", { timeout: 20000 }).catch(() => null)));
+ok("recovered reply: asks to send or delete, with a preview", (await phone2.textContent("[data-testid=held-reply]")).includes("Send or delete your unfinished reply?") && !!(await phone2.waitForSelector("[data-testid=held-reply] [data-testid=reply-video-still]", { timeout: 20000 }).catch(() => null)));
 await owner.reload();
 await owner.waitForSelector("[data-testid=conversation]", { timeout: 20000 });
 await owner.waitForTimeout(1500);
-ok("the business never sees an unsent reply", (await owner.locator("aside ul video").count()) === 0 && (await owner.locator("[data-testid=held-reply]").count()) === 0);
+ok("the business never sees an unsent reply", (await owner.locator("aside ul [data-testid=reply-video-chip]").count()) === 0 && (await owner.locator("[data-testid=held-reply]").count()) === 0);
 const expiry = await phone2.textContent("[data-testid=held-reply-expiry]");
 ok("recovered reply: says it's deleted after 7 days, with the date", expiry.includes("deleted after 7 days") && /goes on \w+ \d+, \d{4}/.test(expiry));
 // The daily clean-up leaves an unsent reply alone until its 7 days are up, then deletes it with its recording.

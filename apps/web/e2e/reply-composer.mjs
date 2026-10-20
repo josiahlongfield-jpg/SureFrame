@@ -62,9 +62,9 @@ ok("microphone bar stays while recording", (await page.locator("aside [data-test
 await page.waitForTimeout(2500);
 await page.click("button:has-text('Stop recording')");
 await page.waitForSelector("aside [data-testid=reply-review] video", { timeout: 15000 });
-ok("after Stop: a review step plays it back before sending", (await page.locator("aside ul video").count()) === 0);
+ok("after Stop: a review step plays it back before sending", (await page.locator("aside ul [data-testid=reply-video-still]").count()) === 0);
 await page.click("button:has-text('Send video reply')");
-await page.waitForSelector("aside ul video", { timeout: 30000 });
+await page.waitForSelector("aside ul [data-testid=reply-video-still]", { timeout: 30000 });
 ok("video reply still sends", true);
 ok("says it's sent, and stays on the Video tab", (await page.isVisible("[data-testid=reply-sent]")) && (await page.getAttribute("role=tab[name='Video']", "aria-selected")) === "true");
 

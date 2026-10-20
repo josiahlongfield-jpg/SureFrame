@@ -115,8 +115,12 @@ await client.waitForSelector("text=/Recording · \\d/");
 await client.waitForTimeout(4000);
 await client.click("button:has-text('Stop recording')");
 await client.click("button:has-text('Send video reply')");
-await client.waitForSelector("aside ul video", { timeout: 30000 });
-console.log("video reply duration", await client.$eval("aside ul video", finiteDuration));
+await client.waitForSelector("aside ul [data-testid=reply-video-still]", { timeout: 30000 });
+// A small still in the conversation; it plays large when tapped.
+await client.click("aside ul [data-testid=reply-video-chip]");
+await client.waitForSelector("[data-testid=reply-video-dialog][open] video", { timeout: 15000 });
+console.log("video reply duration", await client.$eval("[data-testid=reply-video-dialog][open] video", finiteDuration));
+await client.keyboard.press("Escape");
 await client.screenshot({ path: `${shots}/reply-phone.png`, fullPage: true });
 
 // Interrupted video reply: close the tab mid-recording; reopening (no link) finishes the upload but never
@@ -131,12 +135,12 @@ client2.on("dialog", (d) => (console.log("dialog:", d.message()), d.dismiss()));
 await skipIntro(client2);
 await client2.goto(link);
 await client2.waitForSelector("[data-testid=held-reply]", { state: "attached", timeout: 30000 });
-console.log("interrupted reply recovered, not sent:", (await client2.$$eval("aside ul video", (els) => els.length)) === 1);
+console.log("interrupted reply recovered, not sent:", (await client2.$$eval("aside ul [data-testid=reply-video-still]", (els) => els.length)) === 1);
 await client2.click("[data-testid=chat-open]");
-await client2.waitForSelector("[data-testid=held-reply] video", { timeout: 30000 });
+await client2.waitForSelector("[data-testid=held-reply] [data-testid=reply-video-still]", { timeout: 30000 });
 await client2.click("[data-testid=held-reply] >> button:has-text('Send it')");
-await client2.waitForFunction(() => document.querySelectorAll("aside ul video").length === 2, null, { timeout: 30000 });
-console.log("interrupted reply sent once asked, playable:", await client2.$$eval("aside ul video", (els) => els.length));
+await client2.waitForFunction(() => document.querySelectorAll("aside ul [data-testid=reply-video-still]").length === 2, null, { timeout: 30000 });
+console.log("interrupted reply sent once asked, playable:", await client2.$$eval("aside ul [data-testid=reply-video-still]", (els) => els.length));
 await client2.click("[data-testid=chat-close]");
 
 // Coach sees and answers
@@ -145,7 +149,7 @@ await coach.waitForSelector("aside ul >> text=Felt strong this week!");
 await coach.fill('textarea[aria-label="Reply"]', "Great work Sam.");
 await coach.click("button:has-text('Send reply')");
 await coach.waitForSelector("aside ul >> text=Great work Sam.");
-await coach.waitForFunction(() => document.querySelectorAll("aside ul audio").length === 1 && document.querySelectorAll("aside ul video").length === 2, null, { timeout: 20000 });
+await coach.waitForFunction(() => document.querySelectorAll("aside ul audio").length === 1 && document.querySelectorAll("aside ul [data-testid=reply-video-still]").length === 2, null, { timeout: 20000 });
 console.log("coach sees all replies decrypted");
 await coach.screenshot({ path: `${shots}/reply-coach.png` });
 

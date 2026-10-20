@@ -68,6 +68,15 @@ async function stillFrom(src: string) {
   }
 }
 
+/**
+ * A frame from a playable recording, to show before it plays: phones draw a video as black until it's played.
+ * An image URL (revoke it when done), or null if no frame could be drawn.
+ */
+export async function posterFrom(src: string) {
+  const still = await stillFrom(src);
+  return still ? URL.createObjectURL(still) : null;
+}
+
 /** Takes a still from a decrypted recording and saves it, encrypted, for the library. */
 export async function makeThumb(videoId: string, src: string, key: CryptoKey) {
   const still = await stillFrom(src);

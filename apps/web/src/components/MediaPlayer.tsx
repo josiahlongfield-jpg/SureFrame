@@ -2,6 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useVideoFrame } from "@/lib/videoFrame";
+import PosterCover, { usePoster } from "./PosterCover";
 
 /**
  * Plays a raw browser recording. WebM files recorded in the browser have no
@@ -30,6 +31,9 @@ const MediaPlayer = forwardRef<HTMLMediaElement | null, Props>(function MediaPla
   useEffect(() => frameRef(el.current), [frameRef, src]);
   // The file arrived but this device can't decode its format (an older iPhone and a WebM recording).
   const [unplayable, setUnplayable] = useState(false);
+  // A picture from the recording until it's played (phones show black), only where the page doesn't start it itself.
+  const poster = usePoster(kind === "VIDEO" && !className ? src : null);
+  const [started, setStarted] = useState(false);
   const onError = (e: React.SyntheticEvent<HTMLMediaElement>) => e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED && setUnplayable(true);
   if (unplayable) {
     return (
@@ -42,7 +46,8 @@ const MediaPlayer = forwardRef<HTMLMediaElement | null, Props>(function MediaPla
   if (className) return <video ref={el} src={src} controls playsInline preload="metadata" onError={onError} className={className} />;
   return (
     <div style={frame.style} className="relative mx-auto overflow-hidden rounded-lg bg-black">
-      <video ref={el} src={src} controls playsInline preload="metadata" onError={onError} className="absolute inset-0 h-full w-full object-contain" />
+      <video ref={el} src={src} controls playsInline preload="metadata" onError={onError} onPlay={() => setStarted(true)} className="absolute inset-0 h-full w-full object-contain" />
+      {!started && <PosterCover poster={poster} onPlay={() => (setStarted(true), void el.current?.play().catch(() => {}))} />}
     </div>
   );
 });

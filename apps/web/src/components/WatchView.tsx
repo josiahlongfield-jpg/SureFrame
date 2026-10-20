@@ -6,6 +6,7 @@ import { REACTIONS } from "@/lib/reactions";
 import type { ReplyDTO } from "@/lib/replies";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
 import MediaPlayer, { fixDuration } from "./MediaPlayer";
+import PosterCover, { usePoster } from "./PosterCover";
 import ReplyComposer, { deleteReply, sendHeldReply, type ReplyComposerHandle } from "./ReplyComposer";
 import SecureMedia, { useDecryptedUrl } from "./SecureMedia";
 import TeamKeyGate from "./TeamKeyGate";
@@ -418,6 +419,9 @@ function WatchBody({
     video.mimeType,
   );
   const playable = video.encrypted ? src : video.rawUrl;
+  // A picture from the recording over the player until it's played: phones show it as a black box until then.
+  const poster = usePoster(playable);
+  const [started, setStarted] = useState(false);
   // The first time the team opens a recording, its library still is made here (the server can't see the video).
   const thumbTried = useRef(false);
   useEffect(() => {
@@ -654,11 +658,14 @@ function WatchBody({
               ref={playerRef}
               controls
               playsInline
-              onPlay={() => setEnded(false)}
+              onPlay={() => (setEnded(false), setStarted(true))}
               onEnded={() => setEnded(true)}
               onError={(e) => e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED && setUnplayable(true)}
               className="absolute inset-0 h-full w-full bg-black object-contain"
             />
+          )}
+          {showPlayer && !started && !unplayable && !playError && (
+            <PosterCover poster={poster} label={`Play ${video.title}`} onPlay={() => (setStarted(true), void player.current?.play().catch(() => {}))} />
           )}
           <div className="pointer-events-none absolute bottom-16 right-6 flex flex-col items-center">
             {burst.map((b) => (
@@ -1122,15 +1129,13 @@ function VideoReplyChip({ reply, mediaKey }: { reply: ReplyDTO; mediaKey: Crypto
   const { src, error } = useDecryptedUrl(media.url, mediaKey, media.mimeType);
   const dialog = useRef<HTMLDialogElement>(null);
   const player = useRef<HTMLMediaElement | null>(null);
-  const still = useRef<HTMLVideoElement>(null);
+  const poster = usePoster(src);
   const [open, setOpen] = useState(false);
-  const [length, setLength] = useState(media.durationMs);
+  const length = media.durationMs;
   // Opened by a tap, so it may start playing straight away.
   useEffect(() => {
     if (open) player.current?.play().catch(() => {});
   }, [open]);
-  // Browser recordings don't say how long they are until scanned (components/MediaPlayer.tsx).
-  useEffect(() => (still.current ? fixDuration(still.current) : undefined), [src]);
   const who = reply.mine ? "your" : `${reply.authorName}'s`;
   if (error) {
     return (
@@ -1157,19 +1162,13 @@ function VideoReplyChip({ reply, mediaKey }: { reply: ReplyDTO; mediaKey: Crypto
         data-testid="reply-video-chip"
         className="group relative block h-24 w-40 overflow-hidden rounded-xl border border-line bg-solid text-left disabled:cursor-wait"
       >
-        {src ? (
-          <video
-            ref={still}
-            src={src}
-            muted
-            playsInline
-            preload="auto"
-            onDurationChange={(e) => Number.isFinite(e.currentTarget.duration) && !media.durationMs && setLength(e.currentTarget.duration * 1000)}
-            className="pointer-events-none h-full w-full object-cover"
-          />
-        ) : (
+        {poster ? (
+          // A picture from the reply, made on this device (a video that hasn't played shows black on phones).
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={poster} alt="" data-testid="reply-video-still" className="pointer-events-none h-full w-full object-cover" />
+        ) : !src ? (
           <span className="grid h-full w-full place-items-center text-xs text-on-solid/70">Unlocking…</span>
-        )}
+        ) : null}
         <span className="absolute inset-0 grid place-items-center bg-black/20 transition group-hover:bg-black/30">
           <span className="grid h-10 w-10 place-items-center rounded-full bg-white/90 text-black shadow">
             <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z" /></svg>
@@ -1185,6 +1184,8 @@ function VideoReplyChip({ reply, mediaKey }: { reply: ReplyDTO; mediaKey: Crypto
         }}
         // A tap on the dark edge, outside the player, closes it.
         onClick={(e) => e.target === dialog.current && close()}
+        // Escape closes only this, not the conversation it was opened from.
+        onKeyDown={(e) => e.key === "Escape" && e.stopPropagation()}
         aria-label={`${reply.mine ? "Your" : `${reply.authorName}'s`} video reply`}
         data-testid="reply-video-dialog"
         className="m-auto w-[min(96vw,64rem)] max-w-none overflow-visible bg-transparent p-0 backdrop:bg-black/85"

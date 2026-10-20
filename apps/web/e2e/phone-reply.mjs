@@ -53,6 +53,15 @@ for (const [name, device] of [["iPhone SE", devices["iPhone SE"]], ["iPhone 13",
   });
   const page = await ctx.newPage();
   await page.goto(url);
+  // Before it's played, the video shows a picture from the recording, not a black box.
+  const cover = await page.waitForSelector("[data-testid=poster-cover] img", { timeout: 30000 }).catch(() => null);
+  ok(`${name}: the video shows a picture from it before playing`, !!cover && (await cover.evaluate((i) => i.complete && i.naturalWidth > 0)));
+  if (name === "iPhone SE") {
+    await page.tap("[data-testid=poster-cover]");
+    ok(`${name}: tapping the picture plays the video`, !!(await page.waitForFunction(() => { const v = document.querySelector("main video"); return v && !v.paused; }, null, { timeout: 10000 }).catch(() => null)));
+    ok(`${name}: the picture goes once it plays`, (await page.locator("[data-testid=poster-cover]").count()) === 0);
+    await page.evaluate(() => document.querySelector("main video").pause());
+  }
   await page.click("[data-testid=chat-open]", { timeout: 20000 });
   await page.click("role=tab[name='Video']");
   await page.waitForSelector("button:has-text('Flip camera')", { timeout: 15000 });
@@ -93,7 +102,7 @@ for (const [name, device] of [["iPhone SE", devices["iPhone SE"]], ["iPhone 13",
   // In the conversation it's a small still with a play button, not a full-size player.
   const chip = page.locator("[data-testid=conversation] li [data-testid=reply-video-chip]").last();
   await chip.waitFor({ timeout: 30000 });
-  await page.waitForSelector("[data-testid=conversation] li [data-testid=reply-video-chip]:not([disabled]) video", { timeout: 30000 });
+  await page.waitForSelector("[data-testid=conversation] li [data-testid=reply-video-chip] [data-testid=reply-video-still]", { timeout: 30000 });
   const small = await chip.boundingBox();
   ok(`${name}: the sent video reply is a small still in the chat`, !!small && small.height <= 100 && small.width <= 170, JSON.stringify(small));
   ok(`${name}: no player in the chat until it's tapped`, (await page.locator("[data-testid=conversation] li video[controls]").count()) === 0);
@@ -114,6 +123,7 @@ for (const [name, device] of [["iPhone SE", devices["iPhone SE"]], ["iPhone 13",
   await page.keyboard.press("Escape");
   await page.waitForTimeout(300);
   ok(`${name}: Escape closes it too`, (await page.locator("[data-testid=reply-video-dialog][open]").count()) === 0);
+  ok(`${name}: Escape leaves the conversation open`, await page.isVisible("[data-testid=reply-sent]"));
   await ctx.close();
 }
 
