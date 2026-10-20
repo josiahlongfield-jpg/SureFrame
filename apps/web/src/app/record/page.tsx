@@ -35,8 +35,10 @@ export default async function RecordPage() {
               </>
             ) : (
               <>
-                You haven&apos;t added any clients yet. Add them first and you can send this video the moment it&apos;s done.{" "}
-                <Link href="/clients" className="font-medium text-accent hover:underline">Add your clients</Link>
+                You haven&apos;t added any clients yet. You can add one when this video is done, or{" "}
+                <Link href="/clients" className="font-medium text-accent hover:underline">add your clients first</Link>.{" "}
+                <span className="font-medium text-ink">Each new client needs their personal link from you once before they can watch:</span> you&apos;ll get a Copy link button
+                for it when you send.
               </>
             )}
           </p>

@@ -42,6 +42,19 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
     : assignedName ? { label: `Email ${assignedName}`, tag: assignedName }
     : { label: "Email the team", tag: "the team" };
 
+  const linkProps = {
+    name: client.name,
+    email: client.email,
+    business: workspace.name,
+    reached: !!client.linkOpenedAt,
+    sent: !!client.linkSentAt,
+    workspaceId: workspace.id,
+    fingerprint: workspace.keyFingerprint,
+    clientId: client.id,
+    link: clientLink(client.token),
+    teamKeyWrap: client.teamKeyWrap,
+  };
+
   return (
     <>
       <AppHeader email={user.email} plan={PLANS[workspace.plan].name} />
@@ -52,12 +65,10 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             <ClientName clientId={client.id} initial={client.name} />
             <ClientEmail clientId={client.id} firstName={client.name.split(" ")[0]} initial={client.email} optedOut={client.remindersOff} />
           </div>
-          {!client.linkDisabledAt && (
-            <CopyClientLink
-              name={client.name}
-              reached={!!client.linkOpenedAt} workspaceId={workspace.id} fingerprint={workspace.keyFingerprint} clientId={client.id} link={clientLink(client.token)} teamKeyWrap={client.teamKeyWrap} />
-          )}
+          {!client.linkDisabledAt && client.linkOpenedAt && <CopyClientLink {...linkProps} />}
         </div>
+        {/* Not opened yet: the one thing that stops them watching, so it gets the whole width. */}
+        {!client.linkDisabledAt && !client.linkOpenedAt && <CopyClientLink {...linkProps} />}
         {client.linkDisabledAt && (
           <p className="mt-4 rounded-xl border border-danger-line bg-danger-bg p-3 text-sm text-danger-fg" data-testid="client-link-off-banner">
             SureFrame support has turned off {client.name}&apos;s personal link. They can&apos;t open their videos or be sent new ones until it&apos;s turned back on, and they

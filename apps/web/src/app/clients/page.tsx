@@ -63,6 +63,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         <ClientsManager
           workspaceId={workspace.id}
           fingerprint={workspace.keyFingerprint}
+          business={workspace.name}
           initialClients={clients.map((c) => ({
             id: c.id,
             name: c.name,
@@ -74,6 +75,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
             paused: !!c.pausedAt,
             linkOff: !!c.linkDisabledAt,
             reached: !!c.linkOpenedAt,
+            linkSent: !!c.linkSentAt,
             convs: convs.get(c.id) ?? [],
           }))}
           initialRemoved={removedClients.map((c) => ({ id: c.id, name: c.name, email: c.email, removedAt: c.removedAt!.toISOString(), purgeAt: c.purgeAt?.toISOString() ?? null }))}

@@ -58,13 +58,20 @@ export const BUSINESS_FAQ: Qa[] = [
   },
   {
     id: "first-email",
-    q: "Why can't I email a new client their first video?",
+    q: "What is a client's personal link, and why do I send the first one myself?",
     a: (
-      <p>
-        Your videos are end-to-end encrypted. Each client&rsquo;s personal link holds their private key, which only your team&rsquo;s devices have, so we
-        can&rsquo;t email it without being able to see their videos. The first time, copy the client&rsquo;s link (Copy link after you send, or Copy personal link on
-        the Clients page) and send it from your own email, texts or messages. Once they&rsquo;ve opened it, Send by email works for them too.
-      </p>
+      <>
+        <p>
+          Every client gets their own personal link when you add them. It&rsquo;s the key to their videos: a client can&rsquo;t open anything you send until
+          they&rsquo;ve opened their personal link once, so this is the one step not to skip.
+        </p>
+        <p className="mt-2">
+          Your videos are end-to-end encrypted, and only your team&rsquo;s devices have each client&rsquo;s key, so we can&rsquo;t email the link without being able
+          to see their videos. Send it yourself once: Copy link, Copy link + message (with a short note that tells the client what it is), Share on a phone, or
+          Email from my email. You&rsquo;ll find those buttons after adding a client, on the Clients page, and in the Send box. Clients still waiting are marked
+          Needs personal link. Once they&rsquo;ve opened it, every video you send opens straight away, and Send by email works for them too.
+        </p>
+      </>
     ),
   },
   {

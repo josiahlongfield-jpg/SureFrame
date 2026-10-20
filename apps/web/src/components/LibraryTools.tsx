@@ -124,7 +124,7 @@ export function LibrarySearch({ q, client, clients, keep }: { q: string; client:
 }
 
 /** "By date" or "By client", and big tiles or one line per video. */
-export function LibraryViewSwitch({ view, layout, canGroupByClient }: { view: "date" | "client"; layout: "tiles" | "list"; canGroupByClient: boolean }) {
+export function LibraryViewSwitch({ view, layout, canGroupByClient, layoutCookie = LAYOUT_COOKIE }: { view: "date" | "client"; layout: "tiles" | "list"; canGroupByClient: boolean; layoutCookie?: string }) {
   const router = useRouter();
   const set = (name: string, value: string) => {
     document.cookie = `${name}=${value}; path=/; max-age=31536000; samesite=lax`;
@@ -146,7 +146,7 @@ export function LibraryViewSwitch({ view, layout, canGroupByClient }: { view: "d
       )}
       <div role="group" aria-label="Layout" className="flex gap-1 rounded-lg bg-surface-2 p-1">
         {(["tiles", "list"] as const).map((l) => (
-          <button key={l} type="button" aria-pressed={layout === l} onClick={() => set(LAYOUT_COOKIE, l)} className={pill(layout === l)} data-testid={`layout-${l}`}>
+          <button key={l} type="button" aria-pressed={layout === l} onClick={() => set(layoutCookie, l)} className={pill(layout === l)} data-testid={`layout-${l}`}>
             <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               {l === "tiles" ? (
                 <>

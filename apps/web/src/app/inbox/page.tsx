@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
@@ -24,6 +23,9 @@ import { replacedLinks } from "@/lib/replacedLinks";
 import { keyHeldCookie } from "@/lib/e2e/keyHeld";
 import { helpForDevice } from "@/lib/support/clientHelp";
 import { senderName } from "@/lib/team";
+import ClientVideos from "@/components/ClientVideos";
+import { LibraryViewSwitch } from "@/components/LibraryTools";
+import { INBOX_LAYOUT_COOKIE } from "@/lib/libraryGroups";
 
 /** "jo@example.com" as "j•••@example.com": enough to recognise, without showing the whole address on screen. */
 const masked = (email: string) => email.replace(/^(.)[^@]*/, "$1•••");
@@ -40,9 +42,9 @@ export const metadata: Metadata = { title: "Your videos" };
 export default async function Inbox({
   searchParams,
 }: {
-  searchParams: Promise<{ invalid?: string; paused?: string; removed?: string; closed?: string; unavailable?: string; off?: string; replaced?: string; c?: string }>;
+  searchParams: Promise<{ invalid?: string; paused?: string; removed?: string; closed?: string; unavailable?: string; off?: string; replaced?: string; c?: string; from?: string }>;
 }) {
-  const { invalid, paused, removed, closed, unavailable, off, replaced, c: arrivedAs } = await searchParams;
+  const { invalid, paused, removed, closed, unavailable, off, replaced, c: arrivedAs, from } = await searchParams;
   const jar = await cookies();
   const tokens = jar
     .getAll()
@@ -77,7 +79,13 @@ export default async function Inbox({
             where: { replyToId: null, status: { not: "RECORDING" } },
             orderBy: { createdAt: "desc" },
             // Whether they've replied (a reply not from the team) and whether they've opened it (only their opens are counted).
-            include: { owner: { select: { name: true } }, _count: { select: { replies: { where: { ...visibleReplies, authorUserId: null } } } } },
+            include: {
+              owner: { select: { name: true } },
+              _count: { select: { replies: { where: { ...visibleReplies, authorUserId: null } } } },
+              // The same still the team's library shows (a copy uses the original's).
+              thumb: { select: { videoId: true } },
+              source: { select: { thumb: { select: { videoId: true } } } },
+            },
           },
           },
         }),
@@ -200,6 +208,10 @@ export default async function Inbox({
   const banners = notices.filter((n) => n.why !== arrived);
 
   // With one business, the whole page wears its branding.
+  // Came here from a video's "All my videos": the way back, if it's one of theirs on this device.
+  const backTo = from && listed.some((c) => c.videos.some((v) => v.id === from)) ? from : undefined;
+  const layout = jar.get(INBOX_LAYOUT_COOKIE)?.value === "list" ? "list" : "tiles";
+  const total = listed.reduce((n, c) => n + c.videos.length, 0);
   const brand = clients.length === 1 ? brandOf(clients[0].workspace) : !clients.length && replacedBy.length === 1 ? brandOf(replacedBy[0].client.workspace) : null;
   const help = await helpForDevice();
 
@@ -207,7 +219,7 @@ export default async function Inbox({
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
       {/* For a client not yet known to have the key here, the gate below takes the key from the link instead. */}
       {arrivedAs && listed.some((c) => c.id === arrivedAs) && <ClientKeyCapture clientId={arrivedAs} />}
-      <ClientHeader brand={brand} help={help.length ? { for: help, page: "inbox" } : undefined} />
+      <ClientHeader brand={brand} backTo={backTo} help={help.length ? { for: help, page: "inbox" } : undefined} />
       {/* A reply a closed page interrupted finishes uploading here too, then waits on its video page to be sent. */}
       <RecoverUploads />
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
@@ -246,6 +258,11 @@ export default async function Inbox({
           </div>
         )}
         {(listed.length > 0 || (!arrived && !keyless.length && !replacedBy.length)) && <h1 className="text-2xl font-semibold tracking-tight text-ink">Your videos</h1>}
+        {total > 0 && (
+          <div className="mt-4">
+            <LibraryViewSwitch view="date" layout={layout} canGroupByClient={false} layoutCookie={INBOX_LAYOUT_COOKIE} />
+          </div>
+        )}
         {banners.map((n) => (
           <p key={n.key} className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid={n.testId}>{n.text}</p>
         ))}
@@ -274,32 +291,28 @@ export default async function Inbox({
               {c.videos.length === 0 ? (
                 <p className="mt-3 text-sm text-dim">Nothing yet.</p>
               ) : (
-                <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface">
-                  {c.videos.map((v) => {
-                    // Only the client's own opens are counted, so none means they haven't watched it yet.
-                    const unwatched = v.viewCount === 0;
-                    const replied = v._count.replies > 0;
-                    return (
-                      <li key={v.id}>
-                        <Link href={`/v/${v.id}`} className="flex items-center justify-between gap-3 px-5 py-4 hover:bg-hover" data-testid="inbox-video">
-                          <span className="min-w-0">
-                            <span className="flex items-center gap-2">
-                              {unwatched && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden />}
-                              <span className={`line-clamp-2 text-ink [overflow-wrap:anywhere] ${unwatched ? "font-semibold" : "font-medium"}`}>{v.title}</span>
-                            </span>
-                            <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-dim">
-                              {/* Who sent it, never their email: "Sam from Business", or a former team member's (lib/team.ts). */}
-                              {(v.owner.name || v.formerStaffAt) && <span>{senderName(v, c.workspace.name, "client")}</span>}
-                              {unwatched && <span className="rounded-full bg-primary-soft px-2 py-0.5 font-medium text-accent" data-testid="inbox-new">New</span>}
-                              {replied && <span className="rounded-full bg-surface-2 px-2 py-0.5 font-medium text-muted" data-testid="inbox-replied">You replied</span>}
-                            </span>
-                          </span>
-                          <span className="shrink-0 text-sm text-dim">{zoned(c.workspace.timezone).day(v.sentAt ?? v.createdAt)}</span>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
+                <div className="mt-3">
+                  <ClientVideos
+                    clientId={c.id}
+                    timezone={c.workspace.timezone}
+                    layout={layout}
+                    videos={c.videos.map((v) => ({
+                      id: v.id,
+                      title: v.title,
+                      // Grouped and dated by when it reached them, not when it was recorded.
+                      createdAt: v.sentAt ?? v.createdAt,
+                      durationMs: v.durationMs,
+                      encrypted: v.encrypted,
+                      clientKeyWrap: v.clientKeyWrap,
+                      hasThumb: v.status !== "EXPIRED" && !!(v.thumb ?? v.source?.thumb),
+                      // Only the client's own opens are counted, so none means they haven't watched it yet.
+                      unwatched: v.viewCount === 0,
+                      replied: v._count.replies > 0,
+                      // Who sent it, never their email: "Sam from Business", or a former team member's (lib/team.ts).
+                      from: v.owner.name || v.formerStaffAt ? senderName(v, c.workspace.name, "client") : null,
+                    }))}
+                  />
+                </div>
               )}
               <div className="mt-4">
                 <ClientPlanner clientId={c.id} title="Your to-dos & notes" />

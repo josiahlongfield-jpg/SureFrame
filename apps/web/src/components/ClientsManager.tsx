@@ -8,10 +8,11 @@ import { shareLink, useCanShare, writeClipboard } from "@/lib/clipboard";
 import TeamKeyGate from "./TeamKeyGate";
 import RemoveExtras from "./RemoveExtras";
 import { ReplyBadges, type Conv } from "./LibraryTools";
+import FirstLinkSender, { KeyIcon, PersonalLinkSteps } from "./FirstLinkSender";
 
 type Seats = { used: number; limit: number };
-/** `reached`: the client has opened their personal link, so emailed videos open for them. */
-type Client = { id: string; name: string; email: string | null; link: string; teamKeyWrap: string | null; videoCount: number; assignedToId: string | null; paused?: boolean; linkOff?: boolean; reached?: boolean; convs?: Conv[] };
+/** `reached`: the client has opened their personal link, so emailed videos open for them. `linkSent`: the team copied or shared it. */
+type Client = { id: string; name: string; email: string | null; link: string; teamKeyWrap: string | null; videoCount: number; assignedToId: string | null; paused?: boolean; linkOff?: boolean; reached?: boolean; linkSent?: boolean; convs?: Conv[] };
 type Staff = { id: string; name: string };
 /** A removed client the business can still restore. Dates are ISO strings. */
 type Removed = { id: string; name: string; email: string | null; removedAt: string; purgeAt: string | null };
@@ -36,6 +37,8 @@ export function markLinkSent(clientId: string) {
 
 type Props = {
   workspaceId: string;
+  /** The business's name, signed at the end of the message sent with a personal link. */
+  business: string;
   fingerprint: string | null;
   initialClients: Client[];
   initialSeats: Seats;
@@ -121,6 +124,7 @@ type Filter = "all" | "first" | "no-email" | "paused";
 
 function Manager({
   teamKey,
+  business,
   initialClients,
   initialSeats,
   includedSeats,
@@ -176,6 +180,7 @@ function Manager({
   const [filter, setFilter] = useState<Filter>("all");
   const canShare = useCanShare();
   const removedSection = useRef<HTMLElement>(null);
+  const listTop = useRef<HTMLElement>(null);
   useEffect(() => {
     if (openRemoved) removedSection.current?.scrollIntoView({ block: "start" });
   }, [openRemoved]);
@@ -338,18 +343,23 @@ function Manager({
   }
 
   const linkOf = (c: Client) => personalLink(c.link, c.teamKeyWrap, teamKey);
+  // Sent (copied, shared or emailed by the team): the badge says so, until they open it.
+  const sent = (c: Client) => {
+    void markLinkSent(c.id);
+    setClients((list) => list.map((x) => (x.id === c.id ? { ...x, linkSent: true } : x)));
+  };
   async function copy(c: Client) {
     await writeClipboard(linkOf(c));
-    void markLinkSent(c.id);
+    sent(c);
     setCopied(c.id);
     setTimeout(() => setCopied(undefined), 2000);
   }
   async function share(c: Client) {
-    if (await shareLink(await linkOf(c), `${c.name}'s personal link`)) void markLinkSent(c.id);
+    if (await shareLink(await linkOf(c), `${c.name}'s personal link`)) sent(c);
   }
   async function copyAll(list: Client[]) {
     await writeClipboard(Promise.all(list.map(async (c) => `${c.name}: ${await linkOf(c)}`)).then((l) => l.join("\n")));
-    list.forEach((c) => void markLinkSent(c.id));
+    list.forEach(sent);
     setCopied("all");
     setTimeout(() => setCopied(undefined), 2000);
   }
@@ -372,6 +382,30 @@ function Manager({
 
   return (
     <div className="mt-8 grid gap-6">
+      {waiting > 0 && (
+        <div className="rounded-2xl border-2 border-warn-line bg-warn-bg p-4 text-sm text-warn-fg" data-testid="waiting-banner">
+          <p className="flex items-center gap-2 text-base font-semibold">
+            <KeyIcon className="h-5 w-5" />
+            {waiting === 1 ? "1 client can't open your videos yet" : `${waiting} clients can't open your videos yet`}
+          </p>
+          <p className="mt-1">
+            They haven&apos;t opened their personal link. Send it to {waiting === 1 ? "them" : "each of them"} once, by text, chat or your own email, and every video
+            you send opens for them after that.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setFilter("first");
+              setQuery("");
+              listTop.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+            }}
+            className="mt-3 rounded-lg bg-primary px-3 py-1.5 font-semibold text-on-primary hover:bg-primary-hover"
+            data-testid="waiting-show"
+          >
+            {waiting === 1 ? "Show who" : `Show all ${waiting}`}
+          </button>
+        </div>
+      )}
       {/* Seats are the business's to manage: staff aren't shown how many clients the business has. */}
       {canManage && (
       <section id="buy-seats" className="scroll-mt-6 rounded-2xl border border-line bg-surface p-6">
@@ -449,10 +483,9 @@ function Manager({
       <section className="rounded-2xl border border-line bg-surface p-6">
         <h2 className="font-semibold text-ink">{canManage ? "Add a client" : "Add a client of your own"}</h2>
         {!canManage && <p className="mt-1 text-sm text-dim">Clients you add are assigned to you. The owner or an admin can also assign clients to you.</p>}
-        <p className="mt-1 text-sm text-dim" data-testid="first-link-rule">
-          The first time, you send each client their personal link yourself, by text, message or your own email. It holds the key to their videos, so only your team can send it.
-          Once they&apos;ve opened it, we can email them new videos too.
-        </p>
+        <div className="mt-3" data-testid="first-link-rule">
+          <PersonalLinkSteps />
+        </div>
         <form onSubmit={add} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
           <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Name" aria-label="Client name" className="min-w-0 rounded-lg border border-line-strong px-3 py-2 text-sm" />
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email (optional)" aria-label="Client email" className="min-w-0 rounded-lg border border-line-strong px-3 py-2 text-sm" />
@@ -467,8 +500,8 @@ function Manager({
           </p>
         )}
         {justAdded.length > 0 && (
-          <div ref={addedNote} role="status" data-testid="added-note" className="mt-3 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg">
-            <p>
+          <div ref={addedNote} role="status" data-testid="added-note" className="mt-3 rounded-xl border-2 border-primary bg-primary-soft p-4 text-sm text-ink">
+            <p className="text-ok-fg">
               {justAdded.length === 1 ? `${justAdded[0].name} added.` : `Added ${plural(justAdded.length, "client", "clients")}.`}{" "}
               {unfit.length > 0 && (
                 <span data-testid="bulk-unfit">
@@ -478,26 +511,40 @@ function Manager({
               )}
               {unread.length > 0 && (
                 <span data-testid="bulk-unread" className="font-medium">
-                  {unread.length === 1 ? "1 line wasn't added" : `${unread.length} lines weren't added`} because we couldn&apos;t read a name and email in {unread.length === 1 ? "it" : "them"}, so {unread.length === 1 ? "it's" : "they're"} still in the box below to fix.{" "}
+                  {unread.length === 1 ? "1 line wasn't added" : `${unread.length} lines weren't added`} because we couldn&apos;t read a name and email in {unread.length === 1 ? "it" : "them"}, so {unread.length === 1 ? "it's" : "they're"} still in the box below to fix.
                 </span>
               )}
-              Next, send {justAdded.length === 1 ? "them their" : "each of them their"} personal link yourself. Once they&apos;ve opened it, we can email them new videos too.
             </p>
-            <div className="mt-2 flex flex-wrap gap-2 text-ink">
-              {justAdded.length === 1 ? (
-                <>
-                  <button onClick={() => copy(justAdded[0])} data-testid="added-copy" className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 hover:bg-hover">
-                    {copied === justAdded[0].id ? "Copied" : `Copy ${justAdded[0].name}'s link`}
-                  </button>
-                  {canShare && <button onClick={() => share(justAdded[0])} className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 hover:bg-hover">Share</button>}
-                </>
-              ) : (
-                <button onClick={() => copyAll(justAdded)} data-testid="added-copy-all" className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 hover:bg-hover">
-                  {copied === "all" ? "Copied" : "Copy all first links"}
+            <p className="mt-3 flex items-center gap-2 text-base font-semibold" data-testid="added-next">
+              <KeyIcon className="h-5 w-5 text-accent" />
+              Next: send {justAdded.length === 1 ? justAdded[0].name : "each of them"} their personal link
+            </p>
+            <p className="mt-1 text-muted">
+              {justAdded.length === 1 ? `${justAdded[0].name} can't` : "They can't"} open any videos until they&apos;ve opened this link once. It holds the key to their videos, so it comes
+              from you, by text, chat or your own email. After that, every video you send opens straight away.
+            </p>
+            {justAdded.length === 1 ? (
+              <div className="mt-3">
+                <FirstLinkSender name={justAdded[0].name} email={justAdded[0].email} business={business} getLink={() => linkOf(justAdded[0])} onSent={() => sent(justAdded[0])} copyLabel="Copy personal link" />
+              </div>
+            ) : (
+              <>
+                <ul className="mt-3 grid max-h-96 gap-3 overflow-y-auto" data-testid="added-list">
+                  {justAdded.map((c) => (
+                    <li key={c.id} className="rounded-lg bg-surface p-3">
+                      <p className="mb-1.5 break-words font-medium">{c.name}</p>
+                      <FirstLinkSender compact name={c.name} email={c.email} business={business} getLink={() => linkOf(c)} onSent={() => sent(c)} copyLabel="Copy personal link" />
+                    </li>
+                  ))}
+                </ul>
+                <button onClick={() => copyAll(justAdded)} data-testid="added-copy-all" className="mt-3 rounded-lg border border-line-strong bg-surface px-3 py-1.5 hover:bg-hover">
+                  {copied === "all" ? "Copied" : `Copy all ${justAdded.length} links as a list`}
                 </button>
-              )}
-              <button onClick={() => { setJustAdded([]); setUnfit([]); setUnread([]); }} className="px-2 py-1.5 text-dim hover:text-ink">Done</button>
-            </div>
+              </>
+            )}
+            <button onClick={() => { setJustAdded([]); setUnfit([]); setUnread([]); }} className="mt-3 block text-dim hover:text-ink">
+              Done
+            </button>
           </div>
         )}
         {bulk === null ? (
@@ -580,7 +627,7 @@ function Manager({
         </p>
       )}
 
-      <section className="rounded-2xl border border-line bg-surface">
+      <section ref={listTop} className="scroll-mt-6 rounded-2xl border border-line bg-surface">
         {team && (
           <div role="tablist" aria-label="Which clients" className="flex gap-1 border-b border-line px-4 pt-3 text-sm">
             {(["all", "mine"] as const).map((k) => (
@@ -604,7 +651,7 @@ function Manager({
             />
             <select value={filter} onChange={(e) => setFilter(e.target.value as Filter)} aria-label="Show" data-testid="clients-filter" className="min-w-0 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm">
               <option value="all">All</option>
-              <option value="first">Needs first link{waiting ? ` (${waiting})` : ""}</option>
+              <option value="first">Needs personal link{waiting ? ` (${waiting})` : ""}</option>
               <option value="no-email">No email</option>
               {clients.some((c) => c.paused || c.linkOff) && <option value="paused">Paused or link off</option>}
             </select>
@@ -622,11 +669,7 @@ function Manager({
                 <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
                   <div className="min-w-0">
                     <Link href={`/clients/${c.id}`} className="break-words font-medium text-ink hover:text-accent hover:underline">{c.name}</Link>{" "}
-                    {!c.reached && !c.linkOff && (
-                      <span className="ml-1 inline-block rounded-full bg-primary-soft px-2 py-0.5 text-xs font-semibold text-accent" data-testid="needs-first-link" title="They haven't opened their personal link yet">
-                        Needs first link
-                      </span>
-                    )}
+                    {!c.reached && !c.linkOff && <LinkBadge sent={c.linkSent} />}
                     {c.paused && (
                       <span className="ml-1 rounded-full bg-warn-bg px-2 py-0.5 text-xs font-semibold text-warn-fg" data-testid="client-paused-badge" title="Over your plan's client limit">
                         Paused
@@ -657,7 +700,10 @@ function Manager({
                       </select>
                     )}
                     {assigned?.id === c.id && <span role="status" className="self-center text-xs text-ok-fg" data-testid="assign-saved">{assigned.text}</span>}
-                    {!c.linkOff && (
+                    {!c.linkOff && !c.reached && (
+                      <FirstLinkSender compact name={c.name} email={c.email} business={business} getLink={() => linkOf(c)} onSent={() => sent(c)} copyLabel="Copy personal link" />
+                    )}
+                    {!c.linkOff && c.reached && (
                       <>
                         <button onClick={() => copy(c)} aria-label={`Copy personal link for ${c.name}`} className="rounded-lg border border-line-strong px-3 py-1.5 hover:bg-hover">
                           {copied === c.id ? "Copied" : "Copy personal link"}
@@ -745,5 +791,18 @@ function Manager({
         </section>
       )}
     </div>
+  );
+}
+
+/** A client who can't open videos yet: whether the team has sent their personal link. */
+export function LinkBadge({ sent }: { sent?: boolean }) {
+  return sent ? (
+    <span className="ml-1 inline-block rounded-full bg-primary-soft px-2 py-0.5 text-xs font-semibold text-accent" data-testid="needs-first-link" title="Sent, but they haven't opened it yet. Their videos open once they do.">
+      Link sent, not opened yet
+    </span>
+  ) : (
+    <span className="ml-1 inline-block rounded-full bg-warn-bg px-2 py-0.5 text-xs font-semibold text-warn-fg" data-testid="needs-first-link" title="They can't open videos until they've opened their personal link">
+      Needs personal link
+    </span>
   );
 }

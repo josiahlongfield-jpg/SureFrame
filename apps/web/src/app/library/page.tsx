@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { PersonalLinkSteps } from "@/components/FirstLinkSender";
 import AppHeader from "@/components/AppHeader";
 import MemberPlanner from "@/components/MemberPlanner";
 import StorageStatus from "@/components/StorageStatus";
@@ -480,6 +481,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
               The owner or an admin assigns clients to you. Once they have, record a video and pick those clients to send it to.
               {canAddClients && " You can also add clients of your own: they're assigned to you."}
             </p>
+            <PersonalLinkSteps className="mt-6" />
             <div className="mt-6 flex flex-wrap items-center gap-4">
               <Link href="/team" className="rounded-xl bg-primary px-5 py-2.5 font-semibold text-on-primary hover:bg-primary-hover">See your team</Link>
               {canAddClients && <Link href="/clients" className="text-sm text-dim hover:text-ink">Add a client of your own</Link>}
@@ -493,13 +495,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
               Put in the clients you&apos;ll send videos to, with their email addresses. You can paste a whole list at once.
               Then, when a video is ready, you just pick them from a list and press Send.
             </p>
-            <ol className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
-              {["Add your clients", "Record a video", "Pick clients and send"].map((step, i) => (
-                <li key={step} className={`rounded-xl border px-4 py-3 ${i === 0 ? "border-primary text-ink" : "border-line text-dim"}`}>
-                  <span className="mr-2 font-mono text-xs">{i + 1}</span>{step}
-                </li>
-              ))}
-            </ol>
+            <PersonalLinkSteps className="mt-6" />
             <div className="mt-6 flex flex-wrap items-center gap-4">
               <Link href="/clients" className="rounded-xl bg-primary px-5 py-2.5 font-semibold text-on-primary hover:bg-primary-hover">Add your clients</Link>
               <Link href="/record" className="text-sm text-dim hover:text-ink">Record first instead</Link>

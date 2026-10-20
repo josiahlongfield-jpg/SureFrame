@@ -44,6 +44,8 @@ export type ClientOption = {
   name: string;
   link: string;
   teamKeyWrap: string | null;
+  /** Members only: for the business's own email app, when it sends a first link. */
+  email?: string | null;
   assignedToId?: string | null;
   /** The client has their personal link (they opened it, or the business copied it to send), so a plain Send emails them. */
   hasLink?: boolean;
@@ -85,6 +87,8 @@ type Props = {
   freeVideoLimit?: number | null;
   /** Members only: clients this video can be sent to. */
   clients: ClientOption[];
+  /** Members only: may add a new client from the Send box. */
+  canAddClients?: boolean;
   sentToId: string | null;
   initialReplies: ReplyDTO[];
   /** The viewer's own video and voice replies that were uploaded but never sent (a closed browser, say). */
@@ -200,6 +204,7 @@ function WatchBody({
   canDelete,
   freeVideoLimit,
   clients: initialClients,
+  canAddClients,
   sentToId,
   initialReplies,
   initialHeld = [],
@@ -851,6 +856,8 @@ function WatchBody({
           <SendPanel
             video={{ id: video.id, title, status: video.status, encrypted: video.encrypted, sourceId, viewCount: video.viewCount }}
             clients={clients}
+            business={business}
+            canAddClient={canAddClients}
             sentToId={sentToId}
             sendMany={sendMany}
             hasReplies={replies.length > 0}
@@ -874,6 +881,11 @@ function WatchBody({
               {held.length > 0 && (
                 <p className="mt-0.5 text-xs font-medium text-warn-fg" data-testid="inline-unsent">
                   You have an unsent reply. Open the conversation to send or delete it.
+                </p>
+              )}
+              {recovering !== null && held.length === 0 && (
+                <p className="mt-0.5 text-xs font-medium text-accent" data-testid="inline-recovering">
+                  {canEdit ? "A reply" : "Your reply"} that was interrupted is coming back {readyIn(recovering)}. No need to record it again.
                 </p>
               )}
             </div>
@@ -1075,6 +1087,18 @@ function WatchBody({
             {replyError?.id === r.id && <p role="alert" className="mt-2 text-xs text-danger-fg">{replyError.text}</p>}
           </div>
         ))}
+        {recovering !== null && (
+          // Said where the reply will appear too, so nobody records it again while it's on its way.
+          <div role="status" data-testid="recovering-reply" className="border-t border-line bg-primary-soft px-4 py-3 text-sm text-ink">
+            <p className="font-medium">{canEdit ? "A reply that was interrupted is on its way back" : "Your reply that was interrupted is on its way back"}</p>
+            <p className="mt-0.5 text-xs text-muted">It&rsquo;ll appear here {readyIn(recovering)}, ready to send. There&rsquo;s no need to record it again.</p>
+          </div>
+        )}
+        {held.length === 0 && recovering === null && (
+          <p className="border-t border-line px-4 pt-2 text-xs text-dim" data-testid="reply-saved-note">
+            Replies save as you record. If the page closes, your reply comes back here within about 90 seconds, ready to send.
+          </p>
+        )}
         <ReplyComposer
           ref={composer}
           videoId={video.id}

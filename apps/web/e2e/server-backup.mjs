@@ -110,6 +110,7 @@ await c.waitForURL("**/v/**");
 await c.waitForSelector("main video", { timeout: 20000 });
 await c.click("[data-testid=chat-open]");
 await c.waitForSelector("[data-testid=conversation][data-sheet]");
+ok("before recording, the client is told a closed page brings the reply back in about 90 seconds", /comes back here within about 90 seconds/.test((await c.textContent("[data-testid=reply-saved-note]").catch(() => "")) ?? ""));
 await c.click("role=tab[name='Video']");
 await c.click("button:has-text('Record video reply')");
 await c.waitForSelector("text=/Recording · \\d/");
@@ -138,6 +139,34 @@ ok("once sent it's in the conversation", true);
 // The business sees it.
 await a2.goto(BASE + `/v/${videoId}`);
 ok("the business sees the client's reply", !!(await a2.waitForSelector("aside ul [data-testid=reply-video-still]", { timeout: 30000 }).catch(() => null)));
+
+// ---- A client's reply closed and reopened elsewhere straight away: told it's coming back, and roughly when. ----
+const h = await (await browser.newContext({ ...devices["Pixel 7"], permissions: ["camera", "microphone"] })).newPage();
+await skipIntro(h);
+await h.goto(personal);
+await h.waitForURL("**/v/**");
+await h.waitForSelector("main video", { timeout: 20000 });
+await h.click("[data-testid=chat-open]");
+await h.waitForSelector("[data-testid=conversation][data-sheet]");
+await h.click("role=tab[name='Video']");
+await h.click("button:has-text('Record video reply')");
+await h.waitForSelector("text=/Recording · \\d/");
+const soonReply = await waitFor(() => sql(`select "mediaId" from "Reply" where "videoId"='${videoId}' and "byClient" and kind='VIDEO' and "mediaId"<>'${mediaId}' limit 1`) || null);
+await h.waitForTimeout(5000);
+await h.close({ runBeforeUnload: false });
+const k = await (await browser.newContext({ ...devices["Pixel 7"], permissions: ["camera", "microphone"] })).newPage();
+await skipIntro(k);
+await k.goto(personal);
+await k.waitForURL("**/v/**");
+await k.waitForSelector("main video", { timeout: 20000 });
+const inlineNote = await k.waitForSelector("[data-testid=inline-recovering]", { timeout: 20000 }).catch(() => null);
+ok("the client's page says their reply is coming back, roughly when, and not to record it again", /Your reply that was interrupted is coming back in about \d+ seconds\. No need to record it again/.test(inlineNote ? await inlineNote.textContent() : ""));
+await k.click("[data-testid=chat-open]");
+const panelNote = await k.waitForSelector("[data-testid=recovering-reply]", { timeout: 5000 }).catch(() => null);
+ok("and so does the conversation, where it will appear", /appear here in about \d+ seconds, ready to send/.test(panelNote ? await panelNote.textContent() : ""));
+await k.screenshot({ path: `${shots}/server-backup-client-waiting.png` });
+ok("it appears there without a reload, ready to send", !!(await k.waitForSelector("[data-testid=held-reply]", { timeout: 120000 }).catch(() => null)) && sql(`select status from "Video" where id='${soonReply}'`) === "UPLOADED");
+ok("the notice gives way to it", !(await k.isVisible("[data-testid=recovering-reply]")));
 
 // ---- Still the same browser first: a recording still going isn't finished by someone else. ----
 const e = await aCtx.newPage();

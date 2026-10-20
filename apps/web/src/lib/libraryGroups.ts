@@ -10,6 +10,8 @@
 /** How the library is laid out, remembered in this browser (components/LibraryTools.tsx LibraryViewSwitch). */
 export const VIEW_COOKIE = "sf_lib_view";
 export const LAYOUT_COOKIE = "sf_lib_layout";
+/** The client's "Your videos" page keeps its own tiles or list choice (src/app/inbox/page.tsx). */
+export const INBOX_LAYOUT_COOKIE = "sf_inbox_layout";
 
 export type GroupKind = "day" | "week" | "month";
 export type Group<T> = {

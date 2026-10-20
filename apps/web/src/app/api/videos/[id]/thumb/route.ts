@@ -3,10 +3,12 @@ import { db } from "@/lib/db";
 import { handle, HttpError, requireUser } from "@/lib/session";
 import { accessOf, visibleVideo } from "@/lib/permissions";
 import { limitByIp } from "@/lib/rateLimit";
+import { viewableVideo } from "@/lib/access";
 
 /**
  * The library still for a recording: a small JPEG made and encrypted on a
- * team member's device with the video's key, so only the team can see it.
+ * team member's device with the video's key, so only the team and its
+ * client can see it.
  * A copy sent to another client uses the original's.
  */
 async function original(id: string) {
@@ -16,8 +18,11 @@ async function original(id: string) {
   return video.sourceId ?? video.id;
 }
 
+// The team, and the client it was sent to (their copy shares the original's key, so the original's still).
 export const GET = handle(async (_req: Request, ctx: { params: Promise<{ id: string }> }) => {
-  const thumb = await db.videoThumb.findUnique({ where: { videoId: await original((await ctx.params).id) } });
+  const { video } = await viewableVideo((await ctx.params).id);
+  if (video.replyToId) throw new HttpError(404, "Video not found");
+  const thumb = await db.videoThumb.findUnique({ where: { videoId: video.sourceId ?? video.id } });
   if (!thumb) throw new HttpError(404, "No preview yet");
   return new Response(thumb.data, { headers: { "Content-Type": "text/plain", "Cache-Control": "private, max-age=86400" } });
 });

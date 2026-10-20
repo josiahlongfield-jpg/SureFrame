@@ -1,7 +1,7 @@
 // Clients first, then sending (src/components/SendPanel.tsx):
 // - a new business is shown "Start here: add your clients", and can paste a whole list;
 // - a video is sent by choosing clients from one dropdown, then Send by email or Copy link;
-// - a client who hasn't opened their personal link yet is marked "Needs first link" and gets it from the
+// - a client who hasn't opened their personal link yet is marked "Needs personal link" and gets it from the
 //   business (it holds their key); copying it doesn't count, only their opening it, after which Send by
 //   email works for them;
 // - the library shows an encrypted still from each recording.
@@ -96,7 +96,7 @@ ok("new clients are marked in the picker", (await owner.locator("[role=listbox] 
 await owner.keyboard.press("Escape");
 ok("the first-link rule is explained before sending", await owner.isVisible("[data-testid=first-link-rule]"));
 await choose("Zoe Park");
-ok("a first-time client isn't offered Send by email", (await owner.locator("[data-testid=send-email]").count()) === 0 && (await owner.textContent("[data-testid=first-links]")).includes("Copy Zoe Park's link"));
+ok("a first-time client isn't offered Send by email", (await owner.locator("[data-testid=send-email]").count()) === 0 && (await owner.textContent("[data-testid=first-links]")).includes("Zoe Park needs their personal link first") && (await owner.locator("[data-testid=first-links] [data-testid=first-link-copy]").count()) === 1);
 ok("dropdown shows who's chosen", (await owner.textContent("[data-testid=client-picker]")).includes("Zoe Park"));
 await owner.click("[data-testid=send-link]");
 await owner.waitForSelector("text=/link is copied/");
@@ -134,10 +134,10 @@ const note = await waitFor(async () => {
   const t = await owner.textContent("[data-testid=send-status]").catch(() => "");
   return /Emailed/.test(t) ? t : null;
 }, 15000);
-ok("says who was emailed and who still needs their first link", /Emailed 1 client/.test(note ?? "") && new RegExp(`Ann Lee${stamp} still needs their first link`).test(note ?? ""), String(note));
+ok("says who was emailed and who still needs their first link", /Emailed 1 client/.test(note ?? "") && new RegExp(`Ann Lee${stamp} still needs their personal link`).test(note ?? ""), String(note));
 ok("Zoe emailed about the second video", (await waitFor(() => mailTo(zoeEmail).some((m) => m.text.includes(second)))) === true);
-ok("Ann is still chosen, with her own Copy button", (await owner.textContent("[data-testid=first-links]")).includes(`Copy Ann Lee${stamp}'s link`));
-await owner.click("[data-testid=first-links] >> [data-testid=copy-first-link]");
+ok("Ann is still chosen, with her own Copy button", (await owner.textContent("[data-testid=first-links]")).includes(`Ann Lee${stamp}`) && (await owner.locator("[data-testid=first-links] [data-testid=first-link-copy]").count()) === 1);
+await owner.click("[data-testid=first-links] >> [data-testid=first-link-copy]");
 await owner.waitForSelector("[data-testid=waiting-row]");
 await owner.screenshot({ path: `${process.argv[2] ?? "/tmp"}/first-link-sent.png`, fullPage: true });
 const annRow = owner.locator("[data-testid=waiting-row]", { hasText: "Ann Lee" });

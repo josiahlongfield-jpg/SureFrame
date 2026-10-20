@@ -28,7 +28,7 @@ A business (a coach, tutor, consultant and so on) uses ${BRAND.name} to send its
 - "This link doesn't look right" means part of it is missing or mistyped: open it again from the original message, using the whole link, or ask the business for it.
 
 ## Their videos ("Your videos", the inbox)
-- The inbox lists every video from each business on this device, newest first, with "New" on ones not yet watched and "You replied" where they've replied. "All my videos" at the top of a video page goes back to it.
+- The inbox lists every video from each business on this device, in folders by when it arrived (one per day for the last week, then weeks, then months; the newest folder starts open), with a still from each video, "New" on ones not yet watched and "You replied" where they've replied. "Tiles" or "List" at the top changes the layout, and this browser remembers the choice. "All my videos" at the top of a video page goes to it, and "Back to video" there returns to the video they came from.
 - Each video page shows the video, who sent it ("Name from Business", or just the business's name) and when, any message the business added above the video, and the conversation.
 - Save to device downloads the video. Some videos save as .webm files, which some iPhones and iPads can't play; a computer can.
 - Clients of businesses on ${BRAND.name}'s free plan see a short ${BRAND.name} intro the first time they open a video from that business on a device. It can be skipped after a few seconds and starts the video. It's shown once per device for each business.

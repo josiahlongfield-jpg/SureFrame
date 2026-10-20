@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { FirstStepsState } from "@/lib/firstSteps";
 import { RecoveryKeyStep } from "./RecoveryKey";
+import { PersonalLinkSteps } from "./FirstLinkSender";
 
 /**
  * A new owner's first steps in one list, where they land after signing in:
@@ -37,6 +38,7 @@ export default function FirstSteps({ steps, workspaceId, fingerprint, business }
           <p className="max-w-xl text-sm text-muted">
             Put in the clients you&apos;ll send videos to, with their email addresses. You can paste a whole list at once. Then, when a video is ready, you just pick them from a list and press Send.
           </p>
+          <PersonalLinkSteps className="mt-3" />
           <div className="mt-3 flex flex-wrap items-center gap-4">
             <Link href="/clients" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">Add your clients</Link>
             <Link href="/record" className="text-sm text-dim hover:text-ink">Record first instead</Link>
