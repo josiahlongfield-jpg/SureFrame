@@ -8,7 +8,7 @@ import { Face, Icon } from "./icons";
  * generic sample data (Client A, Team member 1, "Your business name").
  */
 
-export type Frame = { key: string; tab: string; icon: ReactNode; title: string; detail: string; body: ReactNode };
+export type Frame = { key: string; tab: ReactNode; icon: ReactNode; title: string; detail: string; body: ReactNode };
 
 const Cb = ({ on }: { on?: boolean }) => <span className={`f-cb${on ? " y" : ""}`} />;
 
@@ -111,35 +111,60 @@ function Replies() {
 }
 
 function Todos() {
+  // The To-dos/Reminders page: its To-dos tab, then halfway through the frame's turn its Reminder settings tab.
+  const tabs = (on: 0 | 1) => (
+    <div className="f-pgtabs"><span className={on === 0 ? "on" : ""}>To-dos</span><span className={on === 1 ? "on" : ""}>Reminder settings</span></div>
+  );
   return (
-    <div className="f-cols">
-      <div className="f-stack" style={{ gap: "0.5rem" }}>
-        <p className="f-h">To do</p>
-        <div className="f-todo">
-          <Cb /><span>Book your next session</span>
-          <div className="meta"><span>Due Fri, Oct 17, 9:00 AM</span><span>{Icon.bell}1 day before · Client A and you</span><span className="f-chip">Shared with Client A</span></div>
+    <div className="ff-flip">
+      <div className="v1 f-stack" style={{ gap: "0.5rem" }}>
+        {tabs(0)}
+        <div className="f-cols">
+          <div className="f-stack" style={{ gap: "0.5rem" }}>
+            <div className="f-due"><b>2 to-dos are overdue or due within a day</b><span><u>Client A</u> (1) · Your list below (1)</span></div>
+            <p className="f-h">To-dos &amp; notes</p>
+            <div className="f-todo">
+              <Cb /><span>Prepare next week&apos;s update</span>
+              <div className="meta"><span>Due Tue, Oct 21, 9:00 AM</span><span>{Icon.bell}Day before at 8:00 AM · The team</span></div>
+            </div>
+            <div className="f-todo f-hide-sm">
+              <Cb /><span>Send the monthly summary</span>
+              <div className="meta"><span>Due Fri, Oct 31, 9:00 AM</span><span>{Icon.repeat}Every month on the 31st</span></div>
+            </div>
+            <p className="f-h" style={{ marginTop: "0.25rem" }}>Done (2) ▸</p>
+          </div>
+          <div className="f-side f-stack">
+            <div className="f-box">
+              <span className="f-field ph">Add a to-do…</span>
+              <p className="f-h">Remind</p>
+              <div className="f-row" style={{ gap: "0.375rem" }}><span className="f-chip on">Day before at 8:00 AM</span><span className="f-chip">At due time</span></div>
+              <span className="f-check"><Cb on />Email the team</span>
+            </div>
+          </div>
         </div>
-        <div className="f-todo">
-          <Cb /><span>Review the new plan</span>
-          <div className="meta"><span>Due Mon, Oct 20, 9:00 AM</span><span>{Icon.repeat}Every week on Monday</span><span className="f-chip">Shared with Client A</span></div>
-        </div>
-        <div className="f-todo f-hide-sm">
-          <Cb /><span>Prepare next week&apos;s update</span>
-          <div className="meta"><span>Due Tue, Oct 21, 9:00 AM</span><span className="f-chip">Private to your team</span></div>
-        </div>
-        <p className="f-h" style={{ marginTop: "0.25rem" }}>Done (2) ▸</p>
       </div>
-      <div className="f-side f-stack">
-        <div className="f-box">
-          <p className="f-h">Remind</p>
-          <div className="f-row" style={{ gap: "0.375rem" }}><span className="f-chip on">1 day before</span><span className="f-chip">On the day (8am)</span></div>
-          <span className="f-check"><Cb on />Email Client A</span>
-          <span className="f-check"><Cb on />Email me</span>
-        </div>
-        <div className="f-mail">
-          <b>Reminder from Your business name: a to-do is due tomorrow at 9am</b>
-          <i>Open your list</i>
-          <span>For privacy, the details are only shown in the app.</span>
+      <div className="v2 f-stack" style={{ gap: "0.5rem" }} aria-hidden="true">
+        {tabs(1)}
+        <div className="f-cols">
+          <div className="f-box" style={{ gap: "0.5rem" }}>
+            <b style={{ fontWeight: 600 }}>Default reminders for new to-dos</b>
+            <div className="f-row" style={{ gap: "0.375rem" }}><span className="f-chip on">Day before at 8:00 AM</span><span className="f-chip on">At due time</span><span className="f-chip">+ Add</span></div>
+            <span className="f-check"><Cb on />Email the client for to-dos shared with them</span>
+            <span className="f-check f-hide-sm"><Cb on />Email whoever looks after the client too</span>
+            <b style={{ fontWeight: 600 }}>Personal message</b>
+            <span className="f-field">Reply to this email if you need to reschedule.</span>
+            <span className="f-btn pri f-hide-sm" style={{ justifySelf: "start" }}>Save changes</span>
+          </div>
+          <div className="f-side f-stack">
+            <p className="f-h">What your client sees</p>
+            <div className="f-mail">
+              <span>From: Your business name via SureFrame</span>
+              <b>Reminder from Your business name: a to-do is due tomorrow at 9am</b>
+              <span className="f-hide-sm">Reply to this email if you need to reschedule.</span>
+              <i>Open your list</i>
+              <span>For privacy, the details are only shown in the app.</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -274,7 +299,7 @@ export function frames(retentionDays: number): Frame[] {
     { key: "record", tab: "Record", icon: Icon.record, title: "New recording", detail: "Screen + Camera", body: <Record /> },
     { key: "send", tab: "Send", icon: Icon.send, title: "Weekly check-in", detail: "Send to many", body: <Send /> },
     { key: "replies", tab: "Replies", icon: Icon.reply, title: "Weekly check-in", detail: "Conversation", body: <Replies /> },
-    { key: "todos", tab: "To-dos", icon: Icon.todo, title: "Client A", detail: "To-dos & notes", body: <Todos /> },
+    { key: "todos", tab: <span className="ff-wrap">To-dos/<wbr />Reminders</span>, icon: Icon.todo, title: "To-dos/Reminders", detail: "Your team", body: <Todos /> },
     { key: "ai", tab: "AI summary", icon: Icon.ai, title: "Weekly check-in", detail: "AI add-on", body: <AiSummary /> },
     { key: "backup", tab: "Backup", icon: Icon.cloud, title: "Library", detail: "Cloud backup add-on", body: <Backup days={retentionDays} /> },
     { key: "branding", tab: "Branding", icon: Icon.brand, title: "Branding", detail: "Paid plans", body: <Branding /> },
