@@ -1,6 +1,6 @@
 import Link from "next/link";
 import LegalPage, { SubprocessorList } from "@/components/LegalPage";
-import { LEGAL, operatorLine, SUBPROCESSORS_UPDATED } from "@/lib/legal";
+import { LEGAL, operatorLine, R2_LOCATION, SUBPROCESSORS_UPDATED } from "@/lib/legal";
 
 export const metadata = { title: "Data Processing Agreement" };
 
@@ -43,8 +43,9 @@ export default function Page() {
         authorised your instructions and this DPA, and we&rsquo;re your sub-processor.
       </p>
       <p>
-        Information we handle for our own purposes isn&rsquo;t covered by this DPA: your account, sign-in, billing and support information, the information we use
-        to keep {LEGAL.product} secure, records of agreement to the Terms and our privacy policy, and the records we keep when we act under section 9 of the Terms
+        Information we handle for our own purposes isn&rsquo;t covered by this DPA: your account, sign-in, billing and support information, the questions your
+        clients type into the help chat on their pages (kept with your business&rsquo;s name but not who asked, for {LEGAL.clientQuestionDays} days, and listed in
+        a weekly email to our support inbox, so we can find and fix problems), the information we use to keep {LEGAL.product} secure, records of agreement to the Terms and our privacy policy, and the records we keep when we act under section 9 of the Terms
         (which can include, for example, the name and email address of a client whose link we turned off). We&rsquo;re the controller of that information, and our <Link href="/legal/privacy">privacy policy</Link> covers it.
       </p>
 
@@ -80,7 +81,8 @@ export default function Page() {
               overview activity figures.
             </li>
             <li>
-              Content that is end-to-end encrypted, which we can&rsquo;t read: video and voice recordings, text replies, to-dos, notes, transcripts and summaries.
+              Content that is end-to-end encrypted, which we can&rsquo;t read: video and voice recordings, video stills, text replies, to-dos, notes, transcripts and
+              summaries.
             </li>
             <li>Transcript text, while it&rsquo;s sent for an AI summary.</li>
           </ul>
@@ -151,6 +153,9 @@ export default function Page() {
       <ul>
         <li>Without cloud backup, recordings are deleted from our servers {LEGAL.retentionDays} days after they&rsquo;re recorded.</li>
         <li>
+          A video or voice reply that was recorded but never sent is deleted {LEGAL.heldReplyDays} days after it was recorded, with or without cloud backup.
+        </li>
+        <li>
           When you remove a client, their link stops working straight away, and we delete their details and conversations {LEGAL.removedClientDays} days later,
           even with cloud backup, unless you restore them first. Recordings you also sent to other clients stay with those clients.
         </li>
@@ -196,7 +201,9 @@ export default function Page() {
 
       <h2>13. International transfers</h2>
       <p>
-        We&rsquo;re in {LEGAL.country}, and our sub-processors are mainly in the United States (<a href="#subprocessors">Annex 3</a>).
+        We&rsquo;re in {LEGAL.country}.{" "}
+        {R2_LOCATION ? `Encrypted recordings are stored in the ${R2_LOCATION}, and our other sub-processors are` : "Our sub-processors are"} mainly in the United
+        States (<a href="#subprocessors">Annex 3</a>).
       </p>
       <ul>
         <li>
@@ -271,8 +278,8 @@ export default function Page() {
       <ul>
         <li>
           <strong>End-to-end encryption:</strong> recordings are encrypted on the recording device, chunk by chunk, with AES-256-GCM using the browser&rsquo;s Web
-          Crypto, before they&rsquo;re uploaded. Text replies, to-dos, notes, transcripts and summaries are encrypted on the device the same way before
-          they&rsquo;re saved.
+          Crypto, before they&rsquo;re uploaded; while recording, the encrypted recording is uploaded in pieces every few seconds. Video stills, text replies,
+          to-dos, notes, transcripts and summaries are encrypted on the device the same way before they&rsquo;re saved.
         </li>
         <li>
           <strong>Keys stay with you:</strong> keys are made on your team&rsquo;s devices, and our servers store only encrypted (wrapped) copies of them. Each
@@ -289,7 +296,7 @@ export default function Page() {
         </li>
         <li>
           <strong>Storage:</strong> browsers get signed, short-lived links to files. Upload links are valid for 15 minutes and limited to the exact size of the
-          part being uploaded. Playback links are valid for 1 hour.
+          piece or part being uploaded. Playback links are valid for 1 hour.
         </li>
         <li>
           <strong>Access control:</strong> roles and permissions are checked by our servers on every request, and staff see only the clients assigned to them
@@ -299,13 +306,14 @@ export default function Page() {
         </li>
         <li>
           <strong>Sign-in:</strong> passwordless sign-in links that work once and expire after 24 hours. Sessions usually
-          end when the browser closes, and after 8 hours without use; someone who ticks &ldquo;Keep me signed in&rdquo; stays signed in on that device for 30
-          days from when they sign in. We can sign a login out on every device. Repeated attempts are rate-limited, and
+          end when the browser closes, and after 8 hours without use; someone who ticks &ldquo;Keep me signed in&rdquo; when signing in, or turns it on later in
+          Settings, stays signed in on that device for 30 days from when it was turned on. We can sign a login out on every device. Repeated attempts are rate-limited, and
           scheduled jobs need a secret to run.
         </li>
         <li>
           <strong>Data minimisation:</strong> notification emails don&rsquo;t include video titles, replies or to-do text. Copies of recordings are deleted from our servers
-          automatically (see section 10), unfinished uploads are removed after a week, expired sign-in links are deleted, and IP addresses counted for rate limits
+          automatically (see section 10). Recordings left unfinished are completed from their encrypted copy once untouched for at least 6 hours, leftover
+          pieces are deleted after about a day, and uploads that can&rsquo;t be completed are removed after a week. Expired sign-in links are deleted, and IP addresses counted for rate limits
           are deleted within about two days (the help chat&rsquo;s limits for visitors and Free plans keep only a one-way fingerprint, for 31 days).
         </li>
         <li>

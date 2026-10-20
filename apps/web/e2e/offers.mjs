@@ -122,6 +122,11 @@ const admin = await signIn(ADMIN, "/support/offers", { phone: true });
 const patternErrors = [];
 admin.on("console", (m) => /pattern attribute/i.test(m.text()) && patternErrors.push(m.text()));
 await admin.reload();
+// The page's text once it shows `needle` (after a reload it can briefly be the loading screen).
+async function mainText(needle) {
+  await admin.waitForFunction((n) => (document.querySelector("main")?.textContent ?? "").includes(n), needle, { timeout: 15000 }).catch(() => {});
+  return ((await admin.textContent("main")) ?? "").replace(/\s+/g, " ");
+}
 async function power(testId, fields = {}) {
   const box = admin.locator(`[data-testid="${testId}"]`);
   // A form left open by a refusal stays open.
@@ -164,7 +169,7 @@ ok("coupon: 20% for 3 months", coupon?.percent_off === 20 && coupon.duration ===
 ok("coupon comes off the three plans only", JSON.stringify([...(coupon?.applies_to?.products ?? [])].sort()) === JSON.stringify(planProducts));
 const created = await prisma.adminAction.findFirst({ where: { action: "offer.create", target: CODE }, orderBy: { createdAt: "desc" } });
 ok("support log records the code and its business", created?.reason === "e2e offers test" && created.workspaceId === linkWs.id && created.details?.summary === "20% off your plan for 3 months");
-t = (await admin.textContent("main")).replace(/\s+/g, " ");
+t = await mainText("Done: Discount code given");
 ok("console shows who it's for and its link", t.includes(`Done: Discount code given (${CODE})`) && t.includes(`/offer/${CODE}`) && t.includes(`(${linkEmail}) only`) && t.includes("Used0 of 1 times"), t.slice(0, 600));
 {
   const box = admin.locator('[data-testid="create-offer"]');
@@ -371,7 +376,7 @@ const latePromo = state.promos.find((p) => p.code === LATECODE);
 ok("a code for a business that hasn't subscribed yet", !err && !!latePromo?.customer && latePromo.customer === (await workspaceOf(lateEmail)).stripeCustomerId, err);
 err = await power(`end-${LATECODE}`);
 ok("code cancelled in Stripe", !err && latePromo.active === false && latePromo.metadata.sureframe_auto === "no", err);
-t = (await admin.textContent("main")).replace(/\s+/g, " ");
+t = await mainText("Done: Discount code cancelled");
 ok("console lists it under Used or cancelled", /Used or cancelled \(\d+\)/.test(t) && t.includes(`Done: Discount code cancelled (${LATECODE})`), t.slice(0, 400));
 await late.goto(`${BASE}/offer/${LATECODE}`);
 ok("its link now says it has ended", (await late.locator('[data-testid="offer-ended"]').count()) === 1);

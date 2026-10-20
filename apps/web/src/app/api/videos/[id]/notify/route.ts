@@ -25,7 +25,7 @@ export const POST = handle(async (_req: Request, ctx: { params: Promise<{ id: st
       unavailable: "This client's access is paused or they've been removed",
       "no-email": "This client has no email address saved, so send them the link yourself",
       off: "This client has turned off emails from you, so send them the link yourself",
-      "first-link": "This client hasn't opened their personal link yet, so an email wouldn't open for them. Copy their link and send it yourself this first time",
+      "first-link": "This client hasn't opened their personal link yet, so an email wouldn't open for them. Send them their personal link with the buttons in the box above",
       limited: "This client has had several emails from you in the last hour. Try again later, or send them the link yourself",
       failed: "The email couldn't be sent just now. Try again in a minute",
     }[result]);

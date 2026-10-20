@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import type { ComponentProps, ReactNode } from "react";
@@ -159,8 +160,17 @@ export default async function Watch({ params, searchParams }: Props) {
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {isMember && (await searchParams).asClient && (
           <p role="status" className="mb-6 max-w-2xl rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-sm text-warn-fg" data-testid="team-view-of-client-link">
-            You&rsquo;re signed in to {workspace.name}, so this is your team&rsquo;s view of the video. To see what your client sees,
-            open their link in a private window or on another device.
+            You&rsquo;re signed in to {workspace.name}, so this is your team&rsquo;s view of the video. Opening a client&rsquo;s link anywhere else (a private
+            window or another device) counts as them opening it, so leave that to your client.
+            {access?.role !== "MEMBER" && workspace.plan !== "FREE" && (
+              <>
+                {" "}To see what your client sees, use the client preview on{" "}
+                <Link href="/settings/branding#preview-title" className="font-medium underline">
+                  Settings &gt; Branding
+                </Link>
+                .
+              </>
+            )}
           </p>
         )}
         {expired ? (
@@ -171,7 +181,7 @@ export default async function Watch({ params, searchParams }: Props) {
           <WatchView
             // Only the team sees how often the client opened it; clients aren't sent the count at all.
             video={{ ...publicVideo(video), viewCount: isMember ? video.viewCount + copyViews : 0 }}
-            // Clients see "Sam from Business" (never an email); the team sees the name or email (lib/team.ts).
+            // Clients see "Team member 1 from Business A" (never an email); the team sees the name or email (lib/team.ts).
             ownerName={senderName(video, workspace.name, isMember ? "team" : "client")}
             canDelete={!!access && canDeleteVideo(access, video)}
             // Only a finished original counts (a refused upload never got a duration).

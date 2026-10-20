@@ -86,12 +86,12 @@ export default async function Welcome({ searchParams }: { searchParams: Promise<
           <span className="text-sm font-medium text-muted">Your business name</span>
           <RequiredField name="business" message="Enter your business name." maxLength={80} autoComplete="organization" placeholder="e.g. Business A" autoFocus
             defaultValue={isPlaceholderName(me.workspace.name) ? "" : me.workspace.name} className={field} data-testid="welcome-business" />
-          <span className="text-xs text-dim">Work under your own name? Use that. You can change it later in Settings, Branding.</span>
+          <span className="text-xs text-dim">Work under your own name? Use that. You can change it later in Settings &gt; Branding.</span>
         </label>
         <label className="grid gap-1.5">
           <span className="text-sm font-medium text-muted">Your name <span className="font-normal text-dim">(optional)</span></span>
-          <input name="name" maxLength={80} autoComplete="name" placeholder="e.g. Sam" defaultValue={me.user.name ?? ""} className={field} data-testid="welcome-name" />
-          <span className="text-xs text-dim">Clients see who sent each video, like &ldquo;Sam from Business A&rdquo;.</span>
+          <input name="name" maxLength={80} autoComplete="name" placeholder="The name your clients know you by" defaultValue={me.user.name ?? ""} className={field} data-testid="welcome-name" />
+          <span className="text-xs text-dim">Clients see who sent each video, like &ldquo;Your name from Business A&rdquo;.</span>
         </label>
         {error === "business" && <p role="alert" className="text-sm text-danger-fg">Enter your business name.</p>}
         <button className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover sm:w-auto sm:px-8" data-testid="welcome-submit">

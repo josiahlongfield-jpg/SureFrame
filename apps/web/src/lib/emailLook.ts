@@ -53,7 +53,7 @@ export const emailDocument = (html: string, title: string) =>
     ? html
     : `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title></head><body style="margin:0;padding:0">${html}</body></html>`;
 
-/** Wraps an email's content in the page and card (topped with the button colour), with the small SureFrame mark underneath. */
+/** Wraps an email's content in the page and card (topped with the button colour), with a small line of text underneath ("Sent with SureFrame" unless given). */
 export function emailShell(inner: string, footer = "Sent with SureFrame", accent = "#ff6f61") {
   return `<div style="margin:0;padding:0;background:${EMAIL.page}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${EMAIL.page}" style="background:${EMAIL.page}"><tr><td align="center" style="padding:28px 12px">

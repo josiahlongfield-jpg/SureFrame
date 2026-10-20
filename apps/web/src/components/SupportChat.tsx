@@ -274,7 +274,7 @@ const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), in
 
 /**
  * A Help button that opens the chat in a panel, fixed to the bottom-right corner so it's there without scrolling to
- * the end (Josiah, 18 October 2026). On phones it's a small round button that steps out of the way while the page is
+ * the end. On phones it's a small round button that steps out of the way while the page is
  * scrolled down or a field is being typed in, so it never sits over what someone is reading or filling in, and the
  * page keeps room at its end so the last line or button can always be scrolled clear of it (the app's phone menu has
  * a Help item too). The open panel holds the keyboard until Escape or ✕ closes it.

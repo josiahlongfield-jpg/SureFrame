@@ -1,6 +1,6 @@
 import Link from "next/link";
 import LegalPage, { SubprocessorList } from "@/components/LegalPage";
-import { DATA_LOCATIONS, LEGAL, operatorLine } from "@/lib/legal";
+import { DATA_LOCATIONS, LEGAL, operatorLine, R2_LOCATION } from "@/lib/legal";
 
 export const metadata = { title: "Privacy Policy" };
 
@@ -48,11 +48,15 @@ export default function Page() {
           cookie for that business from that device only.
         </li>
         <li>
-          The Help button on your pages opens a help chat answered by an AI assistant (Anthropic). It receives only what you type there and which business&rsquo;s
-          page you&rsquo;re on, never your videos, messages, replies, to-dos or notes. Nobody from our team answers it, and it can&rsquo;t pass anything to the
-          business or to us: for anything it can&rsquo;t help with, it gives you the business&rsquo;s name and, if the business set one, its reply-to email address.
-          We keep the text of each question you type, with the business&rsquo;s name but not who asked, for {LEGAL.clientQuestionDays} days, and send our team a
-          weekly summary of the questions it couldn&rsquo;t answer, so we can fix problems. The rest of the conversation stays in your browser tab.
+          The Help button on your pages opens a help chat answered by an AI assistant (Anthropic). It receives what you type there, which business&rsquo;s page
+          you&rsquo;re on, and what that page already shows: whether your link works, whether the business&rsquo;s emails to you are on, whether the business uses
+          AI summaries and, on a video page, whether that video&rsquo;s copy on our servers has been or will be deleted. It never receives your videos, their
+          titles, messages, replies, to-dos or notes. Nobody from our team answers it, and it can&rsquo;t pass the conversation to the business or to us: for
+          anything it can&rsquo;t help with, it gives you the business&rsquo;s name and, if the business set one, its reply-to email address. We keep the text of
+          each question you type (up to 500 characters), with the business&rsquo;s name and the page you asked on, but not who asked, for{" "}
+          {LEGAL.clientQuestionDays} days. Once a week our team is emailed a list of these questions, grouped by business, so we can find and fix problems; that
+          email stays in our support inbox. The rest of the conversation stays in your browser tab. Please don&rsquo;t type personal details there that you
+          don&rsquo;t want kept.
         </li>
         <li>
           On a free-plan business, the short SureFrame intro is shown once per device for each business; your browser remembers this. You don&rsquo;t need an
@@ -77,12 +81,13 @@ export default function Page() {
           staff you remove to tell them.
         </li>
         <li>
-          <strong>Client details you add:</strong> the names and email addresses of clients you invite, so we can send them links and reminders. When a
+          <strong>Client details you add:</strong> the names and email addresses of clients you invite, so we can send them new-video emails, reminders and,
+          after a key reset, a replacement link. We never email a client their first personal link: it holds their key, so the business sends it itself. When a
           business resets its keys (after someone leaves its team), we keep a one-way fingerprint (a hash) of each client&rsquo;s old link until that client is
           deleted, so the old link can say it was replaced.
         </li>
         <li>
-          <strong>Encrypted content:</strong> video and reply recordings, text replies, and the text of to-dos and notes. These are encrypted on your device before
+          <strong>Encrypted content:</strong> video and reply recordings, the video stills shown in your library, text replies, and the text of to-dos and notes. These are encrypted on your device before
           they reach us, and the keys stay with you and your clients, so we hold only scrambled copies of them. Some details aren&rsquo;t encrypted, because we need to
           read them to show your library and send reminders: video titles, client names and email addresses, the names shown on replies, emoji reactions, to-do due dates, repeat and
           reminder settings, and the reminder message a business writes. We also keep basic information about content, such as when it was created, its size and
@@ -102,7 +107,7 @@ export default function Page() {
         </li>
         <li>
           <strong>Support conversations:</strong> what you type into our help chat, and the email address you give us there. From the help chat on client pages,
-          only the text of each question and which business&rsquo;s page it was asked on.
+          only the text of each question (up to 500 characters), which business&rsquo;s page and which page it was asked on, and whether the chat could answer it.
         </li>
         <li>
           <strong>Technical information:</strong> IP address, browser type and logs of requests, used to keep the service secure, prevent abuse and fix problems.
@@ -132,7 +137,8 @@ export default function Page() {
       <h2>How we use it</h2>
       <ul>
         <li>
-          To provide {LEGAL.product}: storing and delivering your videos, and sending client links, reminders, sign-in emails, team emails (such as a client
+          To provide {LEGAL.product}: storing and delivering your videos, and sending clients new-video emails, reminders and replacement links after a key
+          reset, as well as sign-in emails, team emails (such as a client
           replying, or a staff member sending videos), a warning before a recording is deleted from our servers, and notices about accounts, such as when a
           client&rsquo;s access ends, about {LEGAL.removedClientWarningDays} days before a removed client is deleted for good, about{" "}
           {LEGAL.deletionWarningDays} days before an account you deleted is deleted for good, when an account is closed, kept or deleted, or when we take action
@@ -160,6 +166,8 @@ export default function Page() {
         <li>
           <strong>Names:</strong> everyone on a team can see the others&rsquo; names, email addresses and roles. If a team member has set their name, clients see it on
           the videos that person sends, as &ldquo;Name from Business&rdquo;, but never their email address. Without a name set, clients see the business&rsquo;s name.
+          When someone leaves a team, the videos and replies they made stay with the business and are shown as &ldquo;Former team member&rdquo;, without their
+          name.
         </li>
         <li>
           <strong>Team overview:</strong> owners and admins can see how the team is keeping up with clients, worked out from dates and who sent what: for example
@@ -174,12 +182,14 @@ export default function Page() {
       <h2>Our AI support assistant</h2>
       <p>
         The help chat is answered first by an AI assistant provided by Anthropic. Your messages, and for signed-in customers a summary of your plan, usage and account status, are sent
-        to Anthropic to generate replies. The assistant can&rsquo;t see your videos, replies, to-dos or notes. Anything it can&rsquo;t resolve is passed to a person on our
-        team, who can read the conversation. Please don&rsquo;t share passwords, recovery keys or card numbers in the chat. We don&rsquo;t use your content or chats to train AI models, and Anthropic doesn&rsquo;t use them to train its models either.
+        to Anthropic to generate replies. The assistant can&rsquo;t see your videos, replies, to-dos or notes. A person on our team reads the conversation if you
+        choose Talk to a person, or if the assistant passes it on because it needs a person (for example a billing problem or something that looks broken).
+        Visitors without an account and businesses on the Free plan can be passed to a person only so often (see our{" "}
+        <Link href="/legal/terms#help-limits">Terms of Service</Link>). Please don&rsquo;t share passwords, recovery keys or card numbers in the chat. We don&rsquo;t use your content or chats to train AI models, and Anthropic doesn&rsquo;t use them to train its models either.
       </p>
       <p>
-        Clients have their own help chat on their pages, also answered by the AI assistant, which never passes conversations to a person (see{" "}
-        <a href="#for-clients">For clients</a>).
+        Clients have their own help chat on their pages, also answered by the AI assistant. Nobody from our team answers it, and it can&rsquo;t pass the
+        conversation to the business or to us; we keep only the questions, as <a href="#for-clients">For clients</a> explains.
       </p>
 
       <h2>AI transcripts and summaries (optional)</h2>
@@ -251,6 +261,12 @@ export default function Page() {
           don&rsquo;t rely on that email alone.
         </li>
         <li>
+          While you record, the recording is encrypted on your device and uploaded in pieces every few seconds. If recording stops unexpectedly (for example the
+          page closes or the device dies), we finish it from that encrypted copy when the person who recorded it next opens {LEGAL.product} on any of their
+          devices, or with our daily clean-up once it&rsquo;s been untouched for at least 6 hours. A client&rsquo;s or team member&rsquo;s reply finished this way
+          is kept unsent, for its author only (see the next points). Leftover pieces are deleted after about a day.
+        </li>
+        <li>
           With cloud backup, encrypted content is kept until you delete it, the client it was sent to is removed and then deleted (see below), or your account is
           permanently deleted. If cloud backup ends (you switch it off, cancel, or your paid plan ends), our copies are deleted {LEGAL.retentionDays} days later;
           if it ends while the account is suspended or closed, those {LEGAL.retentionDays} days start when it&rsquo;s unsuspended, reopened or kept.
@@ -277,7 +293,7 @@ export default function Page() {
         </li>
         <li>
           Questions typed into the help chat on client pages are deleted {LEGAL.clientQuestionDays} days after they&rsquo;re asked, or sooner with the
-          business&rsquo;s account.
+          business&rsquo;s account. The weekly list of these questions emailed to our team stays in our support inbox.
         </li>
         <li>
           Records of team emails (who was told about which reply or video) are deleted about 30 days after the email is sent. Reminders sent to staff are kept
@@ -291,7 +307,7 @@ export default function Page() {
           {LEGAL.removedClientDays} days end in the meantime are still deleted. We email you a reminder about {LEGAL.deletionWarningDays} days before the date.
           After {LEGAL.deletionGraceDays} days we permanently delete your account, workspace and content, and ask our payment provider to delete your customer
           record and saved cards. If you&rsquo;re on someone else&rsquo;s team, deleting your account takes you off that team straight away, and the recordings and replies you
-          made for it stay with the team.
+          made for it stay with the team, shown as &ldquo;Former team member&rdquo;.
         </li>
         <li>
           If we close an account under our terms, we permanently delete the account, its workspaces and their content {LEGAL.closureDeleteDays} days later (or on
@@ -341,13 +357,15 @@ export default function Page() {
         </li>
         <li>
           <strong>sf_active:</strong> records the time of your last activity. Together with the sign-in cookie it signs you out when the browser is closed or after
-          8 hours without use, and it&rsquo;s deleted when you close your browser. If you tick &ldquo;Keep me signed in&rdquo;, you stay signed in on that device
-          for 30 days from when you sign in, and sf_active is kept for those 30 days instead; after that, or once you sign out, the usual rules apply again.
+          8 hours without use, and it&rsquo;s deleted when you close your browser. If you tick &ldquo;Keep me signed in&rdquo; when signing in, or turn it on
+          later in Settings &gt; Account &gt; This device, you stay signed in on that device for 30 days from when it was turned on, and sf_active is kept for
+          those 30 days instead; after that, once you turn it off, or once you sign out, the usual rules apply again.
         </li>
         <li>
-          <strong>sf_keep:</strong> set only if you tick &ldquo;Keep me signed in&rdquo;. It marks that device as kept signed in and expires 30 days after that
-          sign-in. <strong>sf_keep_next</strong> carries that choice from the sign-in page through the email link, for up to a day, and is removed when the
-          sign-in finishes.
+          <strong>sf_keep:</strong> set only if you choose &ldquo;Keep me signed in&rdquo;. It marks that device as kept signed in, expires 30 days after it was
+          turned on, and is removed if you turn it off. <strong>sf_keep_next</strong> carries that choice from the sign-in page through the email link, for up to
+          a day, and is removed when the sign-in finishes. The choice is also carried in the sign-in link itself, so it still works if the link opens in another
+          browser.
         </li>
         <li>
           <strong>sf_signin_to:</strong> holds the email address a sign-in link was just sent to, for up to an hour, so the sign-in page can show it and offer to
@@ -358,11 +376,19 @@ export default function Page() {
           shown in your own time zone.
         </li>
         <li>
+          <strong>sf_lib_view</strong> and <strong>sf_lib_layout:</strong> how you chose to view your library (by date or by client, as tiles or a list), for up
+          to a year. <strong>sf_inbox_layout</strong> does the same for a client&rsquo;s inbox (tiles or a list).
+        </li>
+        <li>
           <strong>sf_signed_out:</strong> set for 5 minutes after we sign you out this way, so the sign-in page can explain why.
         </li>
         <li>
           <strong>Client link cookie:</strong> remembers a client&rsquo;s personal link on their device for up to a year, so they can get back to
           their videos without an account.
+        </li>
+        <li>
+          <strong>fc_key_&lt;client&gt;:</strong> marks that this browser holds a client&rsquo;s key, for up to a year, so their pages know they can show their
+          videos here. It never holds the key itself, and it&rsquo;s removed with the key.
         </li>
         <li>
           <strong>sf_offer:</strong> remembers a discount or referral code you opened a link for, or entered on Settings &gt; Billing, for up to 30 days, so it
@@ -440,7 +466,7 @@ export default function Page() {
         </li>
         <li>
           <strong>For our own purposes:</strong> we&rsquo;re the controller of account holders&rsquo; account, sign-in and billing details, help chat and support
-          conversations, support and safety records (including email fingerprints kept to stop closed accounts signing up again), records of agreement to our
+          conversations, questions typed into the help chat on client pages (and the weekly list of them emailed to our team), support and safety records (including email fingerprints kept to stop closed accounts signing up again), records of agreement to our
           terms and this policy, and the technical information we use to keep {LEGAL.product} secure for everyone who uses it, including clients.
         </li>
         <li>
@@ -487,7 +513,9 @@ export default function Page() {
 
       <h3>International transfers</h3>
       <p>
-        We&rsquo;re based in Australia, and our providers store and process information mainly in the United States (see Overseas storage above). Where personal
+        We&rsquo;re based in Australia.{" "}
+        {R2_LOCATION ? `Encrypted recordings are stored in the ${R2_LOCATION}, and our other providers` : "Our providers"} store and process information mainly
+        in the United States (see Overseas storage above). Where personal
         information is transferred to us or our providers from the EU or UK, and the destination doesn&rsquo;t have an adequacy decision, we rely on the European
         Commission&rsquo;s Standard Contractual Clauses and, for the UK, the UK International Data Transfer Addendum. For information we process for businesses,
         these are part of our <Link href="/legal/dpa">data processing agreement</Link>. Our providers&rsquo; data processing terms include the Standard Contractual

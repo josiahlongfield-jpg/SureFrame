@@ -30,20 +30,21 @@ A business (a coach, tutor, consultant and so on) uses ${BRAND.name} to send its
 ## Their videos ("Your videos", the inbox)
 - The inbox lists every video from each business on this device, in folders by when it arrived (one per day for the last week, then weeks, then months; the newest folder starts open), with a still from each video, "New" on ones not yet watched and "You replied" where they've replied. "Tiles" or "List" at the top changes the layout, and this browser remembers the choice. "All my videos" at the top of a video page goes to it, and "Back to video" there returns to the video they came from.
 - Each video page shows the video, who sent it ("Name from Business", or just the business's name) and when, any message the business added above the video, and the conversation.
+- In the conversation, a video reply (theirs or the business's) shows as a small still with its length. Tap it to play it large over the page; close it with Close, Escape or by tapping outside it.
 - Save to device downloads the video. Some videos save as .webm files, which some iPhones and iPads can't play; a computer can.
 - Clients of businesses on ${BRAND.name}'s free plan see a short ${BRAND.name} intro the first time they open a video from that business on a device. It can be skipped after a few seconds and starts the video. It's shown once per device for each business.
 - Some businesses use AI summaries: the page then says so, and clients may see a transcript and summary under the video. Clients can read them but can't make them. Their replies aren't included. Summaries can contain mistakes.
 
 ## Replying
 - Replies can be text, video or voice: choose Text, Video or Voice in the reply box. On phones, tap "Reply to <business>" under the video to open the conversation; on a computer it's beside the video, with a button to open it larger.
-- Text: type and press Send reply. Enter sends; Shift+Enter starts a new line.
+- Text: type and press Send reply. On a computer, Enter sends and Shift+Enter starts a new line. On a phone or tablet, Enter starts a new line and the Send reply button sends.
 - Video and voice: press Record video reply or Record voice reply, then Stop recording. It plays back before anything is sent, with Send, Re-record and Discard. Nothing sends by itself. Discard deletes the recording and nothing is sent. Replies can be up to ${MAX_REPLY_MINUTES} minutes; recording stops by itself at the limit and what was recorded is kept for review.
 - The browser asks to use the camera or microphone. If it doesn't work: check the browser's site permissions for this site, make sure the microphone isn't muted and is the right one (a level bar shows it hearing them), close other apps using the camera, or try another up-to-date browser.
 - If the connection drops while a reply uploads, it's kept on the device and carries on uploading when it's back online.
-- A video or voice reply goes up to the servers every few seconds while it's recorded (encrypted), so an interrupted one (the browser closed, say) isn't lost, even if they open the link again in a different app or browser. It's never sent by itself. Next time they open the video, a box asks "Send or delete your unfinished reply?" with Send it and Delete it. Nobody else has seen it. An unsent video or voice reply is deleted ${HELD_REPLY_DAYS} days after it was recorded, and can't be recovered after that; the box shows the date.
+- A video or voice reply goes up to the servers every few seconds while it's recorded (encrypted), so an interrupted one (the browser closed, say) isn't lost. It's never sent by itself. Within about 90 seconds of when it stopped, it's back when they open the video or their inbox again, on any phone or browser where they've opened their personal link: a box asks "Send or delete your unfinished reply?" with Send it and Delete it. Nobody else has seen it. An unsent video or voice reply is deleted ${HELD_REPLY_DAYS} days after it was recorded, and can't be recovered after that; the box shows the date.
 - After sending they see "Sent". The business is usually emailed that they replied (unless the business turned those emails off). The email never includes the reply, because it's encrypted.
 - Deleting a reply: tap Delete under any of their own replies. It's removed for both sides straight away, recording included. They can't delete the business's messages or videos.
-- Reactions: tap one of ${REACTIONS.join(" ")} under the video. Tap it again to take it back. The business sees which reactions they left.
+- Reactions: pick one of ${REACTIONS.join(" ")} under the video. Only one at a time: picking another replaces it, and tapping it again takes it back. The business sees the one they picked.
 - Who sees replies: only the client and the business's team. If the business sent the same recording to other people, each conversation is separate, and no other client sees theirs.
 
 ## To-dos and notes
@@ -61,7 +62,7 @@ A business (a coach, tutor, consultant and so on) uses ${BRAND.name} to send its
 
 ## When videos and replies leave the servers
 - Some businesses keep videos until they delete them. Otherwise a video's encrypted copy on ${BRAND.name}'s servers is deleted ${RETENTION_DAYS} days after it was recorded, and the video page shows the date ("This video will be deleted from ${BRAND.name} on ..."). Save it to the device before then to keep a copy.
-- Video and voice replies are kept for the same length of time, counted from when each was sent. Text replies stay until they're deleted or the conversation is deleted.
+- A video or voice reply's encrypted copy leaves the servers ${RETENTION_DAYS} days after it finished uploading (usually moments after it was recorded), unless the business keeps videos until it deletes them. One that was recorded but never sent is deleted ${HELD_REPLY_DAYS} days after it was recorded. Text replies stay until they're deleted or the conversation is deleted.
 - Once a video's server copy is deleted, its link says "This link has expired" and it can't be watched or brought back by ${BRAND.name}. Ask the business to send it again if it's still needed. A deleted video or voice reply shows "This reply has been deleted from ${BRAND.name}."
 - If the business deletes a video, its conversation goes with it.
 
@@ -70,6 +71,7 @@ The page says which of these applies. Explain only what the page says, and never
 - "Your access has ended": the business removed them as a client. Their details and conversations with that business are deleted for good ${CLIENT_KEEP_DAYS} days later unless the business restores their access first. If it's a mistake, contact the business.
 - "Your access is paused": the business changed its ${BRAND.name} plan. Nothing is deleted by the pause, but videos are only kept for a limited time, so contact the business soon.
 - "This link no longer opens your videos": the business closed its ${BRAND.name} account. Their details and conversations with it are deleted ${DELETION_GRACE_DAYS} days later unless the business keeps its account. Contact the business directly.
+- "Your link was replaced": the business replaced their personal link to keep their videos secure, so the old one no longer opens them. Nothing has been deleted. If the page says the business has emailed them their new link, open that link on this device. Otherwise press "Ask for my link again", or ask the business for the new link, then open it on this device.
 - "Unavailable right now" or "This link has been turned off": only the business can help with this; suggest contacting the business. Say nothing about the business's account.
 
 ## Privacy, for clients

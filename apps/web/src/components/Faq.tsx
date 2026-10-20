@@ -80,8 +80,8 @@ export const BUSINESS_FAQ: Qa[] = [
     a: (
       <p>
         A private page with your video, opened from their personal link. They don&rsquo;t need an account and never pay. They can reply with a video, a voice
-        note or a message, and see any to-dos you share with them. On Free they see a short {BRAND.name} intro, once on each device; paid plans remove it and let
-        you add your own logo and colours.
+        note or a message, and see any to-dos you share with them. On Free they see a short {BRAND.name} intro, once on each device. Paid plans remove it and let
+        you add your own logo and brand colour. A small &ldquo;Made with {BRAND.name}&rdquo; credit always stays at the bottom of their pages.
       </p>
     ),
   },
@@ -90,8 +90,8 @@ export const BUSINESS_FAQ: Qa[] = [
     q: "Can I record on my phone?",
     a: (
       <p>
-        Yes, in the browser, with nothing to install. Phone browsers can&rsquo;t share the screen, so on a phone you record with your camera. To record your
-        screen, use a computer. Putting your camera in a screen recording works best in Chrome, Edge or Brave.
+        Yes, in the browser, with nothing to install. On a phone or tablet you record with Camera only, choosing Front camera or Rear camera. Recording your
+        screen needs a computer. To put your camera in a screen recording (Screen + Camera), use Chrome, Edge or Brave; Firefox can&rsquo;t.
       </p>
     ),
   },
@@ -163,8 +163,9 @@ export const BUSINESS_FAQ: Qa[] = [
     q: "How long do I stay signed in?",
     a: (
       <p>
-        For your security, you&rsquo;re usually signed out when you close your browser, or after 8 hours without using {BRAND.name}. If you tick Keep me signed in, you
-        stay signed in on that device for 30 days from when you sign in, even after closing the browser. Already signed in? Turn it on in Settings &gt; Account &gt; This device. Don&rsquo;t use it on a shared device.
+        For your security, you&rsquo;re usually signed out when you close your browser, or after 8 hours without using {BRAND.name}. If you tick Keep me signed in when you
+        sign in, or turn it on later in Settings &gt; Account &gt; This device, you stay signed in on that device for 30 days from when it was turned on, even after
+        closing the browser. Don&rsquo;t use it on a shared device.
       </p>
     ),
   },
@@ -213,7 +214,7 @@ export const CLIENT_FAQ: Qa[] = [
     a: (
       <p>
         Your reply is saved as you record. Open the link again, on any phone or browser, and within about 90 seconds it&rsquo;s back, ready for you to send
-        or delete. It&rsquo;s never sent by itself.
+        or delete. It&rsquo;s never sent by itself. A reply you don&rsquo;t send is deleted {HELD_REPLY_DAYS} days after you recorded it.
       </p>
     ),
   },
@@ -222,8 +223,8 @@ export const CLIENT_FAQ: Qa[] = [
     q: "Are my replies deleted with the video?",
     a: (
       <p>
-        If the business deletes the video, the conversation goes with it. Video and voice replies also leave our servers {RETENTION_DAYS} days after
-        they&rsquo;re recorded, unless the business has Cloud backup. Text replies stay until they&rsquo;re deleted. Video and voice replies can be up to{" "}
+        If the business deletes the video, the conversation goes with it. Video and voice replies also leave our servers {RETENTION_DAYS} days after they
+        finished uploading (usually moments after they were recorded), unless the business has Cloud backup. Text replies stay until they&rsquo;re deleted. Video and voice replies can be up to{" "}
         {MAX_REPLY_MINUTES} minutes long, whichever plan the business is on.
       </p>
     ),
@@ -258,7 +259,8 @@ export const CLIENT_FAQ: Qa[] = [
     id: "stop-emails",
     q: "How do I stop emails from a business?",
     a: <p>Use the link at the bottom of any email from it. That turns off its reminders and new-video emails.</p>,
-  },  {
+  },
+  {
     id: "client-help",
     q: "Where can I get help with my videos?",
     a: (

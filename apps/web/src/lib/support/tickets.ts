@@ -72,7 +72,7 @@ export async function staffReply(ticket: SupportTicket & { user: { email: string
   await sendMail({
     to,
     subject: "Reply from SureFrame support",
-    text: [body, "", `See the whole conversation or reply: ${link}`].join("\n"),
+    text: [body, "", `See the whole conversation or reply: ${link}`, "", "Sent with SureFrame"].join("\n"),
     html: emailShell(`${emailMark()}<p style="font-size:13px;font-weight:600;color:${EMAIL.muted};margin:-8px 0 12px">Support</p>
 <div style="font-size:15px;line-height:1.5">${paragraphs(body)}</div>
 ${emailButton(link, "See the conversation or reply", emailColors())}`),

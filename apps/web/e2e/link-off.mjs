@@ -167,7 +167,7 @@ res = await owner.request.post(`${BASE}/api/team/rekey`, { data: { from: FP, fin
 ok("key reset done", res.status() === 200, await res.text());
 b = await prisma.client.findUnique({ where: { id: bea.id } });
 ok("key reset: Bea's link changed but stays off", b.token !== bea.token && !!b.linkDisabledAt);
-ok("key reset: Cy is emailed her new link, Bea isn't", !!(await waitMail(cy.email, (m) => m.subject === `${business} sent you a new private link`)) && mailTo(bea.email).length === 0);
+ok("key reset: Cy is emailed her new link, Bea isn't", !!(await waitMail(cy.email, (m) => m.subject === `${business} sent you a new personal link`)) && mailTo(bea.email).length === 0);
 
 // =====================================================================================================
 // Turning it back on

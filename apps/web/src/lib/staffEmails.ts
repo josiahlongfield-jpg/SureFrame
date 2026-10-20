@@ -30,7 +30,7 @@ export function removedEmail(o: { business: string; logoUrl?: string | null; col
     subject: `You're no longer on ${o.business}'s team`,
     lead: `An owner or admin of ${o.business} removed you from their team on ${BRAND.name}, so you can no longer open its videos or clients.`,
     lines: [
-      { text: `Your ${BRAND.name} login still works. You can use it for a business of your own, free, or delete it under Settings, Account.` },
+      { text: `Your ${BRAND.name} login still works. You can use it for a business of your own, free, or delete it under Settings > Account.` },
       { text: "If that's a mistake, ask them for a new invite link." },
     ],
     button: { label: `Open ${BRAND.name}`, link: appUrl("/library") },

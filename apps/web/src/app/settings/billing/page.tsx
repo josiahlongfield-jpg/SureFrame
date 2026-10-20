@@ -41,7 +41,7 @@ async function AiAddOn({ workspace }: { workspace: Workspace }) {
 
 /**
  * In the cancel dialog: exactly what moving to Free takes away from this workspace, so dropping back is never
- * mistaken for a better deal (Josiah, 18 October 2026).
+ * mistaken for a better deal.
  */
 async function FreeLosses({ workspace }: { workspace: Workspace }) {
   const free = PLANS.FREE;

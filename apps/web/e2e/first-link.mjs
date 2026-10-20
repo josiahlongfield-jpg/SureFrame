@@ -94,8 +94,9 @@ ok("unsent: only the team can watch", await owner.isVisible("[data-testid=send-p
 await owner.click("[data-testid=client-picker]");
 ok("new clients are marked in the picker", (await owner.locator("[role=listbox] li:has-text('Zoe Park') [data-testid=needs-first-link]").count()) === 1);
 await owner.keyboard.press("Escape");
-ok("the first-link rule is explained before sending", await owner.isVisible("[data-testid=first-time]"));
+ok("no personal-link box while nobody who needs one is chosen", !(await owner.isVisible("[data-testid=first-time]")));
 await choose("Zoe Park");
+ok("the personal-link rule is explained once Zoe is chosen", await owner.isVisible("[data-testid=first-time]"));
 ok("a first-time client isn't offered Send by email", (await owner.locator("[data-testid=send-email]").count()) === 0 && (await owner.textContent("[data-testid=first-links]")).includes("Zoe Park") && (await owner.locator("[data-testid=first-links] [data-testid=first-link-copy]").count()) === 1);
 ok("dropdown shows who's chosen", (await owner.textContent("[data-testid=client-picker]")).includes("Zoe Park"));
 ok("only her personal-link buttons: no separate Copy link", (await owner.locator("[data-testid=send-link]").count()) === 0);

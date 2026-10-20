@@ -477,7 +477,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
               The owner or an admin assigns clients to you. Once they have, record a video and pick those clients to send it to.
               {canAddClients && " You can also add clients of your own: they're assigned to you."}
             </p>
-            <PersonalLinkSteps className="mt-6" />
+            {/* Staff who can't add clients skip "Add the client": the owner or an admin does that. */}
+            <PersonalLinkSteps className="mt-6" skipAdd={!canAddClients} />
             <div className="mt-6 flex flex-wrap items-center gap-4">
               <Link href="/team" className="rounded-xl bg-primary px-5 py-2.5 font-semibold text-on-primary hover:bg-primary-hover">See your team</Link>
               {canAddClients && <Link href="/clients" className="text-sm text-dim hover:text-ink">Add a client of your own</Link>}
@@ -489,7 +490,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             <h2 className="mt-2 text-xl font-semibold text-ink">Add your clients first</h2>
             <p className="mt-2 max-w-xl text-sm text-muted">
               Put in the clients you&apos;ll send videos to, with their email addresses. You can paste a whole list at once.
-              Then, when a video is ready, you just pick them from a list and press Send.
+              Then, when a video is ready, you pick them from a list and press Send by email or Copy link.
             </p>
             <PersonalLinkSteps className="mt-6" />
             <div className="mt-6 flex flex-wrap items-center gap-4">

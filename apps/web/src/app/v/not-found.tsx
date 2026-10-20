@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import CantOpen from "@/components/CantOpen";
 import ClientHeader from "@/components/ClientHeader";
 import MadeWith from "@/components/MadeWith";
@@ -19,9 +18,6 @@ export default function VideoNotFound() {
           <p>We couldn&rsquo;t find this video. The link may be mistyped, or the video may have been deleted.</p>
           <p>If a business sent it to you, ask them to send it again.</p>
         </CantOpen>
-        <p className="mt-6 text-center text-xs text-dim">
-          <Link href="/help" className="font-medium text-accent hover:underline">Get help</Link>
-        </p>
       </main>
       <MadeWith />
     </div>

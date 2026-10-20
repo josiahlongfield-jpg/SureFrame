@@ -63,7 +63,7 @@ export default function Recorder({
   const [cams, setCams] = useState<MediaDeviceInfo[]>([]);
   const [mics, setMics] = useState<MediaDeviceInfo[]>([]);
   const [camId, setCamId] = useState<string>();
-  // Phones and tablets pick Front or Rear camera rather than one of every lens they list (Josiah, 18 October 2026).
+  // Phones and tablets pick Front or Rear camera rather than one of every lens they list.
   const [frontBack, setFrontBack] = useState(false);
   const [facing, setFacing] = useState<Facing>("user");
   const camPick = useMemo<CameraPick>(() => (frontBack ? { facing } : camId ? { deviceId: camId } : undefined), [frontBack, facing, camId]);
@@ -97,7 +97,7 @@ export default function Recorder({
   const [phone, setPhone] = useState(false);
   // Firefox can neither draw the camera into the video nor float it over other windows.
   const [cameraWithScreen, setCameraWithScreen] = useState(true);
-  // Where the camera circle sits in a Screen + camera recording (Josiah, 18 October 2026): bottom left unless the
+  // Where the camera circle sits in a Screen + camera recording: bottom left unless the
   // person drags it or picks another corner, before or while recording. Remembered in this browser.
   const [corner, setCorner] = useState<CameraCorner>("bottom-left");
   const cornerNow = useRef(corner);

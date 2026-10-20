@@ -82,7 +82,7 @@ export default function MyReminderSettings({ business, ...initial }: Props) {
             <div><dt className="text-xs text-dim">Business name</dt><dd className="font-medium text-ink">{business.name}</dd></div>
             <div><dt className="text-xs text-dim">Time zone</dt><dd className="font-medium text-ink">{tz.replace(/_/g, " ")}</dd></div>
           </dl>
-          <p className="text-xs text-dim">The business&apos;s time zone, set by an owner or admin under Settings, Reminders. Everyone&apos;s reminders and repeats follow this clock, so ask them if it&apos;s wrong for your clients.</p>
+          <p className="text-xs text-dim">The business&apos;s time zone. An owner or admin sets it on this page (To-dos/Reminders &gt; Reminder settings). Everyone&apos;s reminders and repeats follow this clock, so ask them if it&apos;s wrong for your clients.</p>
         </section>
 
         <section className="grid gap-4 rounded-2xl border border-line bg-surface p-6">

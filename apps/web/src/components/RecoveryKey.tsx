@@ -9,7 +9,7 @@ import { BRAND } from "@/lib/brand";
 
 
 /** Where the key can be shown again later, said wherever it's shown. */
-export const FIND_IT_LATER = "You can show it again any time under Settings, Account, Show recovery key, on a device that's already unlocked.";
+export const FIND_IT_LATER = "You can show it again any time under Settings > Account (Show recovery key) on a device that's already unlocked.";
 
 const groups = (value: string) => value.match(/.{1,4}/g) ?? [value];
 

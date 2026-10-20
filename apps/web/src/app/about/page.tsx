@@ -15,7 +15,13 @@ export const metadata: Metadata = {
  * (lib/legal.ts for the business and its providers), so change those first. The business is named, never the owner.
  */
 
-const ENCRYPTED = ["Videos and video or voice replies", "Text replies", "To-dos and notes", "AI transcripts and summaries, for businesses that use them"];
+const ENCRYPTED = [
+  "Videos and video or voice replies",
+  "Video stills (the small pictures of each video)",
+  "Text replies",
+  "To-dos and notes",
+  "AI transcripts and summaries, for businesses that use them",
+];
 const NOT_ENCRYPTED = [
   "Video titles",
   "Client names and email addresses",
@@ -23,6 +29,7 @@ const NOT_ENCRYPTED = [
   "To-do due dates, repeat and reminder settings, and the reminder message a business writes",
   "Reminders owners and admins send to staff",
   "When things were created or sent, and who they were sent to",
+  `Help chat messages (questions typed into the help chat on client pages are kept as text for ${LEGAL.clientQuestionDays} days)`,
 ];
 
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
@@ -46,7 +53,6 @@ export default function About() {
         <div className="mt-8 grid gap-6">
           <Section id="who" title="Who runs it">
             <p data-testid="about-operator">
-              {/* Josiah's pick (18 October 2026); no person is named. */}
               Made in {LEGAL.state}. {LEGAL.product} is a registered business name{LEGAL.abn && <> (ABN {LEGAL.abn})</>} of a sole trader who builds it, runs
               it and answers support.
             </p>
@@ -55,8 +61,8 @@ export default function About() {
 
           <Section id="contact" title="Contact">
             <p>
-              Email {mail}, or ask in <Link href="/help">Help</Link>, where our assistant answers straight away and passes anything it can&rsquo;t sort out to a
-              person. When a person is needed, we reply within 2 business days (Queensland, Australia time).
+              Email {mail}, or ask in <Link href="/help">Help</Link>, where our assistant answers straight away and you can choose Talk to a person (with limits
+              for visitors and the Free plan). When a person is needed, we reply within 2 business days (Queensland, Australia time).
             </p>
             <p>
               Answers to common questions are in the <Link href="/faq">FAQ</Link>.

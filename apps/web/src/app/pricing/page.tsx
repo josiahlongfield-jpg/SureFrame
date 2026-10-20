@@ -120,7 +120,7 @@ function GoodToKnow() {
       "Smaller plans",
       <>
         To move to a smaller plan, first remove the clients and staff it doesn&rsquo;t include. If your plan drops on its own (you cancel, or a payment fails),
-        clients and staff beyond its limits are paused until you upgrade or remove others. Nothing is deleted.
+        clients and staff beyond its limits are paused until you upgrade or remove others. A pause deletes nothing, though recordings still leave our servers on the usual schedule.
       </>,
     ],
     [

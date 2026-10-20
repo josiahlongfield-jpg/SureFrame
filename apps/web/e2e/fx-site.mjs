@@ -134,7 +134,7 @@ await visitor.click("#ff-tab-record");
 ok("home demo: no Pop out camera bubble button while recording (the bubble opens by itself)", !(await visitor.isVisible("#ff-panel-record >> text=Pop out camera bubble")));
 await visitor.click("#ff-tab-send");
 const sendFrame = norm(await visitor.textContent("#ff-panel-send"));
-ok("home demo: a first-time client's link is sent by the business, not emailed", sendFrame.includes("First time: copy Client B's link and send it yourself"), sendFrame);
+ok("home demo: a first-time client's link is sent by the business, not emailed", sendFrame.includes("Needs personal link") && sendFrame.includes("Copy all 3 links"), sendFrame);
 
 await visitor.goto(BASE + "/faq");
 const faq = norm(await visitor.textContent("main"));
@@ -266,7 +266,7 @@ ok("signed in, pricing keeps the app's header (Settings menu and plan)", (await 
 await owner.goto(BASE + "/settings");
 await seen(owner, "[data-testid=settings-index]");
 const settingsIndex = norm(await owner.textContent("[data-testid=settings-index]"));
-ok("/settings lists the settings pages", ["Reminders", "Branding", "Invite staff", "Billing", "Account"].every((x) => settingsIndex.includes(x)), settingsIndex);
+ok("/settings lists the settings pages", ["Branding", "Invite staff", "Billing", "Account"].every((x) => settingsIndex.includes(x)), settingsIndex);
 const strange = await owner.goto(BASE + "/clients/nobody-" + stamp);
 ok("signed in, a page that isn't there is plain and keeps the app's menu", (await seen(owner, "[data-testid=not-found-text]")) && (await owner.isVisible("[data-testid=settings-menu-button]")) && !norm(await owner.textContent("main")).includes("video"), strange.status());
 

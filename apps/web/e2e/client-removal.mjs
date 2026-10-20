@@ -186,7 +186,7 @@ await owner.waitForSelector("[data-testid=clients-notice]");
 ok("restore after a key reset: says they have a new link, emailed", norm(await owner.textContent("[data-testid=clients-notice]")).includes("so they have a new personal link, which we've emailed to them"));
 const benBack = await prisma.client.findUnique({ where: { id: ben.id } });
 ok("restore after a key reset: the link changed", !benBack.removedAt && benBack.token !== ben.token);
-const newLink = await waitMail(ben.email, (m) => m.subject === `${business} sent you a new private link`);
+const newLink = await waitMail(ben.email, (m) => m.subject === `${business} sent you a new personal link`);
 ok("restore after a key reset: new link emailed", !!newLink && newLink.text.includes(`/c/${benBack.token}`) && !newLink.text.includes(ben.token));
 const oldBen = await (await browser.newContext({ timezoneId: "Australia/Brisbane" })).newPage();
 await oldBen.goto(`${BASE}/c/${ben.token}`);

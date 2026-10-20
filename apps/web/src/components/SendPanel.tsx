@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { fingerprint, generateKey, unwrapKey, wrapKey } from "@/lib/e2e/crypto";
 import { shareLink, useCanShare, writeClipboard } from "@/lib/clipboard";
 import { isDefaultTitle } from "@/lib/videoTitle";
-import { markLinkSent, personalLink } from "./ClientsManager";
+import { LinkBadge, markLinkSent, personalLink } from "./ClientsManager";
 import FirstLinkSender, { KeyIcon, PersonalLinkSteps } from "./FirstLinkSender";
 import type { ClientOption, SendMany } from "./WatchView";
 
@@ -17,7 +17,7 @@ type RowState = "emailed" | "when-ready" | "copied" | "shared";
 /**
  * A client is reached once they've opened their personal link (the one with
  * their key) on a device. Until then an email can't open for them, so the
- * business sends that first link itself; copying it doesn't count.
+ * business sends that link itself; copying or sending it doesn't count, only their opening it.
  */
 const reached = (c: ClientOption) => !!c.hasLink;
 const canEmail = (c: ClientOption) => reached(c) && !!c.emailable;
@@ -43,7 +43,7 @@ export default function SendPanel({
 }: {
   video: { id: string; title: string; status: string; encrypted: boolean; sourceId: string | null; viewCount?: number };
   clients: ClientOption[];
-  /** The business's name, signed at the end of the message sent with a first link. */
+  /** The business's name, signed at the end of the message sent with a personal link. */
   business: string;
   /** May add a new client from here (lib/permissions.ts addClients). */
   canAddClient?: boolean;
@@ -53,8 +53,6 @@ export default function SendPanel({
   hasReplies: boolean;
   rootKey: CryptoKey;
   teamKey: CryptoKey;
-  /** Called with a link the team copied or shared (kept for the watch page; reaching a client is their opening it). */
-  onLinkCopied?: (clientId: string) => void;
   /** A title given in the Send box, so the page heading shows it too. */
   onTitle?: (title: string) => void;
 }) {
@@ -285,14 +283,14 @@ export default function SendPanel({
     }
   }
 
-  /** A chosen client who needs their first link: gives them this video, then their link to it (the buttons say what's done with it). */
+  /** A chosen client who needs their personal link: gives them this video, then their link to it (the buttons say what's done with it). */
   async function deliverFirst(c: ClientOption) {
     setNote(undefined);
     const { added } = await deliver([c], false);
     return linkFor(c, added[0].convId);
   }
 
-  /** After a first link went out by any of the ways in FirstLinkSender. */
+  /** After a personal link went out by any of the ways in FirstLinkSender. */
   function firstSent(c: ClientOption, how: "link" | "message" | "share" | "email") {
     void markLinkSent(c.id);
     setRows((cur) => ({ ...cur, [c.id]: how === "share" ? "shared" : "copied" }));
@@ -306,7 +304,7 @@ export default function SendPanel({
     });
   }
 
-  /** A client added from this box: chosen straight away, so their first link is the next thing shown. */
+  /** A client added from this box: chosen straight away, so their personal link is the next thing shown. */
   function quickAdded(c: ClientOption) {
     setExtra((cur) => [...cur, c]);
     setPicked((cur) => (many ? [...cur, c.id] : [c.id]));
@@ -369,7 +367,6 @@ export default function SendPanel({
   const isBlocked = (c: ClientOption) => !!(c.removed || c.paused || c.linkOff || !c.link);
   const sentRows = recipients.filter((r) => byId.has(r.clientId) && (reached(byId.get(r.clientId)!) || isBlocked(byId.get(r.clientId)!)));
   const waitingRows = recipients.filter((r) => byId.has(r.clientId) && !reached(byId.get(r.clientId)!) && !isBlocked(byId.get(r.clientId)!));
-  const firstTimersAvailable = available.some((c) => !reached(c));
   // Everyone in the personal-link box: those chosen now, and those who have this video but haven't opened their link.
   const firstRows = [
     ...chosenFirst.map((c) => ({ c, convId: null as string | null })),
@@ -378,7 +375,7 @@ export default function SendPanel({
   // The clients this person looks after who haven't opened their personal link yet, any video.
   const needLink = clients.filter((c) => c.mine && !reached(c) && !isBlocked(c));
   const sentLink = (c: ClientOption) => c.linkSent || rows[c.id] === "copied" || rows[c.id] === "shared";
-  // Only first links chosen: the box above has their buttons, so there's nothing else to press.
+  // Only clients who need their personal link chosen: the box above has their buttons, so there's nothing else to press.
   const onlyFirst = chosen.length > 0 && chosenFirst.length === chosen.length;
 
   /** Asks before taking this video away from a client. */
@@ -415,7 +412,8 @@ export default function SendPanel({
     );
   };
 
-  const showLinkBox = firstTimersAvailable || firstRows.length > 0;
+  // Only when it lists someone: its heading is about the clients listed.
+  const showLinkBox = firstRows.length > 0;
   const linkBox = (
     <div className="mt-3 rounded-xl border-2 border-primary bg-primary-soft p-3 text-sm text-ink" data-testid="first-time">
       <p className="flex items-center gap-2 font-semibold">
@@ -605,8 +603,11 @@ export default function SendPanel({
                             <input type={many ? "checkbox" : "radio"} name="send-to" checked={picked.includes(c.id)} onChange={() => toggle(c.id)} />
                             <span className="min-w-0 break-words text-ink">{c.name}</span>
                           </label>
+                          {/* The same two statuses as the waiting list below and the Clients page. */}
                           {!reached(c) && (
-                            <span className="shrink-0 rounded-full bg-warn-bg px-2 py-0.5 text-[11px] font-semibold text-warn-fg" data-testid="needs-first-link">Needs personal link</span>
+                            <span className="shrink-0">
+                              <LinkBadge sent={sentLink(c)} />
+                            </span>
                           )}
                         </li>
                       ))}
@@ -667,7 +668,8 @@ export default function SendPanel({
                   {chosen.filter((c) => !canEmail(c)).map((c) => c.name).join(", ")} for you to send yourself.
                 </p>
               )}
-              {!onlyFirst && <p className="mt-2 text-xs text-dim">
+              {/* The personal-link box already says how to send the link yourself, so this only shows without it. */}
+              {!showLinkBox && <p className="mt-2 text-xs text-dim">
                 Send by email and we email each client to say it&apos;s waiting. Or copy the link and send it from your own app, texts or messages. Either way it opens on SureFrame, for that client only.
               </p>}
               {!many && primary === null && sendMany === undefined && (

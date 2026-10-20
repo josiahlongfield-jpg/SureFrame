@@ -23,8 +23,8 @@ export default function Page() {
                 <>
                   {" "}
                   (current: <Link href="/legal/terms">Terms of Service</Link>, <Link href="/legal/privacy">Privacy Policy</Link>; their wording was last
-                  updated on {LEGAL.termsUpdated === LEGAL.privacyUpdated ? LEGAL.termsUpdated : `${LEGAL.termsUpdated} and ${LEGAL.privacyUpdated}`}, with changes that only add to or explain what you get, so there was nothing new to
-                  agree to)
+                  updated on {LEGAL.termsUpdated === LEGAL.privacyUpdated ? LEGAL.termsUpdated : `${LEGAL.termsUpdated} and ${LEGAL.privacyUpdated}`}, with changes that only add to or explain what you get, or keep less of your
+                  information, so there was nothing new to agree to)
                 </>
               ) : null}
               . What changed:

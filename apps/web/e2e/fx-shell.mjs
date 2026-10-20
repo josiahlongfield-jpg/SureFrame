@@ -173,7 +173,7 @@ ok("the recovery key is in the first steps", !!box);
 const key = await box?.getAttribute("data-recovery-key");
 ok("not shown twice on the library", (await owner.locator("[data-testid=recovery-key-reminder]").count()) === 0);
 ok("shown in a font that tells 0 from O (slashed zero, numbers in colour)", (await owner.locator("[data-testid=first-steps] [data-recovery-key].slashed-zero").count()) === 1);
-ok("says where to find it later", (await owner.textContent("[data-testid=first-steps]")).includes("Settings, Account, Show recovery key"));
+ok("says where to find it later", (await owner.textContent("[data-testid=first-steps]")).includes("Settings > Account (Show recovery key)"));
 const [download] = await Promise.all([owner.waitForEvent("download"), owner.click("[data-testid=first-steps] [data-testid=key-download]")]);
 const keyFile = readFileSync(await download.path(), "utf8");
 ok("Download (.txt) holds the key", download.suggestedFilename() === "sureframe-recovery-key.txt" && keyFile.replace(/\s/g, "").includes(key));

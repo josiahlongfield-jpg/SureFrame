@@ -77,8 +77,8 @@ export default function JoinTeam({ token, signedIn, agreed, needsName = false, b
           {needsName && (
             <label className="grid gap-1 text-sm text-ink">
               <span className="font-medium">Your name</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="name" placeholder="e.g. Sam" data-testid="join-name" className="rounded-lg border border-line-strong bg-surface px-3 py-2" />
-              <span className="text-xs text-dim">Clients see it on the videos you send, as &ldquo;{name.trim() || "Sam"} from {business}&rdquo;. You can change it later under Settings, Account.</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="name" placeholder="The name your clients know you by" data-testid="join-name" className="rounded-lg border border-line-strong bg-surface px-3 py-2" />
+              <span className="text-xs text-dim">Clients see it on the videos you send, as &ldquo;{name.trim() || "Your name"} from {business}&rdquo;. You can change it later under Settings &gt; Account.</span>
             </label>
           )}
           {!agreed && (

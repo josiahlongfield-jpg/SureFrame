@@ -7,6 +7,7 @@ import { Icon } from "@/components/home/icons";
 import { points } from "@/components/home/points";
 import { BRAND } from "@/lib/brand";
 import { MAX_TRANSCRIBE_MINUTES } from "@/lib/ai/limits";
+import { PLANS } from "@/lib/plans";
 import { DATA_LOCATIONS, LEGAL } from "@/lib/legal";
 import { RETENTION_DAYS } from "@/lib/retention";
 
@@ -14,13 +15,13 @@ const AUDIENCES = "Coaches, personal trainers, consultants, tutors, agencies, cl
 
 const PRIVACY = [
   ["Encrypted on your device", "Videos, replies, to-dos and notes are locked before they leave your phone or computer. Our servers only hold scrambled copies of them."],
-  ["Every client gets their own copy", "Send one video to one client or a hundred. Each opens it from their own private link, and nobody sees anyone else's replies."],
+  ["Every client gets their own copy", "Send one video to one client or a hundred. Each opens it from their own personal link, and nobody sees anyone else's replies."],
   ["Staff who leave are locked out", `Remove someone from your team and your team's keys and every client link are reset, so they can't open anything through ${BRAND.name} again.`],
 ];
 
 const STEPS = [
   ["Record", "Pick screen, camera, or both. Press start."],
-  ["Send", "Pick a client, or several at once. Only they can open it, from their own private link."],
+  ["Send", "Pick a client, or several. The first time, send each one their personal link yourself. After that, every video opens straight away for them."],
   ["Reply", "Clients answer with their own video, a voice note or a message. No account needed."],
 ];
 
@@ -47,7 +48,7 @@ export default async function Home() {
               <Link href="/pricing" className="rounded-[0.625rem] border border-line bg-solid px-4 py-3 text-sm font-medium text-on-solid hover:bg-solid-hover sm:px-[1.125rem] sm:text-[0.9375rem]">
                 See pricing
               </Link>
-              <span className="text-[0.8125rem] text-muted max-sm:basis-full sm:ml-1.5" data-testid="hero-free">Free for 3 clients</span>
+              <span className="text-[0.8125rem] text-muted max-sm:basis-full sm:ml-1.5" data-testid="hero-free">Free for {PLANS.FREE.clientSeats} clients</span>
             </div>
             <ul className="mt-1 grid gap-x-2.5 gap-y-3 border-t border-line pt-3 min-[480px]:grid-cols-2 sm:mt-3.5 sm:gap-x-[1.375rem] sm:gap-y-3.5 sm:pt-[1.375rem]" data-testid="hero-points">
               {points(RETENTION_DAYS).map((p) => (
@@ -130,9 +131,9 @@ export default async function Home() {
             <h2 className="display mt-3 text-3xl sm:text-4xl">Ready for your whole team</h2>
             <p className="mt-4 text-lg font-medium">Know who&apos;s waiting on a reply. See your whole team&apos;s client follow-up at a glance.</p>
             <p className="mt-4 text-muted">
-              Studio includes 3 staff logins and Agency includes 10, the owner&rsquo;s own login included. Assign clients to staff, choose what each person can see and do, see how the team is keeping up with clients, and keep billing with the owner. Clients never need an account.
+              Studio includes {PLANS.STUDIO.staffSeats} staff logins and Agency includes {PLANS.AGENCY.staffSeats}, the owner&rsquo;s own login included. Assign clients to staff, choose what each person can see and do, see how the team is keeping up with clients, and keep billing with the owner. Clients never need an account.
             </p>
-            <p className="mt-6 font-medium">Free for 3 clients. Paid plans from US$15 a month.</p>
+            <p className="mt-6 font-medium">Free for {PLANS.FREE.clientSeats} clients. Paid plans from US${PLANS.SOLO.priceMonthly} a month.</p>
             <Link href="/pricing" className="mt-6 inline-block rounded-[0.625rem] bg-primary px-6 py-3 font-medium text-on-primary hover:bg-primary-hover">
               Compare plans
             </Link>

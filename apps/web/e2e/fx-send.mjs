@@ -182,7 +182,7 @@ async function record() {
   return owner.url().split("/v/")[1].split("?")[0];
 }
 const vid = await record();
-ok("Send box: the rule is explained before sending", norm(await owner.textContent("[data-testid=first-time]")).includes("Clients listed need their personal link, they can't be connected yet.") && norm(await owner.textContent("[data-testid=first-time]")).includes("from then on Send by email and Copy link works for them too"));
+ok("Send box: no personal-link box while nobody is listed in it", (await owner.locator("[data-testid=first-time]").count()) === 0);
 // Client B's link went out with Copy all on the Clients page.
 ok("Send box: lists the clients who still need their link, saying it was sent", norm(await owner.textContent("[data-testid=waiting-client]:has-text('Client B') [data-testid=waiting-status]")) === "Link sent, not opened yet");
 ok("Send box: offers a title for a default-named video", await owner.isVisible("[data-testid=title-prompt]"));
@@ -192,8 +192,10 @@ await owner.waitForSelector("[data-testid=title-saved]");
 ok("title saved and shown as the heading", (await prisma.video.findUnique({ where: { id: vid } })).title === "Week 1 plan" && (await owner.inputValue("textarea[aria-label='Video title']")) === "Week 1 plan");
 await owner.click("[data-testid=client-picker]");
 ok("picker marks first-time clients", (await owner.locator("[role=listbox] li:has-text('Client B') [data-testid=needs-first-link]").count()) === 1 && (await owner.locator("[role=listbox] li:has-text('Client A') [data-testid=needs-first-link]").count()) === 0);
+ok("picker: same status as the waiting list (Client B's link was sent)", norm(await owner.textContent("[role=listbox] li:has-text('Client B') [data-testid=needs-first-link]")) === "Link sent, not opened yet");
 await owner.keyboard.press("Escape");
 await chooseClients(owner, "Client A", "Client B", "Client C");
+ok("Send box: the rule is explained once first-timers are chosen", norm(await owner.textContent("[data-testid=first-time]")).includes("Clients listed need their personal link, they can't be connected yet.") && norm(await owner.textContent("[data-testid=first-time]")).includes("from then on Send by email and Copy link works for them too"));
 const firstBox = norm(await owner.textContent("[data-testid=first-links]"));
 ok("chosen first-timers: each named, with their own Copy link", (await owner.locator("[data-testid=first-link-row]:has-text('Client B') [data-testid=first-link-copy]").count()) === 1 && (await owner.locator("[data-testid=first-link-row]:has-text('Client C') [data-testid=first-link-copy]").count()) === 1, firstBox);
 ok("mixed choice: one Send to all, no second Copy all in the box", (await owner.textContent("[data-testid=send-all]")).trim() === "Send to all 3" && (await owner.locator("[data-testid=copy-all-first]").count()) === 0 && (await owner.locator("[data-testid=send-link]").count()) === 0);

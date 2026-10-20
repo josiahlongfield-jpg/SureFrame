@@ -78,7 +78,7 @@ ok("the missing still is made in the library and saved", !!(await waitFor(() => 
 await owner.screenshot({ path: `${shots}/library-days-closed.png`, fullPage: true });
 
 await owner.click("[data-testid=day-folder] >> nth=1 >> summary");
-ok("clicking a folder shows that day's videos", await owner.isVisible(`main a[href="/v/${first}"]`));
+ok("clicking a folder shows that day's videos", !!(await owner.waitForSelector(`main a[href="/v/${first}"]`, { state: "visible", timeout: 10000 }).catch(() => null)));
 ok("an older recording without a still gets one too", !!(await owner.waitForSelector(`a[href="/v/${first}"] [data-testid=library-thumb]`, { timeout: 30000 }).catch(() => null)));
 ok("both stills saved once", (await prisma.videoThumb.count({ where: { videoId: { in: [first, second] } } })) === 2);
 const time = (await owner.textContent(`a[href="/v/${first}"] p`)) ?? "";

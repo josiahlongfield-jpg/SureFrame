@@ -153,12 +153,13 @@ export default function FirstLinkSender({
 /**
  * Why a client needs their personal link, in three steps: shown wherever a
  * business or staff member could otherwise miss it (adding clients, sending a
- * first video, the start of the library).
+ * first video, the start of the library). `skipAdd` leaves out "Add the
+ * client", for staff who can't add clients.
  */
-export function PersonalLinkSteps({ className = "", compact }: { className?: string; compact?: boolean }) {
+export function PersonalLinkSteps({ className = "", compact, skipAdd }: { className?: string; compact?: boolean; skipAdd?: boolean }) {
   const steps = [
-    { title: "Add the client", body: "Their name, and their email if you have it." },
-    { title: "Send them their personal link, once", body: "Copy it and send it by text, chat or your own email. Their videos only open after they've opened this link." },
+    ...(skipAdd ? [] : [{ title: "Add the client", body: "Their name, and their email if you have it." }]),
+    { title: "Send them their personal link, once", body: "Copy it and send it by text, chat or your own email. Their videos only open after they've opened this link.", key: true },
     { title: "Then just send videos", body: "Pick them and press Send by email, or copy the video's link. It opens straight away for them." },
   ];
   return (
@@ -167,9 +168,9 @@ export function PersonalLinkSteps({ className = "", compact }: { className?: str
         <KeyIcon />
         How clients get their videos
       </p>
-      <ol className={`mt-3 grid gap-2 ${compact ? "" : "sm:grid-cols-3"}`}>
+      <ol className={`mt-3 grid gap-2 ${compact ? "" : skipAdd ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
         {steps.map((s, i) => (
-          <li key={s.title} className={`flex gap-2.5 rounded-lg bg-surface p-3 ${i === 1 ? "ring-2 ring-primary" : ""}`}>
+          <li key={s.title} className={`flex gap-2.5 rounded-lg bg-surface p-3 ${"key" in s ? "ring-2 ring-primary" : ""}`}>
             <span aria-hidden className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-primary font-mono text-xs font-semibold text-on-primary">{i + 1}</span>
             <span>
               <span className="block font-medium">{s.title}</span>

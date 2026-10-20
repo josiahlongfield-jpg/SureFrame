@@ -107,7 +107,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   // The camera preview takes the camera's own shape (portrait on most phones), so it fills its frame. On a phone it
   // also leaves room for the reply tabs, the sound bar and the Record button below it, which would otherwise be pushed
   // out of the conversation panel. svh: the height with the browser's own bars showing.
-  const frame = useVideoFrame("min(55vh, 100svh - 22rem)");
+  const frame = useVideoFrame("min(55vh, 100svh - 25rem)");
   const frameRef = frame.ref;
   const previewRef = useCallback(
     (v: HTMLVideoElement | null) => {

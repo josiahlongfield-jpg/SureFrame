@@ -52,7 +52,8 @@ export async function emailClientRemoved(clientId: string) {
   const ws = c.workspace;
   const assigned = c.assignedToId ? await db.membership.findUnique({ where: { userId_workspaceId: { userId: c.assignedToId, workspaceId: ws.id } } }) : null;
   const { replyTo } = clientMailSettings(ws, assigned);
-  const mail = clientRemovedEmail({ business: ws.name, clientName: c.name, until: zoned(ws.timezone).longDay(c.purgeAt), logoUrl: brandOf(ws, appUrl("")).logoUrl, noReply: !replyTo });
+  const brand = brandOf(ws, appUrl(""));
+  const mail = clientRemovedEmail({ business: ws.name, clientName: c.name, until: zoned(ws.timezone).longDay(c.purgeAt), logoUrl: brand.logoUrl, color: brand.color, noReply: !replyTo });
   try {
     await sendMail({ to: c.email, ...mail, fromName: ws.name, replyTo });
     return true;

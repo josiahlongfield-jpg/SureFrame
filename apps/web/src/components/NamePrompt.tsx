@@ -29,7 +29,7 @@ export default function NamePrompt() {
   return (
     <div role="status" data-testid="name-prompt" className="border-t border-primary-line bg-primary-soft">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm text-ink sm:px-6">
-        <p>Add your name so clients see who sent their videos, like &ldquo;Sam from your business&rdquo;.</p>
+        <p>Add your name so clients see who sent their videos, like &ldquo;Your name from Business A&rdquo;.</p>
         <div className="flex items-center gap-3">
           <Link href="/settings/account#name" onClick={dismiss} className="font-medium underline">Add your name</Link>
           <button onClick={dismiss} className="text-accent hover:text-ink" aria-label="Dismiss">Not now</button>

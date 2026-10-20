@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { PLANS } from "@/lib/plans";
+import { CLOUD_BACKUP_PRICE, CLOUD_BACKUP_PRICE_YEARLY, PLANS } from "@/lib/plans";
 import { Face, Icon } from "./icons";
 
 /*
@@ -17,7 +17,7 @@ function Record() {
     <div className="f-cols">
       <div className="f-screen">
         <div className="f-pill"><i />Recording · 1:24</div>
-        <div className="msg">{Icon.monitor}<span>Recording your screen. Your camera is in the floating bubble.</span></div>
+        <div className="msg">{Icon.monitor}<span>Recording your whole screen. Your camera is in the circle in the corner of the video. Drag it to move it.</span></div>
         <div className="f-cam"><Face /></div>
       </div>
       <div className="f-side f-box">
@@ -27,6 +27,8 @@ function Record() {
           <span className="f-btn red wide">Stop</span>
         </div>
         <span className="f-link" style={{ justifySelf: "start" }}>Discard and start over</span>
+        <p className="f-h f-hide-md">Camera position</p>
+        <div className="f-corners f-hide-md"><span>Top left</span><span>Top right</span><span className="on">Bottom left</span><span>Bottom right</span></div>
         <div className="f-hr" />
         <p className="f-ok" style={{ fontSize: "0.78125rem" }}>Uploaded: 12.3 MB <span className="f-mut">(+0.8 MB on device)</span></p>
         {/* The real page says "Limit on your plan: 4 hours."; here it's a paid plan's, so say which (V10). */}
@@ -54,18 +56,19 @@ function Send() {
           <div className="f-drop">
             <div className="f-row"><span className="f-chip">All clients</span><span className="f-chip">My clients</span><span className="f-chip" style={{ border: 0 }}>Clear</span></div>
             <div className="f-cards" style={{ gap: "0.4375rem 0.875rem" }}>
-              {list.map(([n, on]) => <span key={n} className="f-check"><Cb on={on} />{n}</span>)}
+              {list.map(([n, on]) => <span key={n} className="f-check"><Cb on={on} />{n}{n === "Client D" && <span className="f-need f-hide-sm">Needs personal link</span>}</span>)}
             </div>
           </div>
         </div>
-        <div className="f-row"><span className="f-btn pri">Send by email</span><span className="f-btn sec">Get their links</span></div>
-        <p className="f-dim f-hide-md">Send by email and we email each client who has opened their personal link before. The first time, copy their link and send it from your own app, texts or messages.</p>
+        <span className="f-link f-hide-md" style={{ justifySelf: "start" }}>+ Add a new client</span>
+        <div className="f-row"><span className="f-btn pri">Send by email</span><span className="f-btn sec">Copy all 3 links</span></div>
+        <p className="f-dim f-hide-md f-hide-wide">Send by email and we email each client to say it&apos;s waiting. Or copy the link and send it from your own app, texts or messages. Either way it opens on SureFrame, for that client only.</p>
         {/* No room for the sent list in the phone-sized window: it would run out of the box. */}
         <div className="f-hr f-hide-sm" />
-        <p className="f-hide-sm" style={{ fontWeight: 500 }}>Sent to</p>
+        <p className="f-hide-sm" style={{ fontWeight: 500 }}>Sent to 1 client</p>
         <div className="f-sent f-hide-sm">
-          <span>Client A <span className="f-ok">Emailed</span></span>
-          <span className="f-row"><span className="f-btn sec sm">Email again</span><span className="f-btn sec sm">Copy link</span></span>
+          <span>Client A <span className="f-ok">Emailed · Opened</span></span>
+          <span className="f-row"><span className="f-btn sec sm">Email again</span><span className="f-btn sec sm">Copy link</span><span className="f-link sm">Stop sharing</span></span>
         </div>
       </div>
     </div>
@@ -85,8 +88,8 @@ function Replies() {
       </div>
       <div className="f-box" style={{ gap: "0.625rem" }}>
         <div>
-          <p className="f-h2">Conversation</p>
-          <p className="f-dim f-hide-narrow">Reply with a video, a voice note or a message. End-to-end encrypted.</p>
+          <p className="f-h2">Conversation with Client A</p>
+          <p className="f-dim f-hide-narrow f-hide-wide">Reply with a video, a voice note or a message. End-to-end encrypted.</p>
         </div>
         <div className="f-bub them">
           <small>Client A · Oct 15, 3:04 PM</small>
@@ -96,8 +99,12 @@ function Replies() {
           <small>Client A · Oct 15, 3:06 PM</small>
           <div className="f-audio"><i>{Icon.play}</i><b /><span>0:42</span></div>
         </div>
+        <div className="f-bub them f-hide-md f-hide-wide">
+          <small>Client A · Oct 15, 3:09 PM</small>
+          <div className="f-vchip"><span className="cam"><Face /></span><i>{Icon.play}</i><em>0:58</em></div>
+        </div>
         <div className="f-bub f-hide-narrow">
-          <small>Team member 1 · Oct 15, 4:10 PM</small>
+          <small>You · Oct 15, 4:10 PM</small>
           <div>Great. I&apos;ll send the next steps tomorrow.</div>
         </div>
         <div className="f-seg" style={{ justifySelf: "start" }}><span className="on">Text</span><span>Video</span><span>Voice</span></div>
@@ -195,7 +202,7 @@ function AiSummary() {
       <div className="f-hr f-hide-sm" />
       <p className="f-hide-sm" style={{ fontWeight: 500 }}>Transcript ▾</p>
       <p className="f-tx f-hide-sm">Hi, here&apos;s this week&apos;s update. Everything is on track so far, so let&apos;s look at the two open questions. I&apos;ll send the new plan tonight, and we can go through it together next session.</p>
-      <p className="f-dim f-hide-sm">Made on the sender&apos;s device. Only the transcript text is sent to AI to write the summary.</p>
+      <p className="f-dim f-hide-sm">Made automatically on the sender&apos;s device. Words, names and numbers can be misheard. Click any sentence to play the video from there.</p>
     </div>
   );
 }
@@ -205,7 +212,10 @@ function Backup({ days }: { days: number }) {
   return (
     <div className="f-cols">
       <div className="f-stack">
-        <div><p className="f-h2">Your videos</p><p className="f-dim">12 videos</p></div>
+        <div className="f-row" style={{ justifyContent: "space-between" }}>
+          <div><p className="f-h2">Your videos</p><p className="f-dim">12 videos</p></div>
+          <div className="f-row f-hide-md"><div className="f-seg"><span className="on">By date</span><span>By client</span></div><div className="f-seg"><span className="on">Tiles</span><span>List</span></div></div>
+        </div>
         <div className="f-cards f-vids">
           {vids.map(([t, d, m], i) => (
             <div key={t} className={`f-card${i > 1 ? " f-hide-sm" : ""}`}>
@@ -226,7 +236,7 @@ function Backup({ days }: { days: number }) {
             </span>
           </div>
           <p className="f-mut" style={{ fontSize: "0.75rem" }}>We keep an encrypted copy so your clients can watch it, and delete it after {days} days. Cloud backup keeps our encrypted copies until you delete them. We still can&apos;t open them.</p>
-          <p className="f-dim">Optional: US$5 a month</p>
+          <p className="f-dim">Optional: US${CLOUD_BACKUP_PRICE} a month (US${CLOUD_BACKUP_PRICE_YEARLY} a year on yearly billing).</p>
         </div>
         <p className="f-dim">Settings › Billing</p>
       </div>
@@ -239,7 +249,7 @@ function Branding() {
   return (
     <div className="f-cols">
       <div className="f-client">
-        <header><i>Your logo here</i><b>Your business name</b><span>via SureFrame</span></header>
+        <header><i>Your logo here</i><b>Your business name</b><span>via SureFrame</span><em>Help</em></header>
         <div className="body">
           <div className="f-screen"><div className="f-play">{Icon.play}</div><div className="f-cam"><Face /></div></div>
           <b style={{ fontWeight: 600, fontSize: "0.78125rem" }}>Weekly check-in</b>
@@ -264,7 +274,7 @@ function Branding() {
 
 function Team() {
   const rows: [string, number, number, number, string, number][] = [
-    ["Team member 1 (you)", 14, 0, 0, "2h", 0],
+    ["Team member 1", 14, 0, 0, "2h", 0],
     ["Team member 2", 9, 1, 2, "5h", 1],
     ["Team member 3", 6, 0, 1, "3h", 0],
   ];
@@ -282,7 +292,7 @@ function Team() {
           {rows.map(([n, v, s, u, a, o]) => (
             <tr key={n}><td>{n}</td><td>{v}</td><td className="wide">{s}</td><td className={u ? "hot" : ""}>{u}</td><td className="wide">{a}</td><td className={o ? "hot" : ""}>{o}</td></tr>
           ))}
-          <tr className="all"><td>All</td><td>29</td><td className="wide">1</td><td>3</td><td className="wide">3h</td><td>1</td></tr>
+          <tr className="all"><td>Whole business</td><td>29</td><td className="wide">1</td><td>3</td><td className="wide">3h</td><td>1</td></tr>
         </tbody>
       </table>
       <p className="f-h f-hide-sm" style={{ marginTop: "0.25rem" }}>Staff and clients</p>

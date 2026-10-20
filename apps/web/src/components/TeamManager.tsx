@@ -15,12 +15,14 @@ import { PermChecks, savePerm, type Perms } from "./StaffPerms";
 import RemoveExtras from "./RemoveExtras";
 import PurchaseNotice, { reloadAfterPurchase } from "./PurchaseNotice";
 import type { NewLink } from "@/lib/rekey";
+import FirstLinkSender from "./FirstLinkSender";
+import { markLinkSent } from "./ClientsManager";
 
 /** How a removed person's recordings are shown (lib/team.ts FORMER_MEMBER; that file is server-only). */
 const FORMER = "Former team member";
 
-/** A client the team sends their new link to after a key reset: never opened their first link, or has no email. */
-type ToSend = { id: string; name: string; link: string; firstLink: boolean };
+/** A client the team sends their new link to after a key reset: never opened their personal link, or has no email. */
+type ToSend = { id: string; name: string; email: string | null; link: string; firstLink: boolean };
 
 /** What a member can now do, in words, after one switch changed. */
 const permSaved = (name: string, key: keyof Perms, on: boolean) =>
@@ -189,7 +191,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
           .filter((l) => !l.emailed && !names.get(l.id)?.held)
           .map(async (l) => {
             const key = newClientKeys.get(l.id);
-            return { id: l.id, name: names.get(l.id)?.name ?? "Client", link: key ? `${l.link}#k=${await exportKey(key)}` : l.link, firstLink: !l.opened };
+            return { id: l.id, name: names.get(l.id)?.name ?? "Client", email: names.get(l.id)?.email ?? null, link: key ? `${l.link}#k=${await exportKey(key)}` : l.link, firstLink: !l.opened };
           }),
       );
       setReset({ name: m?.name ?? keyResetNeeded ?? null, removed: !!m, emailed: data.emailed, toSend, recoveryKey: await exportKey(team) });
@@ -384,22 +386,17 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
 }
 
 function ResetDone({ name, removed, emailed, toSend, recoveryKey, business }: { name: string | null; removed: boolean; emailed: number; toSend: ToSend[]; recoveryKey: string; business: string }) {
-  const [copied, setCopied] = useState<string>();
   const [keySaved, setKeySaved] = useState(false);
   const box = useRef<HTMLElement>(null);
   // The removal was asked for further down the page: bring what to do next into view.
   useEffect(() => box.current?.scrollIntoView?.({ block: "start", behavior: "smooth" }), []);
-  const copy = async (id: string, text: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopied(id);
-    setTimeout(() => setCopied(undefined), 2000);
-  };
+  // The same ways to send it as on the Clients page, and sending it counts the same way (Link sent, not opened yet).
   const list = (clients: ToSend[], testId: string) => (
     <ul className="mt-2 grid gap-2" data-testid={testId}>
       {clients.map((c) => (
-        <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-surface px-3 py-2 text-ink">
-          <span>{c.name}</span>
-          <button onClick={() => copy(c.id, c.link)} className="rounded-lg border border-line-strong px-3 py-1 hover:bg-hover">{copied === c.id ? "Copied" : "Copy new link"}</button>
+        <li key={c.id} className="rounded-lg bg-surface px-3 py-2 text-ink">
+          <p className="mb-1.5 break-words font-medium">{c.name}</p>
+          <FirstLinkSender compact name={c.name} email={c.email} business={business} getLink={async () => c.link} onSent={() => void markLinkSent(c.id)} copyLabel="Copy new link" />
         </li>
       ))}
     </ul>
@@ -423,9 +420,9 @@ function ResetDone({ name, removed, emailed, toSend, recoveryKey, business }: { 
       )}
       {firstLink.length > 0 && (
         <>
-          <p className="mt-4 font-medium">These clients hadn&apos;t opened their first link yet, so the one you had for them stopped working too. Send them this new one as their first link:</p>
+          <p className="mt-4 font-medium">These clients hadn&apos;t opened their personal link yet, so the one you had for them stopped working too. Send them this new one instead:</p>
           {list(firstLink, "reset-first-link")}
-          <p className="mt-1 text-xs">They&apos;re also under Needs first link on the Clients page.</p>
+          <p className="mt-1 text-xs">They&apos;re also under Needs personal link on the Clients page.</p>
         </>
       )}
       {keySaved ? (
@@ -530,9 +527,9 @@ function RemoveDialog({ member, bundle, onCancel, onConfirm }: { member: Member;
           )}
           {firstLink.length > 0 && (
             <div className="rounded-xl border border-warn-line bg-warn-bg p-3 text-warn-fg" data-testid="remove-first-link">
-              <p className="font-medium">{count(firstLink.length, "client hasn't", "clients haven't")} opened their first link yet</p>
+              <p className="font-medium">{count(firstLink.length, "client hasn't", "clients haven't")} opened their personal link yet</p>
               <p>{names(firstLink)}</p>
-              <p className="mt-1">A link without its key can&apos;t open on a new device, so they aren&apos;t emailed. Straight after, you&apos;ll get their new links here to send as their first link.</p>
+              <p className="mt-1">A link without its key can&apos;t open on a new device, so they aren&apos;t emailed. Straight after, you&apos;ll get their new links here to send yourself.</p>
             </div>
           )}
           {noEmail.length > 0 && (

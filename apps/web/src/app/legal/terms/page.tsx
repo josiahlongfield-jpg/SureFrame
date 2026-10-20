@@ -32,8 +32,9 @@ export default function Page() {
         <li>Tell us straight away at {mail} if you think someone has accessed your account without permission.</li>
         <li>
           For your security, you&rsquo;re usually signed out when you close your browser, and after 8 hours without using {LEGAL.product}. If you tick
-          &ldquo;Keep me signed in&rdquo;, you stay signed in on that device for 30 days from when you sign in. Some browsers that restore your tabs can keep you
-          signed in too, so sign out yourself on shared devices, and don&rsquo;t tick &ldquo;Keep me signed in&rdquo; on them.
+          &ldquo;Keep me signed in&rdquo; when you sign in, or turn it on later in Settings &gt; Account &gt; This device, you stay signed in on that device for
+          30 days from when it was turned on. You can turn it off there at any time. Some browsers that restore your tabs can keep you signed in too, so sign out
+          yourself on shared devices, and don&rsquo;t use &ldquo;Keep me signed in&rdquo; on them.
         </li>
         <li>
           The workspace owner, and any admins they appoint, decide who joins the team, which clients each staff member looks after and what each staff member can
@@ -45,11 +46,15 @@ export default function Page() {
           privacy laws that apply to you.
         </li>
         <li>When a team member has set their name, clients see it on the videos that person sends, as &ldquo;Name from Business&rdquo;.</li>
+        <li>
+          When someone leaves your team (you remove them, or they close or delete their account), the videos and replies they made stay with your business and
+          are shown as &ldquo;Former team member&rdquo;.
+        </li>
       </ul>
 
       <h2>3. Encryption and your recovery key</h2>
       <p>
-        Your videos, replies, to-dos and notes are end-to-end encrypted, and we never hold the keys. That means we can&rsquo;t recover your content if you lose your
+        Your videos, replies, to-dos and notes are end-to-end encrypted, and we never hold your keys in a form we can use. That means we can&rsquo;t recover your content if you lose your
         recovery key and no signed-in device still has it unlocked. Keep your recovery key somewhere safe. We&rsquo;re not responsible for content that can&rsquo;t be
         decrypted because a key was lost.
       </p>
@@ -153,7 +158,8 @@ export default function Page() {
       <h2>6. Free plan</h2>
       <p>
         The Free plan has the limits shown on our pricing page, including {freeVideos} videos in total per workspace. Every new video recorded in a workspace counts
-        once it finishes uploading, whatever plan the workspace is on, so videos recorded on a paid or complimentary plan count too. Deleting a video, or its copy
+        once it finishes uploading, whatever plan the workspace is on, so videos recorded on a paid or complimentary plan count too. That includes a video we
+        finish from its encrypted copy after recording stopped unexpectedly (see section 7). Deleting a video, or its copy
         being deleted from our servers, doesn&rsquo;t give a place back. Replies, and sending a video to more clients, don&rsquo;t count. Once a Free workspace has
         used all {freeVideos}, it can&rsquo;t record new videos unless it moves to a paid plan, but its team can still watch videos, send existing videos to more
         clients and reply. On the Free plan, your team&rsquo;s video and voice replies can be up to {PLANS.FREE.maxDurationMin} minutes long. We may correct the
@@ -166,13 +172,20 @@ export default function Page() {
       <h2>7. Storage and lost recordings</h2>
       <p>
         Without cloud backup, the encrypted copy of a video on our servers is deleted {LEGAL.retentionDays} days after it&rsquo;s recorded, and after that it can&rsquo;t
-        be watched from its link. Video and voice replies follow the same rule; text replies, to-dos and notes are kept until they&rsquo;re deleted. A recording
+        be watched from its link. Video and voice replies follow the same rule; text replies, to-dos and notes are kept until they&rsquo;re deleted. A video or
+        voice reply that was recorded but never sent is deleted {LEGAL.heldReplyDays} days after it was recorded, with or without cloud backup. A recording
         stays on the device it was made on only until its upload finishes. To keep your own copy, open the video and choose Save
-        to device. With cloud backup, content is kept until you delete it or your account is permanently deleted (see section 17). If cloud backup ends (you switch
+        to device. With cloud backup, other content is kept until you delete it or your account is permanently deleted (see section 17). If cloud backup ends (you switch
         it off, cancel, or your paid plan ends), our copies are deleted {LEGAL.retentionDays} days later; if it ends while your account is suspended or
         closed, those {LEGAL.retentionDays} days start when it&rsquo;s unsuspended, reopened or kept. Removing a client also deletes their conversations after{" "}
         {LEGAL.removedClientDays} days, even with cloud backup (see section 4). We may pause these deletions where we need to keep information for legal reasons (see section 9). Please
         keep your own copies of anything important.
+      </p>
+      <p>
+        While you record, the recording is encrypted on your device and uploaded in pieces every few seconds. If recording stops unexpectedly (for example the
+        page closes or the device dies), we finish it from that encrypted copy when the person who recorded it next opens {LEGAL.product} on any of their
+        devices, or with our daily clean-up once it&rsquo;s been untouched for at least 6 hours. A finished video then counts toward the Free plan&rsquo;s video
+        limit (see section 6). A client&rsquo;s or team member&rsquo;s reply finished this way is kept unsent, for its author only.
       </p>
       <p>
         {LEGAL.product} is built to protect recordings from crashes and dropped connections, but no system can rule out every loss. A recording or other content can
@@ -341,13 +354,16 @@ export default function Page() {
       <h2>13. Help chat</h2>
       <p>
         Our help chat is answered first by an AI assistant, which can make mistakes. It gives general help with using {LEGAL.product} only and isn&rsquo;t legal,
-        financial or other professional advice. A person from our team will step in when needed. The help chat on client pages is answered only by the AI
-        assistant: for anything it can&rsquo;t help with, clients contact the business that sent them their link.
+        financial or other professional advice. You can ask for a person with Talk to a person, and the assistant can pass the conversation to a person when it
+        needs one. The help chat on client pages is answered only by the AI assistant: nobody from our team answers it, and it can&rsquo;t pass the conversation
+        to the business or to us. For anything it can&rsquo;t help with, clients contact the business that sent them their link. We keep the questions typed
+        there for {LEGAL.clientQuestionDays} days, without who asked, to find and fix problems (see our <Link href="/legal/privacy">privacy policy</Link>).
       </p>
       <p id="help-limits">
         Businesses on a paid plan can ask for a person at any time. For visitors without an account and businesses on the Free plan, the help chat gives
         brief answers to general questions, up to a set number a day and a week, and a person can be asked for once in a set period. The current limits are
-        shown on the <Link href="/help">Help page</Link>, and the chat says when you can ask again. We may change these limits.
+        shown on the <Link href="/help">Help page</Link>, and the chat says when you can ask again. Clients of businesses on the Free plan can ask the help
+        chat on client pages up to 5 questions a day each, within a daily limit for all of that business&rsquo;s clients together. We may change these limits.
       </p>
 
       <h2>14. Availability and changes</h2>
@@ -396,7 +412,7 @@ export default function Page() {
       </p>
       <p>
         If you own a workspace with staff, remove them first. If you&rsquo;re on someone else&rsquo;s team, deleting your account takes you off that team straight
-        away. The videos and replies you made for it stay with the team, and if you reactivate your account you&rsquo;ll need a new invite to rejoin.
+        away. The videos and replies you made for it stay with the team, shown as &ldquo;Former team member&rdquo;, and if you reactivate your account you&rsquo;ll need a new invite to rejoin.
       </p>
       <p>We may also close accounts as section 9 describes.</p>
 

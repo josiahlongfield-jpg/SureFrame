@@ -165,7 +165,7 @@ function Manager({
   const [notice, setNotice] = useState<string>();
   const [assigned, setAssigned] = useState<{ id: string; text: string }>();
   const [listError, setListError] = useState<string>();
-  // The clients just added: sending their first link is the next step.
+  // The clients just added: sending their personal link is the next step.
   const [justAdded, setJustAdded] = useState<Client[]>([]);
   // Names from a pasted list that didn't fit in the seats left.
   const [unfit, setUnfit] = useState<string[]>([]);
@@ -483,9 +483,17 @@ function Manager({
       <section className="rounded-2xl border border-line bg-surface p-6">
         <h2 className="font-semibold text-ink">{canManage ? "Add a client" : "Add a client of your own"}</h2>
         {!canManage && <p className="mt-1 text-sm text-dim">Clients you add are assigned to you. The owner or an admin can also assign clients to you.</p>}
-        <div className="mt-3" data-testid="first-link-rule">
-          <PersonalLinkSteps />
-        </div>
+        {/* The rule in full until the first client is added; after that, the banner and each client's row say it, so it folds away. */}
+        {clients.length === 0 ? (
+          <div className="mt-3" data-testid="first-link-rule">
+            <PersonalLinkSteps />
+          </div>
+        ) : (
+          <details className="mt-2 text-sm" data-testid="first-link-rule">
+            <summary className="cursor-pointer font-medium text-accent">How personal links work</summary>
+            <PersonalLinkSteps className="mt-2" />
+          </details>
+        )}
         <form onSubmit={add} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
           <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Name" aria-label="Client name" className="min-w-0 rounded-lg border border-line-strong px-3 py-2 text-sm" />
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email (optional)" aria-label="Client email" className="min-w-0 rounded-lg border border-line-strong px-3 py-2 text-sm" />

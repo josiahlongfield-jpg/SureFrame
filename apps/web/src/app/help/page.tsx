@@ -14,6 +14,10 @@ export const metadata: Metadata = {
   description: "Get help with recording, sending videos, clients, billing and your recovery key.",
 };
 
+const V = SUPPORT_LIMITS.visitor;
+const F = SUPPORT_LIMITS.free;
+const every = (days: number) => (days === 7 ? "once a week" : `once every ${days} days`);
+
 /** The FAQ answers asked about most, by id (components/Faq.tsx). */
 const COMMON = ["storage", "free-plan", "first-email", "phone", "recovery-key", "cancel", "only-me", "who-sees-replies"];
 
@@ -26,7 +30,9 @@ export default async function Help() {
       <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
         <p className="kicker">Help</p>
         <h1 className="display mt-3 text-3xl text-ink">How can we help?</h1>
-        <p className="mt-2 text-muted">Our assistant answers straight away and passes anything it can&rsquo;t sort out to a person on the team.</p>
+        <p className="mt-2 text-muted">
+          Our assistant answers straight away. To reach someone on the team, choose Talk to a person under the chat{tier === "paying" ? "" : " (see the limits below)"}.
+        </p>
         <p className="mt-2 text-sm text-dim" data-testid="reply-time">
           When a person is needed, we reply within 2 business days (Queensland, Australia time), by email and here in the chat.
         </p>
@@ -39,8 +45,8 @@ export default async function Help() {
           // People who aren't paying have a small allowance (lib/support/allowance.ts), said up front.
           <p className="mt-2 text-sm text-muted" data-testid="help-limits">
             {tier === "visitor"
-              ? `Without an account, the assistant answers general questions (up to ${SUPPORT_LIMITS.visitor.aiPerDay} a day), and you can talk to a person once every ${SUPPORT_LIMITS.visitor.personEveryDays} days.`
-              : `On the Free plan, the assistant answers general questions (up to ${SUPPORT_LIMITS.free.aiPerDay} a day), and you can talk to a person once a week. Paid plans get full help and can talk to a person any time.`}{" "}
+              ? `Without an account, the assistant answers general questions, up to ${V.aiPerDay} a day and ${V.aiPerWeek} a week. You can talk to a person ${every(V.personEveryDays)}, after adding your email address so we can reply.`
+              : `On the Free plan, the assistant answers general questions, up to ${F.aiPerDay} a day and ${F.aiPerWeek} a week, and you can talk to a person ${every(F.personEveryDays)}. Paid plans get full help and can talk to a person any time.`}{" "}
             Most answers are in the <a href="#faq" className="font-medium text-accent hover:underline">common questions</a> below and the{" "}
             <Link href="/faq" className="font-medium text-accent hover:underline">FAQ</Link>.
           </p>

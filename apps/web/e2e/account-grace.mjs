@@ -295,7 +295,7 @@ ok("staff: their recording and reply stay with the team, under the owner", (awai
 ok("staff: their client goes back to the shared list", (await prisma.client.findUnique({ where: { id: zoe.id } })).assignedToId === null);
 ok("staff: their unused invite stops working", !!(await prisma.invite.findUnique({ where: { id: samInvite.id } })).revokedAt);
 const leftMail = await waitMail(teamOwnerEmail, (m) => m.subject === `Sam ${stamp} closed their SureFrame account and left ${teamName}`);
-ok("staff: the owner is emailed to reset the keys", !!leftMail && leftMail.text.includes("reset the keys on Settings > Team"));
+ok("staff: the owner is emailed to reset the keys", !!leftMail && leftMail.text.includes("reset the keys on Settings > Team and staff") && leftMail.text.includes("new links to send yourself"));
 const samMail = await waitMail(samEmail, (m) => m.subject.startsWith("Your SureFrame account will be deleted on"));
 ok("staff: their email says they've left the team", !!samMail && samMail.text.includes(`You've left ${teamName}. Keeping your account won't put you back on that team; ask them for a new invite.`) && !samMail.text.includes("Your clients can't"), samMail?.text);
 await teamOwner.goto(BASE + "/settings/team");

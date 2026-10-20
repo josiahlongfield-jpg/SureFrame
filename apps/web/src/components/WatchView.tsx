@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { REACTIONS } from "@/lib/reactions";
 import type { ReplyDTO } from "@/lib/replies";
@@ -15,7 +15,6 @@ import AiNotice from "./AiNotice";
 import LostKey from "./LostKey";
 import RecoverUploads from "./RecoverUploads";
 import SureFramePromo from "./SureFramePromo";
-import { markLinkSent } from "./ClientsManager";
 import SendPanel from "./SendPanel";
 import ConfirmDialog from "./ConfirmDialog";
 import { readyIn, recoverInterrupted } from "@/lib/recorder/uploader";
@@ -44,10 +43,10 @@ export type ClientOption = {
   name: string;
   link: string;
   teamKeyWrap: string | null;
-  /** Members only: for the business's own email app, when it sends a first link. */
+  /** Members only: for the business's own email app, when it sends a personal link. */
   email?: string | null;
   assignedToId?: string | null;
-  /** The client has their personal link (they opened it, or the business copied it to send), so a plain Send emails them. */
+  /** The client has opened their personal link on a device, so Send by email opens for them (copying or sending it doesn't count). */
   hasLink?: boolean;
   /** Their personal link was copied, shared or emailed to them (not yet opened unless hasLink). */
   linkSent?: boolean;
@@ -207,7 +206,7 @@ function WatchBody({
   canEdit,
   canDelete,
   freeVideoLimit,
-  clients: initialClients,
+  clients,
   canAddClients,
   sentToId,
   initialReplies,
@@ -237,13 +236,6 @@ function WatchBody({
     [frameRef],
   );
   const [title, setTitle] = useState(video.title);
-  // Clients whose link was copied on this page count as having it straight away.
-  const [linked, setLinked] = useState<ReadonlySet<string>>(new Set());
-  const clients = useMemo(() => initialClients.map((c) => (linked.has(c.id) ? { ...c, hasLink: true } : c)), [initialClients, linked]);
-  const linkCopied = useCallback((clientId: string) => {
-    void markLinkSent(clientId);
-    setLinked((cur) => new Set(cur).add(clientId));
-  }, []);
   const recipient = clients.find((c) => c.id === sentToId);
   // Who the conversation is with: the business, for a client; the client, for the team (none until it's sent).
   const counterpart = canEdit ? recipient?.name ?? null : business;
@@ -867,7 +859,6 @@ function WatchBody({
             hasReplies={replies.length > 0}
             rootKey={rootKey}
             teamKey={teamKey}
-            onLinkCopied={linkCopied}
             onTitle={(t) => ((lastTitle.current = t), setTitle(t))}
           />
         )}
@@ -918,7 +909,7 @@ function WatchBody({
             <span className="font-semibold text-ink">AI summary.</span>{" "}
             {aiOffer === "free"
               ? "Transcripts and AI summaries are an add-on on paid plans. They appear here once it's on."
-              : "Transcripts and AI summaries are an add-on. The account owner or an admin can turn it on in Settings › Billing, and they appear here."}
+              : "Transcripts and AI summaries are an add-on. The account owner or an admin can turn it on in Settings > Billing, and they appear here."}
           </p>
         )}
         {ai?.notice && !canEdit && <AiNotice className="mt-4" />}

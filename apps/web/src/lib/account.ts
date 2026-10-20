@@ -139,9 +139,9 @@ export async function leaveTeam(userId: string, w: Workspace, leaver: string, { 
   return true;
 }
 
-/** Owners and admins hear at once that someone left with the team's keys, not only when they next open Settings > Team. */
+/** Owners and admins hear at once that someone left with the team's keys, not only when they next open Settings > Team and staff. */
 async function tellManagersAboutLeaver(w: Workspace, leaver: string, closedBySupport: boolean) {
-  // Nothing is emailed in a suspended workspace's name (lib/support/admin.ts); Settings > Team still asks for the reset.
+  // Nothing is emailed in a suspended workspace's name (lib/support/admin.ts); Settings > Team and staff still asks for the reset.
   if (w.suspendedAt || w.closedAt) return;
   const managers = await db.membership.findMany({ where: { workspaceId: w.id, role: { in: ["OWNER", "ADMIN"] }, ...activeMember }, include: { user: { select: { email: true } } } });
   const brand = brandOf(w, appUrl(""));
@@ -150,8 +150,8 @@ async function tellManagersAboutLeaver(w: Workspace, leaver: string, closedBySup
     // Closed by SureFrame support (lib/support/admin.ts): the team isn't told why.
     subject: closedBySupport ? `${leaver}'s ${BRAND.name} account was closed, so they've left ${w.name}` : `${leaver} closed their ${BRAND.name} account and left ${w.name}`,
     lead: closedBySupport ? `${leaver}'s ${BRAND.name} account was closed, so they're no longer on your team.` : `${leaver} closed their ${BRAND.name} account, so they're no longer on your team.`,
-    lines: [{ text: "Their recordings now belong to the owner. They held your team's encryption keys, so reset the keys on Settings > Team now. Every client gets a new personal link; those who have opened their link and have an email are sent theirs automatically." }],
-    button: { label: "Reset keys on Settings > Team", link: appUrl(teamPath("/settings/team", w.id)) },
+    lines: [{ text: "Their recordings now belong to the owner. They held your team's encryption keys, so reset the keys on Settings > Team and staff now. Every client gets a new personal link. Clients who have opened their link and have an email are sent theirs automatically; you'll get the other clients' new links to send yourself." }],
+    button: { label: "Reset your team's keys", link: appUrl(teamPath("/settings/team", w.id)) },
     logoUrl: brand.logoUrl,
     color: brand.color,
   });

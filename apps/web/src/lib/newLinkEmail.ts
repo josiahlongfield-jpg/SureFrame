@@ -7,7 +7,7 @@ import { EMAIL, emailButton, emailColors, emailLogo, emailShell, esc } from "@/l
  * and a new device needs the full link from the business.
  */
 export function newLinkEmail(o: { business: string; clientName: string; link: string; logoUrl?: string | null; color?: string | null }) {
-  const subject = `${o.business} sent you a new private link`;
+  const subject = `${o.business} sent you a new personal link`;
   const lead = `Hi ${o.clientName}, ${o.business} replaced your personal link to keep your videos secure, so your old link no longer opens them.`;
   const how = "Open this new link on the phone or computer you used before, and your videos and replies are all there, as before. Use it from now on.";
   const after = `On a phone or computer you haven't used before, it can't open your videos: ask ${o.business} for your full personal link.`;

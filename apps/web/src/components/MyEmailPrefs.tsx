@@ -54,7 +54,7 @@ export default function MyEmailPrefs({ initial, owner = false }: { initial: { re
         </div>
       ) : (
         <p className="text-xs text-dim">
-          Reminder emails for your to-dos follow &ldquo;Email me too&rdquo; on each to-do (set your default under Reminders).
+          Reminder emails for your to-dos follow &ldquo;Email me too&rdquo; on each to-do (set your default under To-dos/Reminders &gt; Reminder settings).
           Owners and admins choose their own team emails separately; this doesn&apos;t change what they see.
         </p>
       )}

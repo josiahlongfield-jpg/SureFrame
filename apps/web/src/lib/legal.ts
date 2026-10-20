@@ -77,15 +77,24 @@ export const LEGAL = {
    * Saying the help chat on client pages is AI only and points clients to the business (18 October 2026) explains a new help option, so it keeps it too.
    * Describing the help chat's limits for visitors and Free plans (#help-limits, 18 October 2026) is about a free extra no one
    * paid for, while paid plans keep asking for a person any time, so it keeps it too.
+   * 20 October 2026: what the client help chat keeps and the weekly list of its questions, unsent replies being deleted after
+   * 7 days even with cloud backup, recordings finished from their encrypted copy after an unexpected stop (and counting toward
+   * the Free plan), turning "Keep me signed in" on or off in Settings, "Former team member", the client help chat's daily
+   * limit on Free, and how we hold keys. They clarify what the app already does (Josiah, 20 October 2026), so they keep
+   * termsVersion.
    */
-  termsUpdated: "18 October 2026",
+  termsUpdated: "20 October 2026",
   /**
    * The Data Processing Agreement's own "last updated" date: "Keep me signed in" added to its security measures (17 October 2026).
    * Google sign-in taken out of its security measures, since only email sign-in links are offered, and file storage's location
    * worded plainly (18 October 2026): they describe what we already do, so it keeps dpaVersion. So does the note on the help
    * chat's 31-day fingerprints (18 October 2026).
+   * 20 October 2026: the client help chat's questions as our own information, unsent replies deleted after 7 days, server
+   * backup while recording and finishing unfinished recordings, upload links sized to each piece, video stills among the
+   * encrypted content, "Keep me signed in" from Settings, and where recordings are stored. They clarify what we already do, so
+   * they keep dpaVersion.
    */
-  dpaUpdated: "18 October 2026",
+  dpaUpdated: "20 October 2026",
   /**
    * The Privacy Policy page's own "last updated" date. Describing discount codes, referrals and the sf_offer cookie
    * (16 October 2026) only explains more of what we already do, so it keeps privacyVersion. So do a short section for
@@ -99,8 +108,13 @@ export const LEGAL = {
    * stored (18 October 2026). Saying that the help chat's limits for visitors and Free plans keep a one-way fingerprint of
    * the IP and email address for 31 days (18 October 2026) describes a protection that keeps no address, so it keeps
    * privacyVersion too.
+   * 20 October 2026: what the client help chat sends to the AI and keeps, and the weekly list of its questions emailed to our
+   * support inbox; when a person reads a business help chat; server backup while recording; new cookies (sf_lib_view,
+   * sf_lib_layout, sf_inbox_layout, fc_key_<clientId>); "Keep me signed in" from Settings; video stills; "Former team member";
+   * which emails we send clients; and where recordings are stored. They clarify what the app already does (Josiah, 20 October
+   * 2026), so they keep privacyVersion.
    */
-  privacyUpdated: "18 October 2026",
+  privacyUpdated: "20 October 2026",
 };
 
 /**
@@ -163,7 +177,7 @@ export const SUBPROCESSORS: Subprocessor[] = [
   {
     name: "Neon",
     purpose: "our database",
-    data: "account, team, client, billing and support details, details of videos we can read (such as titles), records of support actions and of agreement to our terms, and the encrypted text of replies, to-dos, notes, transcripts and summaries",
+    data: "account, team, client, billing and support details, details of videos we can read (such as titles), questions typed into the help chat on client pages, records of support actions and of agreement to our terms, encrypted video stills, and the encrypted text of replies, to-dos, notes, transcripts and summaries",
     location: NEON_LOCATION,
     customerData: true,
   },
@@ -191,11 +205,11 @@ export const SUBPROCESSORS: Subprocessor[] = [
   {
     name: "Google Workspace",
     purpose: "our support email",
-    data: "emails to and from our support inbox, including help chats passed to a person",
+    data: "emails to and from our support inbox, including help chats passed to a person and a weekly list of the questions typed into the help chat on client pages, with the business each was asked about",
     location: "United States",
     customerData: true,
   },
 ];
 
-/** When the sub-processor list last changed. Follows the pages' date until the list changes on its own. */
-export const SUBPROCESSORS_UPDATED: string = LEGAL.updated;
+/** When the sub-processor list last changed: what Neon and Google Workspace handle (20 October 2026). */
+export const SUBPROCESSORS_UPDATED: string = "20 October 2026";

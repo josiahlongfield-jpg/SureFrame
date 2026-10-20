@@ -50,7 +50,7 @@ await page.evaluate(({ markSvg }) => {
     background:radial-gradient(1200px 700px at 85% -10%, rgb(255 111 97 / 0.16), transparent 60%), linear-gradient(180deg, #0f2747, #0b1e38)">
     <div style="display:flex;align-items:center;gap:16px;font-size:44px;letter-spacing:-0.02em">${markSvg}<span><b style="font-weight:700">Sure</b><span style="font-weight:200">Frame</span></span></div>
     <div style="margin-top:44px;font-size:86px;font-weight:600;line-height:1.02;letter-spacing:-0.04em">One take is<br><span style="color:#ff8f84">all it takes.</span></div>
-    <div style="margin-top:34px;font-size:28px;color:#bcc5d8">Crash-safe. Client-ready. Private by design.</div>
+    <div style="margin-top:34px;font-size:28px;color:#bcc5d8">Saved as you record. Client-ready. Private by design.</div>
   </div>`;
 }, { markSvg: svg(mark(DARK)).replace("<svg ", '<svg width="56" height="56" ') });
 await page.evaluate(() => document.fonts.ready);
