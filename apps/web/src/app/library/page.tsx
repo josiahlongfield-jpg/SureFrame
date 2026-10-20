@@ -171,9 +171,10 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   );
   // Inside a day's folder the time says when; elsewhere the date does.
   const grid = (items: Item[], inDay: boolean) => (
-    <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    // Two across on phones too, so the tiles layout fits more on a screen than one big picture each.
+    <ul className="grid grid-cols-2 gap-x-3 gap-y-5 sm:gap-6 lg:grid-cols-3">
       {items.map((v) => (
-        <li key={v.id}>
+        <li key={v.id} className="min-w-0">
           <Link href={`/v/${v.id}`} className="group block">
             <div className="relative aspect-video overflow-hidden rounded-xl bg-solid">
               {still(v)}
@@ -248,6 +249,30 @@ export default async function Library({ searchParams }: { searchParams: Promise<
       )}
     </>
   );
+  // The tiles layout: folders are squares in a grid, like photo albums, until opened.
+  const tiles = layout !== "list";
+  const folderList = (gap: string) => (tiles ? "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" : gap);
+  const tileCard = (kind: string, label: string, items: Item[], opts: { note?: string; convs?: Conv[] } = {}) => {
+    const deletes = dayDeletes(items);
+    return (
+      <span className="block min-w-0">
+        <span className="relative mr-2 mt-2 block aspect-video">
+          {items.length > 2 && <span aria-hidden className="absolute inset-0 translate-x-2 -translate-y-2 rounded-lg border border-line bg-solid opacity-60" />}
+          {items.length > 1 && <span aria-hidden className="absolute inset-0 translate-x-1 -translate-y-1 rounded-lg border border-line bg-solid opacity-80" />}
+          <span className="absolute inset-0 overflow-hidden rounded-lg border border-line bg-solid">{still(items[0])}</span>
+        </span>
+        <span className="mt-2 block break-words text-sm font-semibold text-ink" data-testid={`${kind}-label`}>{label}</span>
+        <span className="block text-xs text-dim">
+          <span data-testid={`${kind}-count`}>{items.length} {items.length === 1 ? "video" : "videos"}</span>
+          {opts.note}
+        </span>
+        {deletes && <span className="block text-xs text-dim" data-testid="day-deletes">Deletes {dates.shortDay(deletes)}</span>}
+        <span className="mt-1 block empty:hidden">
+          <ReplyBadges convs={opts.convs ?? items.flatMap(convsOf)} onlyNew />
+        </span>
+      </span>
+    );
+  };
   const summary = (kind: string, label: string, items: Item[], depth: number, opts: { strip?: boolean; note?: string; convs?: Conv[] } = {}) => {
     const deletes = dayDeletes(items);
     return (
@@ -271,9 +296,9 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // By date: the last week a folder a day, then weeks, then months (lib/libraryGroups.ts). The first folder starts
   // open, so the latest videos are on screen straight away.
   const folder = (g: Group<Item>, depth: 0 | 1 | 2, open: boolean) => (
-    <DayFolder key={g.key} day={g.key} kind={g.kind} depth={depth} compact={layout === "list"} defaultOpen={open} summary={summary(g.kind, g.label, g.items, depth, { strip: !!g.children })}>
+    <DayFolder key={g.key} day={g.key} kind={g.kind} depth={depth} compact={layout === "list"} defaultOpen={open} summary={summary(g.kind, g.label, g.items, depth, { strip: !!g.children })} tile={tiles ? tileCard(g.kind, g.label, g.items) : undefined}>
       {g.children ? (
-        <div className={layout === "list" ? "space-y-2" : "space-y-3"}>{g.children.map((c) => folder(c, (depth + 1) as 1 | 2, false))}</div>
+        <div className={folderList("space-y-2")}>{g.children.map((c) => folder(c, (depth + 1) as 1 | 2, false))}</div>
       ) : (
         cards(g.items, g.kind === "day")
       )}
@@ -309,9 +334,9 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     const months = items.length > 12 ? groupByMonth(items, dates.zone, key) : [];
     if (months.length < 2) return cards(items, false);
     return (
-      <div className="space-y-3">
+      <div className={folderList("space-y-2")}>
         {months.map((m) => (
-          <DayFolder key={m.key} day={m.key} kind="month" depth={1} compact={layout === "list"} summary={summary("month", m.label, m.items, 1)}>
+          <DayFolder key={m.key} day={m.key} kind="month" depth={1} compact={layout === "list"} summary={summary("month", m.label, m.items, 1)} tile={tiles ? tileCard("month", m.label, m.items) : undefined}>
             {cards(m.items, false)}
           </DayFolder>
         ))}
@@ -321,7 +346,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   const clientView = () => {
     const { clients: folders, unsent } = clientFolders();
     return (
-      <div className={layout === "list" ? "space-y-2" : "space-y-4"}>
+      <div className={folderList("space-y-2")}>
         {folders.map((g, i) => (
           <DayFolder
             key={g.id}
@@ -330,12 +355,13 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             compact={layout === "list"}
             defaultOpen={i === 0}
             summary={summary("client", g.name, g.items, 0, { strip: true, convs: g.convs, note: `${g.removed ? " · client removed" : ""} · latest ${dates.shortDay(g.items[0].createdAt)}` })}
+            tile={tiles ? tileCard("client", g.name, g.items, { convs: g.convs, note: g.removed ? " · client removed" : "" }) : undefined}
           >
             {clientContents(`c${g.id}`, g.items)}
           </DayFolder>
         ))}
         {unsent.length > 0 && (
-          <DayFolder day="unsent" kind="client" compact={layout === "list"} defaultOpen={folders.length === 0} summary={summary("client", "Not sent yet", unsent, 0, { strip: true })}>
+          <DayFolder day="unsent" kind="client" compact={layout === "list"} defaultOpen={folders.length === 0} summary={summary("client", "Not sent yet", unsent, 0, { strip: true })} tile={tiles ? tileCard("client", "Not sent yet", unsent) : undefined}>
             {clientContents("unsent", unsent)}
           </DayFolder>
         )}
@@ -491,7 +517,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
           ) : byClient ? (
             clientView()
           ) : (
-            <div className={layout === "list" ? "space-y-2" : "space-y-4"}>{groupByAge(videos, dates.zone, now).map((g, i) => folder(g, 0, i === 0))}</div>
+            <div className={folderList("space-y-2")}>{groupByAge(videos, dates.zone, now).map((g, i) => folder(g, 0, i === 0))}</div>
           )
         )}
         <div id="todos" className="mt-12 max-w-2xl scroll-mt-6">

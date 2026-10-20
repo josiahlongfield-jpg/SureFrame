@@ -27,6 +27,7 @@ export default function DayFolder({
   kind = "day",
   depth = 0,
   compact = false,
+  tile,
 }: {
   day: string;
   summary: ReactNode;
@@ -37,6 +38,8 @@ export default function DayFolder({
   depth?: 0 | 1 | 2;
   /** Smaller rows, for the list layout. */
   compact?: boolean;
+  /** The tiles layout: what the folder shows while closed, as a square in a grid. Open, it takes the whole row. */
+  tile?: ReactNode;
 }) {
   const nested = depth > 0;
   // Each level its own group name, so an open folder doesn't turn the arrows of closed ones inside it.
@@ -46,13 +49,16 @@ export default function DayFolder({
   // What's inside is only drawn once the folder has been opened, so a long library doesn't unlock and load
   // every still in every closed folder.
   const [shown, setShown] = useState(defaultOpen);
+  const [open, setOpen] = useState(defaultOpen);
   useEffect(() => {
     const was = saved()[day];
     if (ref.current && typeof was === "boolean") ref.current.open = was;
     if (was) setShown(true);
+    if (typeof was === "boolean") setOpen(was);
   }, [day]);
   const remember = () => {
     const open = !!ref.current?.open;
+    setOpen(open);
     if (open) setShown(true);
     try {
       const map = saved();
@@ -72,16 +78,22 @@ export default function DayFolder({
         // A folder inside this one toggling bubbles up here too: only remember this folder's own.
         if (e.target === ref.current) remember();
       }}
-      className={`${group} border border-line ${nested ? "rounded-xl bg-canvas" : "rounded-2xl bg-surface"}`}
+      className={`${group} border border-line ${nested ? "rounded-xl bg-canvas" : "rounded-2xl bg-surface"} ${tile ? "min-w-0 open:col-span-full" : ""}`}
       data-testid={`${kind}-folder`}
       data-key={day}
     >
+      {tile && !open ? (
+        <summary className={`block cursor-pointer list-none p-2 hover:bg-surface-2 sm:p-3 [&::-webkit-details-marker]:hidden ${nested ? "rounded-xl" : "rounded-2xl"}`} data-testid="folder-tile">
+          {tile}
+        </summary>
+      ) : (
       <summary className={`flex cursor-pointer list-none items-center gap-3 hover:bg-surface-2 [&::-webkit-details-marker]:hidden ${compact ? "px-3 py-2" : "p-3"} ${nested ? "rounded-xl" : compact ? "rounded-2xl" : "rounded-2xl sm:gap-4 sm:p-4"}`}>
         {summary}
         <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`shrink-0 text-dim transition ${turn}`}>
           <path d="m6 9 6 6 6-6" />
         </svg>
       </summary>
+      )}
       <div className={`border-t border-line ${nested ? "p-3 sm:p-4" : "p-3 sm:p-6"}`}>{shown && children}</div>
     </details>
   );

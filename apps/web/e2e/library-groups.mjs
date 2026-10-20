@@ -165,6 +165,12 @@ for (const [view, layout] of [["client", "list"], ["client", "tiles"], ["date", 
   await page.waitForSelector(`[data-testid=layout-${layout}][aria-pressed=true]`);
   const wide = await page.evaluate(() => document.documentElement.scrollWidth);
   ok(`fits a 320px screen: by ${view}, ${layout}`, wide <= 320, String(wide));
+  await page.screenshot({ path: `${shots}/library-groups-phone-${view}-${layout}.png`, fullPage: true });
+  if (layout === "tiles") {
+    // Closed folders are album tiles, two to a row; an open one takes the whole row.
+    const tops = await page.$$eval("main [data-testid$=-folder]:not([open]):not([data-testid$=-folder] [data-testid$=-folder])", (els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+    ok(`phone, by ${view}: closed folders sit two to a row`, tops.length >= 2 && tops[0] === tops[1], JSON.stringify(tops));
+  }
 }
 await page.locator("[data-testid=month-folder] > summary").first().click();
 await page.waitForTimeout(300);
