@@ -320,10 +320,11 @@ export default function SupportWidget({ signedIn }: { signedIn: boolean }) {
     (field ?? box)?.focus();
   }, [open]);
 
-  // On phones the page keeps room at its end, so the last of it can be scrolled clear of the button.
+  // On phones the page keeps room at its end, so the last of it can be scrolled clear of the button. Pages with the
+  // site footer keep that room inside the footer, so the page still ends at its navy edge (globals.css, sf-help-room).
   useEffect(() => {
-    document.body.classList.add("max-sm:pb-20");
-    return () => document.body.classList.remove("max-sm:pb-20");
+    document.body.classList.add("sf-help-room");
+    return () => document.body.classList.remove("sf-help-room");
   }, []);
 
   // On phones the button steps aside while the page is scrolled down (back on scrolling up, or once scrolling

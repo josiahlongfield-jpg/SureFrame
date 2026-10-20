@@ -10,7 +10,7 @@ export default async function SiteFooter({ widget = true }: { widget?: boolean }
   return (
     <footer>
       {/* Navy like the top bar; the help chat stays outside it, in the page's own colours. */}
-      <div data-theme="navy" className="bg-canvas-2 py-10 text-sm text-dim">
+      <div data-theme="navy" data-site-footer className="bg-canvas-2 py-10 text-sm text-dim">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 sm:flex-row sm:px-6">
         <p>© {new Date().getFullYear()} {BRAND.name}. All rights reserved.{LEGAL.abn && ` ABN ${LEGAL.abn}`}</p>
         <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2">
