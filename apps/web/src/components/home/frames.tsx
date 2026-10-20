@@ -59,17 +59,13 @@ function Send() {
           </div>
         </div>
         <div className="f-row"><span className="f-btn pri">Send by email</span><span className="f-btn sec">Get their links</span></div>
-        <p className="f-dim f-hide-sm">Send by email and we email each client who has opened their personal link before. The first time, copy their link and send it from your own app, texts or messages.</p>
-        <div className="f-hr" />
-        <p style={{ fontWeight: 500 }}>Sent to</p>
-        <div className="f-sent">
+        <p className="f-dim f-hide-md">Send by email and we email each client who has opened their personal link before. The first time, copy their link and send it from your own app, texts or messages.</p>
+        {/* No room for the sent list in the phone-sized window: it would run out of the box. */}
+        <div className="f-hr f-hide-sm" />
+        <p className="f-hide-sm" style={{ fontWeight: 500 }}>Sent to</p>
+        <div className="f-sent f-hide-sm">
           <span>Client A <span className="f-ok">Emailed</span></span>
           <span className="f-row"><span className="f-btn sec sm">Email again</span><span className="f-btn sec sm">Copy link</span></span>
-        </div>
-        <div className="f-sent">
-          <span>Client B <span className="f-ok">Link copied</span></span>
-          <span className="f-row"><span className="f-btn sec sm">Copy link</span></span>
-          <span className="f-dim" style={{ flexBasis: "100%", fontWeight: 400 }}>First time: copy Client B&apos;s link and send it yourself. After they open it once, Send by email works too.</span>
         </div>
       </div>
     </div>
@@ -90,7 +86,7 @@ function Replies() {
       <div className="f-box" style={{ gap: "0.625rem" }}>
         <div>
           <p className="f-h2">Conversation</p>
-          <p className="f-dim f-hide-sm">Reply with a video, a voice note or a message. End-to-end encrypted.</p>
+          <p className="f-dim f-hide-narrow">Reply with a video, a voice note or a message. End-to-end encrypted.</p>
         </div>
         <div className="f-bub them">
           <small>Client A · Oct 15, 3:04 PM</small>
@@ -100,7 +96,7 @@ function Replies() {
           <small>Client A · Oct 15, 3:06 PM</small>
           <div className="f-audio"><i>{Icon.play}</i><b /><span>0:42</span></div>
         </div>
-        <div className="f-bub f-hide-sm">
+        <div className="f-bub f-hide-narrow">
           <small>Team member 1 · Oct 15, 4:10 PM</small>
           <div>Great. I&apos;ll send the next steps tomorrow.</div>
         </div>
@@ -161,15 +157,16 @@ function AiSummary() {
       <b style={{ fontWeight: 500 }}>Key points</b>
       <ul>
         <li>Everything is on track for this month</li>
-        <li>Two questions to follow up on</li>
+        <li className="f-hide-sm">Two questions to follow up on</li>
         <li className="f-hide-sm">The new plan starts next Monday</li>
       </ul>
       <b style={{ fontWeight: 500 }}>Action items</b>
       <ul>
         <li>Send the new plan tonight</li>
-        <li>Book the next session</li>
+        <li className="f-hide-sm">Book the next session</li>
       </ul>
-      <p className="f-dim">Written by AI from an automatic transcript. It can contain mistakes, so check anything important against the video.</p>
+      <p className="f-dim f-hide-sm">Written by AI from an automatic transcript. It can contain mistakes, so check anything important against the video.</p>
+      <p className="f-dim f-only-sm">Written by AI. Check anything important against the video.</p>
       <div className="f-hr f-hide-sm" />
       <p className="f-hide-sm" style={{ fontWeight: 500 }}>Transcript ▾</p>
       <p className="f-tx f-hide-sm">Hi, here&apos;s this week&apos;s update. Everything is on track so far, so let&apos;s look at the two open questions. I&apos;ll send the new plan tonight, and we can go through it together next session.</p>
@@ -184,7 +181,7 @@ function Backup({ days }: { days: number }) {
     <div className="f-cols">
       <div className="f-stack">
         <div><p className="f-h2">Your videos</p><p className="f-dim">12 videos</p></div>
-        <div className="f-cards">
+        <div className="f-cards f-vids">
           {vids.map(([t, d, m], i) => (
             <div key={t} className={`f-card${i > 1 ? " f-hide-sm" : ""}`}>
               <div className={`f-thumb still s${i}`}><span className="slide" /><span className="cam"><Face /></span><em>{d}</em></div>
@@ -222,7 +219,7 @@ function Branding() {
           <div className="f-screen"><div className="f-play">{Icon.play}</div><div className="f-cam"><Face /></div></div>
           <b style={{ fontWeight: 600, fontSize: "0.78125rem" }}>Weekly check-in</b>
           <span className="sm">Team member 1 from Your business name · Oct 15</span>
-          <span className="bub">Thanks, that makes sense!</span>
+          <span className="bub f-hide-sm">Thanks, that makes sense!</span>
         </div>
         <footer>Made with SureFrame · Privacy · Terms</footer>
       </div>

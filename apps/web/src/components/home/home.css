@@ -159,6 +159,20 @@
    row is as full as the first rather than "Team" alone (V3). */
 @container (max-width: 48rem) {
   .ff-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .f-hide-md { display: none !important; }
+}
+
+.f-only-sm { display: none; }
+
+/* Narrow windows (small tablets): the busiest frames drop a line or two. */
+@container (max-width: 40rem) {
+  .f-hide-narrow { display: none !important; }
+}
+
+/* Wide but short windows (tablets in landscape, small laptops): fewer, flatter rows so nothing runs off the bottom. */
+@container (min-width: 58rem) {
+  .f-vids { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .f-client .f-screen { aspect-ratio: 16 / 6.5; }
 }
 
 /* Phones: the window is shorter and denser frames drop their extras. */
@@ -168,6 +182,8 @@
   .ff-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .ff-tab { flex-direction: column; gap: 0.25rem; padding: 0.5rem 0.125rem 0.625rem; font-size: 0.6875rem; }
   .f-hide-sm { display: none !important; }
+  .f-only-sm { display: block; }
+  .f-client .f-screen { aspect-ratio: 16 / 7; }
 }
 
 /* Send frame: the client dropdown drawn open, and a row of the Sent to list. */
