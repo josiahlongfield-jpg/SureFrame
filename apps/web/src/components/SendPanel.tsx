@@ -415,6 +415,7 @@ export default function SendPanel({
     );
   };
 
+  const showLinkBox = firstTimersAvailable || firstRows.length > 0;
   const linkBox = (
     <div className="mt-3 rounded-xl border-2 border-primary bg-primary-soft p-3 text-sm text-ink" data-testid="first-time">
       <p className="flex items-center gap-2 font-semibold">
@@ -539,7 +540,6 @@ export default function SendPanel({
               }}
             />
           )}
-          {(firstTimersAvailable || firstRows.length > 0) && linkBox}
           {clients.length === 0 ? (
             // A first video with nobody to send it to: one clear next step (the title can wait until they're added).
             <div className="mt-2 text-sm text-muted" data-testid="send-no-clients">
@@ -558,7 +558,10 @@ export default function SendPanel({
               )}
             </div>
           ) : available.length === 0 ? (
-            <p className="mt-2 text-sm text-muted">Every client you can send to has this video.</p>
+            <>
+              <p className="mt-2 text-sm text-muted">Every client you can send to has this video.</p>
+              {showLinkBox && linkBox}
+            </>
           ) : (
             <>
               <div ref={box} className="relative mt-3">
@@ -628,6 +631,9 @@ export default function SendPanel({
                 )
               )}
 
+              {/* Under the picker, so who's chosen and who still needs their link read in order. */}
+              {showLinkBox && linkBox}
+
               <div className="mt-3 flex flex-wrap gap-2">
                 {mixed && (
                   <button onClick={sendAll} disabled={!!busy} data-testid="send-all" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
@@ -694,12 +700,26 @@ export default function SendPanel({
             <KeyIcon className="text-accent" />
             Waiting for their personal link
           </h3>
+          {canPick && needLink.some((c) => available.some((a) => a.id === c.id)) && (
+            <p className="mt-1 text-xs text-dim" data-testid="waiting-hint">Add a client to this video and their personal link appears in the box above. Giving it to them also gives them this video.</p>
+          )}
           <ul className="mt-2 grid gap-1 text-sm" data-testid="waiting-list">
             {needLink.map((c) => (
               <li key={c.id} className="flex flex-wrap items-baseline justify-between gap-x-3 rounded-lg bg-surface-2 px-3 py-1.5" data-testid="waiting-client">
                 <span className="min-w-0 break-words text-ink">{c.name}</span>
-                <span className={`text-xs ${sentLink(c) ? "text-dim" : "text-warn-fg"}`} data-testid="waiting-status">
-                  {sentLink(c) ? "Link sent, not opened yet" : "Link not sent yet"}
+                <span className="flex flex-wrap items-baseline gap-x-3">
+                  <span className={`text-xs ${sentLink(c) ? "text-dim" : "text-warn-fg"}`} data-testid="waiting-status">
+                    {sentLink(c) ? "Link sent, not opened yet" : "Link not sent yet"}
+                  </span>
+                  {canPick && available.some((a) => a.id === c.id) && (
+                    picked.includes(c.id) ? (
+                      <span className="text-xs font-medium text-ok-fg" data-testid="waiting-picked">Added above</span>
+                    ) : (
+                      <button type="button" onClick={() => setPicked((cur) => (many ? [...cur, c.id] : [c.id]))} className="text-xs font-semibold text-accent hover:underline" data-testid="waiting-pick">
+                        Add to this video
+                      </button>
+                    )
+                  )}
                 </span>
               </li>
             ))}
