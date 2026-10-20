@@ -140,7 +140,11 @@ export default function Recorder({
       preview.current = v;
       // The preview moves between the big frame and the small circle while recording, and is a new element for each
       // new stream (previewKey). Pictures only: when recording, the stream also carries the mic.
-      if (v && camStream.current && !v.srcObject) v.srcObject = new MediaStream(camStream.current.getVideoTracks());
+      if (v && camStream.current && !v.srcObject) {
+        v.srcObject = new MediaStream(camStream.current.getVideoTracks());
+        // Started here too: autoplay alone sometimes leaves a new preview paused on a blank frame.
+        v.play().catch(() => {});
+      }
       frameRef(v);
     },
     [frameRef],
@@ -152,6 +156,8 @@ export default function Recorder({
    * is drawn fresh instead: previewRef gives the new element the stream and the frame measures its shape again.
    */
   const [previewKey, setPreviewKey] = useState(0);
+  /** Camera only: the preview stream, which also carries the mic, for the level meter (see the preview effect). */
+  const [previewMic, setPreviewMic] = useState<MediaStream | null>(null);
   /** The latest ask for the camera preview; the next waits for it, so the camera is never opened twice at once. */
   const cameraAsk = useRef<Promise<unknown>>(Promise.resolve());
   /** Why a recording ended on its own, if it did. */
@@ -202,11 +208,15 @@ export default function Recorder({
     // camera that's still open is shared with the new request, which gets the picture it's already making cut to
     // the new size: smaller, and on a phone no longer upright. Opened fresh, it starts at the new size the way it
     // did the first time. Phones also cope badly with the camera opened twice at once.
+    // Camera only opens the mic with the camera, and recording uses this very stream: opened again when recording
+    // started, a phone's camera sometimes came back a different size and the picture shrank in its frame. Without
+    // the mic (not allowed yet), the camera still shows and the mic is asked for again when recording starts.
     const asked = cameraAsk.current.then(() => {
       if (cancelled) return null;
       stopAll(camStream.current);
       camStream.current = null;
-      return getCamera(camPick, quality);
+      setPreviewMic(null);
+      return mode === "camera" ? getCameraAndMic(camPick, micId, quality).catch(() => getCamera(camPick, quality)) : getCamera(camPick, quality);
     });
     cameraAsk.current = asked.catch(() => {});
     asked
@@ -216,6 +226,7 @@ export default function Recorder({
         stopAll(camStream.current);
         camStream.current = s;
         setPreviewKey((k) => k + 1);
+        setPreviewMic(s.getAudioTracks().length ? s : null);
         setError((e) => (e && CAMERA_ERRORS.includes(e) ? undefined : e));
         await loadDevices();
       })
@@ -239,7 +250,9 @@ export default function Recorder({
     return () => {
       cancelled = true;
     };
-  }, [mode, camPick, quality, phase, loadDevices, canShareScreen, camRetry]);
+    // The mic only matters to this request in Camera only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, camPick, quality, phase, loadDevices, canShareScreen, camRetry, mode === "camera" ? micId : undefined]);
 
   // A camera plugged in (or freed by another app) after the page opened: pick it up without a reload.
   useEffect(() => {
@@ -275,11 +288,11 @@ export default function Recorder({
   }, [phase, mode, noCamera]);
 
   useEffect(() => {
-    getMic(undefined)
-      .then((s) => {
-        stopAll(s);
-        return loadDevices();
-      })
+    // In turn with the camera: a phone mutes a mic that's already open when another is opened.
+    const ask = cameraAsk.current.then(() => getMic(undefined));
+    cameraAsk.current = ask.then(stopAll, () => {});
+    ask
+      .then(() => loadDevices())
       .catch(() => setError("Microphone permission is needed to record. Allow it in your browser's address bar."));
     return () => stopAll(camStream.current);
   }, [loadDevices]);
@@ -304,6 +317,17 @@ export default function Recorder({
     const h = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener("beforeunload", h);
     return () => window.removeEventListener("beforeunload", h);
+  }, [phase]);
+
+  // The latest seconds are saved the moment the page is hidden, the step before a phone closes a tab.
+  useEffect(() => {
+    if (phase !== "recording") return;
+    const hidden = () => {
+      const r = live.current?.recorder;
+      if (document.visibilityState === "hidden" && r?.state === "recording") r.requestData();
+    };
+    document.addEventListener("visibilitychange", hidden);
+    return () => document.removeEventListener("visibilitychange", hidden);
   }, [phase]);
 
   function durationNow() {
@@ -332,12 +356,20 @@ export default function Recorder({
     try {
       let video: MediaStreamTrack;
       if (mode === "camera") {
-        // One request for both, replacing the preview (see getCameraAndMic).
-        stopAll(camStream.current);
-        const both = await getCameraAndMic(camPick, micId, quality);
-        camStream.current = both;
-        // A fresh preview for the new stream.
-        setPreviewKey((k) => k + 1);
+        // The preview's own stream when it has the mic, so the picture stays exactly as it was set up.
+        const ready = camStream.current;
+        const on = (t?: MediaStreamTrack) => t?.readyState === "live";
+        let both: MediaStream;
+        if (ready && on(ready.getVideoTracks()[0]) && on(ready.getAudioTracks()[0])) both = ready;
+        else {
+          // Otherwise one request for both, replacing the preview (see getCameraAndMic).
+          await cameraAsk.current;
+          stopAll(camStream.current);
+          both = await getCameraAndMic(camPick, micId, quality);
+          camStream.current = both;
+          // A fresh preview for the new stream.
+          setPreviewKey((k) => k + 1);
+        }
         streams.push(new MediaStream(both.getAudioTracks()));
         video = both.getVideoTracks()[0];
       } else {
@@ -710,7 +742,8 @@ export default function Recorder({
                   {mics.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || "Microphone"}</option>)}
                 </select>
               </label>
-              {phase === "setup" && <MicLevel deviceId={micId} />}
+              {/* Camera only measures the mic already open with the camera: opening it twice mutes one on a phone. */}
+              {phase === "setup" && (mode !== "camera" ? <MicLevel deviceId={micId} /> : previewMic ? <MicLevel key={previewKey} stream={previewMic} /> : null)}
               {allowedQualities.length > 1 ? (
                 <label className="grid gap-1">
                   <span className="font-medium text-muted">Quality</span>

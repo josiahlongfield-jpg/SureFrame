@@ -113,7 +113,11 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
     (v: HTMLVideoElement | null) => {
       preview.current = v;
       // A new element for each new camera stream (previewKey). Pictures only: the stream also carries the mic.
-      if (v && stream.current && !v.srcObject) v.srcObject = new MediaStream(stream.current.getVideoTracks());
+      if (v && stream.current && !v.srcObject) {
+        v.srcObject = new MediaStream(stream.current.getVideoTracks());
+        // Started here too: autoplay alone sometimes leaves a new preview paused on a blank frame.
+        v.play().catch(() => {});
+      }
       frameRef(v);
     },
     [frameRef],
@@ -221,6 +225,23 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, maxMs]);
+
+  // While recording: warn before the page is closed (what's recorded so far is kept and comes back either way),
+  // and save the latest seconds the moment the page is hidden, the step before a phone closes a tab.
+  useEffect(() => {
+    if (phase !== "recording") return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    const hidden = () => {
+      const r = live.current?.recorder;
+      if (document.visibilityState === "hidden" && r?.state === "recording") r.requestData();
+    };
+    window.addEventListener("beforeunload", warn);
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      document.removeEventListener("visibilitychange", hidden);
+    };
+  }, [phase]);
 
   async function sendText(e: React.FormEvent) {
     e.preventDefault();

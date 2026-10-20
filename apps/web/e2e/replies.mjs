@@ -133,9 +133,13 @@ await client.close({ runBeforeUnload: false });
 const client2 = await clientCtx.newPage();
 client2.on("dialog", (d) => (console.log("dialog:", d.message()), d.dismiss()));
 await skipIntro(client2);
+// Their inbox finishes it too (not only that video's page), and says so.
+await client2.goto(BASE + "/inbox");
+await client2.waitForSelector("[data-testid=recovered-uploads]", { timeout: 30000 });
+console.log("interrupted reply finished from the inbox:", (await client2.getAttribute("[data-testid=recovered-uploads] a", "href")) === new URL(link).pathname);
 await client2.goto(link);
 await client2.waitForSelector("[data-testid=held-reply]", { state: "attached", timeout: 30000 });
-console.log("interrupted reply recovered, not sent:", (await client2.$$eval("aside ul [data-testid=reply-video-still]", (els) => els.length)) === 1);
+console.log("interrupted reply recovered, not sent:", !!(await client2.waitForFunction(() => document.querySelectorAll("aside ul [data-testid=reply-video-still]").length === 1, null, { timeout: 15000 }).catch(() => null)));
 await client2.click("[data-testid=chat-open]");
 await client2.waitForSelector("[data-testid=held-reply] [data-testid=reply-video-still]", { timeout: 30000 });
 await client2.click("[data-testid=held-reply] >> button:has-text('Send it')");

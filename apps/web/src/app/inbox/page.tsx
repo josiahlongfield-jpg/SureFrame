@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import ClientHeader from "@/components/ClientHeader";
+import RecoverUploads from "@/components/RecoverUploads";
 import MadeWith from "@/components/MadeWith";
 import AiNotice from "@/components/AiNotice";
 import { aiAssistActive } from "@/lib/plans";
@@ -207,6 +208,8 @@ export default async function Inbox({
       {/* For a client not yet known to have the key here, the gate below takes the key from the link instead. */}
       {arrivedAs && listed.some((c) => c.id === arrivedAs) && <ClientKeyCapture clientId={arrivedAs} />}
       <ClientHeader brand={brand} help={help.length ? { for: help, page: "inbox" } : undefined} />
+      {/* A reply a closed page interrupted finishes uploading here too, then waits on its video page to be sent. */}
+      <RecoverUploads />
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
         {/* The link's key is no use on a page that couldn't open it, so it leaves the address bar too. */}
         {arrived && <HideKeyFromAddress />}

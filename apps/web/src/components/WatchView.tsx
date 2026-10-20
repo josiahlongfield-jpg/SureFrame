@@ -13,6 +13,7 @@ import TeamKeyGate from "./TeamKeyGate";
 import AiInsight, { type SealedInsight } from "./AiInsight";
 import AiNotice from "./AiNotice";
 import LostKey from "./LostKey";
+import RecoverUploads from "./RecoverUploads";
 import SureFramePromo from "./SureFramePromo";
 import { markLinkSent } from "./ClientsManager";
 import SendPanel from "./SendPanel";
@@ -156,7 +157,15 @@ function ClientUnlock({ clientId, ...props }: Props & { clientId: string }) {
       setRootKey(await unwrapKey(props.video.clientKeyWrap, clientKey));
     })().catch(() => setMissing(true));
   }, [clientId, props.video.clientKeyWrap]);
-  if (missing) return <LostKey clientId={clientId} business={props.business} signInNext={`/v/${props.video.id}`} />;
+  if (missing) {
+    return (
+      <>
+        {/* A reply interrupted here still finishes uploading (it's already sealed); it waits for them once the key's back. */}
+        <RecoverUploads always />
+        <LostKey clientId={clientId} business={props.business} signInNext={`/v/${props.video.id}`} />
+      </>
+    );
+  }
   if (!rootKey) return <Locked text="Unlocking…" />;
   return <WatchBody {...props} canEdit={false} rootKey={rootKey} />;
 }

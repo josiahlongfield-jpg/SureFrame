@@ -189,6 +189,36 @@ for (const [name, opts, phone] of [["computer", { viewport: { width: 1360, heigh
   await ctx.close();
 }
 
+// 6) On a phone, every quality with either camera: starting to record uses the camera that's already showing, so
+// the picture can't come back a different size (Josiah, 20 October 2026), through the countdown and recording.
+for (const side of ["user", "environment"]) {
+  const { ctx: c0, page: p0 } = await recorder(PHONE, { phone: true });
+  const qualities = await p0.$$eval("select:has(option[value='720']) option", (o) => o.map((x) => x.value));
+  await c0.close();
+  for (const q of qualities) {
+    const name = `phone, ${side === "user" ? "front" : "rear"} camera, ${q}`;
+    const { ctx, page } = await recorder(PHONE, { phone: true });
+    await settled(page);
+    if (side !== "user") await page.selectOption("[data-testid=camera-select]", side);
+    if ((await page.inputValue("select:has(option[value='720'])")) !== q) await page.selectOption("select:has(option[value='720'])", q);
+    await page.waitForFunction((q) => window.__asks.at(-1)?.video?.height?.ideal === Math.min(Number(q), 1080), q, { timeout: 10000 }).catch(() => {});
+    const before = await settled(page);
+    const asks = await page.evaluate(() => window.__asks.length);
+    const track = await page.evaluate(() => document.querySelector("main video").srcObject.getVideoTracks()[0].id);
+    await page.click("text=Start recording");
+    await page.waitForSelector("text=/^[123]$/", { timeout: 10000 }).catch(() => {});
+    const counting = await preview(page);
+    await page.waitForSelector("text=/Recording · \\d/", { timeout: 20000 });
+    await page.waitForTimeout(1200);
+    const rec = await preview(page);
+    const same = await page.evaluate((id) => document.querySelector("main video").srcObject.getVideoTracks()[0].id === id, track);
+    const fresh = (await page.evaluate(() => window.__asks.length)) === asks;
+    ok(`${name}: starting doesn't open the camera again`, fresh && same, JSON.stringify({ fresh, same }));
+    ok(`${name}: the picture fills the same frame through the countdown and recording`, [counting, rec].every((p) => fills(p) && p.fw === before.fw && p.fh === before.fh), JSON.stringify({ before, counting, rec }));
+    await ctx.close();
+  }
+}
+
 await browser.close();
 await db.$disconnect();
 console.log(failed ? `${failed} FAILED` : "ALL PASSED");
