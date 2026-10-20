@@ -15,7 +15,7 @@ function offsetOf(zone: string, at: Date) {
 const plain = (zone: string) => zone.replace(/_/g, " ").replace(/\//g, " / ");
 
 /**
- * Settings > Reminders: the business's time zone. The full list has about 400
+ * To-dos/Reminders > Reminder settings: the business's time zone. The full list has about 400
  * "Area/City" names, so it can be searched ("Brisbane", "GMT+10"), and one
  * button picks the zone this device is set to.
  */

@@ -36,7 +36,7 @@ type OwnSettings = Pick<Membership, "role" | "myReminderDefaults" | "myRemindCli
 
 /**
  * What new to-dos start with for this person: a staff member's own defaults
- * (Settings > Reminders) where they set them, else the business's. Owners and
+ * (To-dos/Reminders > Reminder settings) where they set them, else the business's. Owners and
  * admins use the business's defaults.
  */
 export function reminderDefaultsFor(w: Workspace, m?: OwnSettings | null) {

@@ -20,7 +20,7 @@ const Body = z.object({
  * A staff member's own settings for the clients they look after: reminder
  * defaults, the message and reply-to on their clients' reminder emails, and
  * whether they're emailed about replies. Owners and admins set the business's
- * settings (Settings > Reminders) and their team emails (Team overview)
+ * settings (To-dos/Reminders > Reminder settings) and their team emails (Team overview)
  * instead. Nothing here changes what owners and admins see or are sent.
  */
 export const PATCH = handle(async (req: Request) => {

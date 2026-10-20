@@ -107,7 +107,7 @@ export async function warnExpiring(now = new Date()) {
         `After that, ${n === 1 ? "it" : "they"} can no longer be watched from the link.` +
         backup,
       button: n === 1 ? { label: "Open the recording", link: list[0].link } : { label: "See recordings deleting soon", link: appUrl(teamPath("/library?filter=soon", ws.id)) },
-      footer: ws.timezone ? `Times are in your business's time zone (${dates.zone}).` : `Times are in UTC. Set your time zone in Settings > Reminders.`,
+      footer: ws.timezone ? `Times are in your business's time zone (${dates.zone}).` : `Times are in UTC. Set your time zone on the To-dos/Reminders page, under Reminder settings.`,
       logoUrl: brand.logoUrl,
       color: brand.color,
     });

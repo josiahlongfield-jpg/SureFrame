@@ -43,7 +43,7 @@ const loginEmail = `trainer${Date.now()}@peak.com`;
 await agreed(loginEmail);
 await pro.fill('input[name="email"]', loginEmail);
 await pro.click("text=Continue");
-await pro.waitForURL("**/settings/reminders");
+await pro.waitForURL("**/todos?tab=reminders");
 
 // 1. Settings, with a live preview of the email
 await pro.waitForFunction((tz) => document.querySelector('select[aria-label="Time zone"]')?.value === tz, TZ, { timeout: 5000 }).catch(() => {});
@@ -125,6 +125,7 @@ ok("running again sends nothing new", (await cron()).body?.sent === 0);
 
 // 5. Client ticks it off; next week's appears
 await pro.click("text=Copy personal link");
+await pro.waitForSelector("text=/^(Link copied|Copied)$/", { timeout: 10000 }).catch(() => {});
 const personal = await pro.evaluate(() => navigator.clipboard.readText());
 const phoneCtx = await browser.newContext({ ...devices["Pixel 7"], timezoneId: TZ });
 const phone = await phoneCtx.newPage();

@@ -254,8 +254,12 @@ ok("client page: new replies by the heading and on the video's row", !!(await wa
 // A to-do that's due: the menu's To-dos says so, and the library names the client.
 await prisma.item.create({ data: { kind: "TASK", body: "sealed-".repeat(5), authorName: "Owner", workspaceId: ws, clientId: clientB.id, dueAt: new Date(Date.now() - 3600_000) } });
 await owner.goto(BASE + "/library");
-ok("menu: To-dos, with how many are due", (await owner.textContent("header nav a[href='/library#todos']")).includes("To-dos (1 due)"));
-ok("library: the due list names the client", norm(await owner.textContent("[data-testid=due-todos]")).includes("1 to-do is overdue or due within a day") && (await owner.locator(`[data-testid=due-todos] a[href="/clients/${clientB.id}"]`).count()) === 1);
+ok("menu: To-dos/Reminders, with how many are due", (await owner.textContent("header nav a[href='/todos']")).includes("To-dos/Reminders (1 due)"));
+ok("library: no to-do list (it has its own page)", (await owner.locator("[data-testid=due-todos]").count()) === 0);
+await owner.click("header nav a[href='/todos']");
+await owner.waitForURL("**/todos");
+ok("To-dos/Reminders: the To-dos tab says how many are due", (await owner.textContent("[data-testid=tab-todos]")).includes("(1 due)"));
+ok("to-dos page: the due list names the client", norm(await owner.textContent("[data-testid=due-todos]")).includes("1 to-do is overdue or due within a day") && (await owner.locator(`[data-testid=due-todos] a[href="/clients/${clientB.id}"]`).count()) === 1);
 // Opening the conversation counts Client A's reply as seen on this device; Client B's copy still has one new.
 await owner.goto(`${BASE}/v/${vid}`);
 await owner.waitForSelector("[data-testid=reply-composer], aside", { timeout: 20000 }).catch(() => {});

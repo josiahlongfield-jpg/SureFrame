@@ -27,7 +27,6 @@ export function settingsPages({
   const teamPages = teamSize > 1 || (manager && TEAM_PLANS.includes(plan));
   if (manager) {
     return [
-      { href: "/settings/reminders", label: "Reminders", blurb: "When to-do reminders go out, and the message and reply-to address on your clients' reminder emails." },
       { href: "/settings/branding", label: "Branding", blurb: "Your business name, logo and colour on the pages and emails your clients see." },
       teamPages
         ? { href: "/settings/team", label: "Team and staff", blurb: "Invite staff, choose their roles and what each person can see and do." }
@@ -38,7 +37,6 @@ export function settingsPages({
     ];
   }
   return [
-    { href: "/settings/reminders", label: "Reminders", blurb: "Your own reminder settings for the clients you look after." },
     { href: "/settings/account", label: "Account", blurb: "Your name, emails you get, downloading your data and deleting your account." },
     ...(workspaces > 1 ? [{ href: "/settings/team", label: "Switch business", blurb: "The businesses you're part of, and switching between them." }] : []),
     ...support,

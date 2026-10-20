@@ -41,8 +41,8 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
   // A team plan keeps its Team pages while the owner is on their own; a business of one on another plan has none.
   const teamPages = teamSize > 1 || (manager && TEAM_PLANS.includes(me.workspace.plan));
   // Clients come first: a business adds them before sending anything.
-  // To-dos live on the library and each client's page; this goes to the library's list, which names the clients with some due.
-  const links: Links = [["/clients", "Clients"], ["/library", "Library"], ["/library#todos", due ? `To-dos (${due} due)` : "To-dos"], ...(teamPages ? [["/team", "Team"] as const] : [])];
+  // To-dos/Reminders: the team's own list, which clients have some due, and the reminder settings.
+  const links: Links = [["/clients", "Clients"], ["/library", "Library"], ["/todos", due ? `To-dos/Reminders (${due} due)` : "To-dos/Reminders"], ...(teamPages ? [["/team", "Team"] as const] : [])];
   // The plan pill opens what can be done about the plan: Billing for those who can change it, else the plans.
   const planHref = manager ? "/settings/billing" : "/pricing";
   // Everything else is under Settings (lib/settingsMenu.ts).

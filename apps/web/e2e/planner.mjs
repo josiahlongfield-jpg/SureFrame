@@ -26,11 +26,13 @@ await pro.click("text=Continue");
 await pro.waitForURL("**/library");
 await pro.click("text=I've saved it");
 
-// Their own private list
+// Their own private list, on the menu's To-dos/Reminders page
+await pro.click("header nav a[href='/todos']");
+await pro.waitForURL("**/todos");
 await pro.fill('textarea[aria-label="New to-do"]', "Order new stock");
 await pro.click("form >> button:has-text('Add')");
 await pro.waitForSelector('li:has-text("Order new stock")');
-ok("own to-do added in library", true);
+ok("own to-do added on To-dos/Reminders", true);
 
 // A client and their space
 await pro.goto(BASE + "/clients");
@@ -71,6 +73,7 @@ const bodies = itemsSql("string_agg(body, '|')");
 ok("server stores only ciphertext", !/stock|check-in|stretch|morning/i.test(bodies) && bodies.length > 100);
 
 await pro.click("text=Copy personal link");
+await pro.waitForSelector("text=/^(Link copied|Copied)$/", { timeout: 10000 }).catch(() => {});
 const personal = await pro.evaluate(() => navigator.clipboard.readText());
 
 // The client on their phone

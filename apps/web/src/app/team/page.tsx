@@ -263,7 +263,7 @@ async function StaffTeam({ me }: { me: Awaited<ReturnType<typeof requirePageUser
           <h2 className="font-semibold text-ink">Your own settings</h2>
           <ul className="mt-2 grid gap-1 text-sm">
             <li><Link href="/settings/account" className="font-medium text-accent hover:underline">Account</Link><span className="text-dim">: your name, emails to you, recovery key and data</span></li>
-            <li><Link href="/settings/reminders" className="font-medium text-accent hover:underline">Reminders</Link><span className="text-dim">: your reminder defaults and message for your clients</span></li>
+            <li><Link href="/todos?tab=reminders" className="font-medium text-accent hover:underline">To-dos/Reminders</Link><span className="text-dim">: your reminder defaults and message for your clients</span></li>
           </ul>
         </section>
       </main>

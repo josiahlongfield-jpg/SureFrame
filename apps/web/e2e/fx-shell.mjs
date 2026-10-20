@@ -182,7 +182,7 @@ await owner.screenshot({ path: `${shots}/fx-shell-first-steps.png`, fullPage: tr
 await owner.reload();
 ok("still there after a reload", !!(await owner.waitForSelector("[data-testid=first-steps] [data-recovery-key]", { timeout: 15000 }).catch(() => null)));
 // Elsewhere it's shown in full until "I've saved it" (not lost after a reload); "Remind me later" folds it to one line.
-await owner.goto(`${BASE}/settings/reminders`);
+await owner.goto(`${BASE}/todos?tab=reminders`);
 ok("on other pages: the full key, still there after a reload", !!(await owner.waitForSelector("[data-testid=recovery-key-reminder] [data-recovery-key]", { timeout: 15000 }).catch(() => null)));
 await owner.click("[data-testid=recovery-key-later]");
 await owner.reload();
@@ -205,23 +205,25 @@ ok("a business with no time zone gets the owner's", (await waitFor(async () => (
 
 // ---- Menus: one Settings item, no team pages for one person ----------------------------------------------
 const navHrefs = await owner.locator("header nav a").evaluateAll((els) => els.map((e) => e.getAttribute("href")));
-ok("desktop bar: Clients, Library, To-dos and Settings only (no Overview or Team for one person)", navHrefs.join("|") === "/clients|/library|/library#todos", navHrefs.join("|"));
+ok("desktop bar: Clients, Library, To-dos and Settings only (no Overview or Team for one person)", navHrefs.join("|") === "/clients|/library|/todos", navHrefs.join("|"));
 await owner.click("[data-testid=settings-menu-button]");
 const settingsLinks = await owner.locator("[data-testid=settings-menu] a").evaluateAll((els) => els.map((e) => e.innerText.trim()));
-ok("Settings menu: Reminders, Branding, Invite staff, Billing, Account", settingsLinks.join("|") === "Reminders|Branding|Invite staff|Billing|Account", settingsLinks.join("|"));
+ok("Settings menu: Branding, Invite staff, Billing, Account (reminders are on To-dos/Reminders)", settingsLinks.join("|") === "Branding|Invite staff|Billing|Account", settingsLinks.join("|"));
 await owner.screenshot({ path: `${shots}/fx-shell-settings-menu.png` });
 await owner.keyboard.press("Escape");
 await owner.goto(`${BASE}/team`);
 await owner.waitForURL((u) => u.pathname === "/settings/team");
 ok("one person: /team goes to inviting staff", path(owner) === "/settings/team");
 await owner.goto(`${BASE}/settings/reminders`);
+await owner.waitForURL("**/todos?tab=reminders");
+ok("old Settings > Reminders address lands on To-dos/Reminders, Reminder settings tab", (await owner.getAttribute("[data-testid=tab-reminders]", "aria-current")) === "page");
 ok("Reminders links to the business name in Branding", (await owner.getAttribute("[data-testid=reminders-business] a", "href")) === "/settings/branding");
 await owner.goto(`${BASE}/settings/branding`);
 ok("Free plan: the business name is set on Branding", (await owner.getByLabel("Business name").inputValue()) === "Business A");
 
 // No hydration error (React #418) on the signed-in settings pages, with the browser in another zone.
 consoleErrors.length = 0;
-for (const p of ["/settings/reminders", "/settings/account", "/settings/branding", "/settings/team", "/settings/billing", "/library"]) {
+for (const p of ["/todos", "/todos?tab=reminders", "/settings/account", "/settings/branding", "/settings/team", "/settings/billing", "/library"]) {
   await owner.goto(BASE + p);
   await owner.waitForLoadState("networkidle").catch(() => {});
 }
@@ -238,7 +240,7 @@ await owner.keyboard.press("Escape");
 ok("Escape closes the help chat", (await owner.locator("role=dialog[name='SureFrame help']").count()) === 0);
 
 // ---- Readable data export --------------------------------------------------------------------------------
-await owner.goto(`${BASE}/library`);
+await owner.goto(`${BASE}/todos`);
 const todo = `Call Client A back ${stamp}`;
 await owner.fill('textarea[aria-label="New to-do"]', todo);
 await owner.click("form >> button:has-text('Add')");

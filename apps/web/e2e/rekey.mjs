@@ -86,6 +86,7 @@ await owner.fill('textarea[aria-label="New to-do"]', "Team-only note on Avery");
 await owner.click("form >> button:has-text('Add')");
 await owner.waitForSelector('li:has-text("Team-only note on Avery")');
 await owner.click("text=Copy personal link");
+await owner.waitForSelector("text=/^(Link copied|Copied)$/", { timeout: 10000 }).catch(() => {});
 const averyOldLink = await clip(owner);
 
 // Avery's phone opens their link and the video.
@@ -117,6 +118,7 @@ await owner.request.patch(`${BASE}/api/clients/${avery.id}`, { data: { assignedT
 await staff.goto(`${BASE}/clients/${avery.id}`);
 await staff.waitForSelector("text=Team-only note on Avery");
 await staff.click("text=Copy personal link");
+await staff.waitForSelector("text=/^(Link copied|Copied)$/", { timeout: 10000 }).catch(() => {});
 const staffCopy = await clip(staff);
 ok("staff copied Avery's full link", staffCopy === averyOldLink);
 const staffUser = await prisma.user.findUnique({ where: { email: `rk-staff${stamp}@example.com` } });

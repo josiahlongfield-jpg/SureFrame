@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { PersonalLinkSteps } from "@/components/FirstLinkSender";
 import AppHeader from "@/components/AppHeader";
-import MemberPlanner from "@/components/MemberPlanner";
 import StorageStatus from "@/components/StorageStatus";
 import LibraryThumb from "@/components/LibraryThumb";
 import DayFolder from "@/components/DayFolder";
@@ -11,12 +10,10 @@ import { LibrarySearch, LibraryViewSwitch, ReplyBadges, type Conv } from "@/comp
 import { groupByAge, groupByMonth, LAYOUT_COOKIE, VIEW_COOKIE, type Group } from "@/lib/libraryGroups";
 import FirstSteps from "@/components/FirstSteps";
 import { LibraryUnlock } from "@/components/TeamKeyGate";
-import { dueTodos } from "@/lib/dueTodos";
 import { firstStepsFor } from "@/lib/firstSteps";
 import { db } from "@/lib/db";
 import { PLANS } from "@/lib/plans";
 import { followTeamLink, requirePageUser } from "@/lib/session";
-import { reminderDefaultsFor } from "@/lib/reminders";
 import { accessOf, clientScopeWhere, effectivePerms, isManager, libraryWhere, seesAllClients } from "@/lib/permissions";
 import type { Prisma } from "@prisma/client";
 import { zoned } from "@/lib/dates";
@@ -68,7 +65,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     ...(q ? [{ OR: [{ title: contains }, { client: { name: contains } }, { copies: { some: { client: { name: contains } } } }] }] : []),
     ...(clientId ? [{ OR: [{ clientId }, { copies: { some: { clientId } } }] }] : []),
   ];
-  const [videos, soonCount, allowance, due] = await Promise.all([
+  const [videos, soonCount, allowance] = await Promise.all([
     // Copies sent to other clients count their views and replies towards the original, and name who it went to.
     db.video.findMany({
       where: { AND: [soon ? soonWhere : scope, ...search] },
@@ -82,7 +79,6 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     }),
     db.video.count({ where: soonWhere }),
     plan.maxVideos !== null ? videosUsed(workspace.id) : null,
-    dueTodos(access),
   ]);
   // The client's replies in each conversation (the team's own aren't news), newest first, with when they came,
   // so each device can tell which it hasn't seen (components/LibraryTools.tsx). Held and uploading replies don't count yet.
@@ -516,35 +512,6 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             <div className={folderList("space-y-2")}>{groupByAge(videos, dates.zone, now).map((g, i) => folder(g, 0, i === 0))}</div>
           )
         )}
-        <div id="todos" className="mt-12 max-w-2xl scroll-mt-6">
-          {due.total > 0 && (
-            // The menu's "To-dos" comes here: client to-dos live on each client's page, so name the clients with some due.
-            <div className="mb-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="due-todos">
-              <p className="font-medium">
-                {due.total} {due.total === 1 ? "to-do is" : "to-dos are"} overdue or due within a day
-              </p>
-              <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-                {due.general > 0 && <li>Your list below ({due.general})</li>}
-                {due.clients.map((c) => (
-                  <li key={c.id}>
-                    <Link href={`/clients/${c.id}`} className="font-medium underline">{c.name}</Link> ({c.count})
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {/* Items not about a client are one list for the whole team; say so when there is a team. */}
-          <MemberPlanner
-            lockedNote={<p className="rounded-2xl border border-line bg-surface p-5 text-sm text-dim">Your to-dos and notes open once this browser is unlocked. <a href="#unlock" className="font-medium text-accent hover:underline">Unlock at the top of the page</a></p>}
-            workspaceId={workspace.id}
-            fingerprint={workspace.keyFingerprint}
-            defaults={{ ...reminderDefaultsFor(workspace, me.membership), remindTeam: true }}
-            title="To-dos & notes"
-            {...(teamSize > 1
-              ? { note: "Not about one client. Everyone on your team can see and change these. Client to-dos go on each client's page.", teamWho: { label: "Email the team", tag: "the team" } }
-              : { note: "Not about one client. Only you see these for now; anyone you add to your team later will too. Client to-dos go on each client's page." })}
-          />
-        </div>
       </main>
     </>
   );

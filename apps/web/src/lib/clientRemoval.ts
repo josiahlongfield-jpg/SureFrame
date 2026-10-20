@@ -39,7 +39,7 @@ export const restorableWhere = (now = new Date()): Prisma.ClientWhereInput => ({
 
 const purgeLock = (clientId: string) => `client-purge:${clientId}`;
 const tzFooter = (ws: Pick<Workspace, "timezone">, zone: string) =>
-  ws.timezone ? `Times are in your business's time zone (${zone}).` : "Times are in UTC. Set your time zone in Settings > Reminders.";
+  ws.timezone ? `Times are in your business's time zone (${zone}).` : "Times are in UTC. Set your time zone on the To-dos/Reminders page, under Reminder settings.";
 
 /** Tells a client the business ended their access (only when the business ticked the box). Returns whether it went out. */
 export async function emailClientRemoved(clientId: string) {
