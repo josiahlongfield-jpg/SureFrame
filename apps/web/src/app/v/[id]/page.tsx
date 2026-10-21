@@ -207,8 +207,8 @@ export default async function Watch({ params, searchParams }: Props) {
             }
             canAddClients={!!perms?.addClients}
             sentToId={video.clientId}
-            ai={aiOn || insight ? { insight, canMake: isMember && aiOn, notice: !isMember } : undefined}
-            aiOffer={isMember && !aiOn && !insight ? (workspace.plan === "FREE" ? "free" : "off") : null}
+            // Only while the business pays for the AI summaries add-on (Josiah 2026-10-21): no offer box without it.
+            ai={aiOn ? { insight, canMake: isMember, notice: !isMember } : undefined}
             initialReplies={replies.map((r) => replyDTO(r, video.ownerId, who))}
             reactions={reactions}
             hasThumb={hasThumb}

@@ -99,8 +99,6 @@ type Props = {
   sendMany?: SendMany;
   /** AI summaries add-on: the encrypted transcript/summary, whether this viewer may make one, and whether to tell a client AI is used. */
   ai?: { insight: SealedInsight; canMake: boolean; notice: boolean };
-  /** For the team when AI summaries aren't on: where they would appear, and how to get them. */
-  aiOffer?: "free" | "off" | null;
   /** Members only: the client's reactions on this conversation, with the moment in the video if there was one. */
   reactions?: { emoji: string; timestampMs: number | null }[];
   /** The reactions this viewer has left (tap again to take one back). */
@@ -213,7 +211,6 @@ function WatchBody({
   initialHeld = [],
   sendMany,
   ai,
-  aiOffer,
   reactions: clientReactions,
   myReactions = [],
   message: sealedMessage = null,
@@ -645,6 +642,19 @@ function WatchBody({
       : "Not sent to a client yet. Anything you add here will be seen by the client you send this video to.";
   const isWebm = !video.mimeType.includes("mp4");
 
+  const aiBox = ai && !expired && (
+    <AiInsight
+      videoId={video.id}
+      rootKey={rootKey}
+      initial={ai.insight}
+      // Only once the upload has fully finished, so it never competes with the recording.
+      canMake={ai.canMake && canEdit && UPLOAD_DONE.has(video.status)}
+      mediaUrl={playable || null}
+      durationMs={video.durationMs}
+      canRemove={canEdit}
+      onSeek={seek}
+    />
+  );
   return (
     <div className="grid gap-8 pb-24 lg:grid-cols-[1fr_21.25rem] lg:pb-0">
       {promo && !canEdit && <SureFramePromo workspaceId={promo.workspaceId} business={business} onWatch={watchNow} />}
@@ -835,6 +845,8 @@ function WatchBody({
         )}
         {canEdit && clientReactions && clientReactions.length > 0 && <ReactionSummary reactions={clientReactions} onSeek={seek} who={recipient?.name ?? "The client"} />}
 
+        {/* The team's AI summary near the top, straight above the message to the client (only with the add-on). */}
+        {canEdit && aiBox}
         {canEdit && <MessageEditor videoId={video.id} rootKey={rootKey} sealed={sealedMessage} to={recipient?.name ?? null} />}
 
         {canEdit && recipient?.removed && (
@@ -891,27 +903,7 @@ function WatchBody({
           </button>
         </div>
 
-        {ai && !expired && (
-          <AiInsight
-            videoId={video.id}
-            rootKey={rootKey}
-            initial={ai.insight}
-            // Only once the upload has fully finished, so it never competes with the recording.
-            canMake={ai.canMake && canEdit && UPLOAD_DONE.has(video.status)}
-            mediaUrl={playable || null}
-            durationMs={video.durationMs}
-            canRemove={canEdit}
-            onSeek={seek}
-          />
-        )}
-        {!ai && aiOffer && canEdit && (
-          <p className="mt-4 rounded-xl border border-line bg-solid px-4 py-3 text-sm text-dim" data-testid="ai-offer">
-            <span className="font-semibold text-ink">AI summary.</span>{" "}
-            {aiOffer === "free"
-              ? "Transcripts and AI summaries are an add-on on paid plans. They appear here once it's on."
-              : "Transcripts and AI summaries are an add-on. The account owner or an admin can turn it on in Settings > Billing, and they appear here."}
-          </p>
-        )}
+        {!canEdit && aiBox}
         {ai?.notice && !canEdit && <AiNotice className="mt-4" />}
         {!canEdit && <HowThisWorks business={business} purgeAt={video.purgeAt} expired={expired} />}
       </section>
