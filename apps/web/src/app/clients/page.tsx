@@ -39,7 +39,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <AppHeader email={user.email} plan={plan.name} />
-      <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Clients</h1>
         {!perms.seeAllClients && (
           <p className="mt-1 text-sm text-dim">You see the clients assigned to you. The owner or an admin can assign more.</p>

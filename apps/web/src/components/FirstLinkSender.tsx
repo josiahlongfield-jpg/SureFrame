@@ -28,6 +28,7 @@ export default function FirstLinkSender({
   getLink,
   onSent,
   compact,
+  alignEnd,
   disabled,
   copyLabel = "Copy link",
 }: {
@@ -40,6 +41,8 @@ export default function FirstLinkSender({
   onSent?: (how: How) => void;
   /** Buttons only, for a row in a list. */
   compact?: boolean;
+  /** Buttons line up from the right (in a row of controls on the right), on screens wider than a phone. */
+  alignEnd?: boolean;
   disabled?: boolean;
   copyLabel?: string;
 }) {
@@ -72,7 +75,7 @@ export default function FirstLinkSender({
 
   return (
     <div data-testid="first-link-sender">
-      <div className="flex flex-wrap gap-1.5">
+      <div className={`flex flex-wrap gap-1.5 ${alignEnd ? "sm:justify-end" : ""}`}>
         <button
           type="button"
           disabled={off}
@@ -142,7 +145,7 @@ export default function FirstLinkSender({
         )}
       </div>
       {done && (
-        <p role={done.error ? "alert" : "status"} data-testid="first-link-done" className={`mt-1.5 text-xs ${done.error ? "text-danger-fg" : "text-ok-fg"}`}>
+        <p role={done.error ? "alert" : "status"} data-testid="first-link-done" className={`mt-1.5 text-xs ${done.error ? "text-danger-fg" : "text-ok-fg"} ${alignEnd ? "sm:ml-auto sm:max-w-sm sm:text-right" : ""}`}>
           {done.text}
         </p>
       )}

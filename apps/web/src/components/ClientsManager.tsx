@@ -674,7 +674,7 @@ function Manager({
             {shown.map((c) => {
               const twin = sameEmail(c.email, c.id);
               return (
-                <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
+                <li key={c.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(12rem,1fr)_auto] sm:items-center sm:px-6">
                   <div className="min-w-0">
                     <Link href={`/clients/${c.id}`} className="break-words font-medium text-ink hover:text-accent hover:underline">{c.name}</Link>{" "}
                     {!c.reached && !c.linkOff && <LinkBadge sent={c.linkSent} />}
@@ -699,30 +699,31 @@ function Manager({
                       </Link>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2 text-sm">
+                  {/* Every row's controls sit on the right, the same size, wrapping from the right when there's no room. */}
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs sm:justify-end" data-testid="client-row-actions">
                     {staff.length > 1 && canManage && (
                       <select aria-label={`Who looks after ${c.name}`} value={c.assignedToId ?? ""} onChange={(e) => assign(c, e.target.value || null)}
-                        className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
+                        className="rounded-lg border border-line-strong bg-surface px-2 py-1 text-xs">
                         <option value="">Unassigned (owner and admins)</option>
                         {staff.map((p) => <option key={p.id} value={p.id}>{p.id === meId ? `${p.name} (you)` : p.name}</option>)}
                       </select>
                     )}
                     {assigned?.id === c.id && <span role="status" className="self-center text-xs text-ok-fg" data-testid="assign-saved">{assigned.text}</span>}
                     {!c.linkOff && !c.reached && (
-                      <FirstLinkSender compact name={c.name} email={c.email} business={business} getLink={() => linkOf(c)} onSent={() => sent(c)} copyLabel="Copy personal link" />
+                      <FirstLinkSender compact alignEnd name={c.name} email={c.email} business={business} getLink={() => linkOf(c)} onSent={() => sent(c)} copyLabel="Copy personal link" />
                     )}
                     {!c.linkOff && c.reached && (
                       <>
-                        <button onClick={() => copy(c)} aria-label={`Copy personal link for ${c.name}`} className="rounded-lg border border-line-strong px-3 py-1.5 hover:bg-hover">
+                        <button onClick={() => copy(c)} aria-label={`Copy personal link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover">
                           {copied === c.id ? "Copied" : "Copy personal link"}
                         </button>
-                        {canShare && <button onClick={() => share(c)} aria-label={`Share personal link for ${c.name}`} className="rounded-lg border border-line-strong px-3 py-1.5 hover:bg-hover">Share</button>}
+                        {canShare && <button onClick={() => share(c)} aria-label={`Share personal link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover">Share</button>}
                       </>
                     )}
-                    {canManage && <button onClick={() => askRemove(c)} aria-label={`Remove client ${c.name}`} className="rounded-lg px-3 py-1.5 text-dim hover:bg-hover hover:text-danger-fg">Remove client</button>}
+                    {canManage && <button onClick={() => askRemove(c)} aria-label={`Remove client ${c.name}`} className="rounded-lg px-2.5 py-1 font-medium text-dim hover:bg-hover hover:text-danger-fg">Remove client</button>}
                   </div>
                   {confirming?.id === c.id && (
-                    <div data-testid="remove-client-confirm" className="w-full rounded-xl border border-danger-line bg-danger-bg p-4 text-sm text-muted">
+                    <div data-testid="remove-client-confirm" className="w-full rounded-xl sm:col-span-2 border border-danger-line bg-danger-bg p-4 text-sm text-muted">
                       <p className="font-medium text-ink">Remove {c.name}? Their personal link stops working now and their seat is freed.</p>
                       <p className="mt-1">You can restore them from Removed clients on this page until {dates.longDay(confirming.until)}.</p>
                       {/* The detail is there for whoever wants it, not three paragraphs every time. */}
