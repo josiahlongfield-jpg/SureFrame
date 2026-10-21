@@ -107,7 +107,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   // The camera preview takes the camera's own shape (portrait on most phones), so it fills its frame. On a phone it
   // also leaves room for the reply tabs, the sound bar and the Record button below it, which would otherwise be pushed
   // out of the conversation panel. svh: the height with the browser's own bars showing.
-  const frame = useVideoFrame("min(55vh, 100svh - 25rem)");
+  const frame = useVideoFrame("min(55vh, 100svh - 29rem)");
   const frameRef = frame.ref;
   const previewRef = useCallback(
     (v: HTMLVideoElement | null) => {
@@ -630,6 +630,15 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
               {phase === "recording" ? <RecBadge ms={elapsed} inline /> : "Tap record and start talking"}
             </div>
           )}
+          {(phase === "preview" || phase === "recording") && (
+            // Straight under the recording window, before and while recording, where they can't be missed.
+            <div className="mt-2 grid gap-1 text-xs text-muted" data-testid="reply-notes">
+              <p data-testid="reply-limit-note">Replies can be up to {Math.round(maxMs / 60_000)} minutes; recording stops by itself at the limit, and you can play it back before sending.</p>
+              <p data-testid="reply-crash-note">
+                Your reply is saved as you record. If this page closes, open the link again and it&rsquo;s ready to send within about 90 seconds.
+              </p>
+            </div>
+          )}
           {liveStream && (phase === "preview" || phase === "recording") && (
             <div className="mt-2">
               <MicLevel stream={liveStream} />
@@ -640,12 +649,6 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
               <button onClick={stop} data-focus-target="stop" className="mt-2 w-full rounded-lg bg-red-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
                 Stop recording
               </button>
-              <p className="mt-1 text-center text-xs text-dim">
-                You can play it back before sending. Replies can be up to {Math.round(maxMs / 60_000)} minutes; recording stops by itself at the limit.
-              </p>
-              <p className="mt-1 text-center text-xs text-dim" data-testid="reply-crash-note">
-                Your reply is saved as you record. If this page closes, open the link again and it&rsquo;s ready to send within about 90 seconds.
-              </p>
             </>
           ) : (
             <button

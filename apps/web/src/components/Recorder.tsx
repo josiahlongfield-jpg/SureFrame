@@ -620,46 +620,62 @@ export default function Recorder({
 
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem]">
-      <div
-        style={bigCamera ? frame.style : undefined}
-        className={`relative mx-auto overflow-hidden rounded-2xl border border-line bg-solid shadow-sm ${bigCamera ? "" : "aspect-video w-full"}`}
-      >
-        {bigCamera ? (
-          <video key={previewKey} ref={previewRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full ${mirror} object-cover`} />
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-dim" data-testid="screen-panel">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="20" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
-            <p className="text-sm">
-              {phase === "setup"
-                ? mode === "screen+camera"
-                  ? "You\u2019ll pick a screen, window or tab when you start. Your camera goes in the circle: drag it to any corner."
-                  : "You\u2019ll pick a screen, window or tab when you start."
-                : mode === "screen"
-                  ? "Recording your screen."
-                  : wholeScreen
-                    ? "Recording your whole screen. Your camera is in the circle in the corner of the video. Drag it to move it."
-                    : bubbleOpen
-                      ? "Recording your screen. Your camera is in the floating bubble."
-                      : "Recording your screen. Pop out the camera bubble to show your camera over your other windows."}
+      {/* The recording window, with the notes nobody should miss straight under it, as wide as the window. */}
+      <div className="mx-auto w-full min-w-0" style={bigCamera ? { width: frame.style.width } : undefined}>
+        <div
+          style={bigCamera ? frame.style : undefined}
+          className={`relative mx-auto overflow-hidden rounded-2xl border border-line bg-solid shadow-sm ${bigCamera ? "" : "aspect-video w-full"}`}
+        >
+          {bigCamera ? (
+            <video key={previewKey} ref={previewRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full ${mirror} object-cover`} />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-dim" data-testid="screen-panel">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="20" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+              <p className="text-sm">
+                {phase === "setup"
+                  ? mode === "screen+camera"
+                    ? "You\u2019ll pick a screen, window or tab when you start. Your camera goes in the circle: drag it to any corner."
+                    : "You\u2019ll pick a screen, window or tab when you start."
+                  : mode === "screen"
+                    ? "Recording your screen."
+                    : wholeScreen
+                      ? "Recording your whole screen. Your camera is in the circle in the corner of the video. Drag it to move it."
+                      : bubbleOpen
+                        ? "Recording your screen. Your camera is in the floating bubble."
+                        : "Recording your screen. Pop out the camera bubble to show your camera over your other windows."}
+              </p>
+            </div>
+          )}
+          {mode === "screen+camera" && (
+            <CameraCircle corner={corner} onCorner={setCorner}>
+              <video key={previewKey} ref={previewRef} autoPlay muted playsInline className={`h-full w-full ${mirror} rounded-full object-cover`} />
+            </CameraCircle>
+          )}
+          {phase === "countdown" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-black/60 text-white">
+              <span className="text-8xl font-semibold">{count}</span>
+              <button onClick={() => (cancelled.current = true)} className="rounded-lg bg-white/15 px-4 py-2 text-sm font-medium hover:bg-white/25">Cancel</button>
+            </div>
+          )}
+          {recordingish && (
+            // Out of the camera's way when it sits top left.
+            <div className={`absolute top-4 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-sm font-medium text-white ${mode === "screen+camera" && corner === "top-left" ? "right-4" : "left-4"}`}>
+              <span className={`h-2.5 w-2.5 rounded-full ${phase === "recording" ? "animate-pulse bg-red-500" : "bg-amber-400"}`} />
+              {phase === "paused" ? "Paused" : "Recording"} · {fmt(elapsed)}
+            </div>
+          )}
+        </div>
+        {(phase === "setup" || recordingish) && (
+          // Said before Start, not only once recording: how long a video can be, what happens at the limit, and
+          // that a closed page loses nothing. Under the window, where it can't be missed.
+          <div className="mt-4 grid gap-1.5 text-sm text-muted" data-testid="recording-notes">
+            <p data-testid="length-limit">
+              Videos on your plan can be up to {limitText(maxDurationMin)}. At {limitClock(maxDurationMin)} the recording stops and is saved by itself.
             </p>
-          </div>
-        )}
-        {mode === "screen+camera" && (
-          <CameraCircle corner={corner} onCorner={setCorner}>
-            <video key={previewKey} ref={previewRef} autoPlay muted playsInline className={`h-full w-full ${mirror} rounded-full object-cover`} />
-          </CameraCircle>
-        )}
-        {phase === "countdown" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-black/60 text-white">
-            <span className="text-8xl font-semibold">{count}</span>
-            <button onClick={() => (cancelled.current = true)} className="rounded-lg bg-white/15 px-4 py-2 text-sm font-medium hover:bg-white/25">Cancel</button>
-          </div>
-        )}
-        {recordingish && (
-          // Out of the camera's way when it sits top left.
-          <div className={`absolute top-4 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-sm font-medium text-white ${mode === "screen+camera" && corner === "top-left" ? "right-4" : "left-4"}`}>
-            <span className={`h-2.5 w-2.5 rounded-full ${phase === "recording" ? "animate-pulse bg-red-500" : "bg-amber-400"}`} />
-            {phase === "paused" ? "Paused" : "Recording"} · {fmt(elapsed)}
+            <p data-testid="upload-note">
+              Your recording uploads while you talk, and a copy is kept in this browser until it&rsquo;s safely up. If the page closes, reopen
+              SureFrame: in this browser it carries on straight away, and on another device it&rsquo;s ready within about 90 seconds.
+            </p>
           </div>
         )}
       </div>
@@ -768,20 +784,12 @@ export default function Recorder({
             <button onClick={start} className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary shadow-sm hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
               Start recording
             </button>
-            {/* Said before Start, not only once recording: how long a video can be, and what happens at the limit. */}
-            <p className="text-sm text-muted" data-testid="length-limit">
-              Videos on your plan can be up to {limitText(maxDurationMin)}. At {limitClock(maxDurationMin)} the recording stops and is saved by itself.
-            </p>
             {freeVideos && freeLeft !== null && (
               <p className="text-sm text-muted" data-testid="free-videos-left">
                 {freeLeft} of {freeVideos.limit} free videos left.{" "}
                 {freeLeft <= 5 && <a href="/pricing" className="font-medium text-accent hover:underline">See plans</a>}
               </p>
             )}
-            <p className="text-xs text-dim">
-              Your recording uploads while you talk, and a copy is kept in this browser until it&rsquo;s safely up. If the page closes, reopen
-              SureFrame: in this browser it carries on straight away, and on another device it&rsquo;s ready within about 90 seconds.
-            </p>
           </>
         )}
 

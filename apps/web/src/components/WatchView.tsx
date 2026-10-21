@@ -1089,11 +1089,6 @@ function WatchBody({
             <p className="mt-0.5 text-xs text-muted">It&rsquo;ll appear here {readyIn(recovering)}, ready to send. There&rsquo;s no need to record it again.</p>
           </div>
         )}
-        {held.length === 0 && recovering === null && (
-          <p className="border-t border-line px-4 pt-2 text-xs text-dim" data-testid="reply-saved-note">
-            Replies save as you record. If the page closes, your reply comes back here within about 90 seconds, ready to send.
-          </p>
-        )}
         <ReplyComposer
           ref={composer}
           videoId={video.id}

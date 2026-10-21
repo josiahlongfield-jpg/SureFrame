@@ -110,8 +110,14 @@ await c.waitForURL("**/v/**");
 await c.waitForSelector("main video", { timeout: 20000 });
 await c.click("[data-testid=chat-open]");
 await c.waitForSelector("[data-testid=conversation][data-sheet]");
-ok("before recording, the client is told a closed page brings the reply back in about 90 seconds", /comes back here within about 90 seconds/.test((await c.textContent("[data-testid=reply-saved-note]").catch(() => "")) ?? ""));
 await c.click("role=tab[name='Video']");
+await c.waitForSelector("[data-testid=reply-notes]");
+ok("before recording, the client is told a closed page brings the reply back in about 90 seconds", /within about 90 seconds/.test((await c.textContent("[data-testid=reply-crash-note]").catch(() => "")) ?? ""));
+ok("the reply notes sit straight under the recording window", await c.$eval("[data-testid=reply-notes]", (n) => {
+  const w = n.previousElementSibling.getBoundingClientRect();
+  const r = n.getBoundingClientRect();
+  return r.top - w.bottom >= 0 && r.top - w.bottom <= 16;
+}));
 await c.click("button:has-text('Record video reply')");
 await c.waitForSelector("text=/Recording · \\d/");
 ok("the client is told how a closed page is recovered", /within about 90 seconds/.test((await c.textContent("[data-testid=reply-crash-note]").catch(() => "")) ?? ""));
