@@ -18,6 +18,7 @@ import {
   getScreen,
   mixAudio,
   openCameraBubble,
+  type BubbleControls,
   pickMimeType,
   stopAll,
   type CameraPick,
@@ -380,7 +381,11 @@ export default function Recorder({
       } else {
         // The bubble first, while the click still counts: browsers won't open one after the screen picker.
         if (mode === "screen+camera" && camStream.current) {
-          bubble = await openCameraBubble(camStream.current, () => setBubbleOpen(false));
+          bubble = await openCameraBubble(camStream.current, () => setBubbleOpen(false), bubbleControls);
+          setBubbleOpen(!!bubble);
+        } else if (mode === "screen") {
+          // Screen only: just the floating Pause/Stop bar, so the recording can be run from any window.
+          bubble = await openCameraBubble(null, () => setBubbleOpen(false), bubbleControls);
           setBubbleOpen(!!bubble);
         }
         streams.push(await getMic(micId));
@@ -390,6 +395,12 @@ export default function Recorder({
         shared = video;
         // The browser's own "Stop sharing" button ends the recording cleanly.
         video.addEventListener("ended", () => void stop());
+        // Screen only, whole screen: the floating bar would be recorded too, so it closes (this tab has the buttons).
+        if (mode === "screen" && (video.getSettings() as { displaySurface?: string }).displaySurface === "monitor") {
+          bubble?.();
+          bubble = null;
+          setBubbleOpen(false);
+        }
         // The camera goes into the video as a circle in the chosen corner, whatever was shared.
         const camTrack = camStream.current?.getVideoTracks()[0];
         if (mode === "screen+camera" && camTrack && canComposeCamera()) {
@@ -606,9 +617,22 @@ export default function Recorder({
     setBubbleOpen(false);
   }
 
+  // The floating window's buttons run the same Pause, Resume and Stop as this page (always the latest ones).
+  const actions = useRef({ pause, resume, stop });
+  actions.current = { pause, resume, stop };
+  const bubbleControls: BubbleControls = {
+    pause: () => actions.current.pause(),
+    resume: () => actions.current.resume(),
+    stop: () => void actions.current.stop(),
+    state: () => {
+      const l = live.current;
+      return l?.started ? { paused: l.recorder.state === "paused", ms: durationNow() } : null;
+    },
+  };
+
   async function popOutBubble() {
     if (!camStream.current || !live.current) return;
-    const close = await openCameraBubble(camStream.current, () => setBubbleOpen(false));
+    const close = await openCameraBubble(camStream.current, () => setBubbleOpen(false), bubbleControls);
     if (!close) return;
     live.current.closeBubble = close;
     setBubbleOpen(true);

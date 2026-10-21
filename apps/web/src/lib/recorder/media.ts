@@ -92,34 +92,45 @@ export function mixAudio(streams: MediaStream[]): { track?: MediaStreamTrack; cl
  * closes it, or null when the browser wouldn't open one. `onClosed` runs if the
  * person closes it themselves.
  */
-export async function openCameraBubble(camera: MediaStream, onClosed?: () => void): Promise<(() => void) | null> {
+export async function openCameraBubble(camera: MediaStream | null, onClosed?: () => void, controls?: BubbleControls): Promise<(() => void) | null> {
   const dpip = (window as unknown as { documentPictureInPicture?: { requestWindow(o: object): Promise<Window> } })
     .documentPictureInPicture;
   if (dpip) {
     try {
-      const pip = await dpip.requestWindow({ width: 240, height: 240 });
+      // With controls, a bar under the circle; without a camera, just the bar.
+      const bar = controls ? 52 : 0;
+      const pip = await dpip.requestWindow(camera ? { width: 240, height: 240 + bar } : { width: 280, height: bar });
       pip.document.body.style.cssText =
-        "margin:0;height:100vh;background:#000;overflow:hidden;display:flex;align-items:center;justify-content:center";
-      const v = pip.document.createElement("video");
-      v.autoplay = true;
-      v.muted = true;
-      v.playsInline = true;
-      v.srcObject = camera;
-      // Always a true circle, however the window is sized, showing the middle square of the camera:
-      // exactly what the circle in the recording shows (lib/recorder/compose.ts).
-      v.style.cssText =
-        "width:min(100vw,100vh);height:min(100vw,100vh);flex:none;object-fit:cover;object-position:center;border-radius:50%;transform:scaleX(-1)";
-      pip.document.body.append(v);
+        "margin:0;height:100vh;background:#000;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;font:600 14px/1 system-ui,-apple-system,sans-serif;color:#fff";
+      if (camera) {
+        const v = pip.document.createElement("video");
+        v.autoplay = true;
+        v.muted = true;
+        v.playsInline = true;
+        v.srcObject = camera;
+        // Always a true circle, however the window is sized, showing the middle square of the camera:
+        // exactly what the circle in the recording shows (lib/recorder/compose.ts).
+        const side = `min(100vw,calc(100vh - ${bar}px))`;
+        v.style.cssText = `width:${side};height:${side};flex:none;object-fit:cover;object-position:center;border-radius:50%;transform:scaleX(-1)`;
+        pip.document.body.append(v);
+      }
+      const stopTicking = controls ? addControls(pip, controls, bar) : () => {};
       let closing = false;
-      pip.addEventListener("pagehide", () => !closing && onClosed?.());
+      pip.addEventListener("pagehide", () => {
+        stopTicking();
+        if (!closing) onClosed?.();
+      });
       return () => {
         closing = true;
+        stopTicking();
         pip.close();
       };
     } catch {
       /* fall through */
     }
   }
+  // Classic video picture-in-picture can't hold buttons, and there's nothing to float without a camera.
+  if (!camera) return null;
   const v = document.createElement("video");
   v.muted = true;
   v.playsInline = true;
@@ -136,6 +147,61 @@ export async function openCameraBubble(camera: MediaStream, onClosed?: () => voi
     closing = true;
     void document.exitPictureInPicture().catch(() => {});
   };
+}
+
+/** What the floating bubble's buttons do: the recorder's own Pause, Resume and Stop, and where it's at. */
+export type BubbleControls = {
+  pause: () => void;
+  resume: () => void;
+  stop: () => void;
+  /** Null until the recording has started (the bubble opens before the screen picker). */
+  state: () => { paused: boolean; ms: number } | null;
+};
+
+/**
+ * Pause/Resume and Stop with the time, in a bar at the bottom of the floating window, so a recording can be run
+ * without going back to its tab. Returns a function that stops the clock.
+ */
+function addControls(pip: Window, controls: BubbleControls, height: number) {
+  const doc = pip.document;
+  const bar = doc.createElement("div");
+  bar.dataset.testid = "bubble-controls";
+  bar.style.cssText = `height:${height}px;flex:none;align-self:stretch;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 8px;background:#0f2747`;
+  const time = doc.createElement("span");
+  time.dataset.testid = "bubble-time";
+  time.style.cssText = "display:flex;align-items:center;gap:6px;min-width:64px;font-variant-numeric:tabular-nums";
+  const dot = doc.createElement("span");
+  dot.style.cssText = "width:9px;height:9px;border-radius:50%;background:#ef4444;flex:none";
+  const clock = doc.createElement("span");
+  time.append(dot, clock);
+  const button = (label: string, bg: string, fg: string) => {
+    const b = doc.createElement("button");
+    b.type = "button";
+    b.textContent = label;
+    b.style.cssText = `border:0;border-radius:8px;padding:8px 12px;font:inherit;cursor:pointer;background:${bg};color:${fg}`;
+    bar.append(b);
+    return b;
+  };
+  bar.append(time);
+  const pauseButton = button("Pause", "rgba(255,255,255,.15)", "#fff");
+  pauseButton.dataset.testid = "bubble-pause";
+  const stopButton = button("Stop", "#ff6f61", "#0f2747");
+  stopButton.dataset.testid = "bubble-stop";
+  pauseButton.onclick = () => (controls.state()?.paused ? controls.resume() : controls.pause());
+  stopButton.onclick = () => controls.stop();
+  doc.body.append(bar);
+  const draw = () => {
+    const now = controls.state();
+    bar.style.visibility = now ? "visible" : "hidden";
+    if (!now) return;
+    const sec = Math.floor(now.ms / 1000);
+    clock.textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+    dot.style.background = now.paused ? "#f59e0b" : "#ef4444";
+    pauseButton.textContent = now.paused ? "Resume" : "Pause";
+  };
+  draw();
+  const tick = setInterval(draw, 250);
+  return () => clearInterval(tick);
 }
 
 export function stopAll(...streams: (MediaStream | null | undefined)[]) {

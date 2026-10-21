@@ -80,7 +80,25 @@ const shape = await page.evaluate(() => {
 });
 console.log("bubble", JSON.stringify(shape));
 ok("the bubble is a true circle, not an oval", shape.w > 0 && Math.abs(shape.w - shape.h) < 1 && shape.radius === "50%", JSON.stringify(shape));
-ok("and as big as the window allows", Math.abs(Math.min(...shape.win) - shape.w) < 1, JSON.stringify(shape));
+ok("and as big as the window allows above its buttons", Math.abs(Math.min(shape.win[0], shape.win[1] - 52) - shape.w) < 1, JSON.stringify(shape));
+// The bubble's own buttons run the recording from any window: the time, Pause/Resume and Stop.
+const bar = () => page.evaluate(() => {
+  const d = window.documentPictureInPicture.window.document;
+  return { shown: d.querySelector("[data-testid=bubble-controls]")?.style.visibility, time: d.querySelector("[data-testid=bubble-time]")?.textContent, pause: d.querySelector("[data-testid=bubble-pause]")?.textContent, stop: d.querySelector("[data-testid=bubble-stop]")?.textContent };
+});
+await page.waitForTimeout(1300);
+let b = await bar();
+ok("the bubble shows the time, Pause and Stop while recording", b.shown === "visible" && /^\d+:\d\d$/.test(b.time) && b.time !== "0:00" && b.pause === "Pause" && b.stop === "Stop", JSON.stringify(b));
+await page.evaluate(() => window.documentPictureInPicture.window.document.querySelector("[data-testid=bubble-pause]").click());
+await page.waitForTimeout(400);
+b = await bar();
+ok("Pause in the bubble pauses the recording, and the button becomes Resume", b.pause === "Resume" && (await page.locator("text=/Paused · \\d/").count()) === 1, JSON.stringify(b));
+const held = b.time;
+await page.waitForTimeout(1300);
+ok("the bubble's time stands still while paused", (await bar()).time === held);
+await page.evaluate(() => window.documentPictureInPicture.window.document.querySelector("[data-testid=bubble-pause]").click());
+await page.waitForTimeout(400);
+ok("Resume in the bubble carries on recording", (await bar()).pause === "Pause" && (await page.locator("text=/Recording · \\d/").count()) === 1);
 ok("and the page shows the screen panel with the corner circle", (await page.locator("[data-testid=screen-panel]").count()) === 1 && (await circleLive()));
 ok("and says the camera is in the bubble", (await page.locator("text=Your camera is in the floating bubble").count()) === 1);
 await page.screenshot({ path: `${shots}/bubble-recording.png` });
@@ -88,6 +106,34 @@ await page.screenshot({ path: `${shots}/bubble-recording.png` });
 // Not stopped here: in this test browser, closing the bubble while this same tab is shared also closes the tab.
 // Stopping (which closes the bubble) is covered by the whole-screen run below and by compose.mjs.
 await browser.close();
+
+// Screen only: a floating bar with the time, Pause and Stop, and no camera.
+{
+  const own = await chromium.launch({ executablePath: process.env.CHROMIUM ?? undefined, args: ["--use-fake-device-for-media-stream", "--auto-accept-this-tab-capture"] });
+  const c = await own.newContext({ permissions: ["camera", "microphone"], viewport: { width: 1360, height: 900 } });
+  await c.addInitScript(() => {
+    const gdm = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getDisplayMedia = (o) => gdm({ ...o, preferCurrentTab: true });
+  });
+  const p = await c.newPage();
+  await p.goto(BASE + "/record");
+  const e = `bubblebar${Date.now()}@acme.com`;
+  await agreed(e);
+  await p.fill('input[name="email"]', e);
+  await p.click("text=Continue");
+  await p.waitForURL("**/record");
+  await p.click("text=I've saved it");
+  await p.click("text=Screen only");
+  await p.click("text=Start recording");
+  await p.waitForSelector("text=/Recording · \\d/", { timeout: 20000 });
+  await p.waitForTimeout(1300);
+  const w = await p.evaluate(() => {
+    const d = window.documentPictureInPicture?.window?.document;
+    return d && { video: !!d.querySelector("video"), bar: d.querySelector("[data-testid=bubble-controls]")?.style.visibility, stop: !!d.querySelector("[data-testid=bubble-stop]") };
+  });
+  ok("screen only: a floating bar with Pause and Stop opens, without a camera", !!w && !w.video && w.bar === "visible" && w.stop, JSON.stringify(w));
+  await own.close();
+}
 
 // The whole screen shared: the floating window would be recorded too, so it closes, and the camera is the circle drawn into the video.
 {
