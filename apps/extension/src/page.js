@@ -12,8 +12,13 @@
   let frame = null;
   let port = null;
   let recId = null;
-  /** Where the frame sits: its left edge and its distance up from the bottom, in pixels. */
+  /**
+   * Where the frame sits: its distance up from the bottom, and across by its middle (cx), so a bigger or smaller
+   * bubble grows and shrinks evenly around the bar under it instead of pushing it sideways. Until the frame's width is
+   * first known (or when kept by version 1.0.2, which stored the left edge) it goes by the left edge.
+   */
   let place = { left: 24, bottom: 24 };
+  let cx = null;
   let box = { width: 0, height: 0 };
   /** While the bubble is dragged or resized its frame covers the page (see connect). */
   let full = false;
@@ -46,7 +51,9 @@
     if (!frame || full) return;
     const w = document.documentElement.clientWidth || innerWidth;
     const h = document.documentElement.clientHeight || innerHeight;
-    const left = Math.max(0, Math.min(place.left, w - box.width));
+    if (cx == null && box.width) cx = place.left + box.width / 2;
+    const want = cx == null ? place.left : cx - box.width / 2;
+    const left = Math.max(0, Math.min(want, w - box.width));
     const bottom = Math.max(0, Math.min(place.bottom, h - box.height));
     frame.style.left = `${left}px`;
     frame.style.bottom = `${bottom}px`;
@@ -123,23 +130,37 @@
         port.postMessage({ full: at, height });
       } else if (m.drag === "end") {
         full = false;
-        if (Number.isFinite(m.left) && Number.isFinite(m.bottom)) place = { left: m.left, bottom: m.bottom };
+        if (Number.isFinite(m.left) && Number.isFinite(m.bottom)) {
+          place = { left: m.left, bottom: m.bottom };
+          cx = m.left + box.width / 2;
+        }
         frame.style.width = `${box.width}px`;
         frame.style.height = `${box.height}px`;
         place = clamp() ?? place;
+        cx = place.left + box.width / 2;
         // Every other tab's bubble moves here too. Written whole, never merged with what's stored: the bubble's size is
         // kept under its own name by bubble.js, so a move and a resize ending together can't undo each other.
-        void chrome.storage.local.set({ bubblePlace: { left: place.left, bottom: place.bottom } }).catch(() => {});
+        void chrome.storage.local.set({ bubblePlace: { cx, bottom: place.bottom } }).catch(() => {});
       }
     };
     frame.contentWindow?.postMessage({ sureframe: "port" }, "*", [channel.port2]);
   }
 
+  function takePlace(b) {
+    if (!b || !Number.isFinite(b.bottom)) return;
+    if (Number.isFinite(b.cx)) {
+      cx = b.cx;
+      place = { left: b.cx - box.width / 2, bottom: b.bottom };
+    } else if (Number.isFinite(b.left)) {
+      cx = null;
+      place = { left: b.left, bottom: b.bottom };
+    }
+  }
+
   async function load() {
     // "bubble" is where 1.0.0 kept it.
     const { bubblePlace, bubble } = await chrome.storage.local.get(["bubblePlace", "bubble"]).catch(() => ({}));
-    const b = bubblePlace ?? bubble;
-    if (b && Number.isFinite(b.left) && Number.isFinite(b.bottom)) place = { left: b.left, bottom: b.bottom };
+    takePlace(bubblePlace ?? bubble);
     const rec = await readRec();
     if (fresh(rec)) mount(rec);
   }
@@ -152,11 +173,8 @@
       else unmount();
     }
     if (area === "local" && changes.bubblePlace?.newValue) {
-      const b = changes.bubblePlace.newValue;
-      if (Number.isFinite(b.left) && Number.isFinite(b.bottom)) {
-        place = { left: b.left, bottom: b.bottom };
-        clamp();
-      }
+      takePlace(changes.bubblePlace.newValue);
+      clamp();
     }
   }
 

@@ -240,6 +240,10 @@ ok("dial: - makes it smaller", (await size()) === s0 - 40, `${s0} -> ${await siz
   await plain.mouse.up();
   await plain.waitForTimeout(400);
   ok("dial: sliding it changes the size", (await size()) === 120, String(await size()));
+  // It grows and shrinks around its middle: the dial stays where it was under the pointer.
+  const f2 = await box(plain);
+  const r2 = await fr().evaluate(() => document.getElementById("scale").getBoundingClientRect().toJSON());
+  ok("dial: stays put while the bubble changes size", Math.abs(f2.left + r2.x + r2.width / 2 - (f.left + r.x + r.width / 2)) < 2 && Math.abs(f2.top + r2.y - (f.top + r.y)) < 2, `${f.left + r.x},${f.top + r.y} -> ${f2.left + r2.x},${f2.top + r2.y}`);
   ok("dial: the bubble stays on the page", (await box(plain)).bottom <= 900);
 }
 await rec.waitForTimeout(500);

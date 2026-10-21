@@ -1,6 +1,10 @@
 :root { color-scheme: light; }
 html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+html { height: 100%; }
+/* Held to the frame's bottom: if the circle grows a moment before its frame does, it spills upward, never pushing
+   the bar down. */
 body {
+  box-sizing: border-box; min-height: 100%; justify-content: flex-end;
   font: 600 13px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: #fff; user-select: none; -webkit-user-select: none;
   display: flex; flex-direction: column; align-items: center; gap: 8px;

@@ -20,6 +20,8 @@ let rec = null;
 let prefs = { size: 200, collapsed: false };
 /** The size dial under the circle, opened from the bar. Not remembered: it closes on other pages. */
 let dialOpen = false;
+/** The frame's size when nothing is held: the bubble's own outline. */
+let shape = { width: 0, height: 0 };
 /** The dial's slider is held down on this tab. */
 let sliding = false;
 let port = null;
@@ -56,7 +58,8 @@ function layout() {
   else if (!camera) parts.push(40);
   const width = Math.max(camera ? size + RING * 2 : 0, barWidth, prefs.collapsed && !camera ? 40 : 0);
   const height = parts.reduce((a, b) => a + b, 0) + GAP * (parts.length - 1);
-  port?.postMessage({ box: { width, height } });
+  shape = { width, height };
+  port?.postMessage({ box: shape });
 }
 
 window.addEventListener("message", (e) => {
@@ -65,6 +68,14 @@ window.addEventListener("message", (e) => {
   port = e.ports[0];
   port.onmessage = (m) => {
     // The frame now covers the page: the bubble stays where it was until the pointer moves.
+    if (m.data?.full && dial && !dial.at) {
+      // The dial is held: the bubble now grows and shrinks inside the page-covering frame, around the same middle.
+      dial.at = m.data.full;
+      dial.cx = dial.at.left + shape.width / 2;
+      placeDial();
+      if (dial.letGo) endDial();
+      return;
+    }
     const g = gesture;
     if (m.data?.full && g) {
       g.at = m.data.full;
@@ -122,19 +133,54 @@ $("size").addEventListener("click", () => {
   dialOpen = !dialOpen;
   layout();
 });
-// The dial: the circle follows while sliding, and the size is kept (and shown on every tab) once let go.
+// The dial: the circle follows while sliding, and the size is kept (and shown on every tab) once let go. While it's
+// held the frame covers the page, as when dragging, so the bubble resizes smoothly instead of waiting on its frame,
+// and it grows around its middle so the dial never moves under the pointer.
 const sized = (n) => Math.max(MIN, Math.min(MAX, Math.round(n)));
-scale.addEventListener("pointerdown", () => (sliding = true));
+/** The dial being held: where the frame was, and the middle the bubble grows around. */
+let dial = null;
+
+function placeDial() {
+  if (!dial?.at) return;
+  const left = Math.max(0, Math.min(innerWidth - shape.width, dial.cx - shape.width / 2));
+  const bottom = Math.max(0, Math.min(innerHeight - shape.height, dial.at.bottom));
+  dial.left = left;
+  dial.bottom = bottom;
+  place({ left, bottom });
+}
+
+function endDial() {
+  if (!dial) return;
+  // Let go before the frame covered the page: finished once it has.
+  if (!dial.at) {
+    dial.letGo = true;
+    return;
+  }
+  const d = dial;
+  dial = null;
+  port?.postMessage({ drag: "end", left: d.left, bottom: d.bottom ?? d.at.bottom });
+}
+
+scale.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  sliding = true;
+  if (port && !dial && !gesture) {
+    dial = { at: null, cx: 0, left: 0 };
+    port.postMessage({ drag: "start" });
+  }
+});
 scale.addEventListener("input", () => {
   prefs.size = sized(Number(scale.value));
   layout();
+  placeDial();
 });
-scale.addEventListener("change", () => {
-  sliding = false;
-  setPrefs({ size: sized(Number(scale.value)) });
-});
-// Let go without a change (or outside the frame): nothing to keep.
-for (const ev of ["pointerup", "pointercancel", "blur"]) scale.addEventListener(ev, () => (sliding = false));
+scale.addEventListener("change", () => setPrefs({ size: sized(Number(scale.value)) }));
+// Let go (or the pointer lost): the frame shrinks back around the bubble.
+for (const ev of ["pointerup", "pointercancel", "lostpointercapture", "blur"])
+  scale.addEventListener(ev, () => {
+    sliding = false;
+    endDial();
+  });
 $("smaller").addEventListener("click", () => setPrefs({ size: sized(prefs.size - STEP) }));
 $("bigger").addEventListener("click", () => setPrefs({ size: sized(prefs.size + STEP) }));
 for (const b of [$("expand"), mini]) b.addEventListener("click", () => !dragged && setPrefs({ collapsed: false }));
@@ -336,10 +382,13 @@ function drag(el, kind) {
 /** Inside the page-covering frame: the bubble at this place (left, and up from the bottom). Null: back to normal. */
 function place(at) {
   if (!at) {
-    wrap.style.position = wrap.style.left = wrap.style.bottom = wrap.style.width = "";
+    wrap.style.position = wrap.style.left = wrap.style.bottom = wrap.style.width = wrap.style.minHeight = "";
     return;
   }
   wrap.style.position = "absolute";
+  wrap.style.minHeight = "0";
+  // As wide as its frame would be, so the circle's ring keeps its room and nothing shifts sideways.
+  wrap.style.width = `${shape.width}px`;
   wrap.style.left = `${at.left}px`;
   wrap.style.bottom = `${at.bottom}px`;
 }
@@ -350,7 +399,7 @@ drag(mini, "move");
 drag($("grow"), "size");
 
 // Back to its own size: drawn normally again, in the same moment the frame shrinks.
-window.addEventListener("resize", () => !gesture && place(null));
+window.addEventListener("resize", () => !gesture && !dial && place(null));
 
 // ---------- Start ----------
 
