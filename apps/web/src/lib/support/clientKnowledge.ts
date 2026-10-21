@@ -4,6 +4,7 @@ import { RETENTION_DAYS } from "@/lib/retention";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
 import { CLIENT_KEEP_DAYS, CLIENT_QUESTION_KEEP_DAYS, DELETION_GRACE_DAYS } from "@/lib/periods";
 import { REACTIONS } from "@/lib/reactions";
+import { BROWSER_FORGETS } from "@/lib/support/browser";
 
 /**
  * What the help chat on client pages knows: only what a business's client sees and can do, written from the
@@ -21,7 +22,9 @@ A business (a coach, tutor, consultant and so on) uses ${BRAND.name} to send its
 - Each client has their own personal link from the business (sent by the business itself, for example by text, message or email). It holds the client's private key, in the part after #k=, which never reaches ${BRAND.name}'s servers. That key is what unlocks their videos, replies, to-dos and notes.
 - Opening the personal link once on a phone, computer or browser makes that device remember it, so later links (including the ones in new-video emails) open there. Each browser keeps its own copy: a new phone, a different browser, a private window, or clearing the browser's data means opening the personal link again there.
 - Safari and every browser on iPhone and iPad can forget it after a week or so without a visit.
-- Asked for the personal link again on the same phone or computer? The device only forgets it if the browser's saved data is cleared. Common reasons: the email or message app opened the link in its own built-in browser instead of the usual one (open the link in the usual browser, or set the app to open links there, for example Gmail's Settings > Default apps); a private or incognito window; a browser set to clear cookies and site data when it closes (for example Brave's Delete browsing data "On exit" settings, including "Cached images and files", "Clear cookies and site data when you close all windows" or "Forget me when I close this site", or the same setting in Chrome, Edge or Firefox): turn it off or allow sureframe.app; a cleaning or privacy app; or, on iPhone and iPad, a week or so without a visit. Opening the personal link again in the usual browser brings everything back, and nothing is lost.
+- Asked for the personal link again on the same phone or computer? The device only forgets it if the browser's saved data is cleared. Opening the personal link again in their usual browser brings everything back, and nothing is lost. Common reasons:
+  1. The email or message app opened the link in its own built-in browser instead of their usual one: open the link in the usual browser, or set the app to open links there (for example, in the Gmail app, Settings > Default apps).
+  2. The browser forgets the site's data when it closes, or a private or incognito window is used (it always forgets when closed), or a cleaning or privacy app wipes site data. ${BROWSER_FORGETS}
 - A device that recognises the client but doesn't have their key shows "This device needs your personal link" with an "Ask for my link again" button. That button emails the business (the person looking after them, or the owners and admins) to ask them to send the personal link again; the business sends it themselves. Then open it on this device. Nothing is lost.
 - An address ending in /v/... (the address bar on a video) doesn't unlock anything on its own: only the personal link does.
 - Keep the personal link to yourself: anyone holding it can open what the business shared with that client.

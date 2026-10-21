@@ -8,6 +8,7 @@ import { clientMailSettings, validUnsubscribe } from "@/lib/reminders";
 import { safeEqual } from "@/lib/secrets";
 import { anthropic, MODEL } from "@/lib/support/assistant";
 import { CLIENT_GUIDE } from "@/lib/support/clientKnowledge";
+import { browserNote } from "@/lib/support/browser";
 
 /** The client pages the help chat sits on. */
 export const HELP_PAGES = ["video", "inbox", "emails", "cant-open"] as const;
@@ -105,7 +106,7 @@ export type HelpTurn = { role: "client" | "assistant"; text: string };
  * their browser and only the question itself is recorded, by the caller. Returns the AI's answer, or null when
  * it couldn't help (the caller answers with the business's contact line instead).
  */
-export async function answerClient(client: HelpClient, page: HelpPage, turns: HelpTurn[], videoId?: string): Promise<{ answer: string | null; outcome: "ANSWERED" | "CANT_HELP" }> {
+export async function answerClient(client: HelpClient, page: HelpPage, turns: HelpTurn[], videoId?: string, browser?: string | null): Promise<{ answer: string | null; outcome: "ANSWERED" | "CANT_HELP" }> {
   const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t) => ({
     role: t.role === "client" ? ("user" as const) : ("assistant" as const),
     // The fallback line can carry the business's address: the AI only needs to know it couldn't help.
@@ -120,6 +121,7 @@ export async function answerClient(client: HelpClient, page: HelpPage, turns: He
     emails,
     aiAssistActive(client.workspace) ? "This business uses AI summaries (the page says so)." : "",
     (page === "video" || page === "cant-open" ? await videoNote(client, videoId) : null) ?? "",
+    browserNote(browser),
   ];
   messages.push({ role: "system", content: notes.filter(Boolean).join(" ") });
 

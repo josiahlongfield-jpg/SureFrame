@@ -4,6 +4,7 @@ import { limitByIp, rateLimit } from "@/lib/rateLimit";
 import { assistantEnabled } from "@/lib/support/assistant";
 import { answerClient, CANT_HELP, contactBusiness, HELP_PAGES, helpClient } from "@/lib/support/clientHelp";
 import { recordClientQuestion } from "@/lib/support/clientQuestions";
+import { browserFrom } from "@/lib/support/browser";
 
 export const maxDuration = 60;
 
@@ -47,7 +48,7 @@ export const POST = handle(async (req: Request) => {
     return reply(`The help chat can't answer right now. ${contact}`, false);
   }
   try {
-    const { answer, outcome } = await answerClient(client, page, messages, videoId);
+    const { answer, outcome } = await answerClient(client, page, messages, videoId, browserFrom(req.headers));
     await recordClientQuestion(client.workspaceId, question.text, outcome, page);
     return answer ? reply(answer, true) : reply(`${CANT_HELP} ${contact}`, false);
   } catch (e) {

@@ -7,6 +7,7 @@ import { answer, assistantEnabled } from "@/lib/support/assistant";
 import { TALK_TO_PERSON } from "@/lib/support/person";
 import { handToHuman, newAccessToken, publicTicket } from "@/lib/support/tickets";
 import { aiRefusal, personRefusal, recordAi, recordPerson, SUPPORT_LIMITS, supportTier, type Asker, type SupportTier } from "@/lib/support/allowance";
+import { browserFrom } from "@/lib/support/browser";
 
 // The assistant can take a few turns; leave room to hand over if it's slow.
 export const maxDuration = 120;
@@ -115,7 +116,7 @@ export const POST = handle(async (req: Request) => {
     if (ticket.status === "CLOSED") await db.supportTicket.update({ where: { id: ticket.id }, data: { status: "OPEN" } });
     await recordAi(asker);
     try {
-      const { handedOver } = await answer(ticket.id, { tier, handOver, personRefused: personRefused?.message });
+      const { handedOver } = await answer(ticket.id, { tier, handOver, personRefused: personRefused?.message, browser: browserFrom(req.headers) });
       if (waiting && !handedOver) await handToHuman(ticket.id, null, ticket.urgent);
     } catch (e) {
       const err = e as { status?: number; message?: string; error?: unknown };

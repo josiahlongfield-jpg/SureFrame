@@ -12,6 +12,7 @@ import { handToHuman } from "@/lib/support/tickets";
 import { appUrl } from "@/lib/stripe";
 import { SUPPORT_LIMITS, type SupportTier } from "@/lib/support/allowance";
 import { hasAgreed } from "@/lib/terms";
+import { browserNote } from "@/lib/support/browser";
 
 export const MODEL = "claude-opus-5-5";
 
@@ -178,6 +179,7 @@ export async function answer(ticketId: string, opts: AnswerOptions = {}): Promis
   if (last?.role === "user" && typeof last.content === "string") last.content = [{ type: "text", text: last.content, cache_control: { type: "ephemeral" } }];
   const notes = [ticket.userId ? "The customer is signed in." : "The customer is not signed in (a website visitor)."];
   notes.push(`A person's reply reaches them ${replyRoute(ticket)}.`);
+  notes.push(browserNote(opts.browser));
   if (tier !== "paying") notes.push(unpaidScope(tier, ticket.status === "NEEDS_HUMAN" || ticket.status === "ANSWERED" ? null : opts.personRefused ?? null));
   if (ticket.status === "NEEDS_HUMAN") {
     notes.push(
@@ -245,6 +247,8 @@ export type AnswerOptions = {
   handOver?: (summary: string | null, urgent: boolean) => Promise<string | null>;
   /** Why this person can't be passed to a person right now, if they can't. */
   personRefused?: string | null;
+  /** The browser and device they're asking from (browserFrom), so browser-specific steps fit theirs. */
+  browser?: string | null;
 };
 
 /**
