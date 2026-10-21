@@ -10,10 +10,12 @@ export function firstLinkMessage({ name, business, link, video, email }: { name:
   const body = [
     `Hi ${name},`,
     "",
-    video ? `I've sent you a video through ${BRAND.name}. Here's your personal link to watch it:` : `I'll be sending you videos through ${BRAND.name}. Here's your personal link:`,
+    video ? `I've recorded a video for you. Watch it here (no account or app needed):` : `I'll be sending you videos through ${BRAND.name}. Here's your personal link:`,
     link,
     "",
-    `Open it once on the phone or computer you'll watch on, and it remembers you there. ${email ? "After that, new videos come straight to your email." : "After that, all my videos show up there."}`,
+    video
+      ? `Open it on the phone or computer you'd like to watch on, and it remembers you there. ${email ? "My next videos will come straight to your email." : "My next videos will show up there too."}`
+      : `Open it once on the phone or computer you'll watch on, and it remembers you there. ${email ? "After that, new videos come straight to your email." : "After that, all my videos show up there."}`,
     "",
     "This link is just for you, so please keep it private.",
     "",

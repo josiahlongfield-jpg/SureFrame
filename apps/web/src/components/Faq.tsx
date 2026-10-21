@@ -58,18 +58,18 @@ export const BUSINESS_FAQ: Qa[] = [
   },
   {
     id: "first-email",
-    q: "What is a client's personal link, and why do I send the first one myself?",
+    q: "Why does a client's first video come from me, not SureFrame's email?",
     a: (
       <>
         <p>
-          Every client gets their own personal link when you add them. It&rsquo;s the key to their videos: a client can&rsquo;t open anything you send until
-          they&rsquo;ve opened their personal link once, so this is the one step not to skip.
+          Send a new client&rsquo;s first video from your own email, texts or chat: pick them in the video&rsquo;s Send box and use Email from my email, Copy link +
+          message, Share on a phone, or Copy link. They open it and watch, no account needed. That link also carries the key to their videos, so opening it sets
+          them up on that phone or computer, and after that Send by email works for them too.
         </p>
         <p className="mt-2">
-          Your videos are end-to-end encrypted, and only your team&rsquo;s devices have each client&rsquo;s key, so we can&rsquo;t email the link without being able
-          to see their videos. Send it yourself once: Copy link, Copy link + message (with a short note that tells the client what it is), Share on a phone, or
-          Email from my email. You&rsquo;ll find those buttons after adding a client, on the Clients page, and in the Send box. Clients still waiting are marked
-          Needs personal link. Once they&rsquo;ve opened it, every video you send opens straight away, and Send by email works for them too.
+          Your videos are end-to-end encrypted, and only your team&rsquo;s devices have each client&rsquo;s key, so we can&rsquo;t email that first link without being
+          able to see their videos. Every client also has a personal link to all their videos, on the Clients page, if you&rsquo;d rather send that first. Clients
+          who haven&rsquo;t opened a link yet are marked New, or Not opened yet once you&rsquo;ve sent one.
         </p>
       </>
     ),

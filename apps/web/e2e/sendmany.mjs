@@ -8,7 +8,8 @@ import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 import { start, state, createSubscription } from "./fake-stripe.mjs";
 import { agreed } from "./agree.mjs";
-import { sendByLink } from "./send.mjs";
+import { chooseClients, sendByLink } from "./send.mjs";
+const norm = (t) => (t ?? "").replace(/\s+/g, " ").trim();
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const shots = process.argv[2] ?? "/tmp";
@@ -115,31 +116,19 @@ ok("all-clients pick adds only who's left", left.length === 1 && left[0] === "De
 await owner.click("[role=group] >> text=Clear");
 await owner.keyboard.press("Escape");
 
-// Waiting for their personal link: the owner's own clients who haven't opened it, saying whether it was sent.
-const waiting = async () => {
-  await owner.waitForSelector("[data-testid=waiting-list]", { timeout: 20000 });
-  return Object.fromEntries(await owner.locator("[data-testid=waiting-client]").evaluateAll((els) => els.map((e) => [e.firstElementChild.textContent, e.querySelector("[data-testid=waiting-status]").textContent])));
-};
-let w = await waiting();
-ok("waiting list: Ana's link sent, Dee's not yet", w.Ana === "Link sent, not opened yet" && w.Dee === "Link not sent yet" && Object.keys(w).length === 2, JSON.stringify(w));
-// A name in the list can be added to this video, which puts their personal link in the box above.
-const pickBtn = (name) => owner.locator("[data-testid=waiting-client]", { hasText: name }).locator("[data-testid=waiting-pick]");
-ok("waiting list: Dee can be added, Ana already has it", (await pickBtn("Dee").count()) === 1 && (await pickBtn("Ana").count()) === 0 && (await owner.locator("[data-testid=waiting-hint]").count()) === 1);
-await pickBtn("Dee").click();
-await owner.waitForSelector("[data-testid=first-link-row]:has-text('Dee')", { timeout: 10000 });
-ok("adding Dee puts her link in the box above", (await owner.locator("[data-testid=waiting-client]", { hasText: "Dee" }).locator("[data-testid=waiting-picked]").count()) === 1 && (await owner.locator("[data-testid=first-link-row] [data-testid=first-link-copy]").count()) >= 1);
+// No separate waiting list: Ana, who has this video but hasn't opened it, is under Sent to with the
+// first-video buttons; choosing Dee (new) shows the ways to send her first video, under the picker.
+await owner.waitForSelector("[data-testid=sent-row]:has-text('Ana') [data-testid=first-link-copy]", { timeout: 20000 });
+ok("no waiting list", (await owner.locator("[data-testid=waiting-list]").count()) === 0);
+ok("Ana: under Sent to, sent from you, with the first-video buttons", norm(await owner.textContent("[data-testid=sent-row]:has-text('Ana') [data-testid=row-first]")).includes("Sent from you") && (await owner.locator("[data-testid=sent-row]:has-text('Ana') [data-testid=first-link-email]").count()) === 1);
+await chooseClients(owner, "Dee");
+await owner.waitForSelector("[data-testid=first-link-row]", { timeout: 10000 });
+ok("choosing Dee: her first video's buttons, Email and Copy link", (await owner.locator("[data-testid=first-link-row] [data-testid=first-link-copy]").count()) === 1 && norm(await owner.textContent("[data-testid=first-time]")).includes("This is Dee's first video"));
 const top = async (sel) => (await owner.locator(sel).first().boundingBox()).y;
-ok("Choose clients sits above the personal link box", (await top("[data-testid=client-picker]")) < (await top("[data-testid=first-time]")));
+ok("Choose clients sits above the first-video box", (await top("[data-testid=client-picker]")) < (await top("[data-testid=first-time]")));
 await owner.click("[data-testid=client-picker]");
 await owner.click("[role=group] >> text=Clear");
 await owner.keyboard.press("Escape");
-// Dee handed to the staff member: she's theirs to chase, so she leaves the owner's list.
-await prisma.client.update({ where: { id: clients.Dee.id }, data: { assignedToId: staffUser.id } });
-await owner.reload();
-w = await waiting();
-ok("waiting list: only the owner's own clients", Object.keys(w).join() === "Ana", JSON.stringify(w));
-await prisma.client.update({ where: { id: clients.Dee.id }, data: { assignedToId: clients.Dee.assignedToId } });
-await owner.reload();
 
 // Ben opens his copy from the link the owner copies for him.
 const benCopy = copies.find((c) => c.clientId === clients.Ben.id);

@@ -139,7 +139,7 @@ await visitor.click("#ff-tab-record");
 ok("home demo: no Pop out camera bubble button while recording (the bubble opens by itself)", !(await visitor.isVisible("#ff-panel-record >> text=Pop out camera bubble")));
 await visitor.click("#ff-tab-send");
 const sendFrame = norm(await visitor.textContent("#ff-panel-send"));
-ok("home demo: a first-time client's link is sent by the business, not emailed", sendFrame.includes("Needs personal link") && sendFrame.includes("Copy all 3 links"), sendFrame);
+ok("home demo: a first-time client's link is sent by the business, not emailed", sendFrame.includes("New") && sendFrame.includes("Copy all 3 links"), sendFrame);
 
 await visitor.goto(BASE + "/faq");
 const faq = norm(await visitor.textContent("main"));

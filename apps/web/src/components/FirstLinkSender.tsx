@@ -6,14 +6,6 @@ import { firstLinkMessage, mailtoFor } from "@/lib/firstLink";
 
 type How = "link" | "message" | "share" | "email";
 
-/** A key: the personal link. 16px unless the class gives a size. */
-export const KeyIcon = ({ className = "" }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`shrink-0 ${/\bh-\d/.test(className) ? "" : "h-4 w-4"} ${className}`}>
-    <circle cx="7.5" cy="15.5" r="4.5" />
-    <path d="m10.7 12.3 9.3-9.3M16 7l3 3M14 9l2 2" />
-  </svg>
-);
-
 /**
  * The ways a business sends a client their personal link: the bare link, the
  * link with a short note for the client, the phone's share sheet, or its own
@@ -30,6 +22,7 @@ export default function FirstLinkSender({
   compact,
   alignEnd,
   disabled,
+  plain,
   copyLabel = "Copy link",
 }: {
   name: string;
@@ -44,6 +37,8 @@ export default function FirstLinkSender({
   /** Buttons line up from the right (in a row of controls on the right), on screens wider than a phone. */
   alignEnd?: boolean;
   disabled?: boolean;
+  /** No button stands out: sending it again, from a row that's already sent. */
+  plain?: boolean;
   copyLabel?: string;
 }) {
   const canShare = useCanShare();
@@ -68,18 +63,51 @@ export default function FirstLinkSender({
   const btn = compact
     ? "rounded-lg border border-line-strong bg-surface px-2.5 py-1 text-xs font-medium text-ink hover:bg-hover disabled:opacity-50"
     : "rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50";
-  const main = compact
+  const main = plain
+    ? btn
+    : compact
     ? "rounded-lg bg-primary px-2.5 py-1 text-xs font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
     : "rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50";
   const off = disabled || !!busy;
 
+  // A first video: the business's own email app comes first, filled in for them, or with the To line
+  // left for them to fill when no address is saved.
+  const emailFirst = !!video;
+  const emailButton = (email || video) && (
+    <button
+      type="button"
+      disabled={off}
+      className={emailFirst ? main : btn}
+      data-testid="first-link-email"
+      onClick={() =>
+        run(
+          "email",
+          async () => {
+            // A link clicked for them: the device's email app opens, and this page stays.
+            const a = document.createElement("a");
+            a.href = mailtoFor(email ?? "", await message());
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          },
+          email
+            ? "Your email app should open with the message ready to send. Nothing opened? Use Copy link + message and paste it into an email."
+            : `Your email app should open with the message ready: add ${name}'s email address and send. Nothing opened? Use Copy link + message and paste it into an email.`,
+        )
+      }
+    >
+      Email from my email
+    </button>
+  );
+
   return (
     <div data-testid="first-link-sender">
       <div className={`flex flex-wrap gap-1.5 ${alignEnd ? "sm:justify-end" : ""}`}>
+        {emailFirst && emailButton}
         <button
           type="button"
           disabled={off}
-          className={main}
+          className={emailFirst ? btn : main}
           data-testid="first-link-copy"
           onClick={() => run("link", () => writeClipboard(getLink()), `${name}'s link is copied. Paste it into a text, chat or email to them. It only opens for ${name}.`)}
         >
@@ -119,30 +147,7 @@ export default function FirstLinkSender({
             Share
           </button>
         )}
-        {email && (
-          <button
-            type="button"
-            disabled={off}
-            className={btn}
-            data-testid="first-link-email"
-            onClick={() =>
-              run(
-                "email",
-                async () => {
-                  // A link clicked for them: the device's email app opens, and this page stays.
-                  const a = document.createElement("a");
-                  a.href = mailtoFor(email, await message());
-                  document.body.appendChild(a);
-                  a.click();
-                  a.remove();
-                },
-                "Your email app should open with the message ready to send. Nothing opened? Use Copy link + message and paste it into an email.",
-              )
-            }
-          >
-            Email from my email
-          </button>
-        )}
+        {!emailFirst && emailButton}
       </div>
       {done && (
         <p role={done.error ? "alert" : "status"} data-testid="first-link-done" className={`mt-1.5 text-xs ${done.error ? "text-danger-fg" : "text-ok-fg"} ${alignEnd ? "sm:ml-auto sm:max-w-sm sm:text-right" : ""}`}>
@@ -154,26 +159,24 @@ export default function FirstLinkSender({
 }
 
 /**
- * Why a client needs their personal link, in three steps: shown wherever a
- * business or staff member could otherwise miss it (adding clients, sending a
- * first video, the start of the library). `skipAdd` leaves out "Add the
- * client", for staff who can't add clients.
+ * How clients get videos, in three steps: shown wherever a business or staff
+ * member is starting out (adding clients, sending a first video, the start of
+ * the library). `skipAdd` leaves out "Add the client", for staff who can't add clients.
  */
 export function PersonalLinkSteps({ className = "", compact, skipAdd }: { className?: string; compact?: boolean; skipAdd?: boolean }) {
   const steps = [
     ...(skipAdd ? [] : [{ title: "Add the client", body: "Their name, and their email if you have it." }]),
-    { title: "Send them their personal link, once", body: "Copy it and send it by text, chat or your own email. Their videos only open after they've opened this link.", key: true },
-    { title: "Then just send videos", body: "Pick them and press Send by email, or copy the video's link. It opens straight away for them." },
+    { title: "Send their first video yourself", body: "Pick them in the video's Send box and send it from your own email, texts or chat. They open it and watch, no account needed." },
+    { title: "After that, we email them for you", body: "Every video after the first: pick them and press Send by email. Copying the link still works too." },
   ];
   return (
-    <div className={`rounded-xl border-2 border-primary bg-primary-soft p-4 text-sm text-ink ${className}`} data-testid="personal-link-steps">
-      <p className="flex items-center gap-2 font-semibold">
-        <KeyIcon />
-        How clients get their videos
+    <div className={`rounded-xl border border-line bg-surface-2 p-4 text-sm text-ink ${className}`} data-testid="personal-link-steps">
+      <p className="font-semibold">
+        How clients get your videos
       </p>
       <ol className={`mt-3 grid gap-2 ${compact ? "" : skipAdd ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
         {steps.map((s, i) => (
-          <li key={s.title} className={`flex gap-2.5 rounded-lg bg-surface p-3 ${"key" in s ? "ring-2 ring-primary" : ""}`}>
+          <li key={s.title} className="flex gap-2.5 rounded-lg bg-surface p-3">
             <span aria-hidden className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-primary font-mono text-xs font-semibold text-on-primary">{i + 1}</span>
             <span>
               <span className="block font-medium">{s.title}</span>
@@ -183,10 +186,11 @@ export function PersonalLinkSteps({ className = "", compact, skipAdd }: { classN
         ))}
       </ol>
       <details className="mt-3 text-xs text-muted">
-        <summary className="cursor-pointer font-medium text-accent">Why can&apos;t SureFrame email the first link?</summary>
+        <summary className="cursor-pointer font-medium text-accent">Why does the first video come from me?</summary>
         <p className="mt-1">
-          Your videos are end-to-end encrypted. Each client&apos;s personal link holds the key to their videos, and only your team&apos;s devices have it, so we couldn&apos;t
-          email it without being able to see their videos. Once they&apos;ve opened it, their phone or computer remembers it, and every video you send opens there.
+          Your videos are end-to-end encrypted. The link to a client&apos;s first video also carries the key to all their videos, and only your team&apos;s devices have it,
+          so we couldn&apos;t email it without being able to see their videos. Once they&apos;ve opened it, their phone or computer remembers it, and every video you send
+          opens there.
         </p>
       </details>
     </div>

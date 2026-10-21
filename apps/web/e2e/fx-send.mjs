@@ -1,8 +1,8 @@
 // Sending, clients, the library and to-dos after the testers' round (fx-send):
-// - a client counts as reached only once they open their personal link; copying it doesn't count.
-//   Until then they're marked "Needs personal link" (Clients page, client page, the Send box's picker),
-//   Send by email isn't offered for them, the email API refuses, and they wait under "Waiting for
-//   their first link" instead of "Sent to". The rule is explained up front, when adding and sending;
+// - a client counts as reached only once they open a link with their key; copying it doesn't count.
+//   Until then they're marked "New" or "Not opened yet" (Clients page, client page, the Send box's picker),
+//   Send by email isn't offered for them, the email API refuses, and their first video goes from the
+//   business (Email from my email, Copy link) from their row under "Sent to". Said up front, when adding and sending;
 // - the Send box offers a title for a video still called "Recording <date>", and "Stop sharing" sits
 //   behind an in-page confirm on every row;
 // - video emails: the title in the subject, the business name in the email, "Business A via SureFrame";
@@ -64,7 +64,7 @@ await owner.waitForSelector("text=I've saved it", { timeout: 15000 }).then((b) =
 
 // ---- Adding clients (Free: 3 seats) ----
 await owner.waitForSelector("[data-testid=first-link-rule]");
-ok("adding: the first-link rule is explained up front", norm(await owner.textContent("[data-testid=first-link-rule]")).includes("Send them their personal link, once") && norm(await owner.textContent("[data-testid=first-link-rule]")).includes("Their videos only open after they've opened this link"));
+ok("adding: how clients get videos is explained up front", norm(await owner.textContent("[data-testid=first-link-rule]")).includes("Send their first video yourself") && norm(await owner.textContent("[data-testid=first-link-rule]")).includes("After that, we email them for you"));
 const aEmail = `client-a-${stamp}@example.com`;
 await owner.fill('input[aria-label="Client name"]', "x".repeat(81));
 await owner.click("button:has-text('Add client')");
@@ -76,8 +76,9 @@ await owner.fill('input[aria-label="Client email"]', aEmail);
 await owner.click("button:has-text('Add client')");
 await owner.waitForSelector("[data-testid=added-note]");
 const added = norm(await owner.textContent("[data-testid=added-note]"));
-ok("after adding: next step is their personal link, said plainly", added.includes("Client A added.") && added.includes("Next: send Client A their personal link") && added.includes("Client A can't open any videos until they've opened this link once"), added);
-ok("after adding: Copy, Copy + message and Email from my email", ["Copy personal link", "Copy link + message", "Email from my email"].every((t) => added.includes(t)), added);
+ok("after adding: next step is recording a video for them, said plainly", added.includes("Client A added.") && added.includes("Next: record a video and send it to Client A") && (await owner.isVisible("[data-testid=added-record]")) && !added.includes("can't open any videos"), added);
+ok("after adding: their link before any video is there, folded away, with Copy, Copy + message and Email from my email", ["Copy personal link", "Copy link + message", "Email from my email"].every((t) => added.includes(t)) && !(await owner.isVisible("[data-testid=added-note] [data-testid=first-link-copy]")), added);
+await owner.$eval("[data-testid=added-links]", (d) => (d.open = true));
 await owner.click("[data-testid=added-note] [data-testid=first-link-message]");
 await owner.waitForTimeout(300);
 const msg = await clip();
@@ -86,8 +87,8 @@ await owner.click("[data-testid=added-note] [data-testid=first-link-copy]");
 await owner.waitForTimeout(300);
 const clientA = await prisma.client.findFirst({ where: { workspaceId: ws, name: "Client A" } });
 ok("Copy puts Client A's personal link on the clipboard", (await clip()).includes(`/c/${clientA.token}#k=`));
-ok("new client marked as link sent, not opened", (await owner.textContent("li:has-text('Client A') [data-testid=needs-first-link]")) === "Link sent, not opened yet");
-ok("banner: 1 client can't open your videos yet", norm(await owner.textContent("[data-testid=waiting-banner]")).includes("1 client can't open your videos yet"));
+ok("new client marked as not opened yet", (await owner.textContent("li:has-text('Client A') [data-testid=needs-first-link]")) === "Not opened yet");
+ok("no warning banner", (await owner.locator("[data-testid=waiting-banner]").count()) === 0);
 ok("copying doesn't count as reaching them", !(await prisma.client.findUnique({ where: { id: clientA.id } })).linkOpenedAt);
 
 await owner.fill('input[aria-label="Client name"]', "Client A again");
@@ -113,6 +114,7 @@ await owner.waitForSelector("[data-testid=bulk-unfit]");
 ok("says which didn't fit, with a link for more seats", norm(await owner.textContent("[data-testid=bulk-unfit]")).includes("1 client didn't fit in your seats (Client D)") && (await owner.locator("[data-testid=bulk-unfit] a[href='/pricing']").count()) === 1);
 ok("the one that didn't fit stays in the box", (await owner.inputValue("#bulk-list")).includes("Client D"));
 ok("the line to fix stays in the box too, and the note says so", (await owner.inputValue("#bulk-list")).includes("Client E, client-e@example") && norm(await owner.textContent("[data-testid=bulk-unread]")).includes("1 line wasn't added"));
+await owner.$eval("[data-testid=added-links]", (d) => (d.open = true));
 ok("several added: each listed with their own buttons, and Copy all", (await owner.locator("[data-testid=added-list] [data-testid=first-link-sender]").count()) === 2 && (await owner.isVisible("[data-testid=added-copy-all]")));
 await owner.click("[data-testid=added-copy-all]");
 await owner.waitForTimeout(300);
@@ -132,12 +134,9 @@ await owner.fill("[data-testid=clients-search]", "client-c");
 ok("search by email", (await owner.locator("main ul > li a[href^='/clients/']").allTextContents()).join() === "Client C");
 await owner.fill("[data-testid=clients-search]", "");
 await owner.selectOption("[data-testid=clients-filter]", "first");
-ok("filter: needs personal link", (await owner.locator("main ul > li a[href^='/clients/']").allTextContents()).join() === "Client B,Client C");
+ok("filter: not opened a video yet", (await owner.locator("main ul > li a[href^='/clients/']").allTextContents()).join() === "Client B,Client C");
 await owner.selectOption("[data-testid=clients-filter]", "all");
-ok("Client B: copied in the list, so marked link sent, not opened", (await owner.textContent("li:has-text('Client B') [data-testid=needs-first-link]")) === "Link sent, not opened yet");
-await owner.click("[data-testid=waiting-show]");
-ok("banner's Show button filters to them", (await owner.inputValue("[data-testid=clients-filter]")) === "first");
-await owner.selectOption("[data-testid=clients-filter]", "all");
+ok("Client B: copied in the list, so marked not opened yet", (await owner.textContent("li:has-text('Client B') [data-testid=needs-first-link]")) === "Not opened yet");
 
 // A duplicate made before Add refused them: removing it emails nobody, and it can't be restored while the other is there.
 const twin = await prisma.client.create({ data: { name: "Client A (old)", email: aEmail, token: `fxs-${stamp}-twin-${"x".repeat(20)}`, workspaceId: ws, teamKeyWrap: clientA.teamKeyWrap } });
@@ -163,7 +162,7 @@ ok("rename: saved", (await prisma.client.findUnique({ where: { id: clientA.id } 
 await prisma.client.update({ where: { id: clientA.id }, data: { name: "Client A" } });
 const clientB = await prisma.client.findFirst({ where: { workspaceId: ws, name: "Client B" } });
 await owner.goto(`${BASE}/clients/${clientB.id}`);
-ok("client page: a card to send their personal link", norm(await owner.textContent("[data-testid=needs-first-card]")).includes("Send Client B their personal link") && norm(await owner.textContent("[data-testid=needs-first-card]")).includes("Client B hasn't opened it yet, so they can't open any videos"));
+ok("client page: a calm card, their first video sets them up, their link there too", norm(await owner.textContent("[data-testid=needs-first-card]")).includes("Client B hasn't opened a video yet") && norm(await owner.textContent("[data-testid=needs-first-card]")).includes("opening it sets them up") && (await owner.locator("[data-testid=needs-first-card] [data-testid=first-link-copy]").count()) === 1);
 ok("client page: to-dos say who sees them", norm(await owner.textContent("main")).includes("Only your team sees these unless you share one with Client B"));
 await owner.check("text=Share with Client B");
 await owner.click("role=tab[name='Note']");
@@ -182,9 +181,7 @@ async function record() {
   return owner.url().split("/v/")[1].split("?")[0];
 }
 const vid = await record();
-ok("Send box: no personal-link box while nobody is listed in it", (await owner.locator("[data-testid=first-time]").count()) === 0);
-// Client B's link went out with Copy all on the Clients page.
-ok("Send box: lists the clients who still need their link, saying it was sent", norm(await owner.textContent("[data-testid=waiting-client]:has-text('Client B') [data-testid=waiting-status]")) === "Link sent, not opened yet");
+ok("Send box: no first-video box while no new client is chosen, and no waiting list", (await owner.locator("[data-testid=first-time]").count()) === 0 && (await owner.locator("[data-testid=waiting-list]").count()) === 0);
 ok("Send box: offers a title for a default-named video", await owner.isVisible("[data-testid=title-prompt]"));
 await owner.fill("#send-title", "Week 1 plan");
 await owner.click("[data-testid=title-prompt] >> button:has-text('Save title')");
@@ -192,10 +189,10 @@ await owner.waitForSelector("[data-testid=title-saved]");
 ok("title saved and shown as the heading", (await prisma.video.findUnique({ where: { id: vid } })).title === "Week 1 plan" && (await owner.inputValue("textarea[aria-label='Video title']")) === "Week 1 plan");
 await owner.click("[data-testid=client-picker]");
 ok("picker marks first-time clients", (await owner.locator("[role=listbox] li:has-text('Client B') [data-testid=needs-first-link]").count()) === 1 && (await owner.locator("[role=listbox] li:has-text('Client A') [data-testid=needs-first-link]").count()) === 0);
-ok("picker: same status as the waiting list (Client B's link was sent)", norm(await owner.textContent("[role=listbox] li:has-text('Client B') [data-testid=needs-first-link]")) === "Link sent, not opened yet");
+ok("picker: same status as the Clients page (Client B's link was sent)", norm(await owner.textContent("[role=listbox] li:has-text('Client B') [data-testid=needs-first-link]")) === "Not opened yet");
 await owner.keyboard.press("Escape");
 await chooseClients(owner, "Client A", "Client B", "Client C");
-ok("Send box: the rule is explained once first-timers are chosen", norm(await owner.textContent("[data-testid=first-time]")).includes("Clients listed need their personal link, they can't be connected yet.") && norm(await owner.textContent("[data-testid=first-time]")).includes("from then on Send by email and Copy link works for them too"));
+ok("Send box: new clients chosen, their first videos go from you", norm(await owner.textContent("[data-testid=first-time]")).includes("These are their first videos, so send them from your own email or texts") && norm(await owner.textContent("[data-testid=first-time]")).includes("Send by email works for them too"));
 const firstBox = norm(await owner.textContent("[data-testid=first-links]"));
 ok("chosen first-timers: each named, with their own Copy link", (await owner.locator("[data-testid=first-link-row]:has-text('Client B') [data-testid=first-link-copy]").count()) === 1 && (await owner.locator("[data-testid=first-link-row]:has-text('Client C') [data-testid=first-link-copy]").count()) === 1, firstBox);
 ok("mixed choice: one Send to all, no second Copy all in the box", (await owner.textContent("[data-testid=send-all]")).trim() === "Send to all 3" && (await owner.locator("[data-testid=copy-all-first]").count()) === 0 && (await owner.locator("[data-testid=send-link]").count()) === 0);
@@ -211,21 +208,21 @@ ok("email subject has the title", mail?.subject.endsWith("sent you a video: Week
 ok("email is from 'Business A via SureFrame'", mail?.from.startsWith(`${business} via SureFrame <`), mail?.from);
 ok("email shows the business name and title", mail?.html.includes(business) && mail.html.includes("Week 1 plan"));
 ok("email explains the device rule plainly", mail?.text.includes("The button opens it on any phone or computer where you've opened your personal link") && !mail.text.includes("use the personal link they gave you first"));
-await owner.waitForSelector("[data-testid=waiting-row]");
+await owner.waitForSelector("[data-testid=sent-row]:has-text('Client B') [data-testid=row-first]");
 const both = await clip();
 ok("Send to all copies the first-timers' own conversations, not the emailed client's", /Client B: .*v=.*#k=/.test(both) && /Client C: .*v=.*#k=/.test(both) && !both.includes("Client A:"), both);
 ok("the emailed client's row says Emailed and Not opened yet", /Emailed\s*· Not opened yet/.test(norm(await owner.textContent("[data-testid=sent-row]:has-text('Client A')"))));
-ok("first-timers wait for their first link, not under Sent to", (await owner.locator("[data-testid=waiting-row]").count()) === 2 && norm(await owner.textContent("[data-testid=sent-list]")) .includes("Client A") && !norm(await owner.textContent("[data-testid=sent-list]")).includes("Client B"));
-ok("waiting rows: Copy link and Copy link + message", (await owner.locator("[data-testid=waiting-row]:has-text('Client B') [data-testid=first-link-copy]").count()) === 1 && (await owner.locator("[data-testid=waiting-row]:has-text('Client B') [data-testid=first-link-message]").count()) === 1);
-await owner.click("[data-testid=waiting-row]:has-text('Client B') [data-testid=first-link-message]");
+ok("everyone is under Sent to, no separate waiting rows", (await owner.locator("[data-testid=sent-row]").count()) === 3 && (await owner.locator("[data-testid=waiting-row]").count()) === 0);
+ok("new clients' rows: Email from my email, Copy link and Copy link + message", (await owner.locator("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-email]").count()) === 1 && (await owner.locator("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-copy]").count()) === 1 && (await owner.locator("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-message]").count()) === 1);
+await owner.click("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-message]");
 await owner.waitForTimeout(300);
 const msgB = await clip();
-ok("a video's message says it's a video, with Client B's own conversation link", msgB.startsWith("Hi Client B,") && msgB.includes("I've sent you a video through SureFrame") && msgB.includes(`v=`) && msgB.includes("#k="), msgB);
+ok("a video's message says it's a video, with Client B's own conversation link", msgB.startsWith("Hi Client B,") && msgB.includes("I've recorded a video for you") && msgB.includes(`v=`) && msgB.includes("#k="), msgB);
 const copyB = await prisma.video.findFirst({ where: { sourceId: vid, clientId: clientB.id } });
 ok("emailing a first-timer is refused", (await owner.request.post(`${BASE}/api/videos/${copyB.id}/notify`)).status() === 409);
-ok("the waiting list says Client B's link was sent", norm(await owner.textContent("[data-testid=waiting-client]:has-text('Client B')")).includes("Link sent, not opened yet"));
+ok("Client B's row says it was sent from you", norm(await owner.textContent("[data-testid=sent-row]:has-text('Client B') [data-testid=row-first]")).includes("Sent from you"));
 ok("every row has Stop sharing", (await owner.locator("[data-testid=stop-sharing]").count()) === 3);
-await owner.click("[data-testid=waiting-row]:has-text('Client C') [data-testid=stop-sharing]");
+await owner.click("[data-testid=sent-row]:has-text('Client C') [data-testid=stop-sharing]");
 ok("stop sharing asks in the page", norm(await owner.textContent("[data-testid=stop-sharing-confirm]")).includes("Stop sharing this video with Client C?"));
 await owner.click("[data-testid=stop-sharing-confirm] >> button:has-text('Stop sharing with Client C')");
 ok("stop sharing: Client C's copy is gone", !!(await waitFor(async () => !(await prisma.video.findFirst({ where: { sourceId: vid, clientId: (await prisma.client.findFirst({ where: { workspaceId: ws, name: "Client C" } })).id } })))));

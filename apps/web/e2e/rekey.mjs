@@ -217,6 +217,7 @@ ok("client's video page too", (await phone.textContent("[data-testid=video-meta]
 
 // Blake's new link from the panel works on a fresh device.
 await owner.click("[data-testid=key-reset] li:has-text('Blake') >> text=Copy new link");
+await owner.waitForSelector("[data-testid=key-reset] li:has-text('Blake') >> text=Link copied", { timeout: 10000 }).catch(() => {});
 const blakeNew = await clip(owner);
 ok("Blake's new link carries a key", /\/c\/[\w-]+#k=/.test(blakeNew) && !blakeNew.includes(blake.token));
 await owner.goto(`${BASE}/v/${staffVideoId}`);
@@ -236,7 +237,8 @@ ok("owner plays the video", (await owner.$eval("main video", finiteDuration)) > 
 await laptop.goto(BASE + "/library");
 await laptop.fill('input[aria-label="Recovery key"]', recoveryKey);
 await laptop.click("button:has-text('Unlock')");
-await laptop.waitForSelector("text=To-dos & notes", { timeout: 10000 });
+// The library's to-do list moved to /todos, so wait for the unlock box to go instead.
+await laptop.waitForSelector('input[aria-label="Recovery key"]', { state: "detached", timeout: 10000 });
 const laptopKey = await laptop.evaluate((id) => localStorage.getItem(`framecast.key.team:${id}`), workspaceId);
 const ownerKey = await owner.evaluate((id) => localStorage.getItem(`framecast.key.team:${id}`), workspaceId);
 ok("old recovery key leads current members to the new key", laptopKey === ownerKey);

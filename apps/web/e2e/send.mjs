@@ -8,11 +8,11 @@ export async function chooseClients(page, ...names) {
   if (await page.isVisible("[role=listbox]")) await page.click("[data-testid=send-panel] >> button:has-text('Done')");
 }
 
-/** Sends this video to one client with Copy link, leaving their personal link on the clipboard. */
+/** Sends this video to one client with Copy link, leaving their link to it (with their key) on the clipboard. */
 export async function sendByLink(page, name) {
   await chooseClients(page, name);
-  // A client who hasn't opened their personal link yet is sent it from the personal-link box instead.
-  const first = page.locator(`[data-testid=first-link-row]:has-text("${name}") [data-testid=first-link-copy]`);
+  // A new client's first video is sent from the first-video box instead (only they are chosen, so it's theirs).
+  const first = page.locator(`[data-testid=first-link-row] [data-testid=first-link-copy]`);
   if (await first.count()) await first.click();
   else await page.click("[data-testid=send-link]");
   await page.waitForSelector("text=/link is copied/", { timeout: 15000 });
