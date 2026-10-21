@@ -100,7 +100,7 @@ await page.evaluate(() => window.documentPictureInPicture.window.document.queryS
 await page.waitForTimeout(400);
 ok("Resume in the bubble carries on recording", (await bar()).pause === "Pause" && (await page.locator("text=/Recording · \\d/").count()) === 1);
 ok("and the page shows the screen panel with the corner circle", (await page.locator("[data-testid=screen-panel]").count()) === 1 && (await circleLive()));
-ok("and says the camera is in the bubble", (await page.locator("text=Your camera is in the floating bubble").count()) === 1);
+ok("and says where the camera is: the corner circle in the video, the bubble on screen", (await page.locator("text=the floating bubble shows you, with Pause and Stop").count()) === 1);
 await page.screenshot({ path: `${shots}/bubble-recording.png` });
 
 // Not stopped here: in this test browser, closing the bubble while this same tab is shared also closes the tab.

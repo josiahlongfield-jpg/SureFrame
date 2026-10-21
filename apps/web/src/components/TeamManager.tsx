@@ -422,7 +422,7 @@ function ResetDone({ name, removed, emailed, toSend, recoveryKey, business }: { 
         <>
           <p className="mt-4 font-medium">These clients hadn&apos;t opened their personal link yet, so the one you had for them stopped working too. Send them this new one instead:</p>
           {list(firstLink, "reset-first-link")}
-          <p className="mt-1 text-xs">They&apos;re also under Needs personal link on the Clients page.</p>
+          <p className="mt-1 text-xs">They&apos;re also listed under Not opened a video yet on the Clients page.</p>
         </>
       )}
       {keySaved ? (

@@ -79,7 +79,7 @@ await pro.click("text=I've saved it");
 await pro.fill('input[aria-label="Client name"]', "Riley Client");
 await pro.fill('input[aria-label="Client email"]', "riley@example.com");
 await pro.click("button:has-text('Add client')");
-await pro.click("a:has-text('Riley Client')");
+await pro.click("a[href^='/clients/']:has-text('Riley Client')");
 await pro.waitForURL("**/clients/**");
 const clientId = pro.url().split("/clients/")[1];
 

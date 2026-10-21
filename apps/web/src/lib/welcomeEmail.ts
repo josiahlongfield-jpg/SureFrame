@@ -14,8 +14,8 @@ export function welcomeEmail(o: { name: string | null; business: string; link: s
   const steps = [
     "Save your recovery key. It opens your encrypted videos on a new phone or computer, and we can't recover it for you. You can show it again any time under Settings > Account (Show recovery key).",
     "Add a client, with their email if you have it.",
-    "Send each client their personal link yourself, once, by text, chat or your own email. Use Copy personal link on the Clients page or on the client's page. Their videos open after they've opened it.",
-    "Then record videos and send them.",
+    "Record a video and pick the client in its Send box. Send a new client's first video yourself, with Send from your email or Copy link: they just open it and watch, and it sets them up on that phone or computer.",
+    "After that, press Send by email and we'll email them each new video.",
   ];
   const help = `Questions? Press Help in the corner of any ${BRAND.name} page, or email ${LEGAL.email}.`;
   const text = [hi, "", lead, ...steps.map((s, i) => `${i + 1}. ${s}`), "", `Open ${BRAND.name}: ${o.link}`, "", help, "", "Sent with SureFrame"].join("\n");

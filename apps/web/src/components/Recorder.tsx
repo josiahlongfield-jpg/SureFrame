@@ -525,8 +525,12 @@ export default function Recorder({
           .then(() => encryptFrame(e.data, videoKey))
           .then((frame) => uploader.push(new Blob([frame as BlobPart])))
           .then(() => store.updateSession(videoId, { durationMs: durationNow() }).catch(() => {}))
-          // Each saved piece also tells the extension's bubble the recording is still going.
-          .then(() => live.current?.tellBubble?.())
+          // Each saved piece also tells the extension's bubble the recording is still going (never a reason to stop).
+          .then(() => {
+            try {
+              live.current?.tellBubble?.();
+            } catch {}
+          })
           .catch((err) => {
             // A chunk that can't be sealed would leave a gap, so the recording ends here and what came before is kept.
             console.error("Recording chunk failed", err);
@@ -734,17 +738,23 @@ export default function Recorder({
                     : "You\u2019ll pick a screen, window or tab when you start."
                   : mode === "screen"
                     ? extension
-                      ? "Recording your screen. Pause and Stop float on your web pages."
-                      : "Recording your screen."
+                      ? "Recording your screen. Pause and Stop float on your web pages and show in the video: tuck them into a small dot with the arrow."
+                      : bubbleOpen
+                        ? "Recording your screen. Pause and Stop also float in a small window over your other windows."
+                        : "Recording your screen."
                     : extension && bubbleOpen
                       ? circleNow
                         ? "Recording your screen. Your camera bubble isn\u2019t on screen right now, so your camera is in the circle in the corner of the video."
-                        : "Recording your screen. Your camera is the floating bubble: drag it anywhere, and drag its corner to resize it."
+                        : "Recording your screen. Your camera is the floating bubble: drag it anywhere, and use the size button on its bar, or drag its corner, to resize it."
                       : wholeScreen
                       ? "Recording your whole screen. Your camera is in the circle in the corner of the video. Drag it to move it."
                       : bubbleOpen
-                        ? "Recording your screen. Your camera is in the floating bubble."
-                        : "Recording your screen. Pop out the camera bubble to show your camera over your other windows."}
+                        ? canComposeCamera()
+                          ? "Recording your screen. Your camera is in the circle in the corner of the video; the floating bubble shows you, with Pause and Stop."
+                          : "Recording your screen. Your camera is in the floating bubble."
+                        : canComposeCamera()
+                          ? "Recording your screen. Pop out the camera bubble to show your camera, with Pause and Stop, over your other windows."
+                          : "Recording your screen. Pop out the camera bubble to show your camera over your other windows."}
               </p>
             </div>
           )}
@@ -840,7 +850,7 @@ export default function Recorder({
               )}
               {mode !== "camera" && extensionBrowser && !extension && canShareScreen && (
                 <p className="text-xs text-dim" data-testid="get-extension">
-                  Want your camera bubble with Pause and Stop on every tab, not just this one?{" "}
+                  Want your camera bubble in the video wherever you drag it, on any web page you show?{" "}
                   <a href={extensionUrl()} target="_blank" rel="noopener" className="font-medium text-primary underline underline-offset-2">
                     Add the free SureFrame extension
                   </a>
@@ -895,6 +905,7 @@ export default function Recorder({
             {extensionAsk ? (
               <ExtensionPrompt
                 installed={!!extension}
+                cameraOn={mode === "screen+camera"}
                 onStart={() => {
                   setExtensionAsk(false);
                   void start();
@@ -948,9 +959,6 @@ export default function Recorder({
                 testId="discard-confirm"
               />
             )}
-            <p className="text-xs text-dim">
-              Limit on your plan: {limitText(maxDurationMin)}. It stops and saves by itself at {limitClock(maxDurationMin)}.
-            </p>
           </>
         )}
 

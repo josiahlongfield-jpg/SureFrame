@@ -49,7 +49,7 @@ export default function Page() {
         </li>
         <li>
           The Help button on your pages opens a help chat answered by an AI assistant (Anthropic). It receives what you type there, which business&rsquo;s page
-          you&rsquo;re on, and what that page already shows: whether your link works, whether the business&rsquo;s emails to you are on, whether the business uses
+          you&rsquo;re on, which browser and device you&rsquo;re using (as your browser reports it, so its steps fit yours), and what that page already shows: whether your link works, whether the business&rsquo;s emails to you are on, whether the business uses
           AI summaries and, on a video page, whether that video&rsquo;s copy on our servers has been or will be deleted. It never receives your videos, their
           titles, messages, replies, to-dos or notes. Nobody from our team answers it, and it can&rsquo;t pass the conversation to the business or to us: for
           anything it can&rsquo;t help with, it gives you the business&rsquo;s name and, if the business set one, its reply-to email address. We keep the text of
@@ -181,7 +181,7 @@ export default function Page() {
 
       <h2>Our AI support assistant</h2>
       <p>
-        The help chat is answered first by an AI assistant provided by Anthropic. Your messages, and for signed-in customers a summary of your plan, usage and account status, are sent
+        The help chat is answered first by an AI assistant provided by Anthropic. Your messages, which browser and device you&rsquo;re using (as your browser reports it, so steps fit yours), and for signed-in customers a summary of your plan, usage and account status, are sent
         to Anthropic to generate replies. The assistant can&rsquo;t see your videos, replies, to-dos or notes. A person on our team reads the conversation if you
         choose Talk to a person, or if the assistant passes it on because it needs a person (for example a billing problem or something that looks broken).
         Visitors without an account and businesses on the Free plan can be passed to a person only so often (see our{" "}
@@ -227,10 +227,13 @@ export default function Page() {
       <p>
         The {LEGAL.product} extension for Chrome, Edge and other Chromium browsers shows your camera in a floating bubble, with Pause and Stop, on the web pages you
         visit while you record your screen with {LEGAL.product}. Your camera picture is only shown on your own screen: the extension never records, stores or sends it.
-        When the bubble is on screen it becomes part of your screen recording, which is encrypted on your device like every recording. The extension doesn&rsquo;t read,
-        collect or send the addresses or content of the pages you visit. To know whether the bubble is on screen, it notes which tab is in front, and keeps that only in
+        When the bubble is on screen it becomes part of your screen recording, which is encrypted on your device like every recording. The extension doesn&rsquo;t collect,
+        keep or send the addresses or content of the pages you visit. When it&rsquo;s installed or updated, it checks the addresses of tabs already open only to tell{" "}
+        {LEGAL.product} tabs apart, and keeps nothing. To know whether the bubble is on screen, it notes which tab is in front, and keeps that only in
         your browser&rsquo;s memory while you record. It remembers the bubble&rsquo;s place and size, and whether its controls are tucked away, in your browser&rsquo;s storage for the
-        extension. Removing the extension removes all of this.
+        extension. While you record, it also keeps the recording&rsquo;s state (the time, whether it&rsquo;s paused, and your camera&rsquo;s name, so the bubble shows
+        the same camera) and any button you press on the bubble in the browser&rsquo;s temporary storage for the extension; this is cleared when the recording ends
+        or the browser closes. Removing the extension removes all of this.
       </p>
 
       <h2>Who we share it with</h2>
@@ -412,7 +415,8 @@ export default function Page() {
       <p>
         We also use your browser&rsquo;s storage to hold your encryption keys and recordings that haven&rsquo;t finished uploading, a link back to your help chat so
         you can return to it, a team invite you&rsquo;ve opened but not yet accepted, for businesses using AI transcripts a copy of the speech model so it
-        doesn&rsquo;t download again, and small settings such as a prompt you&rsquo;ve dismissed, which replies you&rsquo;ve seen, and whether you&rsquo;ve already
+        doesn&rsquo;t download again, and small settings such as a prompt you&rsquo;ve dismissed, which replies you&rsquo;ve seen, the shape of your camera&rsquo;s picture, which video stills
+        this browser has already redrawn more sharply, and whether you&rsquo;ve already
         seen the SureFrame introduction before a video. On a free-plan business, the short SureFrame intro is shown once per device for each business; your browser
         remembers this. We don&rsquo;t use advertising or tracking cookies.
       </p>

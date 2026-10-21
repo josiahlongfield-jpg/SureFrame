@@ -8,10 +8,12 @@ import { decryptBytes, decryptLeadingFrames, encryptBytes } from "@/lib/e2e/cryp
  * recording, encrypts it with the video's key and uploads it, and the library
  * decrypts it the same way it would the video.
  */
+type Size = { width: number; quality: number; maxBytes?: number };
 // Library and client tiles show at up to about 480px wide, so twice that keeps them sharp on high-density screens.
-const STILL = { width: 960, quality: 0.85 };
+// Small enough, encrypted, for what the server takes (thumb route): a busy or tall picture is saved a little softer.
+const STILL: Size = { width: 960, quality: 0.85, maxBytes: 700_000 };
 // A poster covers the whole player before it plays, and never leaves this device, so it keeps the recording's own size.
-const POSTER = { width: 1920, quality: 0.9 };
+const POSTER: Size = { width: 1920, quality: 0.9 };
 /** Stills narrower than this were made before they were sharpened, and are remade (LibraryThumb). */
 export const SHARP_WIDTH = 900;
 
@@ -31,19 +33,27 @@ function waitFor(el: HTMLVideoElement, event: "loadeddata" | "seeked", ms: numbe
   });
 }
 
-/** Draws the element's current frame as a JPEG, no wider than `size.width`. */
-async function capture(el: HTMLVideoElement, size = STILL) {
+/** Draws the element's current frame as a JPEG, no wider than `size.width` (and no bigger than `size.maxBytes`). */
+async function capture(el: HTMLVideoElement, size: Size = STILL) {
   if (!el.videoWidth || !el.videoHeight) return null;
   const canvas = document.createElement("canvas");
-  canvas.width = Math.min(size.width, el.videoWidth);
-  canvas.height = Math.round((canvas.width * el.videoHeight) / el.videoWidth);
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
-  // The default smoothing makes a shrunk screen recording's text look jagged and soft.
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(el, 0, 0, canvas.width, canvas.height);
-  return new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", size.quality));
+  let width = Math.min(size.width, el.videoWidth);
+  let blob: Blob | null = null;
+  for (let tries = 0; tries < 3; tries++, width = Math.round(width * 0.75)) {
+    canvas.width = width;
+    canvas.height = Math.round((width * el.videoHeight) / el.videoWidth);
+    // The default smoothing makes a shrunk screen recording's text look jagged and soft.
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(el, 0, 0, canvas.width, canvas.height);
+    for (const quality of [size.quality, 0.7, 0.55]) {
+      blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", quality));
+      if (!blob || !size.maxBytes || blob.size <= size.maxBytes) return blob;
+    }
+  }
+  return blob;
 }
 
 /** Encrypts a still with the video's key and saves it for the library. */
@@ -58,7 +68,7 @@ async function save(videoId: string, still: Blob, key: CryptoKey) {
 }
 
 /** A still about a second in (past any countdown fade) from a playable recording URL. */
-async function stillFrom(src: string, size = STILL) {
+async function stillFrom(src: string, size: Size = STILL) {
   const el = document.createElement("video");
   el.muted = true;
   el.playsInline = true;

@@ -62,7 +62,6 @@ function Send() {
         </div>
         <span className="f-link f-hide-md" style={{ justifySelf: "start" }}>+ Add a new client</span>
         <div className="f-row"><span className="f-btn pri">Send by email</span><span className="f-btn sec">Copy all 3 links</span></div>
-        <p className="f-dim f-hide-md f-hide-wide">Send by email and we email each client to say it&apos;s waiting. Or copy the link and send it from your own app, texts or messages. Either way it opens on SureFrame, for that client only.</p>
         {/* No room for the sent list in the phone-sized window: it would run out of the box. */}
         <div className="f-hr f-hide-sm" />
         <p className="f-hide-sm" style={{ fontWeight: 500 }}>Sent to 1 client</p>

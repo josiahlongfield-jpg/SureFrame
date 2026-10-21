@@ -85,6 +85,10 @@
   chrome.storage.onChanged.addListener(onStorage);
   chrome.runtime.onMessage.addListener(onWorker);
   window.__sureframeBridge = Object.assign(stop, { alive: () => alive && !!chrome.runtime?.id });
+  // A page just loading can't be running a recording: one this tab left behind (reloaded while paused or while
+  // picking what to share) would otherwise keep its frozen bubble on every website until the tab closes. Not when
+  // added to a page that's already open (installed or updated mid-recording): that page may still be recording.
+  if (document.readyState === "loading") void end();
   // Tells a page that's already open (the extension was just installed or updated) that it's here.
   send({ type: "hello", version: chrome.runtime.getManifest().version });
 })();

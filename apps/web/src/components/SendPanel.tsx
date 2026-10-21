@@ -82,7 +82,13 @@ export default function SendPanel({
   const [adding, setAdding] = useState(false);
   const isCopy = !!video.sourceId;
   const uploading = video.status === "RECORDING";
-  const [primary, setPrimary] = useState(sentToId);
+  const [primary, setPrimaryState] = useState(sentToId);
+  // Read by sends already under way: two quick clicks mustn't both give the video itself to a client.
+  const primaryRef = useRef(sentToId);
+  const setPrimary = (id: string | null) => {
+    primaryRef.current = id;
+    setPrimaryState(id);
+  };
   const [recipients, setRecipients] = useState<Recipient[]>(() => [
     ...(sentToId ? [{ clientId: sentToId, convId: video.id, opened: (video.viewCount ?? 0) > 0 }] : []),
     ...(sendMany?.copies ?? []).map((c) => ({ clientId: c.clientId, convId: c.id, opened: c.opened })),
@@ -175,7 +181,8 @@ export default function SendPanel({
     const states: Record<string, RowState> = {};
     let emailed = 0;
     let rest = list;
-    if (!primary && list.length) {
+    const first = !primaryRef.current;
+    if (first && list.length) {
       // The first client gets this video itself.
       const c = list[0];
       rest = list.slice(1);
@@ -213,7 +220,7 @@ export default function SendPanel({
     setRecipients((cur) => [...cur, ...added]);
     setRows((cur) => ({ ...cur, ...states }));
     // The rest of the page (the conversation panel) shows who this video is with.
-    if (!primary && added.length) router.refresh();
+    if (first && added.length) router.refresh();
     setPicked((cur) => cur.filter((id) => !list.some((c) => c.id === id)));
     return { added, emailed };
   }
@@ -231,7 +238,7 @@ export default function SendPanel({
       setNote({
         text: [
           emailed ? `Emailed ${emailed} ${emailed === 1 ? "client" : "clients"}.` : "",
-          firsts.length ? `${firsts.length === 1 ? `${firsts[0].name}'s first video comes` : `First videos for ${firsts.length} clients come`} from you: send it with the buttons under their name.` : "",
+          firsts.length ? `${firsts.length === 1 ? `${firsts[0].name}'s first video comes` : `First videos for ${firsts.length} clients come`} from you: send ${firsts.length === 1 ? "it" : "each one"} with the buttons under their name.` : "",
           noEmail.length ? `${noEmail.length === 1 ? noEmail[0].name : `${noEmail.length} clients`} can't be emailed, so use ${copyWords} for them.` : "",
         ].filter(Boolean).join(" "),
       });
@@ -305,10 +312,22 @@ export default function SendPanel({
   }
 
   /** A chosen client getting their first video: gives them this video, then its link, which sets them up (the buttons say what's done with it). */
-  async function deliverFirst(c: ClientOption) {
-    setNote(undefined);
-    const { added } = await deliver([c], false);
-    return linkFor(c, added[0].convId);
+  // First videos go out one at a time, and once per client however many of its buttons are pressed.
+  const firstQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const firstLinks = useRef(new Map<string, Promise<string>>());
+  function deliverFirst(c: ClientOption) {
+    let link = firstLinks.current.get(c.id);
+    if (!link) {
+      link = firstQueue.current.then(async () => {
+        setNote(undefined);
+        const { added } = await deliver([c], false);
+        return linkFor(c, added[0].convId);
+      });
+      firstQueue.current = link.catch(() => {});
+      firstLinks.current.set(c.id, link);
+      link.catch(() => firstLinks.current.delete(c.id));
+    }
+    return link;
   }
 
   /** After a first video's link went out by any of the ways in FirstLinkSender. */
@@ -384,6 +403,7 @@ export default function SendPanel({
     // This page was their own copy: it's gone, so go back to the recording.
     if (r.convId === video.id && isCopy) return void (window.location.href = `/v/${video.sourceId}`);
     setRecipients((cur) => cur.filter((x) => x.convId !== r.convId));
+    firstLinks.current.delete(r.clientId);
     if (own) {
       setPrimary(null);
       router.refresh();

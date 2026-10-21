@@ -21,7 +21,7 @@ const PRIVACY = [
 
 const STEPS = [
   ["Record", "Pick screen, camera, or both. Press start."],
-  ["Send", "Pick a client, or several. The first time, send each one their personal link yourself. After that, every video opens straight away for them."],
+  ["Send", "Pick a client, or several. Send a new client's first video from your own email or texts. After that, Send by email does it for you."],
   ["Reply", "Clients answer with their own video, a voice note or a message. No account needed."],
 ];
 

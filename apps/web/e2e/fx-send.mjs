@@ -235,7 +235,7 @@ await bPage.waitForSelector("[data-testid=lost-key] button", { timeout: 20000 })
 const asked = await bPage.evaluate(async (id) => (await fetch(`/api/clients/${id}/lost-key`, { method: "POST" })).json(), clientB.id);
 const ask = await waitFor(() => mailTo(email).find((m) => m.subject.includes("Client B")));
 ok("never-reached client: owner isn't told they need it 'again'", asked.asked && ask?.subject === "Client B is waiting for their personal link" && !ask.subject.includes("again"), ask?.subject);
-ok("and is told what to do", ask?.text.includes("press Copy personal link, and send it to them yourself"));
+ok("and is told what to do", ask?.text.includes("send Client B a video yourself from its Send box with Send from your email or Copy link"));
 
 // ---- Library ----
 await prisma.reply.create({ data: { kind: "TEXT", body: "sealed", encrypted: true, authorName: "Client A", videoId: vid } });

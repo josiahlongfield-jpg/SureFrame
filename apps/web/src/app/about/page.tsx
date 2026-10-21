@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 
 const ENCRYPTED = [
   "Videos and video or voice replies",
-  "Video stills (the small pictures of each video)",
+  "Video stills (the preview pictures of each video)",
   "Text replies",
   "To-dos and notes",
   "AI transcripts and summaries, for businesses that use them",

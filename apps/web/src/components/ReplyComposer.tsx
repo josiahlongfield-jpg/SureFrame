@@ -108,7 +108,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   // also leaves room for the reply tabs, the sound bar and the Record button below it, which would otherwise be pushed
   // out of the conversation panel. svh: the height with the browser's own bars showing.
   // Hidden until the picture fills it, and drawn fresh if it changes size while showing (see Recorder).
-  const frame = useVideoFrame("min(55vh, 100svh - 29rem)", { remember: "sureframe.cameraShape", onNewSize: () => setPreviewKey((k) => k + 1) });
+  const frame = useVideoFrame("max(9rem, min(55vh, 100svh - 29rem))", { remember: "sureframe.cameraShape", onNewSize: () => setPreviewKey((k) => k + 1) });
   const frameRef = frame.ref;
   const previewRef = useCallback(
     (v: HTMLVideoElement | null) => {

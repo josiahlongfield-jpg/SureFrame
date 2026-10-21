@@ -2,7 +2,7 @@
 
 For Chrome, Edge, Brave, Arc and other Chromium browsers. While someone records their screen on sureframe.app, it shows:
 
-- their camera in a round bubble on every web page, which they can drag anywhere and resize from its corner grip;
+- their camera in a round bubble on every web page, which they can drag anywhere and make bigger or smaller with the size dial on its bar, or its corner grip;
 - a bar with the time, Pause/Resume and Stop, which they can tuck away.
 
 The extension never records, saves or sends anything. The SureFrame tab does all of that, exactly as it does
@@ -32,6 +32,6 @@ answering (`lib/recorder/compose.ts`).
 
 Once the stores give the extension its ids, add them to the site's `EXTENSION_IDS` setting (comma separated), so
 the bubble can show its camera on sureframe.app's own pages too. Set `NEXT_PUBLIC_EXTENSION_URL` to the store page
-to show the recorder's "Get the extension" link.
+to show the recorder's "Add the free SureFrame extension" link and the add-it prompt on Start.
 
 Change `version` in `src/manifest.json` for every store upload.

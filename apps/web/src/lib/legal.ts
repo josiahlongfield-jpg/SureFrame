@@ -113,8 +113,12 @@ export const LEGAL = {
    * sf_lib_layout, sf_inbox_layout, fc_key_<clientId>); "Keep me signed in" from Settings; video stills; "Former team member";
    * which emails we send clients; and where recordings are stored. They clarify what the app already does (Josiah, 20 October
    * 2026), so they keep privacyVersion.
+   * 21 October 2026: the browser extension section (what it keeps while recording, and that on install it checks open tabs'
+   * addresses only to find SureFrame tabs), that the help chats receive which browser and device you use, two small browser
+   * settings (camera shape, sharper stills). They describe what the
+   * app already does, so they keep privacyVersion.
    */
-  privacyUpdated: "20 October 2026",
+  privacyUpdated: "21 October 2026",
 };
 
 /**

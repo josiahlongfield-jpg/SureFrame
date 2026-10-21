@@ -29,7 +29,18 @@ export function extensionPromptSkipped() {
  * the extension does, why it's safe, and a way to add it or carry on without it. Once the extension says hello (it
  * can be added while this is open), it offers to start.
  */
-export default function ExtensionPrompt({ installed, onStart, onCancel }: { installed: boolean; onStart: () => void; onCancel: () => void }) {
+export default function ExtensionPrompt({
+  installed,
+  cameraOn = true,
+  onStart,
+  onCancel,
+}: {
+  installed: boolean;
+  /** Screen + Camera; Screen only has no camera bubble, just Pause and Stop. */
+  cameraOn?: boolean;
+  onStart: () => void;
+  onCancel: () => void;
+}) {
   const [skip, setSkip] = useState(false);
   const [opened, setOpened] = useState(false);
   const url = extensionUrl();
@@ -56,7 +67,9 @@ export default function ExtensionPrompt({ installed, onStart, onCancel }: { inst
     return (
       <section className="grid gap-3 rounded-2xl border border-ok-line bg-ok-bg p-4" data-testid="extension-prompt" aria-live="polite">
         <h2 className="text-base font-semibold text-ok-fg">SureFrame extension added</h2>
-        <p className="text-sm text-ink">Your camera bubble, with Pause and Stop, will follow you to every tab while you record.</p>
+        <p className="text-sm text-ink">
+          {cameraOn ? "Your camera bubble, with Pause and Stop, will follow you to every tab while you record." : "Pause and Stop will follow you to every tab while you record."}
+        </p>
         <button onClick={onStart} className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary shadow-sm hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
           Start recording
         </button>
@@ -70,8 +83,9 @@ export default function ExtensionPrompt({ installed, onStart, onCancel }: { inst
         Add the free SureFrame extension first?
       </h2>
       <p className="text-sm text-muted">
-        It shows your camera bubble, with Pause and Stop, on any tab you visit while you record your screen. Without it, your bubble stays in a small
-        floating window instead.
+        {cameraOn
+          ? "It shows your camera bubble, with Pause and Stop, on any tab you visit while you record your screen. Without it, your bubble stays in a small floating window instead."
+          : "It shows Pause and Stop on any tab you visit while you record your screen. Without it, they stay in a small floating window instead."}
       </p>
       <div className="grid gap-1.5 rounded-xl bg-surface-2 p-3 text-sm text-muted" data-testid="extension-safe">
         <p className="font-medium text-ink">Why it&rsquo;s safe</p>

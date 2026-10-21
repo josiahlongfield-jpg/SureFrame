@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SureFrame",
   "short_name": "SureFrame",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Your camera in a floating bubble, with Pause and Stop, on any web page while you record your screen with SureFrame.",
   "homepage_url": "https://sureframe.app",
   "minimum_chrome_version": "116",

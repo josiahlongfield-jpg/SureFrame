@@ -134,7 +134,7 @@ await amy.waitForSelector('input[aria-label="Client name"]');
 await amy.fill('input[aria-label="Client name"]', "Cal");
 await amy.fill('input[aria-label="Client email"]', `cal-old${stamp}@example.com`);
 await amy.click("button:has-text('Add client')");
-await amy.click("a:has-text('Cal')");
+await amy.click("a[href^='/clients/']:has-text('Cal')");
 await amy.waitForURL("**/clients/**");
 const calId = amy.url().split("/clients/")[1];
 ok("Cal is assigned to Amy", (await prisma.client.findUnique({ where: { id: calId } })).assignedToId === amyUser.id);
