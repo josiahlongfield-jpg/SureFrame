@@ -12,9 +12,14 @@ const video = $("video");
 const note = $("camera-note");
 const bar = $("bar");
 const mini = $("mini");
+const sizer = $("sizer");
+const scale = $("scale");
+const STEP = 20;
 
 let rec = null;
 let prefs = { size: 200, collapsed: false };
+/** The size dial under the circle, opened from the bar. Not remembered: it closes on other pages. */
+let dialOpen = false;
 let port = null;
 let stream = null;
 let opening = null;
@@ -32,9 +37,19 @@ function layout() {
   bar.hidden = prefs.collapsed;
   mini.hidden = !prefs.collapsed || camera;
   $("expand").hidden = !prefs.collapsed;
+  $("size").hidden = !camera;
+  const dial = camera && dialOpen && !prefs.collapsed;
+  sizer.hidden = !dial;
+  $("size").setAttribute("aria-expanded", String(dial));
+  if (document.activeElement !== scale) scale.value = String(size);
+  $("smaller").disabled = size <= MIN;
+  $("bigger").disabled = size >= MAX;
   const barWidth = prefs.collapsed ? 0 : bar.offsetWidth || 196;
+  // The dial is as wide as the bar under it.
+  sizer.style.width = `${barWidth}px`;
   const parts = [];
   if (camera) parts.push(size + RING * 2);
+  if (dial) parts.push(34);
   if (!prefs.collapsed) parts.push(40);
   else if (!camera) parts.push(40);
   const width = Math.max(camera ? size + RING * 2 : 0, barWidth, prefs.collapsed && !camera ? 40 : 0);
@@ -96,7 +111,24 @@ async function command(action) {
 
 $("pause").addEventListener("click", () => void command(rec?.phase === "paused" ? "resume" : "pause"));
 $("stop").addEventListener("click", () => void command("stop"));
-$("collapse").addEventListener("click", () => setPrefs({ collapsed: true }));
+$("collapse").addEventListener("click", () => {
+  dialOpen = false;
+  setPrefs({ collapsed: true });
+});
+$("size").addEventListener("click", () => {
+  if (dragged) return;
+  dialOpen = !dialOpen;
+  layout();
+});
+// The dial: the circle follows while sliding, and the size is kept (and shown on every tab) once let go.
+const sized = (n) => Math.max(MIN, Math.min(MAX, Math.round(n)));
+scale.addEventListener("input", () => {
+  prefs.size = sized(Number(scale.value));
+  layout();
+});
+scale.addEventListener("change", () => setPrefs({ size: sized(Number(scale.value)) }));
+$("smaller").addEventListener("click", () => setPrefs({ size: sized(prefs.size - STEP) }));
+$("bigger").addEventListener("click", () => setPrefs({ size: sized(prefs.size + STEP) }));
 for (const b of [$("expand"), mini]) b.addEventListener("click", () => !dragged && setPrefs({ collapsed: false }));
 
 function setPrefs(change) {

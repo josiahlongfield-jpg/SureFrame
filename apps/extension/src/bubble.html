@@ -12,10 +12,16 @@
       <button id="grow" class="grow" type="button" aria-label="Drag to resize the camera bubble" title="Drag to resize"></button>
       <button id="expand" class="expand" type="button" aria-label="Show the recording controls" title="Show controls" hidden></button>
     </div>
+    <div id="sizer" class="sizer" role="group" aria-label="Bubble size" hidden>
+      <button id="smaller" class="step" type="button" aria-label="Make the bubble smaller" title="Smaller"><span class="minus"></span></button>
+      <input id="scale" type="range" min="120" max="360" step="5" value="200" aria-label="Bubble size" />
+      <button id="bigger" class="step" type="button" aria-label="Make the bubble bigger" title="Bigger"><span class="plus"></span></button>
+    </div>
     <div id="bar" class="bar" role="toolbar" aria-label="SureFrame recording">
       <span class="time"><span id="dot" class="dot"></span><span id="clock">0:00</span></span>
       <button id="pause" class="icon" type="button" aria-label="Pause" title="Pause"><span class="pause-icon"></span></button>
       <button id="stop" class="stop" type="button" aria-label="Stop and save" title="Stop and save"><span class="stop-icon"></span>Stop</button>
+      <button id="size" class="icon small" type="button" aria-label="Change the bubble's size" title="Bubble size" aria-expanded="false" aria-controls="sizer"><span class="size-icon"></span></button>
       <button id="collapse" class="icon small" type="button" aria-label="Hide the controls" title="Hide controls"><span class="chev"></span></button>
     </div>
     <button id="mini" class="mini" type="button" aria-label="Show the recording controls" title="Show controls" hidden><span id="mini-dot" class="dot"></span></button>

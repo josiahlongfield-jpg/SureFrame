@@ -206,6 +206,65 @@ await rec.waitForTimeout(500);
 ok("resize: the other tabs' bubble too", (await frameOf(rec).evaluate(() => document.getElementById("circle").getBoundingClientRect().width)) === after);
 await plain.screenshot({ path: `${shots}/extension-bigger.png` });
 
+// The size dial, opened from the bar: real clicks on the page, as a person would.
+const fr = () => frameOf(plain);
+const clickIn = async (sel) => {
+  const f = await box(plain);
+  const r = await fr().evaluate((s) => document.querySelector(s).getBoundingClientRect().toJSON(), sel);
+  await plain.mouse.click(f.left + r.x + r.width / 2, f.top + r.y + r.height / 2);
+  await plain.waitForTimeout(300);
+};
+ok("dial: hidden until asked for", !(await fr().isVisible("#sizer")));
+await clickIn("#size");
+ok("dial: the size button opens it", await fr().isVisible("#sizer"));
+{
+  const f = await box(plain);
+  const c = await fr().evaluate(() => document.getElementById("circle").getBoundingClientRect().toJSON());
+  ok("dial: the frame fits the circle, dial and bar", f.height >= c.height + 34 + 40, JSON.stringify(f));
+}
+let s0 = await size();
+await clickIn("#bigger");
+ok("dial: + makes it bigger", (await size()) === Math.min(360, s0 + 20), `${s0} -> ${await size()}`);
+s0 = await size();
+await clickIn("#smaller");
+await clickIn("#smaller");
+ok("dial: - makes it smaller", (await size()) === s0 - 40, `${s0} -> ${await size()}`);
+{
+  // Sliding the dial all the way left: the smallest bubble.
+  const f = await box(plain);
+  const r = await fr().evaluate(() => document.getElementById("scale").getBoundingClientRect().toJSON());
+  const thumbX = f.left + r.x + 8 + ((Number(await fr().evaluate(() => document.getElementById("scale").value)) - 120) / 240) * (r.width - 16);
+  await plain.mouse.move(thumbX, f.top + r.y + r.height / 2);
+  await plain.mouse.down();
+  await plain.mouse.move(f.left + r.x - 30, f.top + r.y + r.height / 2, { steps: 8 });
+  await plain.mouse.up();
+  await plain.waitForTimeout(400);
+  ok("dial: sliding it changes the size", (await size()) === 120, String(await size()));
+  ok("dial: the bubble stays on the page", (await box(plain)).bottom <= 900);
+}
+await rec.waitForTimeout(500);
+ok("dial: the other tabs' bubble too", (await frameOf(rec).evaluate(() => document.getElementById("circle").getBoundingClientRect().width)) === 120);
+await plain.screenshot({ path: `${shots}/extension-dial.png` });
+await clickIn("#size");
+ok("dial: the size button closes it", !(await fr().isVisible("#sizer")));
+await clickIn("#bigger").catch(() => {});
+// Back to the grip's size for the checks below.
+await fr().evaluate((n) => chrome.storage.local.get("bubble").then(({ bubble }) => chrome.storage.local.set({ bubble: { ...bubble, size: n } })), after);
+await plain.waitForTimeout(400);
+
+// A tab opened while recording gets the bubble and the camera too.
+{
+  const extra = await ctx.newPage();
+  await extra.goto(SITE + "/plain?another");
+  await extra.waitForSelector("#sureframe-bubble-frame", { timeout: 10000 }).catch(() => {});
+  const c = await camOn(extra);
+  ok("new tab: the bubble shows the camera", !!c, JSON.stringify(c));
+  const problem = await frameOf(extra)?.evaluate(() => { const n = document.getElementById("camera-note"); return n.hidden ? "" : n.textContent; }).catch(() => "?");
+  ok("new tab: no camera problem shown", problem === "", problem);
+  await extra.close();
+  await plain.bringToFront();
+}
+
 // The bar tucked away and brought back.
 await frameOf(plain).click("#collapse");
 await plain.waitForTimeout(300);
