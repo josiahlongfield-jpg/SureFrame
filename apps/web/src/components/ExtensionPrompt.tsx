@@ -74,7 +74,10 @@ export default function ExtensionPrompt({ installed, onStart, onCancel }: { inst
         <ul className="grid list-disc gap-1 pl-5">
           <li>It comes from {store}, made by SureFrame.</li>
           <li>It only shows your camera and recording controls, and only while you&rsquo;re recording with SureFrame.</li>
-          <li>It doesn&rsquo;t record, read or send anything from the websites you visit. This tab still does all the recording.</li>
+          <li>
+            The extension itself doesn&rsquo;t read, collect or send anything from the websites you visit. Your recording is made by this tab, and only shows
+            what you choose to share, the same as without it.
+          </li>
           <li>You can remove it any time from your browser&rsquo;s extensions page.</li>
         </ul>
       </div>

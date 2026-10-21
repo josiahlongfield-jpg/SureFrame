@@ -21,7 +21,7 @@ While you record your screen at sureframe.app, the SureFrame extension shows:
 
 Your camera bubble is what your viewers see in the video. Whenever the bubble can't be on screen, for example when another app is in front, SureFrame puts your camera into the video in a corner circle instead, so you're never missing from it.
 
-The extension doesn't record, save or send anything. Your recording stays in the SureFrame tab, encrypted on your device before it's uploaded, exactly as without the extension. It doesn't read or collect the pages you visit.
+The extension itself doesn't record, save or send anything, and doesn't read or collect the pages you visit. Your screen recording is made by the SureFrame tab and shows only what you choose to share, encrypted on your device before it's uploaded, exactly as without the extension.
 
 Allow your camera once on the welcome page after installing, and the bubble never has to ask again on each website.
 

@@ -48,7 +48,7 @@ await prompt.waitFor({ timeout: 5000 }).catch(() => {});
 ok("screen recording: asks to add the extension first", await prompt.isVisible());
 const text = await prompt.innerText();
 ok("says what it does", /camera bubble, with Pause and Stop, on any tab/.test(text), text);
-ok("says why it's safe", /Why it.s safe/.test(text) && /doesn.t record, read or send anything/.test(text), text);
+ok("says why it's safe", /Why it.s safe/.test(text) && /doesn.t read, collect or send anything/.test(text), text);
 const add = page.locator("[data-testid=extension-add]");
 ok("Add goes to the store in a new tab", (await add.getAttribute("href")) === process.env.EXPECT_URL && (await add.getAttribute("target")) === "_blank", await add.getAttribute("href"));
 ok("Start is out of the way meanwhile", !(await startBtn.isVisible()));
