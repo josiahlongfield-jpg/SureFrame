@@ -459,16 +459,11 @@ function Manager({
       <section className="rounded-2xl border border-line bg-surface p-6">
         <h2 className="font-semibold text-ink">{canManage ? "Add a client" : "Add a client of your own"}</h2>
         {!canManage && <p className="mt-1 text-sm text-dim">Clients you add are assigned to you. The owner or an admin can also assign clients to you.</p>}
-        {/* The steps in full until the first client is added; after that they fold away. */}
-        {clients.length === 0 ? (
+        {/* The steps only until the first client is added. */}
+        {clients.length === 0 && (
           <div className="mt-3" data-testid="first-link-rule">
             <PersonalLinkSteps />
           </div>
-        ) : (
-          <details className="mt-2 text-sm" data-testid="first-link-rule">
-            <summary className="cursor-pointer font-medium text-accent">How clients get your videos</summary>
-            <PersonalLinkSteps className="mt-2" />
-          </details>
         )}
         <form onSubmit={add} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
           <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Name" aria-label="Client name" className="min-w-0 rounded-lg border border-line-strong px-3 py-2 text-sm" />
@@ -484,7 +479,7 @@ function Manager({
           </p>
         )}
         {justAdded.length > 0 && (
-          <div ref={addedNote} role="status" data-testid="added-note" className="mt-3 rounded-xl border-2 border-primary bg-primary-soft p-4 text-sm text-ink">
+          <div ref={addedNote} role="status" data-testid="added-note" className="mt-3 rounded-xl border border-line bg-surface-2 p-4 text-sm text-ink">
             <p className="text-ok-fg">
               {justAdded.length === 1 ? `${justAdded[0].name} added.` : `Added ${plural(justAdded.length, "client", "clients")}.`}{" "}
               {unfit.length > 0 && (
@@ -499,19 +494,14 @@ function Manager({
                 </span>
               )}
             </p>
-            <p className="mt-3 text-base font-semibold" data-testid="added-next">
-              Next: record a video and send it to {justAdded.length === 1 ? justAdded[0].name : "them"}
-            </p>
-            <p className="mt-1 text-muted">
-              Pick {justAdded.length === 1 ? "them" : "who it's for"} in the video&apos;s Send box. A client&apos;s first video goes from your own email or texts, and they just
-              open it and watch. After that we can email them your videos.
-            </p>
-            <Link href="/record" className="mt-3 inline-block rounded-lg bg-primary px-4 py-2 font-semibold text-on-primary hover:bg-primary-hover" data-testid="added-record">
-              Record a video
-            </Link>
+            <div className="mt-2 flex flex-wrap items-center gap-3" data-testid="added-next">
+              <Link href="/record" className="rounded-lg bg-primary px-4 py-2 font-semibold text-on-primary hover:bg-primary-hover" data-testid="added-record">
+                Record a video for {justAdded.length === 1 ? justAdded[0].name : "them"}
+              </Link>
+            </div>
             {/* Their own link (no video yet) is still there for anyone who wants it, out of the way. */}
             <details className="mt-3" data-testid="added-links">
-              <summary className="cursor-pointer font-medium text-accent">Or send {justAdded.length === 1 ? "their" : "each one their"} link before any video</summary>
+              <summary className="cursor-pointer text-xs font-medium text-dim hover:text-ink">Or send {justAdded.length === 1 ? "their" : "each one their"} link now</summary>
               {justAdded.length === 1 ? (
                 <div className="mt-2">
                   <FirstLinkSender plain name={justAdded[0].name} email={justAdded[0].email} business={business} getLink={() => linkOf(justAdded[0])} onSent={() => sent(justAdded[0])} copyLabel="Copy personal link" />
