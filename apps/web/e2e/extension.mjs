@@ -449,6 +449,34 @@ await rec.waitForURL("**/v/**", { timeout: 30000 }).catch(() => {});
 await plain.waitForTimeout(1500);
 ok("Stop on the SureFrame tab takes the bar away too", (await box(plain)) === null);
 
+// Screen + Camera, one window shared (Josiah 2026-10-21): the bubble can't be inside another app's window, so the
+// camera is the corner circle in the video the whole way through, and the bubble keeps just Pause and Stop.
+await rec.goto(BASE + "/record");
+await rec.click("text=Screen + Camera");
+await rec.evaluate(() => {
+  const share = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
+  navigator.mediaDevices.getDisplayMedia = async (o) => {
+    const s = await share(o);
+    const t = s.getVideoTracks()[0];
+    const settings = t.getSettings.bind(t);
+    t.getSettings = () => ({ ...settings(), displaySurface: "window" });
+    return s;
+  };
+});
+await rec.click("text=Start recording");
+await rec.waitForSelector("text=/Recording · \\d/", { timeout: 20000 });
+await plain.bringToFront();
+await plain.waitForSelector("#sureframe-bubble-frame", { timeout: 10000 }).catch(() => {});
+await plain.waitForTimeout(2500);
+const win = await box(plain);
+const winCam = await frameOf(plain)?.evaluate(() => !!document.getElementById("video").srcObject).catch(() => null);
+ok("one window: the bubble keeps just its bar, camera off", win && win.height <= 44 && !(await frameOf(plain).isVisible("#circle")) && winCam === false, `${JSON.stringify(win)} ${winCam}`);
+says = await recorderSays();
+ok("...and the recorder says the camera is the corner circle", /Recording a window\. Your camera is in the circle in the corner of the video/.test(says), says);
+await frameOf(plain).click("#stop");
+await rec.waitForURL("**/v/**", { timeout: 30000 }).catch(() => {});
+ok("one window: Stop on the bar saves the video", /\/v\//.test(rec.url()), rec.url());
+
 await ctx.close();
 
 // Typical Mac and Windows screens (a Retina laptop, 125% scaling, a big monitor): the bubble fits, follows the pointer

@@ -224,6 +224,8 @@ async function openCamera() {
         video: { ...(deviceId ? { deviceId: { exact: deviceId } } : {}), width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
         audio: false,
       });
+      // Ended or switched to just the bar while the camera was opening.
+      if (rec?.mode !== "screen+camera") return closeCamera();
       cameraProblem = null;
       video.srcObject = stream;
       await video.play().catch(() => {});
@@ -439,7 +441,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "session" && changes.rec) {
     const was = rec?.mode;
     rec = changes.rec.newValue ?? null;
-    if (!rec) closeCamera();
+    // Ended, or switched to just Pause and Stop (one window shared: the camera goes in the video's corner instead).
+    if (rec?.mode !== "screen+camera") closeCamera();
     if (rec?.mode !== was) layout();
     if (rec?.mode === "screen+camera" && document.visibilityState === "visible") void openCamera();
     draw();

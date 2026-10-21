@@ -47,9 +47,10 @@ export type BubbleHealth = { onScreen: boolean; anywhere: boolean };
  * with every saved piece, as a heartbeat); `end()` takes the bubble away.
  */
 export function bubbleRecording(
-  rec: { id: string; mode: ExtensionMode; cameraLabel?: string },
+  start: { id: string; mode: ExtensionMode; cameraLabel?: string },
   on: { command: (action: "pause" | "resume" | "stop") => void; health?: (h: BubbleHealth) => void; hello?: () => void },
 ) {
+  const rec = { ...start };
   let last: { phase: Phase; ms: number } = { phase: "starting", ms: 0 };
   let ended = false;
   const send = () =>
@@ -72,6 +73,11 @@ export function bubbleRecording(
   return {
     update(phase: Phase, ms: number) {
       last = { phase, ms };
+      send();
+    },
+    /** Switches what the bubble shows, such as to just Pause and Stop once the camera goes in the video instead. */
+    setMode(mode: ExtensionMode) {
+      rec.mode = mode;
       send();
     },
     end() {

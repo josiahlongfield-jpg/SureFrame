@@ -112,6 +112,9 @@ export default function Recorder({
   }
   // With the extension: the camera circle is drawn into the video right now, because the bubble isn't on screen.
   const [circleNow, setCircleNow] = useState(false);
+  // Screen + Camera with the extension, sharing one window: the bubble can't be inside another app's window, so the
+  // camera is the corner circle in the video and the bubble shows just Pause and Stop (Josiah 2026-10-21).
+  const [windowShare, setWindowShare] = useState(false);
   const bubbleLink = useRef<ReturnType<typeof bubbleRecording> | null>(null);
   // Phones and tablets can't share their screen from a browser, so they only get camera mode.
   const [canShareScreen, setCanShareScreen] = useState(true);
@@ -371,6 +374,7 @@ export default function Recorder({
     setRecovered([]);
     setWholeScreen(false);
     setCircleNow(false);
+    setWindowShare(false);
     // Setup notices (no camera, camera found) don't carry into the recording.
     if (!noCamera) setNotice(undefined);
     setUpgrade(false);
@@ -445,6 +449,12 @@ export default function Recorder({
         const camTrack = camStream.current?.getVideoTracks()[0];
         if (mode === "screen+camera" && camTrack && canComposeCamera()) {
           const surface = (shared.getSettings() as { displaySurface?: string }).displaySurface;
+          // One window shared: the circle is the camera the whole way through, and the bubble keeps just its bar.
+          const oneWindow = !!ext && surface === "window";
+          if (oneWindow) {
+            ext.current?.setMode("screen");
+            setWindowShare(true);
+          }
           const c = composeCamera(
             video,
             camTrack,
@@ -453,12 +463,12 @@ export default function Recorder({
             // With the extension, the bubble on screen is the camera in the video. The circle is drawn in only while
             // the bubble isn't on what's being recorded: for a shared tab, while no tab shows it; for a window or the
             // whole screen, while another app (or a page the bubble can't go on) is in front.
-            ext ? { bubble: true, onCircle: setCircleNow } : {},
+            ext && !oneWindow ? { bubble: true, onCircle: setCircleNow } : {},
           );
           composed = c;
           composer.current = c;
           video = c.track;
-          if (ext) health = (h) => c.bubbleSeen(surface === "browser" ? h.anywhere : h.onScreen);
+          if (ext && !oneWindow) health = (h) => c.bubbleSeen(surface === "browser" ? h.anywhere : h.onScreen);
           // A whole-screen share would also record the floating window, title bar and all, so the camera
           // showed twice. The circle drawn into the video is the camera then, and you see yourself on this tab.
           else if (surface === "monitor") {
@@ -733,7 +743,7 @@ export default function Recorder({
                 {phase === "setup"
                   ? mode === "screen+camera"
                     ? extension
-                      ? "You\u2019ll pick a screen, window or tab when you start. Your camera floats in a bubble over your web pages, and that\u2019s how it shows in the video. Wherever the bubble can\u2019t go, it\u2019s in this circle instead: drag it to any corner."
+                      ? "You\u2019ll pick a screen, window or tab when you start. Your camera floats in a bubble over your web pages, and that\u2019s how it shows in the video. Wherever the bubble can\u2019t go, or if you share just one window, it\u2019s in this circle instead: drag it to any corner."
                       : "You\u2019ll pick a screen, window or tab when you start. Your camera goes in the circle: drag it to any corner."
                     : "You\u2019ll pick a screen, window or tab when you start."
                   : mode === "screen"
@@ -742,6 +752,8 @@ export default function Recorder({
                       : bubbleOpen
                         ? "Recording your screen. Pause and Stop also float in a small window over your other windows."
                         : "Recording your screen."
+                    : extension && bubbleOpen && windowShare
+                      ? "Recording a window. Your camera is in the circle in the corner of the video, and Pause and Stop float on your web pages."
                     : extension && bubbleOpen
                       ? circleNow
                         ? "Recording your screen. Your camera bubble isn\u2019t on screen right now, so your camera is in the circle in the corner of the video."
