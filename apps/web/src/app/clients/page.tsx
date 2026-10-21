@@ -45,7 +45,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
           <p className="mt-1 text-sm text-dim">You see the clients assigned to you. The owner or an admin can assign more.</p>
         )}
         <p className="mt-1 text-sm text-dim">
-          Clients watch and reply to the videos you send them for free. They don&apos;t need an account, just their personal link.
+          Clients watch and reply to the videos you send them for free. They don&apos;t need an account, just the link to your video.
         </p>
         {clients.some((c) => c.pausedAt) && (
           <p className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="paused-clients-note">

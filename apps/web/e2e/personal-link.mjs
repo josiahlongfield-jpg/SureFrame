@@ -1,7 +1,8 @@
-// A client's personal link, the one step a business mustn't miss (components/FirstLinkSender.tsx):
+// A new client's first video does it all (components/FirstLinkSender.tsx, SendPanel.tsx):
 // - a business that records before adding anyone adds the client right in the Send box, and is
-//   shown the three steps and the ways to send the link (Copy link, Copy link + message, Email from my email);
-// - the Clients page says, at the top, how many clients can't open videos yet, until they open their link;
+//   shown the three steps and the ways to send that first video itself (Email from my email first,
+//   Copy link, Copy link + message); there's no separate personal-link step to do first;
+// - the Clients page marks the client "Not opened yet" (no warning banner) until they open it;
 // - everything fits a 320px phone.
 import { chromium } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
@@ -43,11 +44,11 @@ const ws = (await prisma.membership.findFirst({ where: { user: { email } } })).w
 const business = `Business P ${stamp}`;
 await prisma.workspace.update({ where: { id: ws }, data: { name: business } });
 await owner.reload();
-ok("library start: the personal link step is shown up front", norm(await owner.textContent("[data-testid=first-steps]")).includes("Send them their personal link, once"));
+ok("library start: the first video goes from you, said up front", norm(await owner.textContent("[data-testid=first-steps]")).includes("Send their first video yourself") && !norm(await owner.textContent("[data-testid=first-steps]")).includes("personal link, once"));
 
 // Record first, with no clients.
 await owner.goto(BASE + "/record");
-ok("record page: says each new client needs their personal link", norm(await owner.textContent("[data-testid=no-clients-note]")).includes("Each new client needs their personal link from you once before they can watch"));
+ok("record page: says a new client's first video goes from you", norm(await owner.textContent("[data-testid=no-clients-note]")).includes("A new client's first video goes from your own email or texts"));
 await owner.click("text=Camera only");
 await owner.click("text=Start recording");
 await owner.waitForSelector("text=/Recording · \\d/", { timeout: 15000 });
@@ -63,8 +64,8 @@ await owner.fill("[data-testid=quick-add] input[aria-label='Client email']", `cl
 await owner.click("[data-testid=quick-add] button:has-text('Add client')");
 await owner.waitForSelector("[data-testid=first-links]", { timeout: 15000 });
 const box = norm(await owner.textContent("[data-testid=first-links]"));
-ok("added and chosen: Client Q is listed as needing their personal link", box.includes("Client Q") && norm(await owner.textContent("[data-testid=first-time]")).includes("Clients listed need their personal link") && (await owner.textContent("[data-testid=client-picker]")).includes("Client Q"), box);
-ok("every way to send it is offered", ["Copy link", "Copy link + message", "Email from my email"].every((t) => box.includes(t)), box);
+ok("added and chosen: this is Client Q's first video, sent from your own email or texts", norm(await owner.textContent("[data-testid=first-time]")).includes("This is Client Q's first video, so send it from your own email or texts") && !norm(await owner.textContent("[data-testid=send-panel]")).includes("can't be connected") && (await owner.textContent("[data-testid=client-picker]")).includes("Client Q"));
+ok("every way to send it is offered, their own email first", ["Copy link", "Copy link + message", "Email from my email"].every((t) => box.includes(t)) && (await owner.locator("[data-testid=first-links] [data-testid=first-link-sender] button").first().getAttribute("data-testid")) === "first-link-email", box);
 const q = await prisma.client.findFirst({ where: { workspaceId: ws, name: "Client Q" } });
 ok("Client Q has their own key", !!q?.teamKeyWrap);
 await owner.screenshot({ path: `${shots}/personal-link-send.png`, fullPage: true });
@@ -85,20 +86,23 @@ const mailto = await waitFor(() => owner.evaluate(() => window.__mailto));
 const body = mailto ? decodeURIComponent(mailto.split("body=")[1] ?? "") : "";
 ok("mailto: to Client Q, subject names the business, body has their video link with key", !!mailto && mailto.startsWith(`mailto:client-q-${stamp}%40example.com?subject=`) && decodeURIComponent(mailto).includes(`A video for you from ${business}`) && body.includes(`v=${vid}`) && body.includes("#k="), mailto ?? "none");
 ok("sending it gave Client Q this video", (await prisma.video.findUnique({ where: { id: vid } })).clientId === q.id);
-await owner.waitForSelector("[data-testid=waiting-row]");
-ok("Client Q waits for their personal link, with the same buttons", (await owner.locator("[data-testid=waiting-row] [data-testid=first-link-copy]").count()) === 1);
+const qRow = "[data-testid=sent-row]:has-text('Client Q')";
+await owner.waitForSelector(`${qRow} [data-testid=first-link-copy]`);
+ok("Client Q is under Sent to, with the same buttons to send it again", norm(await owner.textContent("[data-testid=sent-list]")).includes("Client Q") && (await owner.locator("[data-testid=waiting-list]").count()) === 0);
+ok("their row says it went from you", norm(await owner.textContent(`${qRow} [data-testid=row-first]`)).includes("Sent from you"));
 ok("status says the email app should open", norm(await owner.textContent("[data-testid=send-status]")).includes("Your email app should open"));
 ok("marked as sent", !!(await waitFor(async () => (await prisma.client.findUnique({ where: { id: q.id } })).linkSentAt)));
-await owner.click("[data-testid=waiting-row] [data-testid=first-link-copy]");
+await owner.click(`${qRow} [data-testid=first-link-copy]`);
 await owner.waitForTimeout(300);
 const link = await clip();
 ok("Copy link: their video link with key", link.includes(`v=${vid}`) && link.includes("#k="), link);
 
-// Clients page: banner at the top until they open it.
+// Clients page: no warning banner, just a quiet mark until they open it.
 await owner.goto(BASE + "/clients");
-await owner.waitForSelector("[data-testid=waiting-banner]");
-ok("Clients page: banner says 1 client can't open your videos yet", norm(await owner.textContent("[data-testid=waiting-banner]")).includes("1 client can't open your videos yet"));
-ok("Client Q: Link sent, not opened yet", (await owner.textContent("li:has-text('Client Q') [data-testid=needs-first-link]")) === "Link sent, not opened yet");
+await owner.waitForSelector("[data-testid=clients-search]");
+ok("Clients page: no warning banner", (await owner.locator("[data-testid=waiting-banner]").count()) === 0);
+ok("Client Q: Not opened yet", (await owner.textContent("li:has-text('Client Q') [data-testid=needs-first-link]")) === "Not opened yet");
+ok("Client Q's row: just Copy personal link, like everyone's", (await owner.locator("li:has-text('Client Q') [data-testid=first-link-sender]").count()) === 0 && (await owner.locator("li:has-text('Client Q') button:has-text('Copy personal link')").count()) === 1);
 
 // 320px: the Send box, the Clients page and the client's page fit.
 await owner.setViewportSize({ width: 320, height: 700 });
@@ -110,7 +114,7 @@ await owner.waitForSelector("[data-testid=needs-first-card]");
 ok("320px: client page card fits", await fits());
 await owner.screenshot({ path: `${shots}/personal-link-client-320.png`, fullPage: true });
 await owner.goto(`${BASE}/v/${vid}`);
-await owner.waitForSelector("[data-testid=waiting-row]", { timeout: 20000 });
+await owner.waitForSelector(qRow, { timeout: 20000 });
 ok("320px: Send box fits", await fits());
 await owner.screenshot({ path: `${shots}/personal-link-send-320.png`, fullPage: true });
 await owner.setViewportSize({ width: 1280, height: 800 });
@@ -146,7 +150,7 @@ await qPage.goto(`${BASE}/inbox?from=notmine12345`);
 ok("no way back offered to a video that isn't theirs", (await qPage.locator("[data-testid=back-to-video]").count()) === 0);
 await owner.goto(BASE + "/clients");
 await owner.waitForSelector("[data-testid=clients-search]");
-ok("banner gone once they've opened it", (await owner.locator("[data-testid=waiting-banner]").count()) === 0 && (await owner.locator("li:has-text('Client Q') [data-testid=needs-first-link]").count()) === 0);
+ok("mark gone once they've opened it", (await owner.locator("li:has-text('Client Q') [data-testid=needs-first-link]").count()) === 0);
 
 await browser.close();
 await prisma.$disconnect();

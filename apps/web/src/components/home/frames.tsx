@@ -56,7 +56,7 @@ function Send() {
           <div className="f-drop">
             <div className="f-row"><span className="f-chip">All clients</span><span className="f-chip">My clients</span><span className="f-chip" style={{ border: 0 }}>Clear</span></div>
             <div className="f-cards" style={{ gap: "0.4375rem 0.875rem" }}>
-              {list.map(([n, on]) => <span key={n} className="f-check"><Cb on={on} />{n}{n === "Client D" && <span className="f-need f-hide-sm">Needs personal link</span>}</span>)}
+              {list.map(([n, on]) => <span key={n} className="f-check"><Cb on={on} />{n}{n === "Client D" && <span className="f-need f-hide-sm">New</span>}</span>)}
             </div>
           </div>
         </div>

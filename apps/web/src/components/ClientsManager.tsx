@@ -8,7 +8,7 @@ import { shareLink, useCanShare, writeClipboard } from "@/lib/clipboard";
 import TeamKeyGate from "./TeamKeyGate";
 import RemoveExtras from "./RemoveExtras";
 import { ReplyBadges, type Conv } from "./LibraryTools";
-import FirstLinkSender, { KeyIcon, PersonalLinkSteps } from "./FirstLinkSender";
+import FirstLinkSender, { PersonalLinkSteps } from "./FirstLinkSender";
 
 type Seats = { used: number; limit: number };
 /** `reached`: the client has opened their personal link, so emailed videos open for them. `linkSent`: the team copied or shared it. */
@@ -382,30 +382,6 @@ function Manager({
 
   return (
     <div className="mt-8 grid gap-6">
-      {waiting > 0 && (
-        <div className="rounded-2xl border-2 border-warn-line bg-warn-bg p-4 text-sm text-warn-fg" data-testid="waiting-banner">
-          <p className="flex items-center gap-2 text-base font-semibold">
-            <KeyIcon className="h-5 w-5" />
-            {waiting === 1 ? "1 client can't open your videos yet" : `${waiting} clients can't open your videos yet`}
-          </p>
-          <p className="mt-1">
-            They haven&apos;t opened their personal link. Send it to {waiting === 1 ? "them" : "each of them"} once, by text, chat or your own email, and every video
-            you send opens for them after that.
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setFilter("first");
-              setQuery("");
-              listTop.current?.scrollIntoView({ block: "start", behavior: "smooth" });
-            }}
-            className="mt-3 rounded-lg bg-primary px-3 py-1.5 font-semibold text-on-primary hover:bg-primary-hover"
-            data-testid="waiting-show"
-          >
-            {waiting === 1 ? "Show who" : `Show all ${waiting}`}
-          </button>
-        </div>
-      )}
       {/* Seats are the business's to manage: staff aren't shown how many clients the business has. */}
       {canManage && (
       <section id="buy-seats" className="scroll-mt-6 rounded-2xl border border-line bg-surface p-6">
@@ -483,14 +459,14 @@ function Manager({
       <section className="rounded-2xl border border-line bg-surface p-6">
         <h2 className="font-semibold text-ink">{canManage ? "Add a client" : "Add a client of your own"}</h2>
         {!canManage && <p className="mt-1 text-sm text-dim">Clients you add are assigned to you. The owner or an admin can also assign clients to you.</p>}
-        {/* The rule in full until the first client is added; after that, the banner and each client's row say it, so it folds away. */}
+        {/* The steps in full until the first client is added; after that they fold away. */}
         {clients.length === 0 ? (
           <div className="mt-3" data-testid="first-link-rule">
             <PersonalLinkSteps />
           </div>
         ) : (
           <details className="mt-2 text-sm" data-testid="first-link-rule">
-            <summary className="cursor-pointer font-medium text-accent">How personal links work</summary>
+            <summary className="cursor-pointer font-medium text-accent">How clients get your videos</summary>
             <PersonalLinkSteps className="mt-2" />
           </details>
         )}
@@ -523,33 +499,39 @@ function Manager({
                 </span>
               )}
             </p>
-            <p className="mt-3 flex items-center gap-2 text-base font-semibold" data-testid="added-next">
-              <KeyIcon className="h-5 w-5 text-accent" />
-              Next: send {justAdded.length === 1 ? justAdded[0].name : "each of them"} their personal link
+            <p className="mt-3 text-base font-semibold" data-testid="added-next">
+              Next: record a video and send it to {justAdded.length === 1 ? justAdded[0].name : "them"}
             </p>
             <p className="mt-1 text-muted">
-              {justAdded.length === 1 ? `${justAdded[0].name} can't` : "They can't"} open any videos until they&apos;ve opened this link once. It holds the key to their videos, so it comes
-              from you, by text, chat or your own email. After that, every video you send opens straight away.
+              Pick {justAdded.length === 1 ? "them" : "who it's for"} in the video&apos;s Send box. A client&apos;s first video goes from your own email or texts, and they just
+              open it and watch. After that we can email them your videos.
             </p>
-            {justAdded.length === 1 ? (
-              <div className="mt-3">
-                <FirstLinkSender name={justAdded[0].name} email={justAdded[0].email} business={business} getLink={() => linkOf(justAdded[0])} onSent={() => sent(justAdded[0])} copyLabel="Copy personal link" />
-              </div>
-            ) : (
-              <>
-                <ul className="mt-3 grid max-h-96 gap-3 overflow-y-auto" data-testid="added-list">
-                  {justAdded.map((c) => (
-                    <li key={c.id} className="rounded-lg bg-surface p-3">
-                      <p className="mb-1.5 break-words font-medium">{c.name}</p>
-                      <FirstLinkSender compact name={c.name} email={c.email} business={business} getLink={() => linkOf(c)} onSent={() => sent(c)} copyLabel="Copy personal link" />
-                    </li>
-                  ))}
-                </ul>
-                <button onClick={() => copyAll(justAdded)} data-testid="added-copy-all" className="mt-3 rounded-lg border border-line-strong bg-surface px-3 py-1.5 hover:bg-hover">
-                  {copied === "all" ? "Copied" : `Copy all ${justAdded.length} links as a list`}
-                </button>
-              </>
-            )}
+            <Link href="/record" className="mt-3 inline-block rounded-lg bg-primary px-4 py-2 font-semibold text-on-primary hover:bg-primary-hover" data-testid="added-record">
+              Record a video
+            </Link>
+            {/* Their own link (no video yet) is still there for anyone who wants it, out of the way. */}
+            <details className="mt-3" data-testid="added-links">
+              <summary className="cursor-pointer font-medium text-accent">Or send {justAdded.length === 1 ? "their" : "each one their"} link before any video</summary>
+              {justAdded.length === 1 ? (
+                <div className="mt-2">
+                  <FirstLinkSender plain name={justAdded[0].name} email={justAdded[0].email} business={business} getLink={() => linkOf(justAdded[0])} onSent={() => sent(justAdded[0])} copyLabel="Copy personal link" />
+                </div>
+              ) : (
+                <>
+                  <ul className="mt-2 grid max-h-96 gap-3 overflow-y-auto" data-testid="added-list">
+                    {justAdded.map((c) => (
+                      <li key={c.id} className="rounded-lg bg-surface p-3">
+                        <p className="mb-1.5 break-words font-medium">{c.name}</p>
+                        <FirstLinkSender compact plain name={c.name} email={c.email} business={business} getLink={() => linkOf(c)} onSent={() => sent(c)} copyLabel="Copy personal link" />
+                      </li>
+                    ))}
+                  </ul>
+                  <button onClick={() => copyAll(justAdded)} data-testid="added-copy-all" className="mt-3 rounded-lg border border-line-strong bg-surface px-3 py-1.5 hover:bg-hover">
+                    {copied === "all" ? "Copied" : `Copy all ${justAdded.length} links as a list`}
+                  </button>
+                </>
+              )}
+            </details>
             <button onClick={() => { setJustAdded([]); setUnfit([]); setUnread([]); }} className="mt-3 block text-dim hover:text-ink">
               Done
             </button>
@@ -659,7 +641,7 @@ function Manager({
             />
             <select value={filter} onChange={(e) => setFilter(e.target.value as Filter)} aria-label="Show" data-testid="clients-filter" className="min-w-0 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm">
               <option value="all">All</option>
-              <option value="first">Needs personal link{waiting ? ` (${waiting})` : ""}</option>
+              <option value="first">Not opened a video yet{waiting ? ` (${waiting})` : ""}</option>
               <option value="no-email">No email</option>
               {clients.some((c) => c.paused || c.linkOff) && <option value="paused">Paused or link off</option>}
             </select>
@@ -709,10 +691,8 @@ function Manager({
                       </select>
                     )}
                     {assigned?.id === c.id && <span role="status" className="self-center text-xs text-ok-fg" data-testid="assign-saved">{assigned.text}</span>}
-                    {!c.linkOff && !c.reached && (
-                      <FirstLinkSender compact alignEnd name={c.name} email={c.email} business={business} getLink={() => linkOf(c)} onSent={() => sent(c)} copyLabel="Copy personal link" />
-                    )}
-                    {!c.linkOff && c.reached && (
+                    {/* New clients are set up by their first video's link, sent from its Send box, so their own link is no more urgent than anyone's. */}
+                    {!c.linkOff && (
                       <>
                         <button onClick={() => copy(c)} aria-label={`Copy personal link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover">
                           {copied === c.id ? "Copied" : "Copy personal link"}
@@ -803,15 +783,15 @@ function Manager({
   );
 }
 
-/** A client who can't open videos yet: whether the team has sent their personal link. */
+/** A client who hasn't opened a video yet: new (nothing sent yet), or sent one and not opened it. */
 export function LinkBadge({ sent }: { sent?: boolean }) {
   return sent ? (
-    <span className="ml-1 inline-block rounded-full bg-primary-soft px-2 py-0.5 text-xs font-semibold text-accent" data-testid="needs-first-link" title="Sent, but they haven't opened it yet. Their videos open once they do.">
-      Link sent, not opened yet
+    <span className="ml-1 inline-block rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-dim" data-testid="needs-first-link" title="You've sent them a link, and they haven't opened it yet. Once they do, we can email them your videos.">
+      Not opened yet
     </span>
   ) : (
-    <span className="ml-1 inline-block rounded-full bg-warn-bg px-2 py-0.5 text-xs font-semibold text-warn-fg" data-testid="needs-first-link" title="They can't open videos until they've opened their personal link">
-      Needs personal link
+    <span className="ml-1 inline-block rounded-full bg-primary-soft px-2 py-0.5 text-xs font-semibold text-accent" data-testid="needs-first-link" title="Their first video comes from you, by your own email, texts or chat. After that we can email them.">
+      New
     </span>
   );
 }
