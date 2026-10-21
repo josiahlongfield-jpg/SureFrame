@@ -285,6 +285,112 @@ await plain.waitForTimeout(400);
   await plain.bringToFront();
 }
 
+// Everywhere on the screen: moved there first, then resized with the grip, the dial and its buttons, and its own
+// buttons pressed. Nothing jumps back to where it was, and it all stays on the screen.
+{
+  const W = 1360, H = 900;
+  const inFrame = (sel) => frameOf(plain).evaluate((s) => document.querySelector(s).getBoundingClientRect().toJSON(), sel);
+  const onPage = async (sel) => {
+    const f = await box(plain);
+    const r = await inFrame(sel);
+    return { x: f.left + r.x, y: f.top + r.y, w: r.width, h: r.height, cx: f.left + r.x + r.width / 2, cy: f.top + r.y + r.height / 2 };
+  };
+  const clickAt = async (sel) => {
+    const r = await onPage(sel);
+    await plain.mouse.click(r.cx, r.cy);
+    await plain.waitForTimeout(350);
+  };
+  const fits = (f) => f.left >= 0 && f.top >= 0 && f.right <= W && f.bottom <= H;
+  const circleSize = () => frameOf(plain).evaluate(() => document.getElementById("circle").getBoundingClientRect().width);
+  const setSize = async (n) => {
+    await frameOf(plain).evaluate((n) => chrome.storage.local.set({ bubbleLook: { size: n, collapsed: false } }), n);
+    await plain.waitForTimeout(400);
+  };
+  // Drags the bubble by its clock so the middle of the bar lands at x, and the frame's bottom at y.
+  async function moveTo(x, y) {
+    const clock = await onPage("#clock");
+    const bar = await onPage("#bar");
+    const f = await box(plain);
+    await plain.mouse.move(clock.cx, clock.cy);
+    await plain.mouse.down();
+    await plain.mouse.move(clock.cx + (x - bar.cx), clock.cy + (y - f.bottom), { steps: 12 });
+    await plain.mouse.up();
+    await plain.waitForTimeout(500);
+  }
+  for (const [name, x, y] of [
+    ["top left", 150, 330],
+    ["top right", W - 150, 330],
+    ["middle", W / 2, H / 2 + 150],
+    ["bottom right", W - 150, H - 20],
+    ["bottom left", 150, H - 20],
+  ]) {
+    await setSize(200);
+    await moveTo(x, y);
+    let f = await box(plain);
+    const bar0 = await onPage("#bar");
+    ok(`${name}: moved there`, Math.abs(bar0.cx - Math.max(bar0.w / 2, Math.min(W - bar0.w / 2, x))) < 4 && fits(f), JSON.stringify({ f, bar0, x, y }));
+
+    // The grip: grows up and right from where it is, never back to where it was.
+    await frameOf(plain).hover("#circle");
+    const grip = await onPage("#grow");
+    await plain.mouse.move(grip.cx, grip.cy);
+    await plain.mouse.down();
+    await plain.mouse.move(grip.cx + 60, grip.cy, { steps: 8 });
+    await plain.mouse.up();
+    await plain.waitForTimeout(500);
+    const g = await box(plain);
+    const barG = await onPage("#bar");
+    ok(`${name}: the grip resizes it`, (await circleSize()) > 230, String(await circleSize()));
+    ok(`${name}: resizing with the grip keeps it where it is`, Math.abs(barG.cx - bar0.cx) < 2 && Math.abs(barG.y - bar0.y) < 2 && fits(g), JSON.stringify({ bar0, barG, g }));
+
+    // The dial: open it, + and -, then slide; the bar under it stays where it is.
+    await setSize(200);
+    f = await box(plain);
+    const bar1 = await onPage("#bar");
+    await clickAt("#size");
+    ok(`${name}: the size button opens the dial`, await frameOf(plain).isVisible("#sizer"));
+    await clickAt("#bigger");
+    await clickAt("#bigger");
+    const big = await circleSize();
+    // As big as asked, or as big as fits above it.
+    ok(`${name}: + works`, big > 200 && big <= 240 && (big === 240 || (await box(plain)).top <= 1), String(big));
+    await clickAt("#smaller");
+    ok(`${name}: - works`, (await circleSize()) === big - 20, `${big} -> ${await circleSize()}`);
+    const s = await onPage("#scale");
+    await plain.mouse.move(s.x + 8 + (((await circleSize()) - 120) / 320) * (s.w - 16), s.cy);
+    await plain.mouse.down();
+    await plain.mouse.move(s.x + s.w - 4, s.cy, { steps: 10 });
+    await plain.mouse.up();
+    await plain.waitForTimeout(500);
+    const f2 = await box(plain);
+    ok(`${name}: sliding the dial resizes it`, (await circleSize()) >= 400 || f2.top <= 1, `${await circleSize()} ${JSON.stringify(f2)}`);
+    const bar2 = await onPage("#bar");
+    const c2 = await onPage("#circle");
+    ok(`${name}: the dial resizes it where it is`, fits(f2) && Math.abs(bar2.cx - bar1.cx) < 2 && Math.abs(bar2.y - bar1.y) < 2, JSON.stringify({ bar1, bar2, f2 }));
+    ok(`${name}: the circle stays on the screen`, c2.x >= 0 && c2.x + c2.w <= W && c2.y >= 0, JSON.stringify(c2));
+
+    // Its own buttons, wherever it is.
+    await clickAt("#pause");
+    await rec.waitForSelector("text=/Paused · \\d/", { timeout: 5000 }).catch(() => {});
+    ok(`${name}: Pause works`, /Paused/.test(await pill()));
+    await clickAt("#pause");
+    await rec.waitForSelector("text=/Recording · \\d/", { timeout: 5000 }).catch(() => {});
+    ok(`${name}: Resume works`, /Recording/.test(await pill()));
+    await clickAt("#size");
+    await clickAt("#collapse");
+    ok(`${name}: the bar tucks away`, !(await frameOf(plain).isVisible("#bar")) && fits(await box(plain)));
+    await frameOf(plain).hover("#circle");
+    await clickAt("#expand");
+    ok(`${name}: and comes back`, (await frameOf(plain).isVisible("#bar")) && fits(await box(plain)));
+    await rec.waitForTimeout(400);
+    const there = await box(rec);
+    const here = await box(plain);
+    ok(`${name}: the other tab matches`, Math.abs(there.left - here.left) < 2 && Math.abs(there.bottom - here.bottom) < 2 && Math.abs(there.width - here.width) < 2, JSON.stringify({ there, here }));
+  }
+  await setSize(200);
+  await plain.screenshot({ path: `${shots}/extension-everywhere.png` });
+}
+
 // The bar tucked away and brought back.
 await frameOf(plain).click("#collapse");
 await plain.waitForTimeout(300);
@@ -354,7 +460,8 @@ for (const [name, viewport, deviceScaleFactor] of [
   await p.mouse.up();
   await p.waitForTimeout(300);
   const grown = await frameOf(p).evaluate(() => document.getElementById("circle").getBoundingClientRect().width);
-  ok(`${name}: resizing follows the grip`, Math.abs(grown - 250) < 3, String(grown));
+  // Grows around the bar's middle, twice as much across, so the grip keeps up with the pointer.
+  ok(`${name}: resizing follows the grip`, Math.abs(grown - 300) < 3, String(grown));
   await p.screenshot({ path: `${shots}/extension-${name}.png` });
   await sw.evaluate(() => chrome.storage.session.remove("rec"));
   await p.waitForTimeout(500);

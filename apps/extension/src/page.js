@@ -13,13 +13,18 @@
   let port = null;
   let recId = null;
   /**
-   * Where the frame sits: its distance up from the bottom, and across by its middle (cx), so a bigger or smaller
-   * bubble grows and shrinks evenly around the bar under it instead of pushing it sideways. Until the frame's width is
-   * first known (or when kept by version 1.0.2, which stored the left edge) it goes by the left edge.
+   * Where the bubble is: the middle of its bar across (cx), and its distance up from the bottom. Placed by the bar's
+   * middle, the bar and dial stay put while the circle above changes size. Until the bubble's outline is first known
+   * (or when kept by version 1.0.2, which stored the left edge) it goes by its left edge.
    */
-  let place = { left: 24, bottom: 24 };
   let cx = null;
-  let box = { width: 0, height: 0 };
+  let bottom = 24;
+  let leftEdge = 24;
+  /** The bubble's outline, and where the bar's middle is in it (from bubble.js). */
+  let box = { width: 0, height: 0, anchor: 0 };
+  /** Where the bubble was last shown while held, in case its let-go never arrives. */
+  let held = null;
+  let told = "";
   /** While the bubble is dragged or resized its frame covers the page (see connect). */
   let full = false;
   let staleTimer = 0;
@@ -47,17 +52,23 @@
    */
   const fresh = (rec) => !!rec?.id && (rec.phase !== "recording" || Date.now() - (rec.beat ?? 0) < 30_000);
 
+  const viewport = () => ({ w: document.documentElement.clientWidth || innerWidth, h: document.documentElement.clientHeight || innerHeight });
+
+  /** Puts the frame where the bubble goes, kept on the window, and tells the bubble the window and its place. */
   function clamp() {
     if (!frame || full) return;
-    const w = document.documentElement.clientWidth || innerWidth;
-    const h = document.documentElement.clientHeight || innerHeight;
-    if (cx == null && box.width) cx = place.left + box.width / 2;
-    const want = cx == null ? place.left : cx - box.width / 2;
-    const left = Math.max(0, Math.min(want, w - box.width));
-    const bottom = Math.max(0, Math.min(place.bottom, h - box.height));
+    const { w, h } = viewport();
+    const left = Math.max(0, Math.min(cx == null ? leftEdge : cx - box.anchor, w - box.width));
+    const shownBottom = Math.max(0, Math.min(bottom, h - box.height));
     frame.style.left = `${left}px`;
-    frame.style.bottom = `${bottom}px`;
-    return { left, bottom };
+    frame.style.bottom = `${shownBottom}px`;
+    const view = { w, h, cx, bottom };
+    const key = JSON.stringify(view);
+    if (port && key !== told) {
+      told = key;
+      port.postMessage({ view });
+    }
+    return { cx: left + box.anchor, bottom: shownBottom };
   }
 
   function mount(rec) {
@@ -112,8 +123,18 @@
     port.onmessage = (e) => {
       const m = e.data;
       if (!m || !frame) return;
-      if (m.box) {
-        box = { width: Math.ceil(m.box.width), height: Math.ceil(m.box.height) };
+      if (m.at) {
+        held = m.at;
+      } else if (m.pin) {
+        if (cx == null && !full) {
+          const shown = clamp();
+          if (shown) {
+            cx = shown.cx;
+            void chrome.storage.local.set({ bubblePlace: { cx, bottom } }).catch(() => {});
+          }
+        }
+      } else if (m.box) {
+        box = { width: Math.ceil(m.box.width), height: Math.ceil(m.box.height), anchor: m.box.anchor ?? m.box.width / 2 };
         if (full) return;
         frame.style.width = `${box.width}px`;
         frame.style.height = `${box.height}px`;
@@ -121,40 +142,48 @@
       } else if (m.drag === "start") {
         // Dragging or resizing: the (see-through) frame covers the page meanwhile, and the bubble moves inside it.
         // Moving the frame itself under the pointer would make it lag, as positions inside a moving frame do.
-        const at = clamp() ?? place;
+        // Already covering the page means the last let-go never came: carry on from where the bubble was last shown.
+        if (full && held) settle(held);
+        const at = clamp() ?? { cx: cx ?? leftEdge + box.anchor, bottom };
         full = true;
+        held = at;
+        const { w, h } = viewport();
         frame.style.left = frame.style.bottom = "0px";
-        const height = document.documentElement.clientHeight || innerHeight;
-        frame.style.width = `${document.documentElement.clientWidth || innerWidth}px`;
-        frame.style.height = `${height}px`;
-        port.postMessage({ full: at, height });
+        frame.style.width = `${w}px`;
+        frame.style.height = `${h}px`;
+        port.postMessage({ full: at, height: h });
       } else if (m.drag === "end") {
-        full = false;
-        if (Number.isFinite(m.left) && Number.isFinite(m.bottom)) {
-          place = { left: m.left, bottom: m.bottom };
-          cx = m.left + box.width / 2;
-        }
-        frame.style.width = `${box.width}px`;
-        frame.style.height = `${box.height}px`;
-        place = clamp() ?? place;
-        cx = place.left + box.width / 2;
-        // Every other tab's bubble moves here too. Written whole, never merged with what's stored: the bubble's size is
-        // kept under its own name by bubble.js, so a move and a resize ending together can't undo each other.
-        void chrome.storage.local.set({ bubblePlace: { cx, bottom: place.bottom } }).catch(() => {});
+        settle(Number.isFinite(m.cx) && Number.isFinite(m.bottom) ? { cx: m.cx, bottom: m.bottom } : held);
       }
     };
     frame.contentWindow?.postMessage({ sureframe: "port" }, "*", [channel.port2]);
+    told = "";
+  }
+
+  /** Let go: the frame shrinks back around the bubble where it now is, and every other tab's bubble goes there too. */
+  function settle(at) {
+    full = false;
+    held = null;
+    if (at && Number.isFinite(at.cx) && Number.isFinite(at.bottom)) {
+      cx = at.cx;
+      bottom = at.bottom;
+    }
+    frame.style.width = `${box.width}px`;
+    frame.style.height = `${box.height}px`;
+    clamp();
+    // Written whole, never merged with what's stored: the bubble's size is kept under its own name by bubble.js, so a
+    // move and a resize ending together can't undo each other.
+    if (cx != null) void chrome.storage.local.set({ bubblePlace: { cx, bottom } }).catch(() => {});
   }
 
   function takePlace(b) {
     if (!b || !Number.isFinite(b.bottom)) return;
-    if (Number.isFinite(b.cx)) {
-      cx = b.cx;
-      place = { left: b.cx - box.width / 2, bottom: b.bottom };
-    } else if (Number.isFinite(b.left)) {
+    if (Number.isFinite(b.cx)) cx = b.cx;
+    else if (Number.isFinite(b.left)) {
       cx = null;
-      place = { left: b.left, bottom: b.bottom };
-    }
+      leftEdge = b.left;
+    } else return;
+    bottom = b.bottom;
   }
 
   async function load() {

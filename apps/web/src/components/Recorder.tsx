@@ -28,6 +28,7 @@ import {
 } from "@/lib/recorder/media";
 import { CAMERA_CORNERS, CIRCLE, canComposeCamera, composeCamera, type CameraCorner } from "@/lib/recorder/compose";
 import { bubbleRecording, watchExtension, type BubbleHealth } from "@/lib/recorder/extension";
+import ExtensionPrompt, { extensionPromptSkipped, extensionUrl } from "./ExtensionPrompt";
 
 type Phase = "setup" | "countdown" | "recording" | "paused" | "finishing";
 
@@ -103,6 +104,12 @@ export default function Recorder({
   // A computer browser the extension is for (Chrome, Edge, Brave and the like), where it isn't installed yet.
   const [extensionBrowser, setExtensionBrowser] = useState(false);
   useEffect(() => setExtensionBrowser(!!EXTENSION_URL && canComposeCamera() && !isPhone()), []);
+  // Pressing Start for a screen recording without the extension first asks to add it (ExtensionPrompt).
+  const [extensionAsk, setExtensionAsk] = useState(false);
+  function requestStart() {
+    if (mode !== "camera" && extensionBrowser && !extension && canShareScreen && !extensionPromptSkipped()) setExtensionAsk(true);
+    else void start();
+  }
   // With the extension: the camera circle is drawn into the video right now, because the bubble isn't on screen.
   const [circleNow, setCircleNow] = useState(false);
   const bubbleLink = useRef<ReturnType<typeof bubbleRecording> | null>(null);
@@ -834,10 +841,10 @@ export default function Recorder({
               {mode !== "camera" && extensionBrowser && !extension && canShareScreen && (
                 <p className="text-xs text-dim" data-testid="get-extension">
                   Want your camera bubble with Pause and Stop on every tab, not just this one?{" "}
-                  <a href={EXTENSION_URL} target="_blank" rel="noopener" className="font-medium text-primary underline underline-offset-2">
+                  <a href={extensionUrl()} target="_blank" rel="noopener" className="font-medium text-primary underline underline-offset-2">
                     Add the free SureFrame extension
                   </a>
-                  , then reload this page.
+                  .
                 </p>
               )}
             </fieldset>
@@ -885,9 +892,20 @@ export default function Recorder({
               )}
             </div>
 
-            <button onClick={start} className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary shadow-sm hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-              Start recording
-            </button>
+            {extensionAsk ? (
+              <ExtensionPrompt
+                installed={!!extension}
+                onStart={() => {
+                  setExtensionAsk(false);
+                  void start();
+                }}
+                onCancel={() => setExtensionAsk(false)}
+              />
+            ) : (
+              <button onClick={requestStart} className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary shadow-sm hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                Start recording
+              </button>
+            )}
             {freeVideos && freeLeft !== null && (
               <p className="text-sm text-muted" data-testid="free-videos-left">
                 {freeLeft} of {freeVideos.limit} free videos left.{" "}
