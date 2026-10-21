@@ -12,7 +12,7 @@ import type { ClientOption, SendMany } from "./WatchView";
 
 /** A client this recording went to, and their conversation about it (this video, or their own copy); `opened` once they've watched it. */
 type Recipient = { clientId: string; convId: string; opened?: boolean };
-type RowState = "emailed" | "when-ready" | "copied" | "shared";
+type RowState = "emailed" | "when-ready" | "copied" | "shared" | "own-email";
 
 /**
  * A client is reached once they've opened a link with their key on a device
@@ -294,11 +294,11 @@ export default function SendPanel({
   /** After a first video's link went out by any of the ways in FirstLinkSender. */
   function firstSent(c: ClientOption, how: "link" | "message" | "share" | "email") {
     void markLinkSent(c.id);
-    setRows((cur) => ({ ...cur, [c.id]: how === "share" ? "shared" : "copied" }));
+    setRows((cur) => ({ ...cur, [c.id]: how === "share" ? "shared" : how === "email" ? "own-email" : "copied" }));
     setNote({
       text:
         how === "email"
-          ? `Your email app should open with ${c.name}'s link and a short message, ready to send. Nothing opened? Use Copy link + message under ${c.name}.`
+          ? `Your email app should open with ${c.name}'s link and a short message, ready to send. Nothing opened? Use Copy link and paste it into an email.`
           : how === "share"
             ? `Shared ${c.name}'s link with a short message. Once they open it, Send by email works for them too.`
             : `${c.name}'s link is copied${how === "message" ? " with a short message" : ""}. Paste it into a text, chat or email to them. It only opens for ${c.name}.`,
@@ -367,7 +367,7 @@ export default function SendPanel({
   const label = picked.length === 0 ? (many ? "Choose clients" : "Choose a client") : picked.length === 1 ? byId.get(picked[0])?.name : `${picked.length} clients chosen`;
   const isBlocked = (c: ClientOption) => !!(c.removed || c.paused || c.linkOff || !c.link);
   const sentRows = recipients.filter((r) => byId.has(r.clientId));
-  const sentLink = (c: ClientOption) => c.linkSent || rows[c.id] === "copied" || rows[c.id] === "shared";
+  const sentLink = (c: ClientOption) => c.linkSent || rows[c.id] === "copied" || rows[c.id] === "shared" || rows[c.id] === "own-email";
 
   /** Asks before taking this video away from a client. */
   const stopBox = (r: Recipient) => {
@@ -446,7 +446,7 @@ export default function SendPanel({
             )}{" "}
             {state && (
               <span className="ml-2 text-xs text-ok-fg">
-                {state === "emailed" ? "Emailed" : state === "when-ready" ? "Emailed when the upload finishes" : state === "shared" ? "Shared" : "Link copied"}
+                {state === "emailed" ? "Emailed" : state === "when-ready" ? "Emailed when the upload finishes" : state === "shared" ? "Shared" : state === "own-email" ? "Sent from your email" : "Link copied"}
               </span>
             )}
             {!blocked && (
@@ -458,7 +458,7 @@ export default function SendPanel({
           </span>
           <span className="flex flex-wrap gap-1.5">
             {!blocked && !reached(c) && (
-              <FirstLinkSender compact plain short video name={c.name} email={c.email} business={business} disabled={!links[r.convId]} getLink={async () => links[r.convId]} onSent={(how) => firstSent(c, how)} />
+              <FirstLinkSender compact plain short inline video name={c.name} email={c.email} business={business} disabled={!links[r.convId]} getLink={async () => links[r.convId]} onSent={(how) => firstSent(c, how)} />
             )}
             {!blocked && reached(c) && (
               <>

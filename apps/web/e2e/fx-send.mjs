@@ -2,7 +2,7 @@
 // - a client counts as reached only once they open a link with their key; copying it doesn't count.
 //   Until then they're marked "New" or "Not opened yet" (Clients page, client page, the Send box's picker),
 //   Send by email isn't offered for them, the email API refuses, and their first video goes from the
-//   business (Email from my email, Copy link) from their row under "Sent to". Said up front, when adding and sending;
+//   business (Send from my email, Copy link) from their row under "Sent to". Said up front, when adding and sending;
 // - the Send box offers a title for a video still called "Recording <date>", and "Stop sharing" sits
 //   behind an in-page confirm on every row;
 // - video emails: the title in the subject, the business name in the email, "Business A via SureFrame";
@@ -77,7 +77,7 @@ await owner.click("button:has-text('Add client')");
 await owner.waitForSelector("[data-testid=added-note]");
 const added = norm(await owner.textContent("[data-testid=added-note]"));
 ok("after adding: next step is recording a video for them, said plainly", added.includes("Client A added.") && added.includes("Record a video for Client A") && (await owner.isVisible("[data-testid=added-record]")) && !added.includes("can't open any videos"), added);
-ok("after adding: their link before any video is there, folded away, with Copy, Copy + message and Email from my email", ["Copy personal link", "Copy link + message", "Email from my email"].every((t) => added.includes(t)) && !(await owner.isVisible("[data-testid=added-note] [data-testid=first-link-copy]")), added);
+ok("after adding: their link before any video is there, folded away, with Copy, Copy + message and Send from my email", ["Copy personal link", "Copy link + message", "Send from my email"].every((t) => added.includes(t)) && !(await owner.isVisible("[data-testid=added-note] [data-testid=first-link-copy]")), added);
 await owner.$eval("[data-testid=added-links]", (d) => (d.open = true));
 await owner.click("[data-testid=added-note] [data-testid=first-link-message]");
 await owner.waitForTimeout(300);
@@ -213,7 +213,7 @@ const both = await clip();
 ok("Send to all copies the first-timers' own conversations, not the emailed client's", /Client B: .*v=.*#k=/.test(both) && /Client C: .*v=.*#k=/.test(both) && !both.includes("Client A:"), both);
 ok("the emailed client's row says Emailed and Not opened yet", /Emailed\s*· Not opened yet/.test(norm(await owner.textContent("[data-testid=sent-row]:has-text('Client A')"))));
 ok("everyone is under Sent to, no separate waiting rows", (await owner.locator("[data-testid=sent-row]").count()) === 3 && (await owner.locator("[data-testid=waiting-row]").count()) === 0);
-ok("new clients' rows: just Email from my email and Copy link", (await owner.locator("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-email]").count()) === 1 && (await owner.locator("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-copy]").count()) === 1 && (await owner.locator("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-message]").count()) === 0);
+ok("new clients' rows: just Send from my email and Copy link", (await owner.locator("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-email]").count()) === 1 && (await owner.locator("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-copy]").count()) === 1 && (await owner.locator("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-message]").count()) === 0);
 await owner.click("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-copy]");
 await owner.waitForTimeout(300);
 const linkB = await clip();

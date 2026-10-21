@@ -1,6 +1,6 @@
 // A new client's first video does it all (components/FirstLinkSender.tsx, SendPanel.tsx):
 // - a business that records before adding anyone adds the client right in the Send box, and is
-//   shown the three steps and the ways to send that first video itself (Email from my email first,
+//   shown the three steps and the ways to send that first video itself (Send from my email first,
 //   Copy link, Copy link + message); there's no separate personal-link step to do first;
 // - the Clients page marks the client "Not opened yet" (no warning banner) until they open it;
 // - everything fits a 320px phone.
@@ -65,12 +65,12 @@ await owner.click("[data-testid=quick-add] button:has-text('Add client')");
 await owner.waitForSelector("[data-testid=first-links]", { timeout: 15000 });
 const box = norm(await owner.textContent("[data-testid=first-links]"));
 ok("added and chosen: this is Client Q's first video, sent from your own email or texts", norm(await owner.textContent("[data-testid=first-time]")).includes("First video for Client Q: send it from your email or copy the link") && !norm(await owner.textContent("[data-testid=send-panel]")).includes("can't be connected") && (await owner.textContent("[data-testid=client-picker]")).includes("Client Q"));
-ok("every way to send it is offered, their own email first", ["Copy link", "Copy link + message", "Email from my email"].every((t) => box.includes(t)) && (await owner.locator("[data-testid=first-links] [data-testid=first-link-sender] button").first().getAttribute("data-testid")) === "first-link-email", box);
+ok("every way to send it is offered, their own email first", ["Copy link", "Copy link + message", "Send from my email"].every((t) => box.includes(t)) && (await owner.locator("[data-testid=first-links] [data-testid=first-link-sender] button").first().getAttribute("data-testid")) === "first-link-email", box);
 const q = await prisma.client.findFirst({ where: { workspaceId: ws, name: "Client Q" } });
 ok("Client Q has their own key", !!q?.teamKeyWrap);
 await owner.screenshot({ path: `${shots}/personal-link-send.png`, fullPage: true });
 
-// Email from my email: the business's own email app, filled in (caught before it leaves the page).
+// Send from my email: the business's own email app, filled in (caught before it leaves the page).
 await owner.evaluate(() => {
   window.__mailto = null;
   document.addEventListener("click", (e) => {

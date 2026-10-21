@@ -24,6 +24,7 @@ export default function FirstLinkSender({
   disabled,
   plain,
   short,
+  inline,
   copyLabel = "Copy link",
 }: {
   name: string;
@@ -42,6 +43,8 @@ export default function FirstLinkSender({
   plain?: boolean;
   /** Leaves out Copy link + message, for a row with little room. */
   short?: boolean;
+  /** Buttons only, sitting among a row's other buttons; what happened is said by the row and its panel. */
+  inline?: boolean;
   copyLabel?: string;
 }) {
   const canShare = useCanShare();
@@ -99,12 +102,12 @@ export default function FirstLinkSender({
         )
       }
     >
-      Email from my email
+      Send from my email
     </button>
   );
 
   return (
-    <div data-testid="first-link-sender">
+    <div data-testid="first-link-sender" className={inline ? "contents" : undefined}>
       <div className={`flex flex-wrap gap-1.5 ${alignEnd ? "sm:justify-end" : ""}`}>
         {emailFirst && emailButton}
         <button
@@ -152,7 +155,7 @@ export default function FirstLinkSender({
         )}
         {!emailFirst && emailButton}
       </div>
-      {done && (
+      {done && (!inline || done.error) && (
         <p role={done.error ? "alert" : "status"} data-testid="first-link-done" className={`mt-1.5 text-xs ${done.error ? "text-danger-fg" : "text-ok-fg"} ${alignEnd ? "sm:ml-auto sm:max-w-sm sm:text-right" : ""}`}>
           {done.text}
         </p>
