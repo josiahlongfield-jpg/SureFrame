@@ -156,12 +156,10 @@ html {
   select, input, textarea { max-width: 100%; }
 }
 
-/* Phones: room at the page's end so the last of it scrolls clear of the floating Help button (SupportChat). With the
-   site footer it goes inside the navy footer instead, so the page ends at the footer's bottom edge. */
+/* Phones: room at the page's end so the last of it scrolls clear of the floating Help button (SupportChat). Pages with
+   the navy site footer don't get it: they end at the footer's bottom edge, with the footer its usual size (Josiah). */
 @media (max-width: 39.999rem) {
-  body.sf-help-room { padding-bottom: 5rem; }
-  body.sf-help-room:has([data-site-footer]) { padding-bottom: 0; }
-  body.sf-help-room [data-site-footer] { padding-bottom: 7.5rem; }
+  body.sf-help-room:not(:has([data-site-footer])) { padding-bottom: 5rem; }
 }
 
 /* Phones and tablets: typing boxes at least 16px, or Safari zooms the page in when one is tapped (and leaves it

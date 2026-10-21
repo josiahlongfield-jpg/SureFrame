@@ -1,5 +1,5 @@
 // Pages with the navy site footer end at the footer's bottom edge: nothing is left to scroll below it, on phones
-// (where the floating Help button needs room at the end) and on computers.
+// (where the floating Help button needs room at the end) and on computers. The footer keeps its usual size.
 import { chromium, devices } from "@playwright/test";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
@@ -31,8 +31,10 @@ for (const [name, opts] of sizes) {
       const f = document.querySelector("[data-site-footer], footer > [data-theme=navy]");
       if (!f) return null;
       scrollTo(0, document.documentElement.scrollHeight);
-      return { footerBottom: Math.round(f.getBoundingClientRect().bottom + scrollY), pageEnd: document.documentElement.scrollHeight, view: innerHeight, scrollY: Math.round(scrollY) };
+      const inner = f.firstElementChild.getBoundingClientRect().height;
+      return { footerHeight: Math.round(f.getBoundingClientRect().height), footerContent: Math.round(inner), rem: parseFloat(getComputedStyle(document.documentElement).fontSize), footerBottom: Math.round(f.getBoundingClientRect().bottom + scrollY), pageEnd: document.documentElement.scrollHeight, view: innerHeight, scrollY: Math.round(scrollY) };
     });
+    ok(`${name} ${path}: the footer is its usual size`, !!m && m.footerHeight <= m.footerContent + 2 * m.rem * 2.5 + 2, JSON.stringify(m));
     ok(`${name} ${path}: the page ends at the bottom of the navy footer`, !!m && Math.abs(m.pageEnd - m.footerBottom) <= 1 && m.scrollY + m.view <= m.footerBottom + 1, JSON.stringify(m));
   }
   await ctx.close();
