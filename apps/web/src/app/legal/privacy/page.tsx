@@ -223,6 +223,16 @@ export default function Page() {
       </ul>
       <p>Transcripts and summaries are made by machines and can contain mistakes.</p>
 
+      <h2 id="extension">Our browser extension (optional)</h2>
+      <p>
+        The {LEGAL.product} extension for Chrome, Edge and other Chromium browsers shows your camera in a floating bubble, with Pause and Stop, on the web pages you
+        visit while you record your screen with {LEGAL.product}. Your camera picture is only shown on your own screen: the extension never records, stores or sends it.
+        When the bubble is on screen it becomes part of your screen recording, which is encrypted on your device like every recording. The extension doesn&rsquo;t read,
+        collect or send the addresses or content of the pages you visit. To know whether the bubble is on screen, it notes which tab is in front, and keeps that only in
+        your browser&rsquo;s memory while you record. It remembers the bubble&rsquo;s place and size, and whether its controls are tucked away, in your browser&rsquo;s storage for the
+        extension. Removing the extension removes all of this.
+      </p>
+
       <h2>Who we share it with</h2>
       <p>We use trusted service providers to run {LEGAL.product}. They may only use your information to provide their service to us:</p>
       <SubprocessorList />

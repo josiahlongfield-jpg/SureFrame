@@ -5,6 +5,13 @@ import type { NextConfig } from "next";
 // one recording chunk over this size).
 const smallParts = !!process.env.VERCEL && !process.env.S3_BUCKET;
 
+// The SureFrame browser extension (apps/extension) may show its camera bubble on this site's pages too. Its ids:
+// the fixed one of the hand-loaded build, plus the store ones (EXTENSION_IDS, comma separated) once published.
+const extensionIds = ["ojanfkhiedeaimfopnodgkhjgkdapmnb", ...(process.env.EXTENSION_IDS ?? "").split(",")]
+  .map((id) => id.trim())
+  .filter((id) => /^[a-p]{32}$/.test(id));
+const extensionOrigins = extensionIds.map((id) => ` "chrome-extension://${id}"`).join("");
+
 // Applied to every response. Client keys travel only in URL fragments, which
 // browsers never send anywhere, and "same-origin" keeps paths out of other sites' logs.
 const securityHeaders = [
@@ -13,7 +20,7 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "same-origin" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Content-Security-Policy", value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'" },
-  { key: "Permissions-Policy", value: "camera=(self), microphone=(self), display-capture=(self), geolocation=(), payment=()" },
+  { key: "Permissions-Policy", value: `camera=(self${extensionOrigins}), microphone=(self), display-capture=(self), geolocation=(), payment=()` },
 ];
 
 // Sign-ins and on-device keys belong to one web address, so the old project

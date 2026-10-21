@@ -9,6 +9,10 @@
  * MediaStreamTrackGenerator). Elsewhere `canComposeCamera()` is false and the
  * recording is the screen alone: the camera is only in it when the floating
  * bubble is on a shared screen.
+ *
+ * With the SureFrame browser extension, the floating camera bubble on the screen is the camera in the video, so
+ * the circle is left out while the extension says the bubble is showing, and drawn back in within a moment
+ * whenever it isn't (another app in front, a page that won't allow it, or the extension stopped answering).
  */
 
 type Processor = { readable: ReadableStream };
@@ -38,6 +42,8 @@ export function canComposeCamera() {
 // screen and the screen keeps going if the camera drops out.
 const WORKER = `
 let screen = null, cam = null, canvas = null, ctx = null, writer = null, timer = null, corner = "bottom-left";
+// With the extension: when it last said the bubble was showing. Silence for a moment counts as not showing.
+let bubbleMode = false, bubbleAt = -1e9, circleWas = null;
 const keep = (frame, old) => { if (old) old.close(); return frame; };
 async function pump(readable, set) {
   const reader = readable.getReader();
@@ -56,7 +62,12 @@ function draw() {
   ctx.fillStyle = "#000";
   if (dw < W || dh < H) ctx.fillRect(0, 0, W, H);
   ctx.drawImage(screen, (W - dw) / 2, (H - dh) / 2, dw, dh);
-  if (cam) {
+  const circle = !!cam && !(bubbleMode && performance.now() - bubbleAt < 1500);
+  if (circle !== circleWas) {
+    circleWas = circle;
+    postMessage({ circle });
+  }
+  if (circle) {
     // Tucked into the chosen corner, the same small gap from both edges.
     const d = Math.round(Math.min(W, H) * ${CIRCLE.size}), m = Math.round(Math.min(W, H) * ${CIRCLE.inset});
     const x = corner.endsWith("left") ? m : W - m - d, y = corner.startsWith("top") ? m : H - m - d, r = d / 2;
@@ -83,6 +94,10 @@ function draw() {
 onmessage = (e) => {
   if (e.data.corner) corner = e.data.corner;
   if (e.data.move) return;
+  if ("bubble" in e.data) {
+    bubbleAt = e.data.bubble ? performance.now() : -1e9;
+    return;
+  }
   if (e.data.stop) {
     clearInterval(timer);
     screen = keep(null, screen); cam = keep(null, cam);
@@ -97,6 +112,7 @@ onmessage = (e) => {
     cam = keep(null, cam);
     postMessage({ cameraEnded: true });
   });
+  bubbleMode = !!e.data.bubbleMode;
   timer = setInterval(draw, 1000 / 30);
 };
 `;
@@ -104,13 +120,17 @@ onmessage = (e) => {
 /**
  * A video track of `screen` with `camera` in a circle in `corner`. `move()` puts the circle in another corner
  * from the next frame on; `close()` stops it; the screen and camera tracks are left running.
+ *
+ * `bubble`: the extension's bubble is the camera. Call `bubbleSeen(true)` each time the extension says it's showing
+ * (it says so twice a second); the circle stays out until that stops. `onCircle` hears when the circle comes and goes.
  */
 export function composeCamera(
   screen: MediaStreamTrack,
   camera: MediaStreamTrack,
   corner: CameraCorner,
   onCameraEnded?: () => void,
-): { track: MediaStreamTrack; move: (corner: CameraCorner) => void; close: () => void } {
+  { bubble = false, onCircle }: { bubble?: boolean; onCircle?: (shown: boolean) => void } = {},
+): { track: MediaStreamTrack; move: (corner: CameraCorner) => void; bubbleSeen: (seen: boolean) => void; close: () => void } {
   const g = globalThis as unknown as Required<Globals>;
   // A copy of the camera, so stopping this doesn't stop the preview or the bubble.
   const cam = camera.clone();
@@ -121,8 +141,12 @@ export function composeCamera(
   const url = URL.createObjectURL(new Blob([WORKER], { type: "text/javascript" }));
   const worker = new Worker(url);
   URL.revokeObjectURL(url);
-  worker.onmessage = (e) => e.data?.cameraEnded && !closed && onCameraEnded?.();
-  worker.postMessage({ screen: screenIn.readable, camera: camIn.readable, out: out.writable, corner }, [
+  worker.onmessage = (e) => {
+    if (closed) return;
+    if (e.data?.cameraEnded) onCameraEnded?.();
+    if (typeof e.data?.circle === "boolean") onCircle?.(e.data.circle);
+  };
+  worker.postMessage({ screen: screenIn.readable, camera: camIn.readable, out: out.writable, corner, bubbleMode: bubble }, [
     screenIn.readable as unknown as Transferable,
     camIn.readable as unknown as Transferable,
     out.writable as unknown as Transferable,
@@ -130,6 +154,7 @@ export function composeCamera(
   return {
     track: out,
     move: (to) => !closed && worker.postMessage({ move: true, corner: to }),
+    bubbleSeen: (seen) => !closed && worker.postMessage({ bubble: seen }),
     close: () => {
       if (closed) return;
       closed = true;

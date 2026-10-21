@@ -27,6 +27,7 @@ import {
   type Quality,
 } from "@/lib/recorder/media";
 import { CAMERA_CORNERS, CIRCLE, canComposeCamera, composeCamera, type CameraCorner } from "@/lib/recorder/compose";
+import { bubbleRecording, watchExtension, type BubbleHealth } from "@/lib/recorder/extension";
 
 type Phase = "setup" | "countdown" | "recording" | "paused" | "finishing";
 
@@ -40,6 +41,9 @@ const fmt = (ms: number) => {
   const s = Math.floor(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
+
+/** The extension's page in the browser's store, once it's published. */
+const EXTENSION_URL = process.env.NEXT_PUBLIC_EXTENSION_URL;
 
 const NO_CAMERA = "No camera found on this device. If you've just plugged one in, it will appear here once your computer finds it.";
 const CAMERA_BUSY = "Your camera is being used by another app, such as the Camera app, Zoom or Teams. Close that app and come back to this page.";
@@ -92,6 +96,16 @@ export default function Recorder({
   const [bubbleOpen, setBubbleOpen] = useState(false);
   // Recording the whole screen with the camera drawn in: no floating window, it would be recorded too.
   const [wholeScreen, setWholeScreen] = useState(false);
+  // The SureFrame browser extension's version, when it's installed: its floating bubble is then the camera in a
+  // screen recording, on every web page, with Pause and Stop beside it (lib/recorder/extension.ts).
+  const [extension, setExtension] = useState<string | null>(null);
+  useEffect(() => watchExtension(setExtension), []);
+  // A computer browser the extension is for (Chrome, Edge, Brave and the like), where it isn't installed yet.
+  const [extensionBrowser, setExtensionBrowser] = useState(false);
+  useEffect(() => setExtensionBrowser(!!EXTENSION_URL && canComposeCamera() && !isPhone()), []);
+  // With the extension: the camera circle is drawn into the video right now, because the bubble isn't on screen.
+  const [circleNow, setCircleNow] = useState(false);
+  const bubbleLink = useRef<ReturnType<typeof bubbleRecording> | null>(null);
   // Phones and tablets can't share their screen from a browser, so they only get camera mode.
   const [canShareScreen, setCanShareScreen] = useState(true);
   // On a phone the screen modes are shown greyed, with why, even where the browser claims it could.
@@ -175,6 +189,8 @@ export default function Recorder({
     closeAudio: () => void;
     closeBubble: () => void;
     releaseLock: () => void;
+    /** With the extension: tells its bubble where the recording is up to. */
+    tellBubble?: () => void;
     videoId: string;
     startedAt: number;
     accumulated: number;
@@ -347,6 +363,7 @@ export default function Recorder({
     // The "finished uploading" note is from before; it doesn't stay up during the next recording.
     setRecovered([]);
     setWholeScreen(false);
+    setCircleNow(false);
     // Setup notices (no camera, camera found) don't carry into the recording.
     if (!noCamera) setNotice(undefined);
     setUpgrade(false);
@@ -354,7 +371,10 @@ export default function Recorder({
     cancelled.current = false;
     const streams: MediaStream[] = [];
     let bubble: (() => void) | null = null;
-    let composed: { close: () => void } | null = null;
+    let composed: { close: () => void; bubbleSeen: (seen: boolean) => void } | null = null;
+    // With the extension, its bubble and bar on every web page instead of the browser's floating window.
+    const ext = mode !== "camera" && extension ? bubbleLink : null;
+    let health: (h: BubbleHealth) => void = () => {};
     // The shared screen itself: sharing stopped before recording begins means there's nothing to record.
     let shared: MediaStreamTrack | undefined;
     // Set once the server has a video for this take, so a failed start can remove it again.
@@ -379,8 +399,20 @@ export default function Recorder({
         streams.push(new MediaStream(both.getAudioTracks()));
         video = both.getVideoTracks()[0];
       } else {
-        // The bubble first, while the click still counts: browsers won't open one after the screen picker.
-        if (mode === "screen+camera" && camStream.current) {
+        if (ext) {
+          // The extension's bubble shows straight away, so you can see yourself while you pick what to share.
+          ext.current?.end();
+          ext.current = bubbleRecording(
+            { id: crypto.randomUUID(), mode: mode === "screen+camera" && camStream.current ? "screen+camera" : "screen", cameraLabel: camStream.current?.getVideoTracks()[0]?.label },
+            { command: (action) => void actions.current[action](), health: (h) => health(h), hello: () => live.current?.tellBubble?.() },
+          );
+          bubble = () => {
+            ext.current?.end();
+            ext.current = null;
+          };
+          setBubbleOpen(true);
+        } else if (mode === "screen+camera" && camStream.current) {
+          // The bubble first, while the click still counts: browsers won't open one after the screen picker.
           bubble = await openCameraBubble(camStream.current, () => setBubbleOpen(false), bubbleControls);
           setBubbleOpen(!!bubble);
         } else if (mode === "screen") {
@@ -396,7 +428,8 @@ export default function Recorder({
         // The browser's own "Stop sharing" button ends the recording cleanly.
         video.addEventListener("ended", () => void stop());
         // Screen only, whole screen: the floating bar would be recorded too, so it closes (this tab has the buttons).
-        if (mode === "screen" && (video.getSettings() as { displaySurface?: string }).displaySurface === "monitor") {
+        // The extension's bar stays: it's small, can be tucked away, and is what lets you stop from anywhere.
+        if (mode === "screen" && !ext && (video.getSettings() as { displaySurface?: string }).displaySurface === "monitor") {
           bubble?.();
           bubble = null;
           setBubbleOpen(false);
@@ -404,15 +437,24 @@ export default function Recorder({
         // The camera goes into the video as a circle in the chosen corner, whatever was shared.
         const camTrack = camStream.current?.getVideoTracks()[0];
         if (mode === "screen+camera" && camTrack && canComposeCamera()) {
-          const c = composeCamera(video, camTrack, cornerNow.current, () =>
-            setNotice("Your camera stopped, so the recording carries on with your screen only."),
+          const surface = (shared.getSettings() as { displaySurface?: string }).displaySurface;
+          const c = composeCamera(
+            video,
+            camTrack,
+            cornerNow.current,
+            () => setNotice("Your camera stopped, so the recording carries on with your screen only."),
+            // With the extension, the bubble on screen is the camera in the video. The circle is drawn in only while
+            // the bubble isn't on what's being recorded: for a shared tab, while no tab shows it; for a window or the
+            // whole screen, while another app (or a page the bubble can't go on) is in front.
+            ext ? { bubble: true, onCircle: setCircleNow } : {},
           );
           composed = c;
           composer.current = c;
           video = c.track;
+          if (ext) health = (h) => c.bubbleSeen(surface === "browser" ? h.anywhere : h.onScreen);
           // A whole-screen share would also record the floating window, title bar and all, so the camera
           // showed twice. The circle drawn into the video is the camera then, and you see yourself on this tab.
-          if ((shared.getSettings() as { displaySurface?: string }).displaySurface === "monitor") {
+          else if (surface === "monitor") {
             bubble?.();
             bubble = null;
             setBubbleOpen(false);
@@ -460,6 +502,11 @@ export default function Recorder({
       made.releaseLock = releaseLock;
 
       const closeBubble = bubble ?? (() => {});
+      const tellBubble = () => {
+        const r = live.current?.recorder;
+        if (!r) return;
+        ext?.current?.update(!live.current?.started ? "starting" : r.state === "paused" ? "paused" : "recording", durationNow());
+      };
 
       const uploader = new ChunkedUploader(videoId, { duration: durationNow }, setUpload);
       const recorder = new MediaRecorder(new MediaStream(tracks), { mimeType, videoBitsPerSecond: bitrateFor(quality) });
@@ -471,6 +518,8 @@ export default function Recorder({
           .then(() => encryptFrame(e.data, videoKey))
           .then((frame) => uploader.push(new Blob([frame as BlobPart])))
           .then(() => store.updateSession(videoId, { durationMs: durationNow() }).catch(() => {}))
+          // Each saved piece also tells the extension's bubble the recording is still going.
+          .then(() => live.current?.tellBubble?.())
           .catch((err) => {
             // A chunk that can't be sealed would leave a gap, so the recording ends here and what came before is kept.
             console.error("Recording chunk failed", err);
@@ -487,7 +536,7 @@ export default function Recorder({
         audio.close();
         composed?.close();
         composer.current = null;
-      }, closeBubble, releaseLock, videoId, startedAt: 0, accumulated: 0, sealing: Promise.resolve() };
+      }, closeBubble, releaseLock, videoId, startedAt: 0, accumulated: 0, sealing: Promise.resolve(), tellBubble };
 
       setPhase("countdown");
       for (let n = 3; n > 0; n--) {
@@ -498,6 +547,7 @@ export default function Recorder({
       recorder.start(2000);
       live.current.started = true;
       live.current.startedAt = performance.now();
+      tellBubble();
       setPhase("recording");
       // The library still, from a moment into the recording; if this misses, opening the video makes one.
       const still = video;
@@ -530,6 +580,7 @@ export default function Recorder({
     if (!l || l.recorder.state !== "recording") return;
     l.recorder.pause();
     l.accumulated += performance.now() - l.startedAt;
+    l.tellBubble?.();
     setPhase("paused");
   }
 
@@ -538,6 +589,7 @@ export default function Recorder({
     if (!l || l.recorder.state !== "paused") return;
     l.recorder.resume();
     l.startedAt = performance.now();
+    l.tellBubble?.();
     setPhase("recording");
   }
 
@@ -669,11 +721,19 @@ export default function Recorder({
               <p className="text-sm">
                 {phase === "setup"
                   ? mode === "screen+camera"
-                    ? "You\u2019ll pick a screen, window or tab when you start. Your camera goes in the circle: drag it to any corner."
+                    ? extension
+                      ? "You\u2019ll pick a screen, window or tab when you start. Your camera floats in a bubble over your web pages, and that\u2019s how it shows in the video. Wherever the bubble can\u2019t go, it\u2019s in this circle instead: drag it to any corner."
+                      : "You\u2019ll pick a screen, window or tab when you start. Your camera goes in the circle: drag it to any corner."
                     : "You\u2019ll pick a screen, window or tab when you start."
                   : mode === "screen"
-                    ? "Recording your screen."
-                    : wholeScreen
+                    ? extension
+                      ? "Recording your screen. Pause and Stop float on your web pages."
+                      : "Recording your screen."
+                    : extension && bubbleOpen
+                      ? circleNow
+                        ? "Recording your screen. Your camera bubble isn\u2019t on screen right now, so your camera is in the circle in the corner of the video."
+                        : "Recording your screen. Your camera is the floating bubble: drag it anywhere, and drag its corner to resize it."
+                      : wholeScreen
                       ? "Recording your whole screen. Your camera is in the circle in the corner of the video. Drag it to move it."
                       : bubbleOpen
                         ? "Recording your screen. Your camera is in the floating bubble."
@@ -770,6 +830,15 @@ export default function Recorder({
               )}
               {mode === "screen+camera" && !cameraWithScreen && (
                 <p className="text-xs text-warn-fg">This browser can&rsquo;t put your camera in a screen recording. Use Chrome, Edge or Brave, or choose Camera only.</p>
+              )}
+              {mode !== "camera" && extensionBrowser && !extension && canShareScreen && (
+                <p className="text-xs text-dim" data-testid="get-extension">
+                  Want your camera bubble with Pause and Stop on every tab, not just this one?{" "}
+                  <a href={EXTENSION_URL} target="_blank" rel="noopener" className="font-medium text-primary underline underline-offset-2">
+                    Add the free SureFrame extension
+                  </a>
+                  , then reload this page.
+                </p>
               )}
             </fieldset>
             {mode === "screen+camera" && <CornerPicker corner={corner} onCorner={setCorner} />}

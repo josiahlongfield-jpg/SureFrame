@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "SureFrame",
+  "short_name": "SureFrame",
+  "version": "1.0.0",
+  "description": "Your camera in a floating bubble, with Pause and Stop, on any web page while you record your screen with SureFrame.",
+  "homepage_url": "https://sureframe.app",
+  "minimum_chrome_version": "116",
+  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "action": { "default_title": "Record with SureFrame", "default_icon": { "16": "icons/16.png", "32": "icons/32.png" } },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["storage", "scripting"],
+  "host_permissions": ["https://*/*", "http://*/*"],
+  "content_scripts": [
+    { "matches": ["https://sureframe.app/*"], "js": ["bridge.js"], "run_at": "document_start" },
+    { "matches": ["https://*/*", "http://*/*"], "js": ["page.js"], "run_at": "document_idle", "all_frames": false }
+  ],
+  "web_accessible_resources": [{ "resources": ["bubble.html"], "matches": ["https://*/*", "http://*/*"], "use_dynamic_url": true }],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArlXa+Nc1ppP+pj7LveiKsnhTp1UT8o6pvMpWwVil4KsFf4XrkYNfSR+0FcW2Q0aCslo4lMz1POuar8PJJJqs1YUCk/HuVzAZN5JCb1kFTi/vB96TNJJ6Ahrs/FSB2QnuYEtHrGFtIYchcA8g7yhwn+/Lzuppu96rLZtNCEU0EMb94vqBHcSFKdm2X+tzM70m/jOasVbrnNG6uzOfcP3BVyLIrRkp1t4ePaQsPat0ieaRJ8XGEQU+yBjMaraIwXw15CcMzc2on2v7X6F6PItm+k0JDnERzS38f+96BvrLh2s32dNJjNR9succQgqly1GuwEmZgGOuMYe3qOXyHiImsQIDAQAB"
+}

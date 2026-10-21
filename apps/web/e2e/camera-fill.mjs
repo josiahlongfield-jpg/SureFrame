@@ -63,7 +63,9 @@ await ctx.addInitScript(() => {
       const fit = v.videoWidth ? Math.abs(f.width / f.height - v.videoWidth / v.videoHeight) : null;
       window.__samples.push({ t: performance.now(), blank: !v.videoWidth || v.readyState < 2, off: fit !== null && fit > 0.03, fit, frame: [Math.round(f.width), Math.round(f.height)], video: [v.videoWidth, v.videoHeight] });
     }
-    if (!window.__firstFrame) {
+    // The camera's own frame, once the page is on Camera only (before the page has started, it can briefly show the
+    // computer's Screen + Camera layout, whose camera circle is round).
+    if (!window.__firstFrame && document.querySelector("[data-testid=mode-camera] input")?.checked) {
       const f = document.querySelector("main video")?.parentElement?.getBoundingClientRect();
       if (f?.height) window.__firstFrame = f.width / f.height;
     }

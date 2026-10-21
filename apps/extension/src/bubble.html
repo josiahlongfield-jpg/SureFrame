@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SureFrame</title>
+    <link rel="stylesheet" href="bubble.css" />
+  </head>
+  <body>
+    <div id="circle" class="circle" hidden>
+      <video id="video" autoplay muted playsinline></video>
+      <div id="camera-note" class="camera-note" hidden></div>
+      <button id="grow" class="grow" type="button" aria-label="Drag to resize the camera bubble" title="Drag to resize"></button>
+      <button id="expand" class="expand" type="button" aria-label="Show the recording controls" title="Show controls" hidden></button>
+    </div>
+    <div id="bar" class="bar" role="toolbar" aria-label="SureFrame recording">
+      <span class="time"><span id="dot" class="dot"></span><span id="clock">0:00</span></span>
+      <button id="pause" class="icon" type="button" aria-label="Pause" title="Pause"><span class="pause-icon"></span></button>
+      <button id="stop" class="stop" type="button" aria-label="Stop and save" title="Stop and save"><span class="stop-icon"></span>Stop</button>
+      <button id="collapse" class="icon small" type="button" aria-label="Hide the controls" title="Hide controls"><span class="chev"></span></button>
+    </div>
+    <button id="mini" class="mini" type="button" aria-label="Show the recording controls" title="Show controls" hidden><span id="mini-dot" class="dot"></span></button>
+    <script src="bubble.js"></script>
+  </body>
+</html>
