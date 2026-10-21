@@ -23,6 +23,7 @@ export default function FirstLinkSender({
   alignEnd,
   disabled,
   plain,
+  short,
   copyLabel = "Copy link",
 }: {
   name: string;
@@ -39,6 +40,8 @@ export default function FirstLinkSender({
   disabled?: boolean;
   /** No button stands out: sending it again, from a row that's already sent. */
   plain?: boolean;
+  /** Leaves out Copy link + message, for a row with little room. */
+  short?: boolean;
   copyLabel?: string;
 }) {
   const canShare = useCanShare();
@@ -113,7 +116,7 @@ export default function FirstLinkSender({
         >
           {busy === "link" ? "Copying…" : done?.how === "link" && !done.error ? "Link copied" : copyLabel}
         </button>
-        <button
+        {!short && <button
           type="button"
           disabled={off}
           className={btn}
@@ -121,7 +124,7 @@ export default function FirstLinkSender({
           onClick={() => run("message", () => writeClipboard(message().then((m) => m.body)), `Copied the link with a short note that tells ${name} what it is. Paste it into a text, chat or email to them.`)}
         >
           {busy === "message" ? "Copying…" : done?.how === "message" && !done.error ? "Copied" : "Copy link + message"}
-        </button>
+        </button>}
         {canShare && (
           <button
             type="button"
@@ -165,9 +168,9 @@ export default function FirstLinkSender({
  */
 export function PersonalLinkSteps({ className = "", compact, skipAdd }: { className?: string; compact?: boolean; skipAdd?: boolean }) {
   const steps = [
-    ...(skipAdd ? [] : [{ title: "Add the client", body: "Their name, and their email if you have it." }]),
-    { title: "Send their first video yourself", body: "Pick them in the video's Send box and send it from your own email, texts or chat. They open it and watch, no account needed." },
-    { title: "After that, we email them for you", body: "Every video after the first: pick them and press Send by email. Copying the link still works too." },
+    ...(skipAdd ? [] : [{ title: "Add the client", body: "Name, and email if you have it." }]),
+    { title: "Send their first video yourself", body: "From your email, or copy the link. They just open it and watch." },
+    { title: "After that, we email them", body: "Press Send by email for every video after the first." },
   ];
   return (
     <div className={`rounded-xl border border-line bg-surface-2 p-4 text-sm text-ink ${className}`} data-testid="personal-link-steps">

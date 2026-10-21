@@ -7,7 +7,7 @@ import { fingerprint, generateKey, unwrapKey, wrapKey } from "@/lib/e2e/crypto";
 import { shareLink, useCanShare, writeClipboard } from "@/lib/clipboard";
 import { isDefaultTitle } from "@/lib/videoTitle";
 import { LinkBadge, markLinkSent, personalLink } from "./ClientsManager";
-import FirstLinkSender, { PersonalLinkSteps } from "./FirstLinkSender";
+import FirstLinkSender from "./FirstLinkSender";
 import type { ClientOption, SendMany } from "./WatchView";
 
 /** A client this recording went to, and their conversation about it (this video, or their own copy); `opened` once they've watched it. */
@@ -368,8 +368,6 @@ export default function SendPanel({
   const isBlocked = (c: ClientOption) => !!(c.removed || c.paused || c.linkOff || !c.link);
   const sentRows = recipients.filter((r) => byId.has(r.clientId));
   const sentLink = (c: ClientOption) => c.linkSent || rows[c.id] === "copied" || rows[c.id] === "shared";
-  // Only new clients chosen: the box above has their buttons, so there's nothing else to press.
-  const onlyFirst = chosen.length > 0 && chosenFirst.length === chosen.length;
 
   /** Asks before taking this video away from a client. */
   const stopBox = (r: Recipient) => {
@@ -407,26 +405,27 @@ export default function SendPanel({
 
   // New clients chosen: their first video goes from the business, so each gets the ways to send it.
   const showLinkBox = chosenFirst.length > 0;
-  const linkBox = (
-    <div className="mt-3 rounded-xl border border-line-strong bg-surface-2 p-3 text-sm text-ink" data-testid="first-time">
-      <p className="font-semibold">
-        {chosenFirst.length === 1 ? `This is ${chosenFirst[0].name}'s first video, so send it from your own email or texts` : "These are their first videos, so send them from your own email or texts"}
+  // Just one new client, nobody else: their buttons are the send buttons, under one line saying so.
+  const soloFirst = chosen.length === 1 && chosenFirst.length === 1;
+  const linkBox = soloFirst ? (
+    <div className="mt-3" data-testid="first-time">
+      <p className="text-xs text-dim">
+        First video for {chosenFirst[0].name}: send it from your email or copy the link. After this, Send by email works for them.
       </p>
-      <p className="mt-1 text-xs text-muted">
-        They open the link and watch, no account needed. After that we can email them your videos, so Send by email works for them too.
-      </p>
-      <details className="mt-1 text-xs text-muted">
-        <summary className="cursor-pointer font-medium text-accent">Why from me?</summary>
-        <p className="mt-1">
-          Your videos are end-to-end encrypted. The link to a client&apos;s first video also carries the key to their videos, which only your team&apos;s devices have, so we
-          can&apos;t email it without being able to see their videos. Once they open it, their phone or computer remembers it, and emailed videos open there.
-        </p>
-      </details>
+      <div className="mt-2" data-testid="first-links">
+        <div data-testid="first-link-row">
+          <FirstLinkSender video name={chosenFirst[0].name} email={chosenFirst[0].email} business={business} disabled={!!busy} getLink={() => deliverFirst(chosenFirst[0])} onSent={(how) => firstSent(chosenFirst[0], how)} />
+        </div>
+      </div>
+    </div>
+  ) : (
+    <div className="mt-3 rounded-xl bg-surface-2 p-3 text-sm text-ink" data-testid="first-time">
+      <p className="text-xs text-dim">First videos for new clients: send them from your email or copy the link.</p>
       <ul className="mt-2 grid gap-2" data-testid="first-links">
         {chosenFirst.map((c) => (
-          <li key={c.id} className={chosenFirst.length > 1 ? "rounded-lg bg-surface p-2.5" : ""} data-testid="first-link-row">
-            {chosenFirst.length > 1 && <p className="mb-1.5 min-w-0 break-words font-medium">{c.name}</p>}
-            <FirstLinkSender compact={chosenFirst.length > 1} video name={c.name} email={c.email} business={business} disabled={!!busy} getLink={() => deliverFirst(c)} onSent={(how) => firstSent(c, how)} />
+          <li key={c.id} className="flex flex-wrap items-center justify-between gap-2" data-testid="first-link-row">
+            <span className="min-w-0 break-words font-medium">{c.name}</span>
+            <FirstLinkSender compact short video name={c.name} email={c.email} business={business} disabled={!!busy} getLink={() => deliverFirst(c)} onSent={(how) => firstSent(c, how)} />
           </li>
         ))}
       </ul>
@@ -459,7 +458,7 @@ export default function SendPanel({
           </span>
           <span className="flex flex-wrap gap-1.5">
             {!blocked && !reached(c) && (
-              <FirstLinkSender compact plain video name={c.name} email={c.email} business={business} disabled={!links[r.convId]} getLink={async () => links[r.convId]} onSent={(how) => firstSent(c, how)} />
+              <FirstLinkSender compact plain short video name={c.name} email={c.email} business={business} disabled={!links[r.convId]} getLink={async () => links[r.convId]} onSent={(how) => firstSent(c, how)} />
             )}
             {!blocked && reached(c) && (
               <>
@@ -487,10 +486,8 @@ export default function SendPanel({
           <p className="mt-1 text-xs text-warn-fg">SureFrame support turned off {c.name}&apos;s link, so they can&apos;t open this. Contact support@sureframe.app.</p>
         ) : c.paused ? (
           <p className="mt-1 text-xs text-warn-fg">{c.name} is paused because your plan covers fewer clients, so they can&apos;t open this until they&apos;re restored.</p>
-        ) : !reached(c) ? (
-          <p className="mt-1 text-xs text-dim" data-testid="row-first">
-            {r.opened ? `${c.name} has watched it.` : sentLink(c) ? `Sent from you. Once ${c.name} opens it, we can email them your next videos.` : `This is ${c.name}'s first video, so send it to them yourself with the buttons above.`}
-          </p>
+        ) : !reached(c) && !sentLink(c) ? (
+          <p className="mt-1 text-xs text-dim" data-testid="row-first">Not sent yet: email it from your email or copy the link.</p>
         ) : !c.emailable && state !== "copied" && state !== "shared" ? (
           <p className="mt-1 text-xs text-dim">
             {c.emailsOff ? `${c.name} turned off emails from you` : `${c.name} has no email address saved`}, so send them the link yourself.
@@ -529,7 +526,6 @@ export default function SendPanel({
               {canAddClient ? (
                 <>
                   <p className="mt-1">Add them here and you can send it straight away. This video stays private until you do.</p>
-                  <PersonalLinkSteps compact className="mt-3" />
                   <QuickAddClient teamKey={teamKey} onAdded={quickAdded} />
                   <p className="mt-2 text-xs">
                     Adding a whole list? <Link href="/clients" className="font-medium text-accent hover:underline">Paste it on the Clients page</Link>
@@ -635,7 +631,7 @@ export default function SendPanel({
                     {busy === "email" ? "Sending…" : mixed ? `Email ${chosenEmail.length} of them` : "Send by email"}
                   </button>
                 )}
-                {!mixed && !onlyFirst && (
+                {!mixed && !soloFirst && (
                   <button
                     onClick={sendByLink}
                     disabled={!picked.length || !!busy}
@@ -652,10 +648,6 @@ export default function SendPanel({
                   {chosen.filter((c) => !canEmail(c)).map((c) => c.name).join(", ")} for you to send yourself.
                 </p>
               )}
-              {/* The personal-link box already says how to send the link yourself, so this only shows without it. */}
-              {!showLinkBox && <p className="mt-2 text-xs text-dim">
-                Send by email and we email each client to say it&apos;s waiting. Or copy the link and send it from your own app, texts or messages. Either way it opens on SureFrame, for that client only.
-              </p>}
               {!many && primary === null && sendMany === undefined && (
                 <p className="mt-1 text-xs text-dim">To send one video to several clients at once, ask the owner or an admin.</p>
               )}
@@ -676,9 +668,6 @@ export default function SendPanel({
         </p>
       )}
 
-      {recipients.length === 0 && !isCopy && clients.length > 0 && (
-        <p className="mt-3 text-xs text-dim" data-testid="send-private">Nobody outside your team can watch this until you send it.</p>
-      )}
       {sentRows.length > 0 && (
         <div className={canPick || isCopy ? "mt-4 border-t border-line pt-4" : ""}>
           <h3 className="text-sm font-medium text-ink">Sent to {sentRows.length} {sentRows.length === 1 ? "client" : "clients"}</h3>
@@ -760,15 +749,13 @@ function TitlePrompt({ videoId, onTitle }: { videoId: string; onTitle?: (title: 
         onTitle?.(t);
       }}
     >
-      <label htmlFor="send-title" className="w-full text-xs text-dim">
-        Give it a title first? Clients see it on their page and in the email.
-      </label>
       <input
         id="send-title"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         maxLength={200}
-        placeholder="For example: Week 1 plan"
+        aria-label="Title (clients see it)"
+        placeholder="Title (optional, clients see it)"
         className="min-w-0 flex-1 basis-40 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm"
       />
       <button disabled={!title.trim() || state === "saving"} className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50">

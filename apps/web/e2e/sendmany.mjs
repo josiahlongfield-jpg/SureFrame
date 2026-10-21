@@ -120,10 +120,10 @@ await owner.keyboard.press("Escape");
 // first-video buttons; choosing Dee (new) shows the ways to send her first video, under the picker.
 await owner.waitForSelector("[data-testid=sent-row]:has-text('Ana') [data-testid=first-link-copy]", { timeout: 20000 });
 ok("no waiting list", (await owner.locator("[data-testid=waiting-list]").count()) === 0);
-ok("Ana: under Sent to, sent from you, with the first-video buttons", norm(await owner.textContent("[data-testid=sent-row]:has-text('Ana') [data-testid=row-first]")).includes("Sent from you") && (await owner.locator("[data-testid=sent-row]:has-text('Ana') [data-testid=first-link-email]").count()) === 1);
+ok("Ana: under Sent to, sent from you, with the first-video buttons", norm(await owner.textContent("[data-testid=sent-row]:has-text('Ana')")).includes("Not opened yet") && (await owner.locator("[data-testid=sent-row]:has-text('Ana') [data-testid=first-link-email]").count()) === 1);
 await chooseClients(owner, "Dee");
 await owner.waitForSelector("[data-testid=first-link-row]", { timeout: 10000 });
-ok("choosing Dee: her first video's buttons, Email and Copy link", (await owner.locator("[data-testid=first-link-row] [data-testid=first-link-copy]").count()) === 1 && norm(await owner.textContent("[data-testid=first-time]")).includes("This is Dee's first video"));
+ok("choosing Dee: her first video's buttons, Email and Copy link", (await owner.locator("[data-testid=first-link-row] [data-testid=first-link-copy]").count()) === 1 && norm(await owner.textContent("[data-testid=first-time]")).includes("First video for Dee"));
 const top = async (sel) => (await owner.locator(sel).first().boundingBox()).y;
 ok("Choose clients sits above the first-video box", (await top("[data-testid=client-picker]")) < (await top("[data-testid=first-time]")));
 await owner.click("[data-testid=client-picker]");
