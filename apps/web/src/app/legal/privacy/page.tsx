@@ -236,6 +236,15 @@ export default function Page() {
         or the browser closes. Removing the extension removes all of this.
       </p>
 
+      <h2 id="own-ai">Your own AI assistant (optional)</h2>
+      <p>
+        You can choose to use your own AI assistant, signed in with your own account (for example Claude in Chrome), to read your {LEGAL.product} pages and make reports. It works with what your browser or device has already unlocked with your keys: we don&rsquo;t
+        send it anything and can&rsquo;t see what it reads. What it reads goes to that assistant&rsquo;s provider under your own agreement with them, not ours,
+        and we aren&rsquo;t responsible for how they handle it. If that includes your clients&rsquo; details or conversations, you&rsquo;re responsible for telling
+        them and getting any consent the law requires. An assistant that can click on your pages can also send or delete things, so only let it do what you&rsquo;d
+        do yourself.
+      </p>
+
       <h2>Who we share it with</h2>
       <p>We use trusted service providers to run {LEGAL.product}. They may only use your information to provide their service to us:</p>
       <SubprocessorList />

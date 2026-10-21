@@ -115,7 +115,8 @@ export const LEGAL = {
    * 2026), so they keep privacyVersion.
    * 21 October 2026: the browser extension section (what it keeps while recording, and that on install it checks open tabs'
    * addresses only to find SureFrame tabs), that the help chats receive which browser and device you use, two small browser
-   * settings (camera shape, sharper stills). They describe what the
+   * settings (camera shape, sharper stills), and a section on using your own AI assistant (such as Claude in Chrome) with your
+   * pages, where what it reads goes to its provider under your own agreement (Josiah, 21 October 2026). They describe what the
    * app already does, so they keep privacyVersion.
    */
   privacyUpdated: "21 October 2026",
