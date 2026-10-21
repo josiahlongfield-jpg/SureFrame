@@ -7,9 +7,11 @@ const CHROME_URL = process.env.NEXT_PUBLIC_EXTENSION_URL;
 const EDGE_URL = process.env.NEXT_PUBLIC_EXTENSION_URL_EDGE;
 const SKIP_KEY = "sureframe.extensionPrompt";
 
+const isEdge = () => typeof navigator !== "undefined" && /\bEdg\//.test(navigator.userAgent);
+
 /** Where to get the extension in this browser. */
 export function extensionUrl() {
-  if (typeof navigator !== "undefined" && /\bEdg\//.test(navigator.userAgent) && EDGE_URL) return EDGE_URL;
+  if (isEdge() && EDGE_URL) return EDGE_URL;
   return CHROME_URL;
 }
 
@@ -32,6 +34,8 @@ export default function ExtensionPrompt({ installed, onStart, onCancel }: { inst
   const [opened, setOpened] = useState(false);
   const url = extensionUrl();
   const store = url && /microsoftedge\.microsoft\.com/.test(url) ? "Edge Add-ons" : "the Chrome Web Store";
+  // Edge installs from the Chrome Web Store once the person allows other stores there.
+  const edgeFromChrome = isEdge() && store === "the Chrome Web Store";
 
   useEffect(() => {
     const keys = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
@@ -81,6 +85,12 @@ export default function ExtensionPrompt({ installed, onStart, onCancel }: { inst
           <li>You can remove it any time from your browser&rsquo;s extensions page.</li>
         </ul>
       </div>
+      {edgeFromChrome && (
+        <p className="rounded-xl bg-surface-2 p-3 text-sm text-muted" data-testid="extension-edge-note">
+          <span className="font-medium text-ink">Using Microsoft Edge?</span> It installs from the Chrome Web Store. On that page, click{" "}
+          <span className="font-medium text-ink">Allow extensions from other stores</span> at the top, then <span className="font-medium text-ink">Add to Chrome</span>, which adds it to Edge.
+        </p>
+      )}
       {opened && (
         <p className="text-sm text-muted" data-testid="extension-waiting" aria-live="polite">
           Once you&rsquo;ve clicked Add in the store, come back to this tab. It notices straight away, no reload needed.

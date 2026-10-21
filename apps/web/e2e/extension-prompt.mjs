@@ -84,9 +84,13 @@ await page.evaluate(() => window.postMessage({ sureframe: "from-extension", type
 await page.waitForSelector("text=SureFrame extension added", { timeout: 5000 }).catch(() => {});
 ok("noticed without a reload", await page.isVisible("text=SureFrame extension added"));
 await page.screenshot({ path: `${shots}/extension-prompt-added.png` });
+await prompt.locator("button", { hasText: "Start recording" }).click();
+ok("then Start recording records", await recording());
 await discard();
 
-// Don't ask again: remembered in this browser.
+// Don't ask again: remembered in this browser. (A fresh page: the pretend extension above has gone.)
+await page.reload();
+await page.waitForSelector("text=Start recording");
 await page.click("text=Screen only");
 await startBtn.click();
 await page.check("[data-testid=extension-dont-ask]");
@@ -96,5 +100,23 @@ await discard();
 await page.click("text=Screen only");
 await startBtn.click();
 ok("don't ask again: not asked next time", (await recording()) && !(await prompt.isVisible()));
+
+// Edge, while the extension is only on the Chrome Web Store: how to install from there.
+const ePage = await ctx.newPage();
+await ePage.addInitScript(() => {
+  const ua = navigator.userAgent + " Edg/131.0.0.0";
+  Object.defineProperty(Navigator.prototype, "userAgent", { get: () => ua });
+});
+// (Asking again: "Don't ask me again" was chosen above.)
+await page.evaluate(() => localStorage.removeItem("sureframe.extensionPrompt"));
+await ePage.goto(BASE + "/record");
+await ePage.waitForSelector("text=I've saved it", { timeout: 5000 }).then((b) => b.click()).catch(() => {});
+await ePage.click("text=Screen + camera");
+await ePage.locator("button", { hasText: "Start recording" }).click();
+const note = ePage.locator("[data-testid=extension-edge-note]");
+await note.waitFor({ timeout: 5000 }).catch(() => {});
+ok("Edge: says to allow other stores on the Chrome Web Store", (await note.isVisible()) && /Allow extensions from other stores/.test(await note.innerText()));
+await ePage.screenshot({ path: `${shots}/extension-prompt-edge.png` });
+ok("Chrome: no Edge note", !(await page.isVisible("[data-testid=extension-edge-note]")));
 
 await browser.close();

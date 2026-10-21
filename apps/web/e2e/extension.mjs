@@ -243,7 +243,11 @@ ok("dial: - makes it smaller", (await size()) === s0 - 40, `${s0} -> ${await siz
   // It grows and shrinks around its middle: the dial stays where it was under the pointer.
   const f2 = await box(plain);
   const r2 = await fr().evaluate(() => document.getElementById("scale").getBoundingClientRect().toJSON());
-  ok("dial: stays put while the bubble changes size", Math.abs(f2.left + r2.x + r2.width / 2 - (f.left + r.x + r.width / 2)) < 2 && Math.abs(f2.top + r2.y - (f.top + r.y)) < 2, `${f.left + r.x},${f.top + r.y} -> ${f2.left + r2.x},${f2.top + r2.y}`);
+  // (Unless it's against a side of the window: then all of it stays against that side, centred on the circle.)
+  const W0 = plain.viewportSize().width;
+  ok("dial: stays put while the bubble changes size", (Math.abs(f2.left + r2.x + r2.width / 2 - (f.left + r.x + r.width / 2)) < 2 || f2.left <= 1 || f2.right >= W0 - 1) && Math.abs(f2.top + r2.y - (f.top + r.y)) < 2, `${f.left + r.x},${f.top + r.y} -> ${f2.left + r2.x},${f2.top + r2.y} ${JSON.stringify(f2)}`);
+  const mid = (id) => fr().evaluate((i) => { const b = document.getElementById(i).getBoundingClientRect(); return b.x + b.width / 2; }, id);
+  ok("dial: the circle, dial and bar share one centre line", Math.abs((await mid("circle")) - (await mid("bar"))) < 2 && Math.abs((await mid("sizer")) - (await mid("bar"))) < 2);
   ok("dial: the bubble stays on the page", (await box(plain)).bottom <= 900);
 }
 await rec.waitForTimeout(500);
@@ -301,6 +305,13 @@ await plain.waitForTimeout(400);
     await plain.waitForTimeout(350);
   };
   const fits = (f) => f.left >= 0 && f.top >= 0 && f.right <= W && f.bottom <= H;
+  // The bar's middle is under the circle's middle.
+  const centred = async () => {
+    const [b, c] = [await onPage("#bar"), await onPage("#circle")];
+    return Math.abs(b.cx - c.cx) < 2;
+  };
+  // Where it was, unless the circle grew into a side of the window (then all of it moved in together).
+  const atSide = (c) => c.x <= 6 || c.x + c.w >= W - 6;
   const circleSize = () => frameOf(plain).evaluate(() => document.getElementById("circle").getBoundingClientRect().width);
   const setSize = async (n) => {
     await frameOf(plain).evaluate((n) => chrome.storage.local.set({ bubbleLook: { size: n, collapsed: false } }), n);
@@ -340,8 +351,10 @@ await plain.waitForTimeout(400);
     await plain.waitForTimeout(500);
     const g = await box(plain);
     const barG = await onPage("#bar");
+    const cG = await onPage("#circle");
     ok(`${name}: the grip resizes it`, (await circleSize()) > 230, String(await circleSize()));
-    ok(`${name}: resizing with the grip keeps it where it is`, Math.abs(barG.cx - bar0.cx) < 2 && Math.abs(barG.y - bar0.y) < 2 && fits(g), JSON.stringify({ bar0, barG, g }));
+    ok(`${name}: resizing with the grip keeps it where it is`, (Math.abs(barG.cx - bar0.cx) < 2 || atSide(cG)) && Math.abs(barG.y - bar0.y) < 2 && fits(g), JSON.stringify({ bar0, barG, cG, g }));
+    ok(`${name}: after the grip, the bar is still under the middle of the circle`, await centred());
 
     // The dial: open it, + and -, then slide; the bar under it stays where it is.
     await setSize(200);
@@ -366,7 +379,8 @@ await plain.waitForTimeout(400);
     ok(`${name}: sliding the dial resizes it`, (await circleSize()) >= 400 || f2.top <= 1, `${await circleSize()} ${JSON.stringify(f2)}`);
     const bar2 = await onPage("#bar");
     const c2 = await onPage("#circle");
-    ok(`${name}: the dial resizes it where it is`, fits(f2) && Math.abs(bar2.cx - bar1.cx) < 2 && Math.abs(bar2.y - bar1.y) < 2, JSON.stringify({ bar1, bar2, f2 }));
+    ok(`${name}: the dial resizes it where it is`, fits(f2) && (Math.abs(bar2.cx - bar1.cx) < 2 || atSide(c2)) && Math.abs(bar2.y - bar1.y) < 2, JSON.stringify({ bar1, bar2, c2, f2 }));
+    ok(`${name}: after sliding, the bar and dial are under the middle of the circle`, (await centred()) && Math.abs((await onPage("#sizer")).cx - bar2.cx) < 2);
     ok(`${name}: the circle stays on the screen`, c2.x >= 0 && c2.x + c2.w <= W && c2.y >= 0, JSON.stringify(c2));
 
     // Its own buttons, wherever it is.
@@ -386,6 +400,15 @@ await plain.waitForTimeout(400);
     const there = await box(rec);
     const here = await box(plain);
     ok(`${name}: the other tab matches`, Math.abs(there.left - here.left) < 2 && Math.abs(there.bottom - here.bottom) < 2 && Math.abs(there.width - here.width) < 2, JSON.stringify({ there, here }));
+  }
+  // A big bubble pushed against either side: the circle stops at the side, and the bar stays under its middle.
+  await setSize(400);
+  for (const [side, x] of [["left", -300], ["right", W + 300]]) {
+    await moveTo(x, H - 20);
+    const c = await onPage("#circle");
+    ok(`big bubble at the ${side} side: the circle stops at the side`, side === "left" ? c.x >= 0 && c.x <= 6 : c.x + c.w <= W && c.x + c.w >= W - 6, JSON.stringify(c));
+    ok(`big bubble at the ${side} side: the bar stays under its middle`, await centred());
+    await plain.screenshot({ path: `${shots}/extension-big-${side}.png` });
   }
   await setSize(200);
   await plain.screenshot({ path: `${shots}/extension-everywhere.png` });

@@ -29,6 +29,8 @@ let shape = { width: 0, height: 0, anchor: 0 };
 let view = { w: 0, h: 0, cx: null, bottom: 24 };
 /** The dial's slider is held down on this tab. */
 let sliding = false;
+/** How far the dial is moved in from where the bubble is placed (held still while sliding). */
+let dialOff = 0;
 let port = null;
 let stream = null;
 let opening = null;
@@ -66,24 +68,29 @@ function layout() {
   if (!sliding) scale.value = String(size);
   $("smaller").disabled = size <= MIN;
   $("bigger").disabled = size >= Math.min(MAX, room);
-  // Across, from the middle of the bar: the circle sits over it, nudged in where it would go off the window's side.
-  const across = (outer) => {
-    if (!camera || pos.cx == null || !w) return 0;
-    if (pos.cx - outer / 2 < 0) return outer / 2 - pos.cx;
-    if (pos.cx + outer / 2 > w) return w - outer / 2 - pos.cx;
+  // Across, from where the bubble is placed: how far something this wide, centred there, moves in to stay inside the
+  // window's sides.
+  const across = (width) => {
+    if (pos.cx == null || !w) return 0;
+    if (pos.cx - width / 2 < 0) return width / 2 - pos.cx;
+    if (pos.cx + width / 2 > w) return w - width / 2 - pos.cx;
     return 0;
   };
   const outer = size + RING * 2;
-  const off = across(outer);
+  // The circle, bar and dial share one centre line, and move in together where the widest of them meets a side. While
+  // the dial's slider is held it stays where it was (moving under the pointer would change the size again), and
+  // lines up again on letting go.
+  const off = across(Math.max(camera ? outer : 0, barWidth, prefs.collapsed && !camera ? 40 : 0));
+  if (!sliding) dialOff = off;
   // With the dial open, the frame already has room for the biggest bubble that fits, so sliding only redraws inside
   // it: nothing waits on the frame, and the dial never moves under the pointer.
   const roomy = dialShown ? Math.max(size, Math.min(MAX, Math.floor(room))) + RING * 2 : outer;
   const items = [];
   if (camera && roomy > outer) items.push([null, across(roomy) - roomy / 2, roomy, 0]);
   if (camera) items.push([circle, off - outer / 2, outer, RING]);
-  if (dialShown) items.push([sizer, -barWidth / 2, barWidth, 0]);
-  if (!prefs.collapsed) items.push([bar, -barWidth / 2, barWidth, 0]);
-  if (prefs.collapsed && !camera) items.push([mini, -20, 40, 0]);
+  if (dialShown) items.push([sizer, dialOff - barWidth / 2, barWidth, 0]);
+  if (!prefs.collapsed) items.push([bar, off - barWidth / 2, barWidth, 0]);
+  if (prefs.collapsed && !camera) items.push([mini, off - 20, 40, 0]);
   const from = Math.min(...items.map(([, l]) => l));
   const to = Math.max(...items.map(([, l, wd]) => l + wd));
   for (const [el, l, , pad] of items) if (el) el.style.marginLeft = `${l - from + pad}px`;
@@ -175,8 +182,14 @@ scale.addEventListener("input", () => {
 scale.addEventListener("change", () => {
   sliding = false;
   setPrefs({ size: sized(Number(scale.value)) });
+  layout();
 });
-for (const ev of ["pointerup", "pointercancel", "blur"]) scale.addEventListener(ev, () => (sliding = false));
+for (const ev of ["pointerup", "pointercancel", "blur"])
+  scale.addEventListener(ev, () => {
+    if (!sliding) return;
+    sliding = false;
+    layout();
+  });
 // From the size it's shown at (which can be less than asked for, where there isn't room above it).
 const shownSize = () => Number.parseFloat(circle.style.width) || prefs.size;
 $("smaller").addEventListener("click", () => setPrefs({ size: sized(shownSize() - STEP) }));
@@ -339,8 +352,9 @@ function drag(el, kind) {
       const dy = y - g.from.y;
       if (Math.abs(dx) + Math.abs(dy) > 3) dragged = true;
       if (g.kind === "move") {
-        // Kept on the window: the bar (or, tucked away, the circle) never goes past its sides.
-        const half = !prefs.collapsed ? bar.offsetWidth / 2 : rec?.mode === "screen+camera" ? (Number.parseFloat(circle.style.width) + RING * 2) / 2 : 20;
+        // Kept on the window: the widest of the circle and bar stops at its sides, and the other with it.
+        const circleHalf = rec?.mode === "screen+camera" ? (Number.parseFloat(circle.style.width) + RING * 2) / 2 : 0;
+        const half = Math.max(circleHalf, !prefs.collapsed ? bar.offsetWidth / 2 : circleHalf ? 0 : 20);
         const cx = Math.max(half, Math.min(innerWidth - half, g.from.cx + dx));
         g.pos = { cx, bottom: Math.max(0, Math.min(innerHeight - shape.height, g.from.bottom - dy)) };
       } else {
