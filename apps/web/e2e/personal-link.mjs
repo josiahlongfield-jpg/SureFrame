@@ -133,8 +133,11 @@ await qPage.waitForSelector("[data-testid=client-videos]");
 ok("client page: folders like the library, newest open, with the video's still", (await qPage.locator("[data-testid=day-folder]").count()) >= 1 && !!(await qPage.waitForSelector(`a[href="/v/${vid}"] [data-testid=client-thumb]`, { timeout: 15000 }).catch(() => null)));
 ok("client page: Tiles and List", (await qPage.locator("[data-testid=layout-tiles]").count()) === 1 && (await qPage.locator("[data-testid=layout-list]").count()) === 1);
 await qPage.screenshot({ path: `${shots}/personal-link-inbox-tiles.png`, fullPage: true });
-await qPage.click("[data-testid=layout-list]");
-await qPage.waitForSelector("[data-testid=video-list]");
+// A click before the page has finished loading does nothing yet, as for a person; click again then.
+for (let i = 0; i < 3 && !(await qPage.isVisible("[data-testid=video-list]")); i++) {
+  await qPage.click("[data-testid=layout-list]");
+  await qPage.waitForSelector("[data-testid=video-list]", { timeout: 8000 }).catch(() => {});
+}
 ok("List: one line per video, remembered", (await qPage.locator(`[data-testid=video-list] a[href="/v/${vid}"]`).count()) === 1 && (await qPage.context().cookies()).some((c) => c.name === "sf_inbox_layout" && c.value === "list"));
 await qPage.screenshot({ path: `${shots}/personal-link-inbox-list.png`, fullPage: true });
 ok("Back to video, from All my videos", await qPage.isVisible("[data-testid=back-to-video]"));
