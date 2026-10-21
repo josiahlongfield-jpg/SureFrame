@@ -134,7 +134,9 @@ export default function Recorder({
 
   const preview = useRef<HTMLVideoElement>(null);
   // The camera preview takes the camera's own shape (portrait on most phones), so it fills its frame.
-  const frame = useVideoFrame("70vh");
+  // Hidden until the picture fills it, starting in the shape the camera had last time, and drawn fresh if it changes
+  // size while showing, so it's never a small picture inside the frame.
+  const frame = useVideoFrame("70vh", { remember: "sureframe.cameraShape", onNewSize: () => setPreviewKey((k) => k + 1) });
   const frameRef = frame.ref;
   const previewRef = useCallback(
     (v: HTMLVideoElement | null) => {
@@ -216,6 +218,8 @@ export default function Recorder({
       if (cancelled) return null;
       stopAll(camStream.current);
       camStream.current = null;
+      // The closed camera's last picture goes too: the frame stays empty until the new one fills it.
+      setPreviewKey((k) => k + 1);
       setPreviewMic(null);
       return mode === "camera" ? getCameraAndMic(camPick, micId, quality).catch(() => getCamera(camPick, quality)) : getCamera(camPick, quality);
     });
@@ -627,7 +631,14 @@ export default function Recorder({
           className={`relative mx-auto overflow-hidden rounded-2xl border border-line bg-solid shadow-sm ${bigCamera ? "" : "aspect-video w-full"}`}
         >
           {bigCamera ? (
-            <video key={previewKey} ref={previewRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full ${mirror} object-cover`} />
+            <>
+              <video key={previewKey} ref={previewRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full ${mirror} object-cover ${frame.ready ? "" : "opacity-0"}`} />
+              {!frame.ready && (
+                <p className="absolute inset-0 grid place-items-center text-sm text-dim" data-testid="camera-starting">
+                  Starting camera…
+                </p>
+              )}
+            </>
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-dim" data-testid="screen-panel">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="20" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
@@ -648,7 +659,7 @@ export default function Recorder({
           )}
           {mode === "screen+camera" && (
             <CameraCircle corner={corner} onCorner={setCorner}>
-              <video key={previewKey} ref={previewRef} autoPlay muted playsInline className={`h-full w-full ${mirror} rounded-full object-cover`} />
+              <video key={previewKey} ref={previewRef} autoPlay muted playsInline className={`h-full w-full ${mirror} rounded-full object-cover ${frame.ready ? "" : "opacity-0"}`} />
             </CameraCircle>
           )}
           {phase === "countdown" && (

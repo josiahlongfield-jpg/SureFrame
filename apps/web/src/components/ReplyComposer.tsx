@@ -107,7 +107,8 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   // The camera preview takes the camera's own shape (portrait on most phones), so it fills its frame. On a phone it
   // also leaves room for the reply tabs, the sound bar and the Record button below it, which would otherwise be pushed
   // out of the conversation panel. svh: the height with the browser's own bars showing.
-  const frame = useVideoFrame("min(55vh, 100svh - 29rem)");
+  // Hidden until the picture fills it, and drawn fresh if it changes size while showing (see Recorder).
+  const frame = useVideoFrame("min(55vh, 100svh - 29rem)", { remember: "sureframe.cameraShape", onNewSize: () => setPreviewKey((k) => k + 1) });
   const frameRef = frame.ref;
   const previewRef = useCallback(
     (v: HTMLVideoElement | null) => {
@@ -159,6 +160,8 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
       if (cancelled) return null;
       stopAll(stream.current);
       stream.current = null;
+      // The closed camera's last picture goes too: the frame stays empty until the new one fills it.
+      setPreviewKey((k) => k + 1);
       return navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
         video: mode === "VIDEO" ? { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } } : false,
@@ -617,7 +620,19 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
         <div>
           {mode === "VIDEO" ? (
             <div style={frame.style} className="relative mx-auto overflow-hidden rounded-lg bg-solid">
-              <video key={previewKey} ref={previewRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full object-cover ${facing === "user" ? "-scale-x-100" : ""}`} />
+              <video
+                key={previewKey}
+                ref={previewRef}
+                autoPlay
+                muted
+                playsInline
+                className={`absolute inset-0 h-full w-full object-cover ${facing === "user" ? "-scale-x-100" : ""} ${frame.ready ? "" : "opacity-0"}`}
+              />
+              {!frame.ready && (
+                <p className="absolute inset-0 grid place-items-center text-xs text-dim" data-testid="camera-starting">
+                  Starting camera…
+                </p>
+              )}
               {phase === "preview" && cameras > 1 && (
                 <button onClick={() => setFacing((f) => (f === "user" ? "environment" : "user"))} className="absolute right-2 top-2 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white">
                   Flip camera
