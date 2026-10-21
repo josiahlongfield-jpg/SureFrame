@@ -23,7 +23,7 @@ export const GET = handle(async () => {
   return Response.json({
     fingerprint: me.workspace.keyFingerprint,
     // Who gets their new link how, for the question asked before a removal (lib/rekey.ts decides the same way), and
-    // the email for "Send from my email" on the links the team sends itself afterwards.
+    // the email for "Send from your email" on the links the team sends itself afterwards.
     clients: clients.map((c) => ({ id: c.id, name: c.name, hasEmail: !!c.email, email: c.email, opened: !!c.linkOpenedAt, held: !!c.pausedAt || !!c.linkDisabledAt, teamKeyWrap: c.teamKeyWrap, active: !c.removedAt })),
     videos,
     items,

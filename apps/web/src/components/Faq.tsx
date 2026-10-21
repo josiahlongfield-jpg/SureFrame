@@ -62,7 +62,7 @@ export const BUSINESS_FAQ: Qa[] = [
     a: (
       <>
         <p>
-          Send a new client&rsquo;s first video from your own email, texts or chat: pick them in the video&rsquo;s Send box and use Send from my email, Copy link +
+          Send a new client&rsquo;s first video from your own email, texts or chat: pick them in the video&rsquo;s Send box and use Send from your email, Copy link +
           message, Share on a phone, or Copy link. They open it and watch, no account needed. That link also carries the key to their videos, so opening it sets
           them up on that phone or computer, and after that Send by email works for them too.
         </p>

@@ -22,6 +22,19 @@ type RowState = "emailed" | "when-ready" | "copied" | "shared" | "own-email";
  */
 const reached = (c: ClientOption) => !!c.hasLink;
 const canEmail = (c: ClientOption) => reached(c) && !!c.emailable;
+
+const names = (list: ClientOption[]) => (list.length === 1 ? list[0].name : `${list.slice(0, -1).map((c) => c.name).join(", ")} and ${list[list.length - 1].name}`);
+
+/** Why Send by email isn't there for these clients: no address saved, or they turned emails off. */
+function noEmailNote(list: ClientOption[]) {
+  const off = list.filter((c) => c.emailsOff);
+  const none = list.filter((c) => !c.emailsOff);
+  const why = [
+    none.length ? `No email address saved for ${names(none)}` : "",
+    off.length ? `${names(off)} turned off emails from you` : "",
+  ].filter(Boolean);
+  return `${why.join(", and ")}, so copy the ${list.length === 1 ? "link" : "links"} and send ${list.length === 1 ? "it" : "them"} yourself.`;
+}
 const btn = "rounded-lg border border-line-strong bg-surface px-2.5 py-1 text-xs hover:bg-hover disabled:opacity-50";
 
 /**
@@ -60,7 +73,12 @@ export default function SendPanel({
   const router = useRouter();
   // Clients added from this box, until the page's own list has them.
   const [extra, setExtra] = useState<ClientOption[]>([]);
-  const clients = useMemo(() => [...given, ...extra.filter((e) => !given.some((c) => c.id === e.id))], [given, extra]);
+  // Emails added from this box, until the page's own list has them.
+  const [added, setAdded] = useState<Record<string, string>>({});
+  const clients = useMemo(
+    () => [...given, ...extra.filter((e) => !given.some((c) => c.id === e.id))].map((c) => (added[c.id] && !c.email ? { ...c, email: added[c.id], emailable: true } : c)),
+    [given, extra, added],
+  );
   const [adding, setAdding] = useState(false);
   const isCopy = !!video.sourceId;
   const uploading = video.status === "RECORDING";
@@ -94,6 +112,8 @@ export default function SendPanel({
   // Several chosen, some we can email and some we can't: one "Send to all" emails those it can and copies the others' links.
   const mixed = chosen.length > 1 && chosenEmail.length > 0 && chosenEmail.length < chosen.length;
   const copyWords = canShare ? "Copy link or Share" : "Copy link";
+  // Chosen clients we can't email, said beside Copy link so it's clear why Send by email isn't there.
+  const unemailable = mixed ? [] : chosen.filter((c) => reached(c) && !c.emailable);
 
   // Each recipient's personal link for their conversation, worked out ahead so Copy and Share work in one tap.
   const [links, setLinks] = useState<Record<string, string>>({});
@@ -305,6 +325,13 @@ export default function SendPanel({
     });
   }
 
+  /** An email saved from this box: Send by email works for them straight away once they've opened a video. */
+  function emailAdded(c: ClientOption, email: string) {
+    setAdded((cur) => ({ ...cur, [c.id]: email }));
+    setNote({ text: `Saved ${c.name}'s email.` });
+    router.refresh();
+  }
+
   /** A client added from this box: chosen straight away, so the ways to send their first video are the next thing shown. */
   function quickAdded(c: ClientOption) {
     setExtra((cur) => [...cur, c]);
@@ -409,9 +436,19 @@ export default function SendPanel({
   const soloFirst = chosen.length === 1 && chosenFirst.length === 1;
   const linkBox = soloFirst ? (
     <div className="mt-3" data-testid="first-time">
-      <p className="text-xs text-dim">
-        First video for {chosenFirst[0].name}: send it from your email or copy the link. After this, Send by email works for them.
-      </p>
+      <FirstWhy>
+        <p>This video still goes to {chosenFirst[0].name}.</p>
+        <p>
+          Alongside the video is their personal link, so for privacy reasons SureFrame is unable to automate it the first time around. Send it from your email or copy the link to be sent however you choose.{" "}
+          <span className="font-medium text-ink">Once they open it, everything beyond that point is delivered on your behalf to the device the client link is held on, if you select the Send by email function.</span>
+        </p>
+      </FirstWhy>
+      {!chosenFirst[0].email && (
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="no-email">
+          <p className="text-xs font-medium text-warn-fg">No email address saved for {chosenFirst[0].name}.</p>
+          <AddEmail client={chosenFirst[0]} onSaved={emailAdded} />
+        </div>
+      )}
       <div className="mt-2" data-testid="first-links">
         <div data-testid="first-link-row">
           <FirstLinkSender video name={chosenFirst[0].name} email={chosenFirst[0].email} business={business} disabled={!!busy} getLink={() => deliverFirst(chosenFirst[0])} onSent={(how) => firstSent(chosenFirst[0], how)} />
@@ -420,11 +457,25 @@ export default function SendPanel({
     </div>
   ) : (
     <div className="mt-3 rounded-xl bg-surface-2 p-3 text-sm text-ink" data-testid="first-time">
-      <p className="text-xs text-dim">First videos for new clients: send them from your email or copy the link.</p>
+      <FirstWhy>
+        <p>These videos still go to them.</p>
+        <p>
+          Alongside each video is that client&apos;s personal link, so for privacy reasons SureFrame is unable to automate it the first time around. Send each from your email or copy the link to be sent however you choose.{" "}
+          <span className="font-medium text-ink">Once they open it, everything beyond that point is delivered on your behalf to the device the client link is held on, if you select the Send by email function.</span>
+        </p>
+      </FirstWhy>
       <ul className="mt-2 grid gap-2" data-testid="first-links">
         {chosenFirst.map((c) => (
           <li key={c.id} className="flex flex-wrap items-center justify-between gap-2" data-testid="first-link-row">
-            <span className="min-w-0 break-words font-medium">{c.name}</span>
+            <span className="min-w-0 break-words font-medium">
+              {c.name}
+              {!c.email && (
+                <span className="ml-2 inline-flex flex-wrap items-center gap-x-2 text-xs font-normal" data-testid="no-email">
+                  <span className="text-warn-fg">No email saved</span>
+                  <AddEmail client={c} onSaved={emailAdded} />
+                </span>
+              )}
+            </span>
             <FirstLinkSender compact short video name={c.name} email={c.email} business={business} disabled={!!busy} getLink={() => deliverFirst(c)} onSent={(how) => firstSent(c, how)} />
           </li>
         ))}
@@ -489,9 +540,12 @@ export default function SendPanel({
         ) : !reached(c) && !sentLink(c) ? (
           <p className="mt-1 text-xs text-dim" data-testid="row-first">Not sent yet: email it from your email or copy the link.</p>
         ) : !c.emailable && state !== "copied" && state !== "shared" ? (
-          <p className="mt-1 text-xs text-dim">
-            {c.emailsOff ? `${c.name} turned off emails from you` : `${c.name} has no email address saved`}, so send them the link yourself.
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="text-xs text-dim">
+              {c.emailsOff ? `${c.name} turned off emails from you` : `${c.name} has no email address saved`}, so send them the link yourself.
+            </p>
+            {!c.emailsOff && <AddEmail client={c} onSaved={emailAdded} />}
+          </div>
         ) : null}
         {stopping === r.convId && stopBox(r)}
       </li>
@@ -615,6 +669,16 @@ export default function SendPanel({
               {/* Under the picker, so who's chosen and who still needs their link read in order. */}
               {showLinkBox && linkBox}
 
+              {unemailable.length > 0 && (
+                <div className="mt-3" data-testid="no-email">
+                  <p className="text-xs font-medium text-warn-fg">{noEmailNote(unemailable)}</p>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                    {unemailable.filter((c) => !c.emailsOff).map((c) => (
+                      <AddEmail key={c.id} client={c} label={unemailable.length > 1 ? `Add ${c.name}'s email` : undefined} onSaved={emailAdded} />
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">
                 {mixed && (
                   <button onClick={sendAll} disabled={!!busy} data-testid="send-all" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
@@ -682,6 +746,83 @@ export default function SendPanel({
 
 /** Copied links differ per client (and from this page's address): each opens that client's own encrypted copy. */
 const OWN_LINKS = "Each link is different because each client gets their own private copy and conversation.";
+
+const HIDE_FIRST_WHY = "sureframe:hide-first-why";
+
+/** Why a new client's first video goes from the business, with a tick box to stop showing it (remembered in this browser). */
+function FirstWhy({ children }: { children: React.ReactNode }) {
+  const [hidden, setHidden] = useState(false);
+  const [ticked, setTicked] = useState(false);
+  useEffect(() => {
+    try {
+      setHidden(localStorage.getItem(HIDE_FIRST_WHY) === "1");
+    } catch {}
+  }, []);
+  if (hidden) return null;
+  function toggle(on: boolean) {
+    setTicked(on);
+    try {
+      if (on) localStorage.setItem(HIDE_FIRST_WHY, "1");
+      else localStorage.removeItem(HIDE_FIRST_WHY);
+    } catch {}
+  }
+  return (
+    <div className="grid gap-1 text-xs text-dim" data-testid="first-why">
+      {children}
+      <label className="inline-flex w-fit cursor-pointer items-center gap-1.5 text-dim">
+        <input type="checkbox" checked={ticked} onChange={(e) => toggle(e.target.checked)} className="h-3.5 w-3.5 accent-primary" data-testid="first-why-hide" />
+        Don&apos;t show this again
+      </label>
+    </div>
+  );
+}
+
+/** Saves an email for a client who has none, without leaving the video. */
+function AddEmail({ client, label, onSaved }: { client: ClientOption; label?: string; onSaved: (c: ClientOption, email: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="text-xs font-medium text-accent hover:underline" data-testid="add-email">
+        {label ?? "Add email"}
+      </button>
+    );
+  }
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(undefined);
+    try {
+      const res = await fetch(`/api/clients/${client.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.trim() }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setError(data.error ?? "Couldn't save the email. Try again.");
+      onSaved(client, email.trim());
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form onSubmit={save} className="flex w-full flex-wrap items-center gap-2" data-testid="add-email-form">
+      <input
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        type="email"
+        required
+        autoFocus
+        placeholder={`${client.name}'s email`}
+        aria-label={`${client.name}'s email`}
+        className="min-w-0 flex-1 rounded-lg border border-line-strong px-3 py-1.5 text-sm"
+      />
+      <button disabled={busy || !email.trim()} className="rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
+        {busy ? "Saving…" : "Save"}
+      </button>
+      <button type="button" onClick={() => setOpen(false)} className="rounded-lg px-2 py-1.5 text-sm text-dim hover:text-ink">Cancel</button>
+      {error && <p role="alert" className="w-full text-xs text-danger-fg">{error}</p>}
+    </form>
+  );
+}
 
 /** Adds a client without leaving the video: their own key is made here, as on the Clients page. */
 function QuickAddClient({ teamKey, onAdded, onCancel }: { teamKey: CryptoKey; onAdded: (c: ClientOption) => void; onCancel?: () => void }) {

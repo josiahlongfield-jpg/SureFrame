@@ -102,7 +102,7 @@ export default function FirstLinkSender({
         )
       }
     >
-      Send from my email
+      Send from your email
     </button>
   );
 

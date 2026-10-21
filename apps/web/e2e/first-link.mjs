@@ -95,7 +95,7 @@ ok("new clients are marked in the picker", (await owner.locator("[role=listbox] 
 await owner.keyboard.press("Escape");
 ok("no first-video box while no new client is chosen", !(await owner.isVisible("[data-testid=first-time]")));
 await choose("Zoe Park");
-ok("choosing Zoe: her first video goes from you, said plainly", await owner.isVisible("[data-testid=first-time]") && (await owner.textContent("[data-testid=first-time]")).includes("First video for Zoe Park: send it from your email or copy the link"));
+ok("choosing Zoe: her first video goes from you, said plainly", await owner.isVisible("[data-testid=first-time]") && (await owner.textContent("[data-testid=first-time]")).includes("This video still goes to Zoe Park") && (await owner.textContent("[data-testid=first-time]")).includes("Once they open it, everything beyond that point is delivered on your behalf to the device the client link is held on, if you select the Send by email function"));
 ok("a first-time client isn't offered Send by email", (await owner.locator("[data-testid=send-email]").count()) === 0 && (await owner.textContent("[data-testid=first-time]")).includes("Zoe Park") && (await owner.locator("[data-testid=first-links] [data-testid=first-link-copy]").count()) === 1);
 ok("dropdown shows who's chosen", (await owner.textContent("[data-testid=client-picker]")).includes("Zoe Park"));
 ok("only her first-video buttons: no separate Copy link", (await owner.locator("[data-testid=send-link]").count()) === 0);
