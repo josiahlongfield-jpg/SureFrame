@@ -127,16 +127,19 @@
         frame.style.width = `${box.width}px`;
         frame.style.height = `${box.height}px`;
         place = clamp() ?? place;
-        // Every other tab's bubble moves here too.
-        void chrome.storage.local.get("bubble").then(({ bubble }) => chrome.storage.local.set({ bubble: { ...bubble, ...place } }));
+        // Every other tab's bubble moves here too. Written whole, never merged with what's stored: the bubble's size is
+        // kept under its own name by bubble.js, so a move and a resize ending together can't undo each other.
+        void chrome.storage.local.set({ bubblePlace: { left: place.left, bottom: place.bottom } }).catch(() => {});
       }
     };
     frame.contentWindow?.postMessage({ sureframe: "port" }, "*", [channel.port2]);
   }
 
   async function load() {
-    const { bubble } = await chrome.storage.local.get("bubble").catch(() => ({}));
-    if (bubble && Number.isFinite(bubble.left) && Number.isFinite(bubble.bottom)) place = { left: bubble.left, bottom: bubble.bottom };
+    // "bubble" is where 1.0.0 kept it.
+    const { bubblePlace, bubble } = await chrome.storage.local.get(["bubblePlace", "bubble"]).catch(() => ({}));
+    const b = bubblePlace ?? bubble;
+    if (b && Number.isFinite(b.left) && Number.isFinite(b.bottom)) place = { left: b.left, bottom: b.bottom };
     const rec = await readRec();
     if (fresh(rec)) mount(rec);
   }
@@ -148,8 +151,8 @@
       if (fresh(rec)) mount(rec);
       else unmount();
     }
-    if (area === "local" && changes.bubble?.newValue) {
-      const b = changes.bubble.newValue;
+    if (area === "local" && changes.bubblePlace?.newValue) {
+      const b = changes.bubblePlace.newValue;
       if (Number.isFinite(b.left) && Number.isFinite(b.bottom)) {
         place = { left: b.left, bottom: b.bottom };
         clamp();

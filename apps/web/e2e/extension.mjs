@@ -224,7 +224,7 @@ ok("dial: the size button opens it", await fr().isVisible("#sizer"));
 }
 let s0 = await size();
 await clickIn("#bigger");
-ok("dial: + makes it bigger", (await size()) === Math.min(360, s0 + 20), `${s0} -> ${await size()}`);
+ok("dial: + makes it bigger", (await size()) === Math.min(440, s0 + 20), `${s0} -> ${await size()}`);
 s0 = await size();
 await clickIn("#smaller");
 await clickIn("#smaller");
@@ -233,7 +233,7 @@ ok("dial: - makes it smaller", (await size()) === s0 - 40, `${s0} -> ${await siz
   // Sliding the dial all the way left: the smallest bubble.
   const f = await box(plain);
   const r = await fr().evaluate(() => document.getElementById("scale").getBoundingClientRect().toJSON());
-  const thumbX = f.left + r.x + 8 + ((Number(await fr().evaluate(() => document.getElementById("scale").value)) - 120) / 240) * (r.width - 16);
+  const thumbX = f.left + r.x + 8 + ((Number(await fr().evaluate(() => document.getElementById("scale").value)) - 120) / 320) * (r.width - 16);
   await plain.mouse.move(thumbX, f.top + r.y + r.height / 2);
   await plain.mouse.down();
   await plain.mouse.move(f.left + r.x - 30, f.top + r.y + r.height / 2, { steps: 8 });
@@ -244,12 +244,23 @@ ok("dial: - makes it smaller", (await size()) === s0 - 40, `${s0} -> ${await siz
 }
 await rec.waitForTimeout(500);
 ok("dial: the other tabs' bubble too", (await frameOf(rec).evaluate(() => document.getElementById("circle").getBoundingClientRect().width)) === 120);
+{
+  // All the way up: a bit bigger than before (440).
+  await fr().focus("#scale");
+  await plain.keyboard.press("End");
+  await plain.waitForTimeout(400);
+  ok("dial: biggest is 440", (await size()) === 440, String(await size()));
+  await rec.waitForTimeout(500);
+  ok("dial: the other tabs' bubble is 440 too", (await frameOf(rec).evaluate(() => document.getElementById("circle").getBoundingClientRect().width)) === 440);
+  await plain.keyboard.press("Home");
+  await plain.waitForTimeout(400);
+}
 await plain.screenshot({ path: `${shots}/extension-dial.png` });
 await clickIn("#size");
 ok("dial: the size button closes it", !(await fr().isVisible("#sizer")));
 await clickIn("#bigger").catch(() => {});
 // Back to the grip's size for the checks below.
-await fr().evaluate((n) => chrome.storage.local.get("bubble").then(({ bubble }) => chrome.storage.local.set({ bubble: { ...bubble, size: n } })), after);
+await fr().evaluate((n) => chrome.storage.local.set({ bubbleLook: { size: n, collapsed: false } }), after);
 await plain.waitForTimeout(400);
 
 // A tab opened while recording gets the bubble and the camera too.
@@ -261,6 +272,11 @@ await plain.waitForTimeout(400);
   ok("new tab: the bubble shows the camera", !!c, JSON.stringify(c));
   const problem = await frameOf(extra)?.evaluate(() => { const n = document.getElementById("camera-note"); return n.hidden ? "" : n.textContent; }).catch(() => "?");
   ok("new tab: no camera problem shown", problem === "", problem);
+  // A mirror of the other tabs: the same size and the same place.
+  const sz = (pg) => frameOf(pg).evaluate(() => document.getElementById("circle").getBoundingClientRect().width);
+  const [a, bb] = [await box(plain), await box(extra)];
+  ok("new tab: same size as the other tabs", (await sz(extra)) === (await sz(plain)), `${await sz(extra)} vs ${await sz(plain)}`);
+  ok("new tab: same place as the other tabs", Math.round(a.left) === Math.round(bb.left) && Math.round(a.bottom) === Math.round(bb.bottom), `${JSON.stringify(a)} vs ${JSON.stringify(bb)}`);
   await extra.close();
   await plain.bringToFront();
 }
@@ -312,7 +328,7 @@ for (const [name, viewport, deviceScaleFactor] of [
 ]) {
   const c = await chromium.launchPersistentContext(profile, { headless: true, executablePath: process.env.CHROMIUM ?? undefined, args, viewport, deviceScaleFactor });
   const sw = c.serviceWorkers()[0] ?? (await c.waitForEvent("serviceworker"));
-  await sw.evaluate(() => chrome.storage.local.remove("bubble"));
+  await sw.evaluate(() => chrome.storage.local.remove(["bubble", "bubbleLook", "bubblePlace"]));
   const p = c.pages()[0] ?? (await c.newPage());
   await p.goto(SITE + "/plain");
   await sw.evaluate(() => chrome.storage.session.set({ rec: { id: "sizes", mode: "screen+camera", phase: "recording", ms: 0, at: Date.now(), beat: Date.now(), tabId: -1 } }));

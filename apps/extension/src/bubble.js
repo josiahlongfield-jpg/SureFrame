@@ -3,7 +3,7 @@
 // stopping itself: if anything here fails, the recording carries on and the tab's own buttons still work.
 
 const MIN = 120;
-const MAX = 360;
+const MAX = 440;
 const GAP = 8;
 const RING = 3; // the white ring drawn around the circle
 const $ = (id) => document.getElementById(id);
@@ -20,6 +20,8 @@ let rec = null;
 let prefs = { size: 200, collapsed: false };
 /** The size dial under the circle, opened from the bar. Not remembered: it closes on other pages. */
 let dialOpen = false;
+/** The dial's slider is held down on this tab. */
+let sliding = false;
 let port = null;
 let stream = null;
 let opening = null;
@@ -41,7 +43,7 @@ function layout() {
   const dial = camera && dialOpen && !prefs.collapsed;
   sizer.hidden = !dial;
   $("size").setAttribute("aria-expanded", String(dial));
-  if (document.activeElement !== scale) scale.value = String(size);
+  if (!sliding) scale.value = String(size);
   $("smaller").disabled = size <= MIN;
   $("bigger").disabled = size >= MAX;
   const barWidth = prefs.collapsed ? 0 : bar.offsetWidth || 196;
@@ -122,19 +124,29 @@ $("size").addEventListener("click", () => {
 });
 // The dial: the circle follows while sliding, and the size is kept (and shown on every tab) once let go.
 const sized = (n) => Math.max(MIN, Math.min(MAX, Math.round(n)));
+scale.addEventListener("pointerdown", () => (sliding = true));
 scale.addEventListener("input", () => {
   prefs.size = sized(Number(scale.value));
   layout();
 });
-scale.addEventListener("change", () => setPrefs({ size: sized(Number(scale.value)) }));
+scale.addEventListener("change", () => {
+  sliding = false;
+  setPrefs({ size: sized(Number(scale.value)) });
+});
+// Let go without a change (or outside the frame): nothing to keep.
+for (const ev of ["pointerup", "pointercancel", "blur"]) scale.addEventListener(ev, () => (sliding = false));
 $("smaller").addEventListener("click", () => setPrefs({ size: sized(prefs.size - STEP) }));
 $("bigger").addEventListener("click", () => setPrefs({ size: sized(prefs.size + STEP) }));
 for (const b of [$("expand"), mini]) b.addEventListener("click", () => !dragged && setPrefs({ collapsed: false }));
 
+/**
+ * Changes the bubble here and on every other tab. The size and tucked-away state are written whole under their own
+ * name (the page script keeps the place separately), so two writes landing together can't leave tabs disagreeing.
+ */
 function setPrefs(change) {
   prefs = { ...prefs, ...change };
   layout();
-  void chrome.storage.local.get("bubble").then(({ bubble }) => chrome.storage.local.set({ bubble: { ...bubble, ...change } }));
+  void chrome.storage.local.set({ bubbleLook: { size: prefs.size, collapsed: prefs.collapsed } }).catch(() => {});
 }
 
 // ---------- The camera ----------
@@ -343,9 +355,11 @@ window.addEventListener("resize", () => !gesture && place(null));
 // ---------- Start ----------
 
 async function start() {
-  const [{ rec: r }, { bubble }] = await Promise.all([chrome.storage.session.get("rec"), chrome.storage.local.get("bubble")]);
+  const [{ rec: r }, { bubbleLook, bubble }] = await Promise.all([chrome.storage.session.get("rec"), chrome.storage.local.get(["bubbleLook", "bubble"])]);
   rec = r ?? null;
-  if (bubble) prefs = { size: Number(bubble.size) || 200, collapsed: !!bubble.collapsed };
+  // "bubble" is where 1.0.0 kept it.
+  const look = bubbleLook ?? bubble;
+  if (look) prefs = { size: Number(look.size) || 200, collapsed: !!look.collapsed };
   layout();
   draw();
   if (document.visibilityState === "visible") void openCamera();
@@ -360,8 +374,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
     if (rec?.mode === "screen+camera" && document.visibilityState === "visible") void openCamera();
     draw();
   }
-  if (area === "local" && changes.bubble?.newValue) {
-    const b = changes.bubble.newValue;
+  // Changed on another tab (or this one): the same here, unless this bubble is being resized right now.
+  if (area === "local" && changes.bubbleLook?.newValue && gesture?.kind !== "size" && !sliding) {
+    const b = changes.bubbleLook.newValue;
     const next = { size: Number(b.size) || prefs.size, collapsed: !!b.collapsed };
     if (next.size !== prefs.size || next.collapsed !== prefs.collapsed) {
       prefs = next;
