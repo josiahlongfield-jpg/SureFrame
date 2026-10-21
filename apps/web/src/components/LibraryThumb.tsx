@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { fingerprint as keyFingerprint, unwrapKey } from "@/lib/e2e/crypto";
 import { loadKey, teamKeyName } from "@/lib/e2e/keystore";
-import { backfillThumb, loadThumb } from "@/lib/thumb";
+import { backfillThumb, loadThumb, SHARP_WIDTH } from "@/lib/thumb";
 
 // One look-up of this device's team key for the whole library.
 const teamKeys = new Map<string, Promise<CryptoKey | null>>();
@@ -32,6 +32,18 @@ function backfill(videoId: string, rawUrl: string, key: CryptoKey, mimeType: str
   return made;
 }
 
+// Stills made before they were sharpened are remade once on this device; a recording smaller than that keeps its own.
+const REMADE = "sureframe.sharpThumb.";
+function remadeHere(videoId: string) {
+  try {
+    if (localStorage.getItem(REMADE + videoId)) return true;
+    localStorage.setItem(REMADE + videoId, "1");
+  } catch {
+    return true;
+  }
+  return false;
+}
+
 const Lock = () => (
   <span className="absolute inset-0 grid place-items-center text-dim">
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" role="img" aria-label="Encrypted"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
@@ -46,6 +58,7 @@ const Lock = () => (
  */
 export default function LibraryThumb({ videoId, teamKeyWrap, workspaceId, fingerprint, has, canMake, rawUrl, mimeType }: { videoId: string; teamKeyWrap: string | null; workspaceId: string; fingerprint: string | null; has: boolean; canMake: boolean; rawUrl: string; mimeType: string }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [sharpen, setSharpen] = useState(false);
   useEffect(() => {
     if ((!has && !canMake) || !teamKeyWrap) return;
     let made: string | null = null;
@@ -54,9 +67,9 @@ export default function LibraryThumb({ videoId, teamKeyWrap, workspaceId, finger
       const team = await teamKey(workspaceId, fingerprint);
       if (!team || cancelled) return;
       const key = await unwrapKey(teamKeyWrap, team);
-      if (!has && !(await backfill(videoId, rawUrl, key, mimeType))) return;
+      if ((!has || sharpen) && !(await backfill(videoId, rawUrl, key, mimeType))) return;
       if (cancelled) return;
-      made = await loadThumb(videoId, key);
+      made = await loadThumb(videoId, key, sharpen);
       if (cancelled && made) URL.revokeObjectURL(made);
       else setUrl(made);
     })().catch(() => {});
@@ -64,8 +77,18 @@ export default function LibraryThumb({ videoId, teamKeyWrap, workspaceId, finger
       cancelled = true;
       if (made) URL.revokeObjectURL(made);
     };
-  }, [videoId, teamKeyWrap, workspaceId, fingerprint, has, canMake, rawUrl, mimeType]);
+  }, [videoId, teamKeyWrap, workspaceId, fingerprint, has, canMake, rawUrl, mimeType, sharpen]);
   if (!url) return <Lock />;
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt="" data-testid="library-thumb" className="h-full w-full object-cover transition group-hover:scale-105" />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt=""
+      data-testid="library-thumb"
+      className="h-full w-full object-cover transition group-hover:scale-105"
+      onLoad={(e) => {
+        if (!sharpen && canMake && e.currentTarget.naturalWidth < SHARP_WIDTH && !remadeHere(videoId)) setSharpen(true);
+      }}
+    />
+  );
 }

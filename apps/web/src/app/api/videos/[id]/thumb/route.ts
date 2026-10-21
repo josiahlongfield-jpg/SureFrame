@@ -6,7 +6,7 @@ import { limitByIp } from "@/lib/rateLimit";
 import { viewableVideo } from "@/lib/access";
 
 /**
- * The library still for a recording: a small JPEG made and encrypted on a
+ * The library still for a recording: a JPEG made and encrypted on a
  * team member's device with the video's key, so only the team and its
  * client can see it.
  * A copy sent to another client uses the original's.
@@ -27,8 +27,8 @@ export const GET = handle(async (_req: Request, ctx: { params: Promise<{ id: str
   return new Response(thumb.data, { headers: { "Content-Type": "text/plain", "Cache-Control": "private, max-age=86400" } });
 });
 
-// About 480x270 at JPEG quality 0.7 is 20-40 KB; base64 adds a third.
-const Body = z.object({ data: z.string().min(40).max(300_000).regex(/^[A-Za-z0-9_-]+$/) });
+// About 960x540 at JPEG quality 0.85 is 60-250 KB (more for busy screens); base64 adds a third.
+const Body = z.object({ data: z.string().min(40).max(1_000_000).regex(/^[A-Za-z0-9_-]+$/) });
 
 export const PUT = handle(async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
   const videoId = await original((await ctx.params).id);

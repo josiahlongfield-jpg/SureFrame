@@ -8,7 +8,12 @@ import { decryptBytes, decryptLeadingFrames, encryptBytes } from "@/lib/e2e/cryp
  * recording, encrypts it with the video's key and uploads it, and the library
  * decrypts it the same way it would the video.
  */
-const WIDTH = 480;
+// Library and client tiles show at up to about 480px wide, so twice that keeps them sharp on high-density screens.
+const STILL = { width: 960, quality: 0.85 };
+// A poster covers the whole player before it plays, and never leaves this device, so it keeps the recording's own size.
+const POSTER = { width: 1920, quality: 0.9 };
+/** Stills narrower than this were made before they were sharpened, and are remade (LibraryThumb). */
+export const SHARP_WIDTH = 900;
 
 function waitFor(el: HTMLVideoElement, event: "loadeddata" | "seeked", ms: number) {
   return new Promise<boolean>((resolve) => {
@@ -26,14 +31,19 @@ function waitFor(el: HTMLVideoElement, event: "loadeddata" | "seeked", ms: numbe
   });
 }
 
-/** Draws the element's current frame as a small JPEG. */
-async function capture(el: HTMLVideoElement) {
+/** Draws the element's current frame as a JPEG, no wider than `size.width`. */
+async function capture(el: HTMLVideoElement, size = STILL) {
   if (!el.videoWidth || !el.videoHeight) return null;
   const canvas = document.createElement("canvas");
-  canvas.width = Math.min(WIDTH, el.videoWidth);
+  canvas.width = Math.min(size.width, el.videoWidth);
   canvas.height = Math.round((canvas.width * el.videoHeight) / el.videoWidth);
-  canvas.getContext("2d")?.drawImage(el, 0, 0, canvas.width, canvas.height);
-  return new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.72));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  // The default smoothing makes a shrunk screen recording's text look jagged and soft.
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(el, 0, 0, canvas.width, canvas.height);
+  return new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", size.quality));
 }
 
 /** Encrypts a still with the video's key and saves it for the library. */
@@ -48,7 +58,7 @@ async function save(videoId: string, still: Blob, key: CryptoKey) {
 }
 
 /** A still about a second in (past any countdown fade) from a playable recording URL. */
-async function stillFrom(src: string) {
+async function stillFrom(src: string, size = STILL) {
   const el = document.createElement("video");
   el.muted = true;
   el.playsInline = true;
@@ -61,7 +71,7 @@ async function stillFrom(src: string) {
     el.currentTime = at;
     // If seeking isn't possible, the first frame will do.
     await waitFor(el, "seeked", 8_000);
-    return await capture(el);
+    return await capture(el, size);
   } finally {
     el.removeAttribute("src");
     el.load();
@@ -73,7 +83,7 @@ async function stillFrom(src: string) {
  * An image URL (revoke it when done), or null if no frame could be drawn.
  */
 export async function posterFrom(src: string) {
-  const still = await stillFrom(src);
+  const still = await stillFrom(src, POSTER);
   return still ? URL.createObjectURL(still) : null;
 }
 
@@ -142,9 +152,9 @@ export async function backfillThumb(videoId: string, rawUrl: string, key: Crypto
   }
 }
 
-/** The still as an image URL, or null if there isn't one or it can't be unlocked here. */
-export async function loadThumb(videoId: string, key: CryptoKey) {
-  const res = await fetch(`/api/videos/${videoId}/thumb`).catch(() => null);
+/** The still as an image URL, or null if there isn't one or it can't be unlocked here. `fresh` skips the browser's copy (just remade). */
+export async function loadThumb(videoId: string, key: CryptoKey, fresh = false) {
+  const res = await fetch(`/api/videos/${videoId}/thumb`, fresh ? { cache: "no-cache" } : undefined).catch(() => null);
   if (!res?.ok) return null;
   const bytes = await decryptBytes(await res.text(), key);
   return URL.createObjectURL(new Blob([bytes as BlobPart], { type: "image/jpeg" }));
