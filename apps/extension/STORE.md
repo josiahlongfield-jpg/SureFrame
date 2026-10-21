@@ -16,10 +16,10 @@ Your camera in a floating bubble, with Pause and Stop, on any web page while you
 Record your screen with SureFrame and keep your camera and controls with you on every tab.
 
 While you record your screen at sureframe.app, the SureFrame extension shows:
-- your camera in a round bubble over the web pages you visit, which you can drag anywhere and resize from its corner;
+- your camera in a round bubble over the web pages you visit, which you can drag anywhere and make bigger or smaller with its size dial;
 - a small bar with the time, Pause and Stop, so you can run your recording without going back to the SureFrame tab.
 
-Your camera bubble is what your viewers see in the video. Whenever the bubble can't be on screen, for example when another app is in front, SureFrame puts your camera into the video in a corner circle instead, so you're never missing from it.
+Your camera bubble is what your viewers see in the video. Whenever the bubble can't be on screen, for example when another app is in front, SureFrame puts your camera into the video in a corner circle instead, so you still appear in it.
 
 The extension itself doesn't record, save or send anything, and doesn't read or collect the pages you visit. Your screen recording is made by the SureFrame tab and shows only what you choose to share, encrypted on your device before it's uploaded, exactly as without the extension.
 
@@ -39,7 +39,7 @@ Needs a SureFrame account (sureframe.app). Works in Chrome, Edge, Brave and othe
 
 **Privacy policy URL:** https://sureframe.app/legal/privacy#extension
 
-**Homepage / support URL:** https://sureframe.app
+**Homepage URL:** https://sureframe.app · **Support URL:** https://sureframe.app/help
 
 **Images:** icon 128×128 (`icons/128.png`); screenshots 1280×800 (`store/`); small promo tile 440×280 (`store/promo-440x280.png`).
 
