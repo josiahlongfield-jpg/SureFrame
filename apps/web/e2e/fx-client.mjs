@@ -1,6 +1,6 @@
 // The client's watch page and the conversation (src/components/WatchView.tsx, ReplyComposer.tsx):
-// - the Free plan's intro names the sender, shows once per device per business, can be skipped after a
-//   few seconds, starts the video, and never covers a page that can't open;
+// - the Free plan's intro names the sender, shows once per device per business, Watch now works at once
+//   (Decision 2: no wait; the "Made with SureFrame" credit stays), starts the video, and never covers a page that can't open;
 // - video and voice replies are reviewed before sending (Send, Re-record, Discard), one cut short by a
 //   closed browser is never sent by itself (and is deleted after 7 days unsent, which both screens say),
 //   and anyone can delete their own replies (file included);
@@ -130,14 +130,11 @@ await phone.waitForURL("**/v/**");
 ok("intro: shown on the Free plan", await shown(phone, "[data-testid=sureframe-promo]", 20000));
 ok("intro: leads with the sender", (await phone.textContent("[data-testid=promo-sender]")) === "Business A sent you a private video");
 ok("intro: SureFrame is a small credit", await phone.isVisible("[data-testid=sureframe-promo] >> text=Made with SureFrame"));
-ok("intro: can't be skipped straight away", await phone.isDisabled("[data-testid=sureframe-promo] button:has-text('Watch now')"));
-ok("intro: the short wait is said in words, not a countdown on the button", /You can start watching in \d seconds?\. This short intro only shows once on this device\./.test(await phone.textContent("[data-testid=promo-wait]")) && !/\(\d\)/.test(await phone.textContent("[data-testid=sureframe-promo] button")));
-ok("intro: keyboard focus starts in the card", await phone.evaluate(() => !!document.activeElement?.closest("[data-testid=sureframe-promo]")));
+ok("intro: Watch now works at once, no wait (Decision 2)", await phone.isEnabled("[data-testid=sureframe-promo] button:has-text('Watch now')"));
+ok("intro: no countdown, just says it shows once", (await phone.textContent("[data-testid=promo-wait]")).trim() === "This short intro only shows once on this device." && !/\d/.test(await phone.textContent("[data-testid=sureframe-promo] button")));
+ok("intro: keyboard focus starts on Watch now", (await phone.evaluate(() => document.activeElement?.textContent)) === "Watch now");
 ok("intro fits 320px", await fits(phone));
 await phone.screenshot({ path: `${shots}/intro-320.png` });
-await phone.waitForSelector("button:has-text('Watch now'):not([disabled])", { timeout: 6000 });
-ok("intro: skippable within a few seconds", true);
-ok("intro: focus moves to Watch now once it can be pressed", (await phone.evaluate(() => document.activeElement?.textContent)) === "Watch now");
 await phone.keyboard.press("Tab");
 await phone.keyboard.press("Tab");
 ok("intro: Tab stays inside the card", await phone.evaluate(() => !!document.activeElement?.closest("[data-testid=sureframe-promo]")));

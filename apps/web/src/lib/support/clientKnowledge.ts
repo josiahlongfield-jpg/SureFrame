@@ -38,7 +38,7 @@ A business (a coach, tutor, consultant and so on) uses ${BRAND.name} to send its
 - A text reply written while the video was playing starts with the moment it was written, such as "at 0:06": tapping it plays the video from there.
 - In the conversation, a video reply (theirs or the business's) shows as a small still with its length. Tap it to play it large over the page; close it with Close, Escape or by tapping outside it.
 - Save to device downloads the video. Some videos save as .webm files, which some iPhones and iPads can't play; a computer can. "How this works" under the video says so, under "Can I keep a copy?".
-- Clients of businesses on ${BRAND.name}'s free plan see a short ${BRAND.name} intro the first time they open a video from that business on a device. It can be skipped after a few seconds and starts the video. It's shown once per device for each business.
+- Clients of businesses on ${BRAND.name}'s free plan see a short ${BRAND.name} intro the first time they open a video from that business on a device. Watch now works straight away (there's no wait) and starts the video. It's shown once per device for each business.
 - Some businesses use AI summaries: the page then says so, and clients may see a transcript and summary under the video. Clients can read them but can't make them. Their replies aren't included. Summaries can contain mistakes.
 
 ## Replying
