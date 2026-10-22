@@ -335,7 +335,7 @@ export default function Planner({
             rows={kind === "NOTE" ? 3 : 1}
             placeholder={kind === "TASK" ? "Add a to-do…" : "Write a note…"}
             aria-label={kind === "TASK" ? "New to-do" : "New note"}
-            className="resize-none rounded-lg border border-line-strong px-3 py-2 text-sm focus:border-primary focus:outline-none"
+            className="resize-none rounded-lg border border-line-strong px-3 py-2 text-sm focus:border-primary"
           />
           {clientId && (
             // Off unless ticked for this item: shared is the exception, and it's plain which one this is.

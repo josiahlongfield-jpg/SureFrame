@@ -534,7 +534,7 @@ export default function SendPanel({
             {!blocked && reached(c) && (
               <>
                 {canEmail(c) && (
-                  <button onClick={() => emailRow(r)} className={btn}>{state === "emailed" ? "Email again" : "Email"}</button>
+                  <button onClick={() => emailRow(r)} className={btn}>{state === "emailed" ? "Send again" : "Send by email"}</button>
                 )}
                 <button onClick={() => copyRow(r)} disabled={!links[r.convId]} data-testid="copy-row-link" className={btn}>
                   Copy link

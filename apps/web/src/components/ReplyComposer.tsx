@@ -528,7 +528,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
             enterKeyHint={touch ? "enter" : "send"}
             data-focus-target="text"
             rows={3}
-            className="w-full resize-none rounded-lg border border-line-strong px-3 py-2 text-sm focus:border-primary focus:outline-2 focus:outline-offset-0 focus:outline-primary"
+            className="w-full resize-none rounded-lg border border-line-strong px-3 py-2 text-sm focus:border-primary"
           />
           {!touch && (
             <p id={`${videoId}-enter-hint`} className="mt-1 text-xs text-dim" data-testid="enter-hint">

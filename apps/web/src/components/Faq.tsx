@@ -299,8 +299,10 @@ export function FaqList({ items, headingLevel = 3 }: { items: Qa[]; headingLevel
         <details key={x.id} id={x.id} className="group scroll-mt-20 px-5 py-4" data-testid="faq-item">
           <summary className="flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
             <H className="text-[0.9375rem] font-semibold text-ink">{x.q}</H>
-            <span aria-hidden="true" className="mt-0.5 shrink-0 text-dim transition group-open:rotate-45">
-              +
+            {/* "+" to open, "−" once open (V29). */}
+            <span aria-hidden="true" className="mt-0.5 w-3 shrink-0 text-center text-dim" data-testid="faq-sign">
+              <span className="group-open:hidden">+</span>
+              <span className="hidden group-open:inline">−</span>
             </span>
           </summary>
           <div className="mt-3 space-y-2 text-sm leading-6 text-muted [&_a]:font-medium [&_a]:text-accent [&_a]:underline">{x.a}</div>

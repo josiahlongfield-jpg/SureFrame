@@ -124,7 +124,7 @@ console.log("   subject:", mail?.subject);
 ok("running again sends nothing new", (await cron()).body?.sent === 0);
 
 // 5. Client ticks it off; next week's appears
-await pro.click("text=Copy personal link");
+await pro.click("button:text-is('Copy link')");
 await pro.waitForSelector("text=/^(Link copied|Copied)$/", { timeout: 10000 }).catch(() => {});
 const personal = await pro.evaluate(() => navigator.clipboard.readText());
 const phoneCtx = await browser.newContext({ ...devices["Pixel 7"], timezoneId: TZ });

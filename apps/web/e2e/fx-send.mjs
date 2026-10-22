@@ -77,7 +77,7 @@ await owner.click("button:has-text('Add client')");
 await owner.waitForSelector("[data-testid=added-note]");
 const added = norm(await owner.textContent("[data-testid=added-note]"));
 ok("after adding: next step is recording a video for them, said plainly", added.includes("Client A added.") && added.includes("Record a video for Client A") && (await owner.isVisible("[data-testid=added-record]")) && !added.includes("can't open any videos"), added);
-ok("after adding: their link before any video is there, folded away, with Copy, Copy + message and Send from your email", ["Copy personal link", "Copy link + message", "Send from your email"].every((t) => added.includes(t)) && !(await owner.isVisible("[data-testid=added-note] [data-testid=first-link-copy]")), added);
+ok("after adding: their link before any video is there, folded away, with Copy, Copy + message and Send from your email", ["Copy link + message", "Send from your email"].every((t) => added.includes(t)) && (await owner.$$eval("[data-testid=added-note] button", (bs) => bs.some((b) => b.textContent.trim() === "Copy link"))) && !(await owner.isVisible("[data-testid=added-note] [data-testid=first-link-copy]")), added);
 await owner.$eval("[data-testid=added-links]", (d) => (d.open = true));
 await owner.click("[data-testid=added-note] [data-testid=first-link-message]");
 await owner.waitForTimeout(300);

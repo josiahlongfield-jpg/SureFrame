@@ -138,7 +138,7 @@ await owner.screenshot({ path: `${shots}/link-off-clients.png`, fullPage: true }
 const listed = (await (await owner.request.get(BASE + "/api/clients")).json()).clients;
 ok("clients API: Bea linkOff, still counted, Cy not", listed.find((c) => c.id === bea.id)?.linkOff === true && listed.find((c) => c.id === cy.id)?.linkOff === false && listed.length === 2);
 await owner.goto(`${BASE}/clients/${bea.id}`);
-ok("Bea's page: banner, no copy link", (await owner.locator("[data-testid=client-link-off-banner]").count()) === 1 && (await owner.locator("text=Copy personal link").count()) === 0);
+ok("Bea's page: banner, no copy link", (await owner.locator("[data-testid=client-link-off-banner]").count()) === 1 && (await owner.locator("button:text-is('Copy link')").count()) === 0);
 await owner.screenshot({ path: `${shots}/link-off-client-page.png`, fullPage: true });
 let res = await owner.request.patch(`${BASE}/api/videos/${teamVideo.id}`, { data: { clientId: bea.id, clientKeyWrap: "k".repeat(44), keyFingerprint: FP } });
 const linkOffMsg = `${bea.name}'s link has been turned off by SureFrame support, so they can't be sent anything. Contact support@sureframe.app.`;

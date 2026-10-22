@@ -90,7 +90,7 @@ await owner.uncheck("text=Share with Avery");
 await owner.fill('textarea[aria-label="New to-do"]', "Team-only note on Avery");
 await owner.click("form >> button:has-text('Add')");
 await owner.waitForSelector('li:has-text("Team-only note on Avery")');
-await owner.click("text=Copy personal link");
+await owner.click("button:text-is('Copy link')");
 await owner.waitForSelector("text=/^(Link copied|Copied)$/", { timeout: 10000 }).catch(() => {});
 const averyOldLink = await clip(owner);
 
@@ -122,7 +122,7 @@ const joined = await prisma.user.findUnique({ where: { email: `rk-staff${stamp}@
 await owner.request.patch(`${BASE}/api/clients/${avery.id}`, { data: { assignedToId: joined.id } });
 await staff.goto(`${BASE}/clients/${avery.id}`);
 await staff.waitForSelector("text=Team-only note on Avery");
-await staff.click("text=Copy personal link");
+await staff.click("button:text-is('Copy link')");
 await staff.waitForSelector("text=/^(Link copied|Copied)$/", { timeout: 10000 }).catch(() => {});
 const staffCopy = await clip(staff);
 ok("staff copied Avery's full link", staffCopy === averyOldLink);

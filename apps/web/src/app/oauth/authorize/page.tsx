@@ -76,7 +76,7 @@ export default async function Authorize({ searchParams }: { searchParams: Promis
         <button
           name="decision"
           value="allow"
-          className="rounded-xl bg-primary px-5 py-3 font-semibold text-on-primary shadow-sm hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          className="rounded-xl bg-primary px-5 py-3 font-semibold text-on-primary shadow-sm hover:bg-primary-hover"
         >
           Allow
         </button>

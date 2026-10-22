@@ -97,6 +97,13 @@ const good = norm(await visitor.textContent("[data-testid=good-to-know]"));
 for (const bit of ["billed with your plan", "Australian Consumer Law", "first remove the clients and staff", "paused", "referral code", "founding prices", "section 5"]) {
   ok(`pricing, Good to know: ${bit}`, good.includes(bit), good);
 }
+// Round 3 (visitor V19-V25, Checker C K6).
+ok("pricing: refunds also where Link gives one (K6)", good.includes("or where Link, which sells our plans, gives one under its own terms"));
+ok("pricing: the Free videos rule is said once, in full, in The Free plan in full (V20)", (await visitor.$$("[data-testid=free-videos-note]")).length === 0 && fullFree.includes("a workspace that moves back to Free may already have used them all") && (norm(await visitor.textContent("main")).match(/videos in total/g) ?? []).length === 2);
+ok("pricing: AI summary limits are per month on yearly billing too (V21)", norm(await visitor.textContent("[data-testid=addon-ai]")).includes("Summary limits are per calendar month, on yearly billing too."));
+ok("pricing: the Cloud backup card says what it keeps and doesn't (V19)", (await visitor.$$("[data-testid=addon-backup] li")).length === 3 && norm(await visitor.textContent("[data-testid=addon-backup]")).includes("Unsent replies are still deleted after 7 days"));
+const bonus = norm(await visitor.textContent("[data-testid=bonus-claude]"));
+ok("pricing: one short Claude line, saying what Claude is and that the add-on is separate (V25)", bonus.includes("Anthropic's AI assistant") && bonus.includes("separate from the paid AI add-on") && !bonus.includes("Even better with our AI add-on") && bonus.includes("isn't made by or affiliated with Anthropic"), bonus);
 ok("AI add-on says what happens to longer videos", norm(await visitor.textContent("[data-testid=addon-ai]")).includes("longer videos don't get a transcript or summary"));
 await visitor.click("[role=radio]:has-text('Yearly')");
 const freeYear = norm(await visitor.textContent("[data-testid=plan-FREE] p.mt-4"));
@@ -141,6 +148,31 @@ ok("home demo: no Pop out camera bubble button while recording (the bubble opens
 await visitor.click("#ff-tab-send");
 const sendFrame = norm(await visitor.textContent("#ff-panel-send"));
 ok("home demo: a first-time client's link is sent by the business, not emailed", sendFrame.includes("New") && sendFrame.includes("Copy all 3 links"), sendFrame);
+// Round 3: Claude introduced and kept apart from the AI add-on (V3, V4); what clients see when staff leave (V9); one label (D12).
+const claudeSection = norm(await visitor.textContent("[data-testid=home-claude]"));
+ok("home: Claude is introduced as Anthropic's AI assistant (V3)", claudeSection.includes("Claude is an AI assistant made by Anthropic. Already use Claude?"));
+ok("home: one line keeps the free connector apart from the paid AI add-on (V4)", norm(await visitor.textContent("[data-testid=home-claude-separate]")).includes("separate from our paid AI add-on"));
+ok("home: what clients experience when staff leave (V9)", norm(await visitor.textContent("main")).includes("Clients who've opened their link are emailed a new one"));
+const homeLinks = await visitor.$$eval("main a[href^='/pricing']", (as) => as.map((a) => a.textContent.trim()));
+ok("home: every link to pricing says See plans (D12)", homeLinks.length >= 3 && homeLinks.every((t) => t === "See plans"), JSON.stringify(homeLinks));
+// The demo's tabs move with the arrow keys and show the site's one focus ring (V7, D7).
+await visitor.focus("#ff-tab-send");
+await visitor.keyboard.press("ArrowRight");
+const arrowed = await visitor.evaluate(() => ({ id: document.activeElement?.id, selected: document.activeElement?.getAttribute("aria-selected"), ring: `${getComputedStyle(document.activeElement).outlineStyle} ${getComputedStyle(document.activeElement).outlineWidth}` }));
+ok("home demo: ArrowRight moves to the next tab and selects it (V7)", arrowed.id === "ff-tab-replies" && arrowed.selected === "true", JSON.stringify(arrowed));
+ok("home demo: the focused tab has the site's 2px focus ring (D7)", arrowed.ring === "solid 2px", arrowed.ring);
+await visitor.keyboard.press("End");
+ok("home demo: End goes to the last tab", await visitor.evaluate(() => document.activeElement?.getAttribute("aria-selected") === "true" && document.activeElement === [...document.querySelectorAll("[role=tab]")].at(-1)));
+// Skip to content: the first Tab stop on a page, then into the main content (V60, O112, P62).
+await visitor.goto(BASE + "/");
+await seen(visitor, ".ff-tab");
+await visitor.keyboard.press("Tab");
+const skip = await visitor.evaluate(() => ({ id: document.activeElement?.dataset.testid, top: document.activeElement?.getBoundingClientRect().top, ring: getComputedStyle(document.activeElement).outlineStyle }));
+ok("skip link: the first Tab stop, shown on screen", skip.id === "skip-link" && skip.top >= 0 && skip.ring === "solid", JSON.stringify(skip));
+await visitor.keyboard.press("Enter");
+ok("skip link: Enter moves focus to the page's main content", await visitor.evaluate(() => document.activeElement?.tagName === "MAIN"));
+await visitor.keyboard.press("Tab");
+ok("skip link: the next Tab is inside the main content, past the header", await visitor.evaluate(() => !!document.activeElement?.closest("main") && !document.activeElement?.closest("header")));
 
 await visitor.goto(BASE + "/faq");
 const faq = norm(await visitor.textContent("main"));
@@ -149,6 +181,12 @@ for (const q of ["How long are my videos kept?", "what if I lose it?", "When my 
 }
 await visitor.click("text=How long are my videos kept?");
 ok("FAQ answers open in place", norm(await visitor.textContent("#storage")).includes("Save to device"));
+ok("FAQ: an open answer shows −, a closed one + (V29)", (await visitor.$eval("#storage [data-testid=faq-sign]", (e) => e.innerText.trim())) === "−" && (await visitor.$eval("#cancel [data-testid=faq-sign]", (e) => e.innerText.trim())) === "+");
+await visitor.click("[data-testid=faq-expand-all]");
+ok("FAQ: Open all answers opens every answer (V29)", (await visitor.$$eval("details[data-testid=faq-item]", (ds) => ds.length > 20 && ds.every((d) => d.open))) && norm(await visitor.textContent("[data-testid=faq-expand-all]")) === "Close all answers");
+await visitor.click("[data-testid=faq-expand-all]");
+ok("FAQ: Close all answers closes them again", (await visitor.$$eval("details[data-testid=faq-item]", (ds) => ds.every((d) => !d.open))) && norm(await visitor.textContent("[data-testid=faq-expand-all]")) === "Open all answers");
+ok("FAQ: refunds also where Link gives one (K6)", norm(await visitor.textContent("#cancel")).includes("or where Link, which sells our plans, gives one under its own terms"));
 ok("FAQ: where data is kept, in plain words", faq.includes("Oceania region (Australia, New Zealand and the Pacific)") && faq.includes("mainly in the United States"));
 ok("FAQ: what happens on a smaller plan", faq.includes("What happens if I move to a smaller plan?"));
 await visitor.goto(BASE + "/faq#cancel");
@@ -168,6 +206,11 @@ ok("sitemap lists FAQ and About", sitemap.includes("/faq</loc>") && sitemap.incl
 await visitor.goto(BASE + "/help");
 ok("help page shows a visitor's help-chat limits and common questions", (await seen(visitor, "[data-testid=help-limits] >> text=once every 30 days")) && (await visitor.$$("[data-testid=help-faq] a[href^='/faq#']")).length >= 6);
 ok("help page links into the FAQ rather than repeating it", (await visitor.$$("[data-testid=help-faq] [data-testid=faq-item]")).length === 0);
+// Guessed addresses (V60, V75): /support helps a visitor, and the support team can still sign in from there.
+await visitor.goto(BASE + "/support");
+ok("signed out, /support goes to Help (V60)", new URL(visitor.url()).pathname === "/help" && (await seen(visitor, "[data-testid=support-signin] a[href='/login?next=%2Fsupport']")), visitor.url());
+await visitor.goto(BASE + "/settings/staff");
+ok("/settings/staff goes to the Team page (V75)", visitor.url().includes("next=%2Fsettings%2Fteam") || new URL(visitor.url()).pathname === "/settings/team", visitor.url());
 
 const missing = await visitor.goto(BASE + "/no-such-page-" + stamp);
 ok("404: status 404 with its own tab title", missing.status() === 404 && (await visitor.title()).startsWith("Page not found"), await visitor.title());
@@ -251,6 +294,10 @@ ok("archive: the 11 October changes read as changes from the unnumbered versions
 // Sign-in pages: the keep-me-signed-in tick comes before the button that signs in; links out to pricing and legal.
 await visitor.goto(BASE + "/signup");
 ok("/signup: worded for a new account", norm(await visitor.textContent("[data-testid=login-heading]")) === "Create your free account");
+ok("/signup: the email box is ready to type in (V62)", await visitor.evaluate(() => document.activeElement?.getAttribute("name") === "email"));
+await visitor.goto(`${BASE}/login?next=${encodeURIComponent("/pricing?plan=STUDIO&interval=year")}`);
+ok("sign-in after Get Studio says it comes back to that plan (V18)", norm(await visitor.textContent("main")).includes("Sign in or create your account; we'll bring you back to Studio (yearly).") && (await visitor.evaluate(() => document.activeElement?.getAttribute("name") === "email")));
+await visitor.goto(BASE + "/signup");
 const order = await visitor.evaluate(() => {
   const keep = document.querySelector("[data-testid=keep-signed-in]");
   const button = [...document.querySelectorAll("main button")].find((b) => /Email me a sign-in link|Continue/.test(b.textContent));
@@ -268,6 +315,7 @@ for (const path of ["/", "/pricing", "/faq", "/about", "/help", "/legal", "/lega
 }
 await phone.goto(BASE + "/");
 ok("phone home: Free for 3 clients shows", await seen(phone, "[data-testid=hero-free]"));
+ok("phone home: demo tab labels are at least 12px (D5)", (await phone.$$eval(".ff-tab", (ts) => ts.map((t) => parseFloat(getComputedStyle(t).fontSize)))).every((px) => px >= 12));
 ok("phone header: Start free, as on a computer", norm(await phone.textContent("header a[href='/signup']")) === "Start free");
 ok("phone home: each point keeps its line", (await phone.$$eval("[data-testid=hero-points] li > span:last-child", (els) => els.filter((e) => e.offsetHeight > 0).length)) === 6);
 const phoneTabs = await phone.$eval(".ff-tabs", (s) => {
@@ -322,6 +370,8 @@ ok("signed in, a page that isn't there is plain and keeps the app's menu", (awai
 // Recorder on Free: the one quality is a note, not a dropdown.
 await owner.goto(BASE + "/record");
 await owner.waitForSelector("text=I've saved it", { timeout: 8000 }).then((b) => b.click()).catch(() => {});
+// "I've saved it" without Copy, Download or Print: a gentle line stays until the key is kept (V69).
+ok("I've saved it without copying or downloading leaves a gentle reminder (V69)", await seen(owner, "[data-testid=key-not-kept]"));
 ok("Free recorder: no one-option Quality dropdown, a 720p note instead", (await owner.isVisible("[data-testid=quality-note] >> text=720p on Free")) && !(await owner.isVisible("text=Quality")));
 const leftBefore = norm(await owner.textContent("[data-testid=free-videos-left]"));
 await owner.click("text=Camera only");
@@ -342,6 +392,20 @@ await owner.reload();
 await owner.waitForSelector("[data-testid=free-videos-left]", { timeout: 15000 });
 const wsRow = await prisma.workspace.findUnique({ where: { id: ws } });
 ok("and it stays there after a reload: nothing counted", norm(await owner.textContent("[data-testid=free-videos-left]")) === leftBefore && wsRow.videosRecorded === 0 && (await prisma.video.count({ where: { workspaceId: ws } })) === 0, `${await owner.textContent("[data-testid=free-videos-left]")} recorded=${wsRow.videosRecorded}`);
+
+// V69: the reminder goes once the key is downloaded (Settings > Account, which doesn't show the line itself).
+ok("the reminder is still there after a reload", await seen(owner, "[data-testid=key-not-kept]"));
+await owner.goto(BASE + "/settings/account");
+await owner.click("text=Show recovery key");
+const keyFile = owner.waitForEvent("download");
+await owner.click("[data-testid=key-download]");
+await keyFile;
+await owner.goto(BASE + "/library");
+await owner.waitForTimeout(1000);
+ok("after downloading the key, the reminder is gone (V69)", !(await owner.isVisible("[data-testid=key-not-kept]")));
+ok("plan pill is at least 12px (D5)", parseFloat(await owner.$eval("[data-testid=plan-pill]", (e) => getComputedStyle(e).fontSize)) >= 12);
+await owner.goto(BASE + "/support");
+ok("signed in without answering support, /support goes to Help (V60)", await owner.waitForURL((u) => u.pathname === "/help", { timeout: 15000 }).then(() => true, () => false), owner.url());
 
 // Phones start on Camera only.
 const phoneOpts = {
