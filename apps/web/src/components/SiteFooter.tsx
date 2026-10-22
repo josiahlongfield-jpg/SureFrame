@@ -2,11 +2,24 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { BRAND } from "@/lib/brand";
 import { LEGAL } from "@/lib/legal";
+import { db } from "@/lib/db";
+import { limitsNote, supportTier } from "@/lib/support/allowance";
 import SupportWidget from "./SupportChat";
+
+/** The plan of the workspace a login has open (or its first), without making one. */
+async function activePlan(userId: string) {
+  const u = await db.user.findUnique({ where: { id: userId }, select: { activeWorkspaceId: true, memberships: { select: { workspaceId: true, workspace: { select: { plan: true } } } } } });
+  const m = u?.memberships.find((x) => x.workspaceId === u.activeWorkspaceId) ?? u?.memberships[0];
+  return m?.workspace ?? null;
+}
 
 /** `widget={false}` leaves out the floating help chat, for pages that already show the chat. */
 export default async function SiteFooter({ widget = true }: { widget?: boolean } = {}) {
-  const signedIn = !!(await auth())?.user;
+  const userId = (await auth())?.user?.id;
+  const signedIn = !!userId;
+  // The help allowance for people who aren't paying, said in the panel itself. Read without currentUser(), which would
+  // make a workspace for a login that has none yet (someone on their way to join a team): that login counts as Free.
+  const limits = widget ? limitsNote(signedIn ? supportTier((await activePlan(userId)) ?? { plan: "FREE" }) : "visitor") : null;
   return (
     <footer>
       {/* Navy like the top bar; the help chat stays outside it, in the page's own colours. */}
@@ -25,7 +38,7 @@ export default async function SiteFooter({ widget = true }: { widget?: boolean }
         </nav>
       </div>
       </div>
-      {widget && <SupportWidget signedIn={signedIn} />}
+      {widget && <SupportWidget signedIn={signedIn} limits={limits} />}
     </footer>
   );
 }

@@ -25,8 +25,16 @@ const save = (t: string | null) => {
 
 const WELCOME = `Hi! I'm SureFrame's assistant. Ask me anything about recording, clients, billing or your account. Or press Talk to a person: someone from the team replies ${REPLY_WITHIN}.`;
 
-/** The support conversation: the AI assistant first, a person when needed. */
-export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; className?: string }) {
+/** What a refusal stops until when: asking the assistant, Talk to a person, or both (api/support). */
+type Blocked = { stops: "ai" | "person" | "all"; until: number };
+/** A refusal that doesn't say when it lifts keeps Send off for a minute, so pressing it again doesn't just repeat the message. */
+const RETRY_MS = 60_000;
+
+/**
+ * The support conversation: the AI assistant first, a person when needed. `limits` is the allowance in a line for
+ * people who aren't paying (lib/support/allowance.ts limitsNote), shown in the panel before they reach it.
+ */
+export function SupportChat({ signedIn, limits, className = "" }: { signedIn: boolean; limits?: string | null; className?: string }) {
   const [token, setToken] = useState<string | null>(null);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [text, setText] = useState("");
@@ -35,6 +43,8 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
   const [error, setError] = useState<string>();
   // "Talk to a person" from a visitor with no email yet: asked for one, so the reply can reach them by email.
   const [askEmail, setAskEmail] = useState(false);
+  // A limit reached: Send (or Talk to a person) stays off until it lifts (O80, V88).
+  const [blocked, setBlocked] = useState<Blocked | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const emailBox = useRef<HTMLInputElement>(null);
 
@@ -72,6 +82,13 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
     return () => clearInterval(id);
   }, [token, ticket, refresh]);
 
+  useEffect(() => {
+    if (!blocked) return;
+    // setTimeout can't wait longer than about 24 days; a 30-day wait just checks again then.
+    const id = setTimeout(() => setBlocked((b) => (b && b.until <= Date.now() ? null : b ? { ...b } : b)), Math.min(Math.max(0, blocked.until - Date.now()) + 500, 2 ** 31 - 1));
+    return () => clearTimeout(id);
+  }, [blocked]);
+
   // Braces matter: newer Chrome returns a Promise from scrollIntoView, which
   // React would otherwise try to call as the effect's cleanup.
   useEffect(() => {
@@ -80,6 +97,7 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
 
   async function send(body: string, person = false) {
     if (!body.trim() || busy) return;
+    if (!person && aiBlocked) return;
     setBusy(true);
     setError(undefined);
     setAskEmail(false);
@@ -93,13 +111,19 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
         body: JSON.stringify({ token: token ?? undefined, body, email: !signedIn && email ? email : undefined, ...(person ? { person: true } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 429 && (data.stops === "ai" || data.stops === "person" || data.stops === "all")) {
+        const until = data.until ? Date.parse(data.until) : NaN;
+        // "Add your email first" isn't a limit: nothing to wait for.
+        if (Number.isFinite(until) || data.stops !== "person") setBlocked({ stops: data.stops, until: Number.isFinite(until) ? until : Date.now() + RETRY_MS });
+      }
       if (!res.ok) throw new Error(data.error ?? "Couldn't send that. Please try again.");
       save(data.token);
       setToken(data.token);
       setTicket({ status: data.status, hasEmail: data.hasEmail, messages: data.messages });
     } catch (e) {
       setError((e as Error).message);
-      setText(body);
+      // Put back what they typed, but not the button's own "I'd like to talk to a person" line (V37).
+      setText(person && body === TALK_TO_PERSON ? "" : body);
       setTicket((t) => (t ? { ...t, messages: t.messages.filter((m) => m.id !== "pending") } : t));
     } finally {
       setBusy(false);
@@ -131,25 +155,36 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
   const withPerson = ticket && ticket.status !== "OPEN";
   // Asked until there's an address on the conversation, so a person's reply can reach them by email.
   const needsEmail = !signedIn && !ticket?.hasEmail;
+  // Once the team has the conversation, messages reach them whatever the assistant's allowance says.
+  const aiBlocked = !!blocked && blocked.stops !== "person" && !withPerson;
+  const personBlocked = !!blocked && blocked.stops !== "ai";
+  // The team's reply is the last word so far (P15): say so, rather than that it's still waiting for a person (a
+  // conversation the team replied to and then reopened, or closed, is still "replied" for the customer).
+  const messages = ticket?.messages ?? [];
+  const replied = messages.findLastIndex((m) => m.author === "STAFF") > messages.findLastIndex((m) => m.author === "CUSTOMER");
 
   return (
     <div className={`flex min-h-0 flex-col ${className}`} translate="no">
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4" aria-live="polite">
         <Bubble author="ASSISTANT" body={WELCOME} />
-        {ticket?.messages.map((m) => <Bubble key={m.id} author={m.author} body={m.body} />)}
-        {busy && <p className="text-sm text-dim">Thinking…</p>}
-        {withPerson && (
-          <p role="status" className="rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="with-person">
-            {ticket.status === "ANSWERED" ? (
-              "The SureFrame team has replied"
-            ) : (
-              <>
-                <span className="font-semibold">Passed to a person:</span> we reply {REPLY_WITHIN}
-              </>
-            )}
-            {signedIn || ticket.hasEmail ? ", here and by email." : ", here in this chat. Add your email below to get the reply by email too."}
+        {limits && (
+          <p className="text-xs text-dim" data-testid="help-panel-limits">
+            {limits}
           </p>
         )}
+        {ticket?.messages.map((m) => <Bubble key={m.id} author={m.author} body={m.body} />)}
+        {busy && <p className="text-sm text-dim">Thinking…</p>}
+        {withPerson && (replied || ticket.status === "ANSWERED") ? (
+          <p role="status" className="rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="with-person">
+            <span className="font-semibold">SureFrame team replied.</span>{" "}
+            {signedIn || ticket.hasEmail ? "Write back here, or reply to the email we sent." : "Write back here."}
+          </p>
+        ) : withPerson ? (
+          <p role="status" className="rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="with-person">
+            <span className="font-semibold">Passed to a person:</span> we reply {REPLY_WITHIN}
+            {signedIn || ticket.hasEmail ? ", here and by email." : ", here in this chat. Add your email below to get the reply by email too."}
+          </p>
+        ) : null}
         <div ref={end} />
       </div>
       <form
@@ -162,7 +197,7 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
         {needsEmail && (
           <label className="mb-2 grid gap-1">
             <span id="help-email-note" className={`text-xs ${askEmail ? "font-medium text-ink" : "text-dim"}`}>
-              {askEmail ? "Where should a person reply? Add your email, then press Talk to a person again." : "Your email (optional), for a reply by email"}
+              {askEmail ? "Where should a person reply? Add your email, then press Talk to a person again." : "Your email, needed to talk to a person"}
             </span>
             <input
               ref={emailBox}
@@ -196,7 +231,7 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
             aria-label="Your message"
             className="min-h-[2.75rem] flex-1 resize-none rounded-lg border border-line-strong px-3 py-2 text-sm"
           />
-          <button disabled={busy || !text.trim()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
+          <button disabled={busy || !text.trim() || aiBlocked} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
             Send
           </button>
         </div>
@@ -204,7 +239,7 @@ export function SupportChat({ signedIn, className = "" }: { signedIn: boolean; c
         <div className="mt-2 flex flex-wrap justify-between gap-2 text-sm">
           {!withPerson ? (
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <button type="button" onClick={() => talkToPerson()} disabled={busy} data-testid="talk-to-person"
+              <button type="button" onClick={() => talkToPerson()} disabled={busy || personBlocked} data-testid="talk-to-person"
                 className="rounded-lg border border-line-strong px-3 py-1.5 font-medium text-ink hover:bg-hover disabled:opacity-50">
                 Talk to a person
               </button>
@@ -279,7 +314,7 @@ const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), in
  * page keeps room at its end so the last line or button can always be scrolled clear of it (the app's phone menu has
  * a Help item too). The open panel holds the keyboard until Escape or ✕ closes it.
  */
-export default function SupportWidget({ signedIn }: { signedIn: boolean }) {
+export default function SupportWidget({ signedIn, limits }: { signedIn: boolean; limits?: string | null }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
@@ -318,6 +353,16 @@ export default function SupportWidget({ signedIn }: { signedIn: boolean }) {
     const box = panel.current;
     const field = matchMedia("(pointer: fine)").matches ? box?.querySelector<HTMLElement>("textarea") : null;
     (field ?? box)?.focus();
+  }, [open]);
+
+  // On phones the open panel covers the page like a sheet, so the page behind it doesn't scroll (V87). Computers keep
+  // the panel in a corner beside the page, which still scrolls.
+  useEffect(() => {
+    if (!open || !matchMedia("(max-width: 639px)").matches) return;
+    const els = [document.documentElement, document.body];
+    const before = els.map((el) => el.style.overflow);
+    els.forEach((el) => (el.style.overflow = "hidden"));
+    return () => els.forEach((el, i) => (el.style.overflow = before[i]));
   }, [open]);
 
   // On phones the page keeps room at its end, so the last of it can be scrolled clear of the button. Pages with the
@@ -391,7 +436,7 @@ export default function SupportWidget({ signedIn }: { signedIn: boolean }) {
             </button>
           </div>
           <ChatBoundary>
-            <SupportChat signedIn={signedIn} className="flex-1" />
+            <SupportChat signedIn={signedIn} limits={limits} className="flex-1" />
           </ChatBoundary>
         </div>
       )}

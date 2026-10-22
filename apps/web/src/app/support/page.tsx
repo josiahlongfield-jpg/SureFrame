@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
@@ -9,8 +8,9 @@ import { isSupportAdmin } from "@/lib/support/admin";
 import { TALK_TO_PERSON } from "@/lib/support/person";
 import { isSupportAgent } from "@/lib/support/tickets";
 import { qldTime } from "@/lib/support/when";
+import { supportTitle } from "./_console/meta";
 
-export const metadata: Metadata = { title: "Support inbox" };
+export const generateMetadata = supportTitle("Support inbox");
 
 const LABEL = { NEEDS_HUMAN: "Needs you", ANSWERED: "Answered", OPEN: "Assistant handling", CLOSED: "Closed" } as const;
 
@@ -39,7 +39,8 @@ export default async function SupportInbox({ searchParams }: { searchParams: Pro
     : {};
   const [tickets, counts] = await Promise.all([
     db.supportTicket.findMany({
-      where: { AND: [VIEWS[view].where, search] },
+      // A search looks through every conversation, open and closed, not only the list it was started from (P6).
+      where: q ? search : VIEWS[view].where,
       orderBy: [{ urgent: "desc" }, { updatedAt: "desc" }],
       take: 200,
       include: {
@@ -99,7 +100,7 @@ export default async function SupportInbox({ searchParams }: { searchParams: Pro
       </div>
       {q && (
         <p className="mt-3 text-sm text-muted" data-testid="inbox-search-note">
-          {tickets.length} {VIEWS[view].label.toLowerCase()} conversation{tickets.length === 1 ? "" : "s"} matching &ldquo;{q}&rdquo;.{" "}
+          {tickets.length} conversation{tickets.length === 1 ? "" : "s"} matching &ldquo;{q}&rdquo;, open and closed.{" "}
           <Link href={href(view)} className="text-accent hover:underline">
             Clear search
           </Link>
@@ -137,7 +138,10 @@ export default async function SupportInbox({ searchParams }: { searchParams: Pro
                     </p>
                   )}
                   {t.summary && <p className="mt-1 line-clamp-1 break-words text-xs text-muted">Summary: {t.summary}</p>}
-                  <p className="mt-1 text-xs text-dim">{qldTime(t.updatedAt)}</p>
+                  {/* Said which time it is: a closed one shows when it was closed (P10). */}
+                  <p className="mt-1 text-xs text-dim" data-testid="inbox-time">
+                    {t.status === "CLOSED" ? "Closed" : "Last update"} {qldTime(t.updatedAt)}
+                  </p>
                 </Link>
               </li>
             );

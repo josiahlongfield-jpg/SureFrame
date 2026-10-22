@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import CopyText from "@/components/CopyText";
@@ -11,8 +10,9 @@ import { qldDay } from "@/lib/support/when";
 import PowerForm from "../_console/PowerForm";
 import OfferTerms from "./OfferTerms";
 import { Badge, consoleAdmin, Done, Facts, Section } from "../_console/ui";
+import { supportTitle } from "../_console/meta";
 
-export const metadata: Metadata = { title: "Discounts", robots: { index: false } };
+export const generateMetadata = supportTitle("Discounts", "founder", { robots: { index: false } });
 
 const field = "w-full rounded-xl border border-line-strong px-3 py-2 text-sm";
 
@@ -144,7 +144,21 @@ export default async function Discounts({ searchParams }: { searchParams: Promis
           </label>
           <label className="grid gap-1 text-sm text-muted">
             Code (optional: leave empty and one is made up, like SF-7KQ2MX4P)
-            <input name="code" maxLength={40} pattern="[A-Za-z0-9\-]{3,40}" autoCapitalize="characters" autoComplete="off" spellCheck={false} className={`${field} uppercase`} />
+            <input
+              name="code"
+              maxLength={40}
+              pattern="[A-Za-z0-9\-]{3,40}"
+              title="3 to 40 letters, digits or dashes"
+              aria-describedby="code-hint"
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+              className={`${field} uppercase`}
+            />
+            {/* The rule, before the browser's "Please match the requested format" (P28). */}
+            <span id="code-hint" className="text-xs text-dim" data-testid="code-hint">
+              3 to 40 letters, digits or dashes, such as SPRING-20. Not starting with REF- (those are referral codes).
+            </span>
           </label>
           <label className="grid gap-1 text-sm text-muted">
             Percentage off

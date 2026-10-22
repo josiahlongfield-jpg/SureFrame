@@ -181,6 +181,8 @@ ok("console shows who it's for and its link", t.includes(`Done: Discount code gi
   ok("the last day is written out as the site writes dates", ((await box.locator("[data-testid=offer-last-day]").textContent()) ?? "").includes("31 Dec 2026"));
   await box.locator('input[name="lastDay"]').fill("");
   ok("the Code field's check is a valid pattern and works", patternErrors.length === 0 && (await box.locator('input[name="code"]').evaluate((i) => ((i.value = "MY CODE"), i.validity.patternMismatch))), patternErrors.join(" / "));
+  // The rule is said under the field, not only in the browser's "Please match the requested format" (P28).
+  ok("the Code field says its format", (await box.locator("[data-testid=code-hint]").textContent()).includes("3 to 40 letters, digits or dashes"));
   await box.locator('input[name="code"]').fill("");
 }
 ok("console: a ready email with the code for its business", (await admin.getAttribute(`[data-testid="email-code-${CODE}"]`, "href"))?.startsWith(`mailto:${linkEmail}?`));
@@ -191,6 +193,13 @@ err = await power("create-offer", { email: linkEmail, code: CODE, percentOff: 10
 ok("a code already running can't be made twice", /already in use/.test(err), err);
 err = await power("create-offer", { email: `nobody${stamp}@example.com`, code: "", percentOff: 10, scope: "all", duration: "once" });
 ok("a code must be for a business", /No business has an owner with that email/.test(err), err);
+// A code for the founder's own business is asked about first, with a box to go ahead (P30).
+if ((await prisma.membership.count({ where: { role: "OWNER", user: { email: ADMIN } } })) === 1) {
+  const codesBefore = await prisma.adminAction.count({ where: { action: "offer.create" } });
+  err = await power("create-offer", { email: ADMIN, code: "", percentOff: 10, scope: "all", duration: "once" });
+  ok("own business: asked first, no code made", /is your own business/.test(err) && (await admin.locator('[data-testid="create-offer"] input[name="own"]').count()) === 1 && (await prisma.adminAction.count({ where: { action: "offer.create" } })) === codesBefore, err);
+  await admin.locator('[data-testid="create-offer"]').evaluate((d) => (d.open = false));
+} else console.log("SKIP own business code: the support address owns more or fewer than one business here");
 
 // 3) Its link applies the code at checkout for that business.
 await visitor.goto(`${BASE}/offer/${CODE.toLowerCase()}`);
@@ -230,6 +239,9 @@ const freshEmail = `fresh${stamp}@example.com`;
 const fresh = await signIn(freshEmail);
 await fresh.goto(`${BASE}/offer/${CODE}`);
 ok("another business opening the link is told it isn't valid", (await fresh.locator('[data-testid="offer-ended"]').count()) === 1 && (await fresh.context().cookies()).every((c) => c.name !== "sf_offer"));
+// ...in words that are true: the code works, it just isn't theirs (P33).
+const otherText = await fresh.textContent('[data-testid="offer-ended"]').catch(() => "");
+ok("another business: told the code was given to another business, not that it ended", otherText.includes(`The code ${CODE} was given to another business`) && !otherText.includes("has ended"), otherText);
 res = await api(fresh, "/api/billing/code", { code: CODE });
 ok("the code box refuses it", res.status() === 400 && /given to another business/.test((await res.json()).error));
 await fresh.context().addCookies([{ name: "sf_offer", value: cookie.value, url: BASE }]);

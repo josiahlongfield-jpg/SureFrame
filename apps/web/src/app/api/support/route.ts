@@ -5,8 +5,9 @@ import { handle, HttpError, currentUser } from "@/lib/session";
 import { clientIp, limitByIp, rateLimit } from "@/lib/rateLimit";
 import { answer, assistantEnabled } from "@/lib/support/assistant";
 import { TALK_TO_PERSON } from "@/lib/support/person";
-import { handToHuman, newAccessToken, publicTicket } from "@/lib/support/tickets";
-import { aiRefusal, personRefusal, recordAi, recordPerson, SUPPORT_LIMITS, supportTier, type Asker, type SupportTier } from "@/lib/support/allowance";
+import { acknowledgeHandOver, handToHuman, newAccessToken, publicTicket } from "@/lib/support/tickets";
+import { aiRefusal, personRefusal, recordAi, recordPerson, SUPPORT_LIMITS, supportTier, type Asker, type Refusal, type SupportTier } from "@/lib/support/allowance";
+import { qldTime } from "@/lib/support/when";
 import { browserFrom } from "@/lib/support/browser";
 
 // The assistant can take a few turns; leave room to hand over if it's slow.
@@ -41,23 +42,57 @@ export const GET = handle(async (req: Request) => {
 });
 
 /**
+ * A limit the chat has reached: the browser gets when it lifts and what it stops ("ai": asking the assistant,
+ * "person": Talk to a person, "all": both), so it can turn Send or the button off until then (O80, V88).
+ */
+class Refused extends HttpError {
+  constructor(message: string, public until: Date | null, public stops: "ai" | "person" | "all") {
+    super(429, message);
+  }
+}
+const refused = (r: Refusal, stops: Refused["stops"]) => new Refused(r.message, r.until, stops);
+
+/** When a fixed rate-limit window (lib/rateLimit.ts) ends, said the way the chat says it. */
+function windowEnd(windowSec: number) {
+  const ms = windowSec * 1000;
+  const until = new Date((Math.floor(Date.now() / ms) + 1) * ms);
+  const minutes = Math.ceil((until.getTime() - Date.now()) / 60_000);
+  return { until, when: minutes <= 60 ? `Please try again in ${minutes} minute${minutes === 1 ? "" : "s"}.` : `You can ask again from ${qldTime(until)}.` };
+}
+/** A rate limit with the chat's own message and when it lifts. */
+async function limited(check: Promise<unknown>, windowSec: number, message: string, stops: Refused["stops"] = "all") {
+  await check.catch((e) => {
+    if (!(e instanceof HttpError) || e.status !== 429) throw e;
+    const { until, when } = windowEnd(windowSec);
+    throw new Refused(`${message} ${when}`, until, stops);
+  });
+}
+
+/**
  * A customer's message. Starts a conversation when there's no token. The
  * assistant answers until a person has replied; after that, new messages go
  * to the person and the support inbox hears about each one.
  */
 export const POST = handle(async (req: Request) => {
+  try {
+    return await post(req);
+  } catch (e) {
+    if (e instanceof Refused) return Response.json({ error: e.message, until: e.until?.toISOString() ?? null, stops: e.stops }, { status: 429 });
+    throw e;
+  }
+});
+
+async function post(req: Request) {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) throw new HttpError(400, "Please write a message (up to 4,000 characters) and check the email address.");
-  await limitByIp("support", 30, 3600);
+  await limited(limitByIp("support", 30, 3600), 3600, "You've sent a lot of messages in a short time.");
   const { token, body, email, person } = parsed.data;
   const me = await currentUser().catch(() => null);
   // Anyone who isn't paying has a smaller, fixed allowance on top (lib/support/allowance.ts).
   const tier = supportTier(me?.workspace);
   const unpaid = tier === "paying" ? null : SUPPORT_LIMITS[tier];
   // Daily allowances, so one person (signed in or not) can't run up AI costs or flood the inbox.
-  await rateLimit(me ? `support-day:user:${me.user.id}` : `support-day:ip:${await clientIp()}`, me ? 80 : 25, 86400).catch(() => {
-    throw new HttpError(429, unpaid ? UNPAID_TODAY_LIMIT : TODAY_LIMIT);
-  });
+  await limited(rateLimit(me ? `support-day:user:${me.user.id}` : `support-day:ip:${await clientIp()}`, me ? 80 : 25, 86400), 86400, unpaid ? UNPAID_TODAY_LIMIT : TODAY_LIMIT);
 
   // A token for a conversation that's since been deleted, or that belongs to someone else's account, starts a new one.
   let ticket = token ? await load(token).catch(() => null) : null;
@@ -67,14 +102,14 @@ export const POST = handle(async (req: Request) => {
 
   // Checked before anything is stored, so a refused message stays in the box and costs nothing.
   const personRefused = withTeam ? null : await personRefusal(asker);
-  if (person && personRefused) throw new HttpError(429, personRefused.message);
+  if (person && personRefused) throw refused(personRefused, "person");
   // An AI answer is needed unless a person is already talking with them or they pressed "Talk to a person".
   const aiRefused = person || ticket?.status === "ANSWERED" ? null : await aiRefusal(asker);
   // Once the team has the conversation, their message still reaches the team without an AI answer.
-  if (aiRefused && !withTeam) throw new HttpError(429, aiRefused.message);
+  if (aiRefused && !withTeam) throw refused(aiRefused, "ai");
 
   if (!ticket) {
-    await limitByIp(unpaid ? `support-new-${tier}` : "support-new", unpaid?.newChatsPerDay ?? 15, 86400).catch(() => { throw new HttpError(429, unpaid ? NEW_CHAT_LIMIT : TODAY_LIMIT); });
+    await limited(limitByIp(unpaid ? `support-new-${tier}` : "support-new", unpaid?.newChatsPerDay ?? 15, 86400), 86400, unpaid ? NEW_CHAT_LIMIT : TODAY_LIMIT);
     ticket = await db.supportTicket.create({
       data: { accessToken: newAccessToken(), userId: me?.user.id, workspaceId: me?.workspace.id, email: me ? null : email },
       include: { messages: true },
@@ -83,29 +118,37 @@ export const POST = handle(async (req: Request) => {
     await db.supportTicket.update({ where: { id: ticket.id }, data: { email } });
   }
   if (ticket.messages.length >= (unpaid?.messagesPerChat ?? MAX_MESSAGES)) throw new HttpError(429, "This conversation is very long. Please start a new one.");
-  await rateLimit(`support:ticket:${ticket.id}`, 20, 600);
+  await limited(rateLimit(`support:ticket:${ticket.id}`, 20, 600), 600, "You've sent a lot of messages in this conversation in a short time.");
   await db.supportMessage.create({ data: { ticketId: ticket.id, author: "CUSTOMER", body } });
 
   const say = (body: string) => db.supportMessage.create({ data: { ticketId: ticket.id, author: "ASSISTANT", body } });
   /**
    * Passes the conversation to a person. A new hand-over from someone who isn't paying uses their allowance, and is
    * refused (with why) once it's used up; a message added to a conversation the team already has always gets through.
+   * The allowance is counted only once the hand-over has happened (so the chat shows "Passed to a person" for every
+   * one counted), and the customer gets a short email saying so when there's an address for them.
    */
   const handOver = async (summary: string | null, urgent: boolean): Promise<string | null> => {
     const now = await db.supportTicket.findUnique({ where: { id: ticket.id }, select: { status: true } });
-    if (now?.status !== "NEEDS_HUMAN" && now?.status !== "ANSWERED") {
+    const isNew = now?.status !== "NEEDS_HUMAN" && now?.status !== "ANSWERED";
+    if (isNew) {
       const refused = await personRefusal(asker);
       if (refused) return refused.message;
-      await recordPerson(asker);
     }
     await handToHuman(ticket.id, summary, urgent);
+    if (isNew) {
+      await recordPerson(asker);
+      await acknowledgeHandOver(ticket.id);
+    }
     return null;
   };
 
   if (person) {
     // The button hands over itself: the conversation goes to the inbox's "Needs you" list and the team is emailed,
     // whatever the assistant would have made of it. The chat then shows "Passed to a person".
-    await handOver(withTeam ? null : personSummary(ticket.messages, body, !!me, tier), withTeam && ticket.urgent);
+    const no = await handOver(withTeam ? null : personSummary(ticket.messages, body, !!me, tier), withTeam && ticket.urgent);
+    // Only if the allowance ran out since the check above (another tab): the message is kept, and the chat says why.
+    if (no) throw new Refused(no, null, "person");
   } else if (ticket.status === "ANSWERED" || aiRefused) {
     // A person is talking with them now (or has the conversation, and the AI allowance is used up): pass it on.
     await handToHuman(ticket.id, null, ticket.urgent);
@@ -132,7 +175,7 @@ export const POST = handle(async (req: Request) => {
   }
   const fresh = await load(ticket.accessToken);
   return Response.json({ token: fresh.accessToken, ...publicTicket(fresh) });
-});
+}
 
 /** What the team reads first when the customer pressed "Talk to a person": their own words, never the assistant's. */
 function personSummary(earlier: { author: string; body: string }[], body: string, signedIn: boolean, tier: SupportTier) {
@@ -148,5 +191,5 @@ function personSummary(earlier: { author: string; body: string }[], body: string
 const underDailyAiCap = () => rateLimit("support-ai:global", Number(process.env.SUPPORT_AI_DAILY_CAP ?? 2000), 86400).then(() => true, () => false);
 
 const TODAY_LIMIT = `You've reached today's limit for the help chat. Please email ${LEGAL.email} and a person will get back to you.`;
-const NEW_CHAT_LIMIT = "You've started the most new conversations allowed today. Please carry on in your current one, or come back tomorrow.";
-const UNPAID_TODAY_LIMIT = "You've reached today's limit for the help chat. Please come back tomorrow, or look in the FAQ.";
+const NEW_CHAT_LIMIT = "You've started the most new conversations allowed today. Please carry on in your current one.";
+const UNPAID_TODAY_LIMIT = "You've reached today's limit for the help chat. Most questions are answered in the FAQ.";

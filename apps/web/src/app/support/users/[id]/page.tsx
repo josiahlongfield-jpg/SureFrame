@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { onLegalHold } from "@/lib/accountDeletion";
@@ -10,8 +9,9 @@ import { deleteConfirmation } from "@/lib/support/console";
 import PowerForm, { Check } from "../../_console/PowerForm";
 import { Badge, consoleAdmin, Done, Facts, History, planName, Section } from "../../_console/ui";
 import { qldDay, qldTime } from "@/lib/support/when";
+import { supportTitle } from "../../_console/meta";
 
-export const metadata: Metadata = { title: "Login (support)", robots: { index: false } };
+export const generateMetadata = supportTitle("Login (support)", "admin", { robots: { index: false } });
 
 const field = "w-full rounded-xl border border-line-strong px-3 py-2 text-sm";
 

@@ -90,9 +90,20 @@ export const ACTION_LABELS: Record<string, string> = {
   "offer.create": "Discount code given",
   "offer.end": "Discount code cancelled",
   "offer.automatic": "Automatic offer changed",
+  "support.delete": "Support conversation deleted",
+  "support.delete_all": "Every support conversation deleted",
 };
 export const actionLabel = (action: string) => ACTION_LABELS[action] ?? action;
 
+/** The log's kinds in groups, for its filter (P53): what each one was done to. */
+export const ACTION_GROUPS: [string, string[]][] = [
+  ["Logins and accounts", ["account.warn", "user.suspend", "user.unsuspend", "user.sign_out_everywhere", "account.close", "account.reopen", "account.delete_now", "account.cancel_deletion", "account.export", "email.block", "email.unblock"]],
+  ["Workspaces", ["workspace.suspend", "workspace.unsuspend", "workspace.legal_hold_on", "workspace.legal_hold_off", "workspace.videos_recorded", "workspace.seat_check"]],
+  ["Clients", ["client.link_off", "client.link_on", "client.restore", "client.keep_longer", "client.delete_now"]],
+  ["Plans and billing", ["plan.complimentary", "plan.complimentary_ai", "billing.resync"]],
+  ["Discount codes", ["offer.create", "offer.end", "offer.automatic"]],
+  ["Support conversations", ["support.delete", "support.delete_all"]],
+];
 type Details = Record<string, unknown> & {
   status?: string;
   error?: string;
@@ -145,6 +156,9 @@ export function actionFacts(row: Pick<AdminAction, "action" | "details">): strin
       if (row.action === "offer.create" && d.automatic) out.push("Applied automatically");
       if (row.action === "offer.automatic") out.push(d.automatic ? "Now applied automatically" : "No longer applied automatically");
       if (row.action === "offer.end" && typeof d.uses === "number") out.push(`Used ${d.uses} time${d.uses === 1 ? "" : "s"}`);
+      break;
+    case "support.delete":
+      if (typeof d.messages === "number") out.push(`${d.messages} message${d.messages === 1 ? "" : "s"}, deleted for them too`);
       break;
     case "account.cancel_deletion":
       if (d.planEnded) out.push("Their paid plan had ended meanwhile");

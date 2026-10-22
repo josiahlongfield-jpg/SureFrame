@@ -86,7 +86,8 @@ export default async function Suspended() {
           <a href="/api/account/export" className="font-medium text-accent hover:underline" data-testid="suspended-export">Download my data</a>
         </li>
       </ul>
-      {me.role === "OWNER" && !user.closedAt && workspace.stripeCustomerId && (
+      {/* Only with a subscription to manage: a Free business can have a Stripe customer (from a discount code) and nothing to cancel (P43). */}
+      {me.role === "OWNER" && !user.closedAt && workspace.stripeCustomerId && workspace.stripeSubscriptionId && (
         <div className="mt-6">
           <p className="mb-2 text-sm text-muted">You can still manage or cancel your subscription.</p>
           <ManageBillingButton />

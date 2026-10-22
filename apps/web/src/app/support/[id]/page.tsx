@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -9,11 +8,37 @@ import { isSupportAgent } from "@/lib/support/tickets";
 import { qldTime } from "@/lib/support/when";
 import ConfirmAction from "../_console/ConfirmAction";
 import { deleteTicket, reply, setStatus } from "../actions";
+import { supportTitle } from "../_console/meta";
 
-export const metadata: Metadata = { title: "Support conversation" };
+export const generateMetadata = supportTitle("Support conversation");
 
 const WHO = { CUSTOMER: "Customer", ASSISTANT: "Assistant", STAFF: "You" } as const;
 const quiet = "rounded-xl border border-line-strong px-4 py-2.5 text-sm font-medium text-muted hover:bg-hover";
+
+/**
+ * An old conversation's address (an inbox email's link, say) once it's been deleted, or a mistyped one: said in the
+ * support pages, with the way back to the inbox, rather than the app's "page not found" (P12). The support log says
+ * who deleted it and when.
+ */
+async function Gone({ id }: { id: string }) {
+  const deleted = await db.adminAction.findFirst({
+    where: { OR: [{ action: "support.delete", details: { path: ["ticketId"], equals: id } }, { action: "support.delete_all", details: { path: ["ticketIds"], array_contains: [id] } }] },
+    orderBy: { createdAt: "desc" },
+  });
+  return (
+    <div data-testid="ticket-gone">
+      <Link href="/support" className="text-sm text-accent hover:underline">
+        ← Support inbox
+      </Link>
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">{deleted ? "This conversation was deleted" : "This conversation isn’t here"}</h1>
+      <p className="mt-2 text-sm text-muted">
+        {deleted
+          ? `${deleted.action === "support.delete_all" ? "Every conversation was deleted" : "It was deleted"} on ${qldTime(deleted.createdAt)} by ${deleted.actorEmail}, for good: it's gone for the customer too.`
+          : "It may have been deleted, or the address may be mistyped."}
+      </p>
+    </div>
+  );
+}
 
 export default async function SupportTicketPage({
   params,
@@ -28,7 +53,7 @@ export default async function SupportTicketPage({
   if (!isSupportAgent(user.email)) notFound();
   if (user.suspendedAt && !isSupportAdmin(user.email)) redirect("/suspended");
   const ticket = await db.supportTicket.findUnique({ where: { id }, include: { user: true, messages: { orderBy: { createdAt: "asc" } } } });
-  if (!ticket) notFound();
+  if (!ticket) return <Gone id={id} />;
   const workspace = ticket.workspaceId ? await db.workspace.findUnique({ where: { id: ticket.workspaceId } }) : null;
   const email = ticket.user?.email ?? ticket.email;
   const closed = ticket.status === "CLOSED";

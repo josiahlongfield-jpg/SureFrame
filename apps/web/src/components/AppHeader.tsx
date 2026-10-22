@@ -8,6 +8,7 @@ import { accessOf } from "@/lib/permissions";
 import { currentUser } from "@/lib/session";
 import { formerTeams, switchableBusinesses } from "@/lib/team";
 import { TEAM_PLANS } from "@/lib/plans";
+import { limitsNote, supportTier } from "@/lib/support/allowance";
 import { isSupportAgent } from "@/lib/support/tickets";
 import { settingsPages } from "@/lib/settingsMenu";
 import NamePrompt from "./NamePrompt";
@@ -119,7 +120,7 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
       ) : null}
       {/* The business's zone is only set once they've agreed to the terms (the API refuses it before). */}
       {me && <TimeZoneSync shownZone={zoned(me.workspace.timezone).zone} setWorkspace={manager && !me.workspace.timezone && me.agreed} />}
-      <SupportWidget signedIn />
+      <SupportWidget signedIn limits={limitsNote(supportTier(me?.workspace))} />
     </header>
   );
 }

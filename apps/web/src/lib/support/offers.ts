@@ -52,7 +52,12 @@ export type NewOffer = {
   /** Last day it can be used, YYYY-MM-DD, Queensland time. */
   lastDay?: string;
   reason: string;
+  /** Ticked to give one to the founder's own business after all (a test, say). */
+  own?: boolean;
 };
+
+/** HttpError code for a code aimed at the founder's own business: the form offers a box to go ahead (P30). */
+export const OWN_BUSINESS = "OWN_BUSINESS";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const madeUpCode = () => `SF-${Array.from({ length: 8 }, () => ALPHABET[crypto.randomInt(ALPHABET.length)]).join("")}`;
@@ -100,6 +105,9 @@ export async function createOffer(actor: SupportAdmin, o: NewOffer): Promise<{ a
     if (expiresAt * 1000 <= Date.now()) throw new HttpError(400, "The last day has already passed.");
   }
   const { workspace, ownerEmail } = await businessOf(o.email);
+  if (actor.workspaceIds.includes(workspace.id) && !o.own) {
+    throw new HttpError(400, `${workspace.name} is your own business. Tick "Yes, my own business" and press Make code again if that's what you meant.`, OWN_BUSINESS);
+  }
   const existing = await stripe().promotionCodes.list({ code, active: true, limit: 1 });
   if (existing.data.length) throw new HttpError(400, `${code} is already in use. End that offer first or choose another code.`);
 

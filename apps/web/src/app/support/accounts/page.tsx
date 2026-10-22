@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -9,8 +8,9 @@ import { isSupportAgent } from "@/lib/support/tickets";
 import { canInstall, readManifest } from "@/lib/ai/speechModel";
 import CompForm, { CompAiForm } from "./CompForm";
 import SpeechModelPanel, { type ModelStatus } from "./SpeechModelPanel";
+import { supportTitle } from "../_console/meta";
 
-export const metadata: Metadata = { title: "Free plans" };
+export const generateMetadata = supportTitle("Free plans");
 
 /** Founder-only: give a paid plan free of charge, for trials and partners. */
 export default async function Accounts({ searchParams }: { searchParams: Promise<{ email?: string; plan?: string }> }) {
@@ -24,6 +24,11 @@ export default async function Accounts({ searchParams }: { searchParams: Promise
     orderBy: { createdAt: "desc" },
     include: { members: { where: { role: "OWNER" }, include: { user: { select: { email: true } } } } },
   });
+  // "End" on the Currently free list fills in the form below (P22): say whose plan it ends and what's left to do.
+  const ending =
+    prefill.plan === "FREE" && prefill.email
+      ? comped.find((w) => w.members[0]?.user.email.toLowerCase() === prefill.email!.toLowerCase() && !w.stripeSubscriptionId)
+      : undefined;
   const manifest = canInstall() ? await readManifest(true) : null;
   const model: ModelStatus = manifest && {
     revision: manifest.revision,
@@ -42,7 +47,9 @@ export default async function Accounts({ searchParams }: { searchParams: Promise
         A free plan gives the plan&rsquo;s clients, staff logins, video length and branding. It doesn&rsquo;t include cloud backup (that needs a paid
         subscription) or AI transcripts and summaries unless you switch those on below; their Billing page says so too.
       </p>
-      <CompForm key={`${prefill.email ?? ""}|${prefill.plan ?? ""}`} plans={Object.entries(PLANS).map(([id, p]) => ({ id, name: p.name }))} email={prefill.email?.slice(0, 320)} plan={prefill.plan && prefill.plan in PLANS ? prefill.plan : ""} />
+      <CompForm key={`${prefill.email ?? ""}|${prefill.plan ?? ""}`} plans={Object.entries(PLANS).map(([id, p]) => ({ id, name: p.name }))} email={prefill.email?.slice(0, 320)} plan={prefill.plan && prefill.plan in PLANS ? prefill.plan : ""}
+        ending={ending ? `Ending ${ending.name}'s ${PLANS[ending.complimentaryPlan!].name}${ending.aiAssistComplimentary ? " (and its free AI summaries)" : ""}: add a reason and press Save.` : null}
+      />
       <CompAiForm />
       <h2 className="mt-8 text-lg font-semibold text-ink">Currently free</h2>
       {comped.length === 0 ? (

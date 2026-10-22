@@ -1,12 +1,12 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ADMIN_ACTION_KEEP_YEARS } from "@/lib/support/admin";
 import { qldDay } from "@/lib/support/when";
-import { ACTION_LABELS, consoleAdmin, Done, History } from "../_console/ui";
+import { ACTION_GROUPS, ACTION_LABELS, consoleAdmin, Done, History } from "../_console/ui";
+import { supportTitle } from "../_console/meta";
 
-export const metadata: Metadata = { title: "Support log", robots: { index: false } };
+export const generateMetadata = supportTitle("Support log", "admin", { robots: { index: false } });
 
 const PAGE = 100;
 const insensitive = (q: string) => ({ contains: q, mode: "insensitive" as const });
@@ -33,7 +33,8 @@ export default async function SupportLog({ searchParams }: { searchParams: Promi
     <div>
       <h1 className="text-2xl font-semibold tracking-tight text-ink">Support log</h1>
       <p className="mt-2 text-sm text-muted">
-        Each use of the support powers and the free-plan tools: who did what, to whom and when, with the reason given. Records are kept {ADMIN_ACTION_KEEP_YEARS}{" "}
+        Each use of the support powers and the free-plan tools, and each support conversation deleted: who did what, to whom and when, with the reason
+        given. Records are kept {ADMIN_ACTION_KEEP_YEARS}{" "}
         years, also after the account is deleted.
       </p>
       <Done id={done} />
@@ -41,13 +42,16 @@ export default async function SupportLog({ searchParams }: { searchParams: Promi
         <input name="q" type="search" defaultValue={raw} placeholder="Email, business, reason or id" aria-label="Search the support log" className={`${field} min-w-0 flex-1`} />
         <select name="action" defaultValue={kind} aria-label="Kind of action" className={field}>
           <option value="">Every kind</option>
-          {Object.entries(ACTION_LABELS)
-            .sort((a, b) => a[1].localeCompare(b[1]))
-            .map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
+          {/* Grouped by what each was done to, rather than one long alphabetical list (P53). */}
+          {ACTION_GROUPS.map(([group, kinds]) => (
+            <optgroup key={group} label={group}>
+              {kinds.map((value) => (
+                <option key={value} value={value}>
+                  {ACTION_LABELS[value]}
+                </option>
+              ))}
+            </optgroup>
+          ))}
         </select>
         <button className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">Show</button>
       </form>

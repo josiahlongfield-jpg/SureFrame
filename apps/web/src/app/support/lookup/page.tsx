@@ -1,12 +1,12 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { isEmailBlocked } from "@/lib/blockedEmail";
 import { db } from "@/lib/db";
 import { qldDay } from "@/lib/support/when";
 import PowerForm from "../_console/PowerForm";
 import { Badge, consoleAdmin, Done, planName, Section } from "../_console/ui";
+import { supportTitle } from "../_console/meta";
 
-export const metadata: Metadata = { title: "Look up an account", robots: { index: false } };
+export const generateMetadata = supportTitle("Look up an account", "admin", { robots: { index: false } });
 
 const insensitive = (q: string) => ({ contains: q, mode: "insensitive" as const });
 

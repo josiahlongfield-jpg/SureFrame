@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -6,8 +5,9 @@ import { requirePageUser } from "@/lib/session";
 import { isSupportAdmin } from "@/lib/support/admin";
 import { isSupportAgent } from "@/lib/support/tickets";
 import { deleteAllTickets } from "../actions";
+import { supportTitle } from "../_console/meta";
 
-export const metadata: Metadata = { title: "Delete every conversation" };
+export const generateMetadata = supportTitle("Delete every conversation");
 
 /** Deleting the whole inbox, on a page of its own so it's never one slip away from the conversations list. */
 export default async function ClearInbox({ searchParams }: { searchParams: Promise<{ error?: string }> }) {

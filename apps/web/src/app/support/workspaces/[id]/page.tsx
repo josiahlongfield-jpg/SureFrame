@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isEmailBlocked } from "@/lib/blockedEmail";
@@ -12,8 +11,9 @@ import { videosUsed } from "@/lib/videoAllowance";
 import PowerForm, { Check } from "../../_console/PowerForm";
 import { Badge, consoleAdmin, Done, Facts, History, planName, Section, stripeLink } from "../../_console/ui";
 import { qldDay, qldTime } from "@/lib/support/when";
+import { supportTitle } from "../../_console/meta";
 
-export const metadata: Metadata = { title: "Workspace (support)", robots: { index: false } };
+export const generateMetadata = supportTitle("Workspace (support)", "admin", { robots: { index: false } });
 
 const field = "w-full rounded-xl border border-line-strong px-3 py-2 text-sm";
 const D = 86_400_000;
