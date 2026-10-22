@@ -56,7 +56,7 @@ export default function HelpClaude() {
           <section className="rounded-2xl border border-line bg-surface p-5">
             <h3 className="font-semibold text-ink">Claude Desktop (also reads your notes and conversations)</h3>
             <p className="mt-1 text-sm text-muted">
-              Install {p} for Claude Desktop from Settings &gt; Connections and paste in a connection code made there. The code holds your team&apos;s
+              Download {p} for Claude Desktop from Settings &gt; Connections, add it in Claude Desktop (Settings &gt; Extensions &gt; Advanced settings &gt; Install Extension) and paste in a connection code made there. The code holds your team&apos;s
               key, which Claude Desktop keeps in your computer&apos;s keychain. The connector fetches your encrypted to-dos, notes, messages, replies
               and AI summaries and unlocks them on your computer, so {p}&apos;s servers still never see your key or what&apos;s inside.
             </p>

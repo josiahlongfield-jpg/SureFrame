@@ -129,10 +129,23 @@ export default async function Connections() {
           </p>
           <ol className="mt-3 grid list-decimal gap-1 pl-5 text-sm text-ink">
             <li>
+              If you don&apos;t have it yet,{" "}
+              <a href="https://claude.ai/download" target="_blank" rel="noopener noreferrer" className="font-medium underline">
+                install Claude Desktop
+              </a>{" "}
+              and sign in.
+            </li>
+            <li>
               <a href="/connector/sureframe.mcpb" download className="font-medium underline" data-testid="desktop-download">
                 Download SureFrame for Claude Desktop
-              </a>{" "}
-              and open it. Claude Desktop asks to install it.
+              </a>
+              . It goes to your Downloads folder as sureframe.mcpb.
+            </li>
+            <li>
+              In Claude Desktop, open Settings, then Extensions, then Advanced settings, and choose Install Extension. Pick sureframe.mcpb.
+              <span className="block text-muted" data-testid="desktop-open-note">
+                If your computer asks which app to open the file with, close that box and use Install Extension instead.
+              </span>
             </li>
             <li>Make a connection code below and paste it in when Claude Desktop asks for it.</li>
           </ol>
