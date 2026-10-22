@@ -396,17 +396,20 @@ ok("320px: the page behind the help sheet doesn't scroll", (await small.evaluate
 await small.screenshot({ path: `${shots}/support-help-320.png` });
 await small.click("button[aria-label='Close help']");
 ok("320px: the page scrolls again once it's closed", (await small.evaluate(() => getComputedStyle(document.documentElement).overflow)) !== "hidden");
-ok("320px: closing goes back to the menu button", await small.evaluate(() => document.activeElement?.dataset.testid === "site-menu-button"));
+// Focus moves on the next frame, once the panel has gone.
+const backOnMenu = await small.waitForFunction(() => document.activeElement?.dataset.testid === "site-menu-button", null, { timeout: 3000 }).then(() => true, () => false);
+ok("320px: closing goes back to the menu button", backOnMenu, await small.evaluate(() => `${document.activeElement?.tagName} ${document.activeElement?.dataset.testid ?? ""}`));
 // 440px to 639px: Help sits in the top bar itself, beside Pricing, Sign in and Start free, without pushing the bar sideways;
 // from 375px to 439px it's in the small menu with Pricing (the bar keeps Sign in and Start free).
 const phone390 = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })).newPage();
 for (const [w, path] of [[440, "/"], [440, "/pricing"], [440, "/faq"], [440, "/legal/terms"], [639, "/"]]) {
   await phone390.setViewportSize({ width: w, height: 844 });
   await phone390.goto(BASE + path);
+  await phone390.waitForSelector("header [data-testid=site-help]", { state: "visible", timeout: 5000 }).catch(() => null);
   const bar = await phone390.evaluate(() => {
     const h = document.querySelector("[data-testid=site-help]");
     const r = h?.getBoundingClientRect();
-    return { help: !!r && r.width > 0 && !!h.closest("header"), inside: !!r && r.right <= innerWidth, wide: document.documentElement.scrollWidth <= innerWidth, floating: (document.querySelector("[data-testid=help-button]")?.getClientRects().length ?? 0) > 0 };
+    return { help: !!r && r.width > 0 && !!h.closest("header"), inside: !!r && r.right <= innerWidth, wide: document.documentElement.scrollWidth <= innerWidth, floating: (document.querySelector("[data-testid=help-button]")?.getClientRects().length ?? 0) > 0, width: innerWidth, found: !!h, display: h ? getComputedStyle(h).display : "" };
   });
   ok(`${w}px ${path}: Help in the top bar, no floating button, no sideways scroll`, bar.help && bar.inside && bar.wide && !bar.floating, JSON.stringify(bar));
 }
