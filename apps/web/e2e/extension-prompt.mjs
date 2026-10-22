@@ -1,4 +1,4 @@
-// The "add the extension" prompt before a screen recording, in a browser without the extension. Needs a build with
+// The "add the extension" prompt before a Screen + Camera recording, in a browser without the extension. Needs a build with
 // NEXT_PUBLIC_EXTENSION_URL set (the prompt only shows once the extension has a store page to send people to).
 import { chromium } from "@playwright/test";
 import { agreed } from "./agree.mjs";
@@ -39,6 +39,12 @@ async function discard() {
 await page.click("text=Camera only");
 await startBtn.click();
 ok("camera only: no prompt, it just records", (await recording()) && !(await prompt.isVisible()));
+await discard();
+
+// Screen only has no camera bubble: it just records too (O47).
+await page.click("text=Screen only");
+await startBtn.click();
+ok("screen only: no prompt, it just records", (await recording()) && !(await prompt.isVisible()));
 await discard();
 
 // Screen + camera asks first.
@@ -91,13 +97,13 @@ await discard();
 // Don't ask again: remembered in this browser. (A fresh page: the pretend extension above has gone.)
 await page.reload();
 await page.waitForSelector("text=Start recording");
-await page.click("text=Screen only");
+await page.click("text=Screen + camera");
 await startBtn.click();
 await page.check("[data-testid=extension-dont-ask]");
 await page.click("[data-testid=extension-skip]");
 ok("don't ask again: records", await recording());
 await discard();
-await page.click("text=Screen only");
+await page.click("text=Screen + camera");
 await startBtn.click();
 ok("don't ask again: not asked next time", (await recording()) && !(await prompt.isVisible()));
 

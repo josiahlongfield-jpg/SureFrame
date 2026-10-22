@@ -104,10 +104,11 @@ export default function Recorder({
   // A computer browser the extension is for (Chrome, Edge, Brave and the like), where it isn't installed yet.
   const [extensionBrowser, setExtensionBrowser] = useState(false);
   useEffect(() => setExtensionBrowser(!!EXTENSION_URL && canComposeCamera() && !isPhone()), []);
-  // Pressing Start for a screen recording without the extension first asks to add it (ExtensionPrompt).
+  // Pressing Start for a Screen + Camera recording without the extension first asks to add it (ExtensionPrompt).
+  // Screen only has no camera bubble, so it just starts (O47).
   const [extensionAsk, setExtensionAsk] = useState(false);
   function requestStart() {
-    if (mode !== "camera" && extensionBrowser && !extension && canShareScreen && !extensionPromptSkipped()) setExtensionAsk(true);
+    if (mode === "screen+camera" && extensionBrowser && !extension && canShareScreen && !extensionPromptSkipped()) setExtensionAsk(true);
     else void start();
   }
   // With the extension: the camera circle is drawn into the video right now, because the bubble isn't on screen.
