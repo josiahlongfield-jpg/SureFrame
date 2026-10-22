@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { exportKey, fingerprint as keyFingerprint } from "@/lib/e2e/crypto";
 import { writeClipboard } from "@/lib/clipboard";
@@ -10,22 +10,32 @@ const button = "rounded-xl border border-line-strong px-4 py-2 text-sm font-semi
 
 /** The online connector's address with a Copy button (Settings > Connections). */
 export function CopyConnectorUrl({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false);
+  const [state, setState] = useState<"copied" | "failed">();
+  const address = useRef<HTMLElement>(null);
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2">
-      <code className="min-w-0 break-all rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-ink" data-testid="connector-url">
-        {url}
-      </code>
-      <button
-        className={button}
-        onClick={async () => {
-          await writeClipboard(url).catch(() => {});
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        }}
-      >
-        {copied ? "Copied" : "Copy"}
-      </button>
+    <div className="mt-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <code ref={address} className="min-w-0 select-all break-all rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-ink" data-testid="connector-url">
+          {url}
+        </code>
+        <button
+          className={button}
+          data-testid="copy-connector-url"
+          onClick={async () => {
+            const ok = await writeClipboard(url).then(() => true, () => false);
+            setState(ok ? "copied" : "failed");
+            if (ok) setTimeout(() => setState(undefined), 2000);
+            else if (address.current) getSelection()?.selectAllChildren(address.current);
+          }}
+        >
+          {state === "copied" ? "Copied" : "Copy"}
+        </button>
+      </div>
+      {state === "failed" && (
+        <p className="mt-2 text-sm text-danger" data-testid="copy-failed">
+          Your browser didn&apos;t let us copy it. The address is selected: press and hold it (or right-click) and choose Copy.
+        </p>
+      )}
     </div>
   );
 }
@@ -43,7 +53,8 @@ function MakeCode({ teamKey }: { teamKey: CryptoKey }) {
   const [code, setCode] = useState<string>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<boolean | "failed">(false);
+  const codeBox = useRef<HTMLTextAreaElement>(null);
 
   async function make() {
     setBusy(true);
@@ -84,21 +95,25 @@ function MakeCode({ teamKey }: { teamKey: CryptoKey }) {
         Paste it into SureFrame&apos;s settings in Claude Desktop. It holds your team&apos;s key, so treat it like your recovery key: don&apos;t send it
         to anyone or paste it anywhere else. It&apos;s only shown now.
       </p>
-      <textarea readOnly value={code} rows={3} className="mt-3 w-full break-all rounded-lg border border-line bg-canvas p-2 font-mono text-xs text-ink" data-testid="connection-code-text" />
+      <textarea ref={codeBox} readOnly value={code} rows={3} className="mt-3 w-full break-all rounded-lg border border-line bg-canvas p-2 font-mono text-xs text-ink" data-testid="connection-code-text" />
       <div className="mt-2 flex flex-wrap gap-2">
         <button
           className={button}
           onClick={async () => {
-            await writeClipboard(code).catch(() => {});
-            setCopied(true);
+            const ok = await writeClipboard(code).then(() => true, () => false);
+            setCopied(ok ? true : "failed");
+            if (!ok) codeBox.current?.select();
           }}
         >
-          {copied ? "Copied" : "Copy code"}
+          {copied === true ? "Copied" : "Copy code"}
         </button>
         <button onClick={() => setCode(undefined)} className="rounded-lg px-3 py-1.5 text-sm text-muted">
           Done
         </button>
       </div>
+      {copied === "failed" && (
+        <p className="mt-2 text-sm text-danger">Your browser didn&apos;t let us copy it. The code is selected: press and hold it (or right-click) and choose Copy.</p>
+      )}
     </div>
   );
 }

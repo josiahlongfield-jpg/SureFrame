@@ -7,7 +7,11 @@ import { useEffect, useState } from "react";
  * clipboard during the click itself, so the text goes in as a promise.
  */
 export async function writeClipboard(text: Promise<string> | string) {
-  if (typeof text === "string") return navigator.clipboard.writeText(text);
+  if (typeof text === "string") {
+    // Some in-app and older browsers have no clipboard API, or refuse it: the old copy command still works there.
+    if (!navigator.clipboard?.writeText) return legacyCopy(text);
+    return navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
+  }
   const pending = Promise.resolve(text);
   if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
     try {
@@ -17,7 +21,30 @@ export async function writeClipboard(text: Promise<string> | string) {
       /* older browsers: plain text below */
     }
   }
-  await navigator.clipboard.writeText(await pending);
+  const t = await pending;
+  if (!navigator.clipboard?.writeText) return legacyCopy(t);
+  await navigator.clipboard.writeText(t).catch(() => legacyCopy(t));
+}
+
+/** Copies with the browser's old copy command, through a hidden text box. Throws when the browser refuses. */
+function legacyCopy(text: string) {
+  const was = document.activeElement as HTMLElement | null;
+  const box = document.createElement("textarea");
+  box.value = text;
+  box.setAttribute("readonly", "");
+  box.style.cssText = "position:fixed;top:0;left:0;opacity:0;font-size:16px";
+  document.body.appendChild(box);
+  box.select();
+  box.setSelectionRange(0, text.length);
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    /* refused */
+  }
+  box.remove();
+  was?.focus?.();
+  if (!ok) throw new Error("Couldn't copy");
 }
 
 /** Phones and tablets with a share sheet get a Share button next to Copy link. */

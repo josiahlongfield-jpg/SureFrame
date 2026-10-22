@@ -6,6 +6,7 @@ import { exportKey, fingerprint as keyFingerprint } from "@/lib/e2e/crypto";
 import { loadKey, teamKeyName } from "@/lib/e2e/keystore";
 import TeamKeyGate, { KEY_CREATED } from "./TeamKeyGate";
 import { BRAND } from "@/lib/brand";
+import { writeClipboard } from "@/lib/clipboard";
 
 
 /** Where the key can be shown again later, said wherever it's shown. */
@@ -76,7 +77,7 @@ export function KeyActions({ value, business, tone = "plain" }: { value: string;
       <button
         type="button"
         onClick={async () => {
-          await navigator.clipboard.writeText(value);
+          await writeClipboard(value);
           setCopied(true);
         }}
         className={btn}

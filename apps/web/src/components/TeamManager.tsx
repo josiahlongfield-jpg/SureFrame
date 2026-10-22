@@ -8,6 +8,7 @@ import TeamKeyGate from "./TeamKeyGate";
 import { KeyActions, KeyText } from "./RecoveryKey";
 import { zoned } from "@/lib/dates";
 import { BRAND } from "@/lib/brand";
+import { writeClipboard } from "@/lib/clipboard";
 
 /** US$8, US$37.50 */
 const money = (n: number) => `US$${Number.isInteger(n) ? n : n.toFixed(2)}`;
@@ -293,7 +294,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
               </p>
               <p data-testid="invite-link" className="mt-2 break-all rounded-lg bg-surface px-3 py-2 font-mono text-xs text-ink">{link.url}</p>
               <button
-                onClick={async () => { await navigator.clipboard.writeText(link.url); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                onClick={async () => { await writeClipboard(link.url); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
                 className="mt-2 rounded-lg border border-ok-line bg-surface px-3 py-1.5 hover:bg-hover">
                 {copied ? "Copied" : "Copy link"}
               </button>

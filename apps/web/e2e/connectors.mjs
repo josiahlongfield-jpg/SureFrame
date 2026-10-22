@@ -286,6 +286,8 @@ ok("connections page fits a small phone", await owner.evaluate(() => document.do
 await owner.screenshot({ path: `${shots}/connector-settings.png`, fullPage: true });
 await owner.setViewportSize({ width: 1280, height: 900 });
 ok("connections page shows the address to paste", (await owner.textContent("[data-testid=connector-url]")) === `${BASE}/mcp`);
+await owner.click("[data-testid=copy-connector-url]");
+ok("Copy puts the address on the clipboard", (await owner.evaluate(() => navigator.clipboard.readText())) === `${BASE}/mcp`);
 ok("your connections list both", (await owner.locator("#yours [data-testid=connection-row]").count()) === 2);
 ok("recent uses are shown", (await owner.locator("#yours [data-testid=connection-uses]").first().textContent())?.includes("Recently read"));
 ok("owner sees staff connections", (await owner.locator("[data-testid=staff-connections] [data-testid=connection-row]").count()) === 1);

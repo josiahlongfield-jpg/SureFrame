@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { writeClipboard } from "@/lib/clipboard";
 
 /** A button that copies some text, and says so for a moment. */
 export default function CopyText({ text, label, testId }: { text: string; label: string; testId?: string }) {
@@ -9,7 +10,7 @@ export default function CopyText({ text, label, testId }: { text: string; label:
     <button
       type="button"
       onClick={async () => {
-        await navigator.clipboard.writeText(text).catch(() => {});
+        await writeClipboard(text).catch(() => {});
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
