@@ -208,7 +208,7 @@ const navHrefs = await owner.locator("header nav a").evaluateAll((els) => els.ma
 ok("desktop bar: Clients, Library, To-dos and Settings only (no Overview or Team for one person)", navHrefs.join("|") === "/clients|/library|/todos", navHrefs.join("|"));
 await owner.click("[data-testid=settings-menu-button]");
 const settingsLinks = await owner.locator("[data-testid=settings-menu] a").evaluateAll((els) => els.map((e) => e.innerText.trim()));
-ok("Settings menu: Branding, Invite staff, Billing, Account (reminders are on To-dos/Reminders)", settingsLinks.join("|") === "Branding|Invite staff|Billing|Account", settingsLinks.join("|"));
+ok("Settings menu: Branding, Invite staff, Billing, Account, Connections (reminders are on To-dos/Reminders)", settingsLinks.join("|") === "Branding|Invite staff|Billing|Account|Connections", settingsLinks.join("|"));
 await owner.screenshot({ path: `${shots}/fx-shell-settings-menu.png` });
 await owner.keyboard.press("Escape");
 await owner.goto(`${BASE}/team`);
