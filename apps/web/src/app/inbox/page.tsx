@@ -27,8 +27,11 @@ import ClientVideos from "@/components/ClientVideos";
 import { LibraryViewSwitch } from "@/components/LibraryTools";
 import { INBOX_LAYOUT_COOKIE } from "@/lib/libraryGroups";
 
-/** "jo@example.com" as "j•••@example.com": enough to recognise, without showing the whole address on screen. */
-const masked = (email: string) => email.replace(/^(.)[^@]*/, "$1•••");
+/**
+ * "client-a@example.com" as "cli•••@example.com": enough to tell which address it is (C44), without showing the
+ * whole address on screen. A short name keeps less of itself, so the dots always hide something.
+ */
+const masked = (email: string) => email.replace(/^([^@]*)@/, (_, name: string) => `${name.slice(0, Math.max(1, Math.min(3, name.length - 2)))}•••@`);
 
 /** The client on this device for a business, by their cookie (never trusts an id from the page alone). */
 async function clientOnDevice(clientId: string) {
@@ -213,18 +216,31 @@ export default async function Inbox({
   const layout = jar.get(INBOX_LAYOUT_COOKIE)?.value === "list" ? "list" : "tiles";
   const total = listed.reduce((n, c) => n + c.videos.length, 0);
   const brand = clients.length === 1 ? brandOf(clients[0].workspace) : !clients.length && replacedBy.length === 1 ? brandOf(replacedBy[0].client.workspace) : null;
-  const help = await helpForDevice();
+  // Videos with a reply the client recorded but never sent (a closed page, say): marked on their tiles (C33).
+  const unsentIn = new Set(
+    (
+      await db.reply.findMany({
+        where: { videoId: { in: listed.flatMap((c) => c.videos.map((v) => v.id)) }, heldAt: { not: null }, authorUserId: null, formerStaffAt: null, media: { status: { not: "EXPIRED" } } },
+        select: { videoId: true },
+      })
+    ).map((r) => r.videoId),
+  );
+  // The help chat: the limits it states, and where its "Reply to …" button goes (the newest video's reply box).
+  const help = (await helpForDevice()).map((h) => {
+    const newest = listed.find((c) => c.id === h.clientId)?.videos[0];
+    return newest ? { ...h, reply: { videoId: newest.id, to: h.business } } : h;
+  });
 
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
-      {/* For a client not yet known to have the key here, the gate below takes the key from the link instead. */}
-      {arrivedAs && listed.some((c) => c.id === arrivedAs) && <ClientKeyCapture clientId={arrivedAs} />}
       <ClientHeader brand={brand} backTo={backTo} help={help.length ? { for: help, page: "inbox" } : undefined} />
       {/* A reply a closed page interrupted finishes uploading here too, then waits on its video page to be sent. */}
       <RecoverUploads />
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
         {/* The link's key is no use on a page that couldn't open it, so it leaves the address bar too. */}
         {arrived && <HideKeyFromAddress />}
+        {/* For a client not yet known to have the key here, the gate below takes the key from the link instead. */}
+        {arrivedAs && listed.some((c) => c.id === arrivedAs) && <ClientKeyCapture clientId={arrivedAs} />}
         {replacedBy.map((r) => (
           <div key={r.client.id} className="mb-8">
             <CantOpen
@@ -284,7 +300,11 @@ export default async function Inbox({
           listed.map((c) => (
             <section key={c.id} className="mt-8">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-dim">From {c.workspace.name}</h2>
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-dim">From {c.workspace.name}</h2>
+                  {/* Whose videos these are, so the page is plainly theirs (S17). */}
+                  <p className="text-sm text-muted" data-testid="inbox-for">For {c.name}</p>
+                </div>
                 <ForgetDevice clientId={c.id} business={c.workspace.name} workspaceId={c.workspaceId} forget={forget.bind(null, c.workspaceId, c.id)} />
               </div>
               {aiAssistActive(c.workspace) && <AiNotice className="mt-2" />}
@@ -308,6 +328,7 @@ export default async function Inbox({
                       // Only the client's own opens are counted, so none means they haven't watched it yet.
                       unwatched: v.viewCount === 0,
                       replied: v._count.replies > 0,
+                      unsent: unsentIn.has(v.id),
                       // Who sent it, never their email: "Sam from Business", or a former team member's (lib/team.ts).
                       from: v.owner.name || v.formerStaffAt ? senderName(v, c.workspace.name, "client") : null,
                     }))}

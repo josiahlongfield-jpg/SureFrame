@@ -10,6 +10,21 @@ import { anthropic, MODEL } from "@/lib/support/assistant";
 import { CLIENT_GUIDE } from "@/lib/support/clientKnowledge";
 import { browserNote } from "@/lib/support/browser";
 
+/**
+ * How many questions a client can ask (api/client-help): short bursts, and a daily allowance per client, so one person
+ * can't run up AI costs. A Free business isn't paying for its clients' help either: fewer a day, and a ceiling for all
+ * its clients together.
+ */
+export const CLIENT_HELP_LIMITS = { burst: 10, burstMinutes: 10, freeDaily: 5, paidDaily: 40, freeBusinessDaily: 30 } as const;
+
+/** The limits as the help panel states them, so nobody first learns of them by hitting one (C18). */
+export function clientHelpLimitText(plan: string) {
+  const l = CLIENT_HELP_LIMITS;
+  return plan === "FREE"
+    ? `You can ask up to ${l.freeDaily} questions a day.`
+    : `You can ask up to ${l.burst} questions every ${l.burstMinutes} minutes, and ${l.paidDaily} a day.`;
+}
+
 /** The client pages the help chat sits on. */
 export const HELP_PAGES = ["video", "inbox", "emails", "cant-open"] as const;
 export type HelpPage = (typeof HELP_PAGES)[number];
@@ -147,6 +162,6 @@ export async function answerClient(client: HelpClient, page: HelpPage, turns: He
 export async function helpForDevice() {
   const tokens = (await cookies()).getAll().filter((c) => c.name.startsWith("fc_client_")).map((c) => c.value);
   if (!tokens.length) return [];
-  const clients = await db.client.findMany({ where: { token: { in: tokens } }, select: { id: true, workspace: { select: { name: true } } }, orderBy: { createdAt: "asc" } });
-  return clients.map((c) => ({ clientId: c.id, business: c.workspace.name }));
+  const clients = await db.client.findMany({ where: { token: { in: tokens } }, select: { id: true, workspace: { select: { name: true, plan: true } } }, orderBy: { createdAt: "asc" } });
+  return clients.map((c) => ({ clientId: c.id, business: c.workspace.name, limits: clientHelpLimitText(c.workspace.plan) }));
 }

@@ -4,6 +4,7 @@ import ClientHeader from "./ClientHeader";
 import MadeWith from "./MadeWith";
 import { brandStyle, type Brand } from "@/lib/branding";
 import { newVideoEmail } from "@/lib/newVideoEmail";
+import { nameWithBusiness } from "@/lib/senderLine";
 import { REACTIONS } from "@/lib/reactions";
 
 export type PreviewView = "video" | "inbox" | "email";
@@ -65,7 +66,7 @@ function VideoPage({ business, sender }: { business: string; sender: string }) {
           <div className="min-w-0 sm:flex-1">
             <h1 className="text-2xl font-semibold text-ink">{TITLE}</h1>
             <p className="mt-1 px-1 text-sm text-dim">
-              {sender ? `${sender} from ${business}` : business} · {today()}
+              {sender ? nameWithBusiness(sender, business, "from") : business} · {today()}
             </p>
           </div>
         </div>
@@ -134,7 +135,7 @@ function InboxPage({ business, sender }: { business: string; sender: string }) {
             <li key={v.title} className="flex items-center justify-between px-5 py-4">
               <span className="min-w-0">
                 <span className="block truncate font-medium text-ink">{v.title}</span>
-                <span className="block text-xs text-dim">{sender ? `${sender} from ${business}` : business}</span>
+                <span className="block text-xs text-dim">{sender ? nameWithBusiness(sender, business, "from") : business}</span>
               </span>
               <span className="shrink-0 pl-3 text-sm text-dim">{new Date(Date.now() - v.ago * 86_400_000).toLocaleDateString("en-US", { dateStyle: "medium" })}</span>
             </li>

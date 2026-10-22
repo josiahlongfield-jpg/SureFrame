@@ -5,6 +5,7 @@ import MadeWith from "@/components/MadeWith";
 import { brandOf, brandStyle } from "@/lib/branding";
 import { db } from "@/lib/db";
 import { validUnsubscribe } from "@/lib/reminders";
+import { clientHelpLimitText } from "@/lib/support/clientHelp";
 
 export const metadata: Metadata = { title: "Email reminders" };
 
@@ -43,7 +44,7 @@ export default async function RemindersOff({ searchParams }: { searchParams: Pro
   const name = client?.workspace.name;
   return (
     <div data-theme="fresh" className="flex min-h-screen flex-col bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
-      <ClientHeader brand={brand} allVideosLink help={client && s ? { for: [{ clientId: client.id, business: client.workspace.name, s }], page: "emails" } : undefined} />
+      <ClientHeader brand={brand} allVideosLink help={client && s ? { for: [{ clientId: client.id, business: client.workspace.name, s, limits: clientHelpLimitText(client.workspace.plan) }], page: "emails" } : undefined} />
       <main className="mx-auto w-full max-w-xl flex-1 px-4 py-16 text-center">
         {!client ? (
           <p className="text-muted">This link isn&apos;t valid. Use the link from your most recent reminder email.</p>

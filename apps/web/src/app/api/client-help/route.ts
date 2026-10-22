@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { handle, HttpError } from "@/lib/session";
-import { limitByIp, rateLimit } from "@/lib/rateLimit";
+import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { assistantEnabled } from "@/lib/support/assistant";
-import { answerClient, CANT_HELP, contactBusiness, HELP_PAGES, helpClient } from "@/lib/support/clientHelp";
+import { answerClient, CANT_HELP, CLIENT_HELP_LIMITS, contactBusiness, HELP_PAGES, helpClient } from "@/lib/support/clientHelp";
 import { recordClientQuestion } from "@/lib/support/clientQuestions";
 import { browserFrom } from "@/lib/support/browser";
 
@@ -24,7 +24,21 @@ const Body = z.object({
  * (lib/support/clientQuestions.ts), for the weekly digest.
  */
 export const POST = handle(async (req: Request) => {
-  await limitByIp("client-help", 30, 3600);
+  // Refused: when it resets goes back too (the end of the limit's fixed window, lib/rateLimit.ts), so the panel can say
+  // when to ask again and keep Ask off until then (C18, C20).
+  const limit = async (key: string, max: number, windowSec: number, contact = "") => {
+    try {
+      await rateLimit(key, max, windowSec);
+      return null;
+    } catch (e) {
+      if ((e as { status?: number }).status !== 429) throw e;
+      const windowMs = windowSec * 1000;
+      const retryAt = new Date((Math.floor(Date.now() / windowMs) + 1) * windowMs).toISOString();
+      return Response.json({ error: "You've reached the limit for the help chat.", limited: true, retryAt, contact }, { status: 429 });
+    }
+  };
+  const byIp = await limit(`client-help:ip:${await clientIp()}`, 30, 3600);
+  if (byIp) return byIp;
   const parsed = Body.safeParse(await req.json().catch(() => null));
   const question = parsed.success ? parsed.data.messages.at(-1) : null;
   if (!parsed.success || question?.role !== "client" || question.text.length > 1000) throw new HttpError(400, "Please write a question (up to 1,000 characters).");
@@ -33,14 +47,14 @@ export const POST = handle(async (req: Request) => {
   const client = await helpClient(clientId, s);
   if (!client) throw new HttpError(404, "Open your personal link on this device to use help here.");
   const contact = await contactBusiness(client);
-  // Short bursts and a daily allowance per client, so one person can't run up AI costs.
-  const limited = `You've reached the limit for the help chat for now. ${contact}`;
-  await rateLimit(`client-help:client:${client.id}`, 10, 600).catch(() => { throw new HttpError(429, limited); });
-  // A Free business isn't paying for its clients' help either: a few questions a day each, and a
-  // ceiling for all its clients together.
+  // Short bursts and a daily allowance per client (CLIENT_HELP_LIMITS, which the panel states).
+  const L = CLIENT_HELP_LIMITS;
   const free = client.workspace.plan === "FREE";
-  await rateLimit(`client-help-day:client:${client.id}`, free ? 5 : 40, 86400).catch(() => { throw new HttpError(429, limited); });
-  if (free) await rateLimit(`client-help-day:free-business:${client.workspaceId}`, 30, 86400).catch(() => { throw new HttpError(429, limited); });
+  const refused =
+    (await limit(`client-help:client:${client.id}`, L.burst, L.burstMinutes * 60, contact)) ??
+    (await limit(`client-help-day:client:${client.id}`, free ? L.freeDaily : L.paidDaily, 86400, contact)) ??
+    (free ? await limit(`client-help-day:free-business:${client.workspaceId}`, L.freeBusinessDaily, 86400, contact) : null);
+  if (refused) return refused;
 
   const reply = (text: string, answered: boolean) => Response.json({ reply: text, answered });
   if (!assistantEnabled() || !(await underDailyAiCap())) {

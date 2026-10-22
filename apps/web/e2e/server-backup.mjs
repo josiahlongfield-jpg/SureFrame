@@ -113,14 +113,16 @@ await c.waitForSelector("[data-testid=conversation][data-sheet]");
 await c.click("role=tab[name='Video']");
 await c.waitForSelector("[data-testid=reply-notes]");
 ok("before recording, the client is told a closed page brings the reply back in about 90 seconds", /within about 90 seconds/.test((await c.textContent("[data-testid=reply-crash-note]").catch(() => "")) ?? ""));
-ok("the reply notes sit straight under the recording window", await c.$eval("[data-testid=reply-notes]", (n) => {
-  const w = n.previousElementSibling.getBoundingClientRect();
-  const r = n.getBoundingClientRect();
-  return r.top - w.bottom >= 0 && r.top - w.bottom <= 16;
+// Record sits straight under the recording window, where a phone shows it without scrolling; the notes come after it (C27).
+ok("Record sits straight under the recording window, the notes below it", await c.$eval("button:has-text('Record video reply')", (b) => {
+  const w = b.previousElementSibling.getBoundingClientRect();
+  const r = b.getBoundingClientRect();
+  const notes = document.querySelector("[data-testid=reply-notes]").getBoundingClientRect();
+  return r.top - w.bottom >= 0 && r.top - w.bottom <= 16 && notes.top >= r.bottom && r.bottom <= innerHeight;
 }));
 await c.click("button:has-text('Record video reply')");
 await c.waitForSelector("text=/Recording · \\d/");
-ok("the client is told how a closed page is recovered", /within about 90 seconds/.test((await c.textContent("[data-testid=reply-crash-note]").catch(() => "")) ?? ""));
+ok("while recording, the notes said before recording aren't repeated (C28)", (await c.locator("[data-testid=reply-notes]").count()) === 0);
 const mediaId = await waitFor(() => sql(`select "mediaId" from "Reply" where "videoId"='${videoId}' and "byClient" and kind='VIDEO' limit 1`) || null);
 await c.waitForTimeout(7000);
 ok("the client's reply reaches the server while recording", Number(sql(`select count(*) from "UploadPiece" where "videoId"='${mediaId}'`)) + Number(sql(`select "partsJoined" from "Video" where id='${mediaId}'`)) > 0);

@@ -47,6 +47,7 @@ export default function Planner({
   title = "Tasks & notes",
   note,
   teamWho = ME,
+  hideWhenEmpty = false,
 }: {
   role: "member" | "client";
   clientId: string | null;
@@ -59,6 +60,8 @@ export default function Planner({
   /** A line under the title, e.g. who else can see the list. */
   note?: string;
   teamWho?: TeamWho;
+  /** Draw nothing until there's something in the list (a client's video page, where an empty card would be noise). */
+  hideWhenEmpty?: boolean;
 }) {
   const fresh = useCallback(
     (): Schedule => ({
@@ -306,8 +309,9 @@ export default function Planner({
       </li>
     );
 
+  if (hideWhenEmpty && (!loaded || loadError || items.length === 0)) return null;
   return (
-    <section className="rounded-2xl border border-line bg-surface p-5">
+    <section className="rounded-2xl border border-line bg-surface p-5" data-testid="planner">
       <h2 className="font-semibold text-ink">{title}</h2>
       {note && <p className="mt-1 text-xs text-dim">{note}</p>}
       {role === "member" && (

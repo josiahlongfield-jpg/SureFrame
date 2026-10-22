@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { staffSeatLimit } from "@/lib/plans";
+import { nameWithBusiness } from "@/lib/senderLine";
 
 /** Invite links work for a week. */
 export const INVITE_DAYS = 7;
@@ -82,5 +83,5 @@ type Sender = { formerStaffAt: Date | null; owner: { name: string | null; email?
 export function senderName(video: Sender, business: string, viewer: "team" | "client") {
   if (video.formerStaffAt) return `${FORMER_MEMBER} · ${business}`;
   if (viewer === "team") return video.owner.name ?? video.owner.email?.split("@")[0] ?? business;
-  return video.owner.name ? `${video.owner.name} from ${business}` : business;
+  return video.owner.name ? nameWithBusiness(video.owner.name, business, "from") : business;
 }
