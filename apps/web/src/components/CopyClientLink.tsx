@@ -26,7 +26,18 @@ type Props = {
  */
 export default function CopyClientLink(props: Props) {
   return (
-    <TeamKeyGate workspaceId={props.workspaceId} fingerprint={props.fingerprint}>
+    <TeamKeyGate
+      workspaceId={props.workspaceId}
+      fingerprint={props.fingerprint}
+      loading={null}
+      // Decision 15: the page's one unlock box is the to-dos and notes' (MemberPlanner); this says what it's for here.
+      lockedNote={
+        <p className="mt-3 text-sm text-muted" data-testid="link-locked">
+          {props.name}&apos;s personal link carries their private key, which is locked with your team&apos;s key.{" "}
+          <a href="#unlock" className="font-medium text-accent hover:underline">Enter your recovery key</a> to copy or send it from this browser.
+        </p>
+      }
+    >
       {(teamKey) => (props.reached ? <Button {...props} teamKey={teamKey} /> : <FirstLink {...props} teamKey={teamKey} />)}
     </TeamKeyGate>
   );

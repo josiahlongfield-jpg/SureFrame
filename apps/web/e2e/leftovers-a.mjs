@@ -213,6 +213,32 @@ await fresh.waitForSelector("text=Unlock your videos in this browser", { timeout
 await fresh.click("button:has-text('Unlock')");
 const said = norm(await fresh.textContent("[role=alert]").catch(() => ""));
 ok("unlock with an empty box: says what to enter, not that the key is wrong (S6)", said.startsWith("Enter your recovery key") && !said.includes("isn't valid"), said);
+
+// Decision 15: a new browser sees the client list; only what needs the team's key asks for it, and says why.
+ok("new browser: the client list shows without the key (Decision 15)", (await fresh.locator("main a[href^='/clients/']:has-text('Client R1')").count()) === 1 && (await fresh.locator("main a[href^='/clients/']:has-text('Client R2')").count()) === 1);
+ok("new browser: the unlock box says what's locked and why", norm(await fresh.textContent("[data-testid=unlock-why]")).includes("Adding a client and copying a client's personal link need the key in this browser") && norm(await fresh.textContent("[data-testid=unlock-what]")).includes("Your client list, settings and billing work without it."));
+ok("new browser: Add client asks for the key instead of a form", (await fresh.isVisible("[data-testid=add-locked]")) && (await fresh.locator("input[aria-label='Client name']").count()) === 0 && (await fresh.locator("[data-testid=bulk-open]").count()) === 0);
+ok("new browser: each Copy link is 'Unlock to copy link', up to the box", (await fresh.locator("[data-testid=row-unlock-link]").count()) === 2 && (await fresh.locator("button[aria-label^='Copy link for']").count()) === 0 && (await fresh.getAttribute("[data-testid=row-unlock-link] >> nth=0", "href")) === "#unlock");
+ok("new browser: one unlock box on the Clients page", (await fresh.locator("[data-testid=unlock-box]").count()) === 1);
+await fresh.setViewportSize({ width: 320, height: 720 });
+ok("new browser: the locked Clients page fits 320px", await fresh.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+await fresh.screenshot({ path: `${shots}/new-browser-clients-320.png`, fullPage: true });
+await fresh.setViewportSize({ width: 1280, height: 900 });
+// A client's own page: one unlock box (to-dos and notes), and the link card says why it's locked.
+await fresh.goto(`${BASE}/clients/${r2.id}`);
+await fresh.waitForSelector("[data-testid=unlock-box]", { timeout: 20000 });
+ok("new browser: a client's page has one unlock box, and the link says why it needs the key", (await fresh.locator("[data-testid=unlock-box]").count()) === 1 && norm(await fresh.textContent("[data-testid=link-locked]")).includes("personal link carries their private key"));
+// Recording can't be done without the key (a new video is locked with it), so Record asks first and says why.
+await fresh.goto(`${BASE}/record`);
+await fresh.waitForSelector("[data-testid=unlock-why]", { timeout: 20000 });
+ok("new browser: Record asks for the key first and says why (Decision 15)", norm(await fresh.textContent("[data-testid=unlock-why]")).startsWith("To record here, enter your recovery key first.") && (await fresh.locator("text=Start recording").count()) === 0);
+// With the key entered, everything opens: adding and copying come back on the Clients page.
+const teamKey = await owner.evaluate((id) => localStorage.getItem(`framecast.key.team:${id}`), ws);
+await fresh.fill("input[aria-label='Recovery key']", teamKey ?? "");
+await fresh.click("button:has-text('Unlock')");
+ok("new browser: after the key, Record opens", !!(await fresh.waitForSelector("[data-testid=unlock-box]", { state: "detached", timeout: 20000 }).then(() => true, () => false)) && (await fresh.locator("text=Unlocking…").count()) === 0);
+await fresh.goto(`${BASE}/clients`);
+ok("new browser: after the key, Add client and Copy link are back", !!(await fresh.waitForSelector("input[aria-label='Client name']", { timeout: 20000 }).catch(() => null)) && (await fresh.locator("button[aria-label^='Copy link for']").count()) === 2 && (await fresh.locator("[data-testid=unlock-box]").count()) === 0);
 await other.close();
 
 await browser.close();
