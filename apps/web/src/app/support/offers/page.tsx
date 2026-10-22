@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import CopyText from "@/components/CopyText";
@@ -11,8 +10,9 @@ import { qldDay } from "@/lib/support/when";
 import PowerForm from "../_console/PowerForm";
 import OfferTerms from "./OfferTerms";
 import { Badge, consoleAdmin, Done, Facts, Section } from "../_console/ui";
+import { supportTitle } from "../_console/meta";
 
-export const metadata: Metadata = { title: "Discounts", robots: { index: false } };
+export const generateMetadata = supportTitle("Discounts", "founder", { robots: { index: false } });
 
 const field = "w-full rounded-xl border border-line-strong px-3 py-2 text-sm";
 

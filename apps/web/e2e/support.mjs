@@ -93,6 +93,7 @@ await other.click("text=Continue");
 await other.waitForURL("**/support");
 await other.waitForSelector("text=Page not found");
 ok("inbox hidden from customers", !(await other.textContent("body")).includes("visitor@example.com"));
+ok("its tab says Page not found too, not Support inbox", (await other.title()).startsWith("Page not found"), await other.title());
 ok("with a real 404", (await other.request.get(BASE + "/support/accounts")).status() === 404);
 // ...and isn't offered to them: no Support in their Settings menu or on the Settings page.
 await other.goto(BASE + "/library");
@@ -272,12 +273,30 @@ ok("ticket: after replying, says where it went", (await agent.waitForSelector("[
 const ticketUrl = agent.url().split("?")[0];
 await agent.click("[data-testid=close-ticket]");
 ok("ticket: Close asks first, in the page", await agent.isVisible("[data-testid=close-ticket-dialog]"));
+// The keyboard: focus goes into the dialog and stays there; Escape closes it and goes back to Close (P61).
+const inDialog = () => agent.evaluate(() => !!document.activeElement?.closest("[data-testid=close-ticket-dialog]"));
+let keptIn = await inDialog();
+for (let i = 0; i < 4; i++) {
+  await agent.keyboard.press("Tab");
+  keptIn &&= await inDialog();
+}
+await agent.keyboard.press("Shift+Tab");
+keptIn &&= await inDialog();
+ok("ticket: Tab stays inside the Close dialog", keptIn);
+await agent.keyboard.press("Escape");
+const backOnClose = await agent.waitForFunction(() => document.activeElement?.dataset.testid === "close-ticket", null, { timeout: 5000 }).then(() => true, () => false);
+ok("ticket: Escape closes it and focus goes back to Close", (await agent.locator("[data-testid=close-ticket-dialog]").count()) === 0 && backOnClose);
+await agent.click("[data-testid=close-ticket]");
 await agent.click("[data-testid=close-ticket-dialog] >> text=Close it");
 await agent.waitForSelector("[data-testid=ticket-done]");
 await agent.goto(BASE + "/support?show=open");
 ok("closed: gone from the open lists", !(await agent.textContent("body")).includes(inv));
 await agent.goto(`${BASE}/support?show=closed&q=${inv}`);
 ok("closed: found under Closed by searching", (await agent.textContent("[data-testid=inbox-list]").catch(() => "")).includes(planEmail));
+ok("closed: the card says when it was closed", /^Closed \d{1,2} [A-Z][a-z]{2,3} \d{4}/.test((await agent.textContent("[data-testid=inbox-time]").catch(() => "")).trim()));
+// A search looks through every list, not only the one it's started from (P6).
+await agent.goto(`${BASE}/support?q=${inv}`);
+ok("search from Needs you finds a closed conversation too", (await agent.textContent("[data-testid=inbox-list]").catch(() => "")).includes(planEmail) && (await agent.textContent("[data-testid=inbox-search-note]")).includes("open and closed"));
 await agent.goto(ticketUrl);
 await agent.click("[data-testid=reopen-ticket]");
 await agent.waitForSelector("[data-testid=ticket-done]");
@@ -289,6 +308,29 @@ ok("delete: asks first, in the page", await agent.isVisible("[data-testid=delete
 await agent.click("[data-testid=delete-ticket-dialog] >> text=Cancel");
 await agent.reload();
 ok("delete: Cancel keeps it", (await agent.textContent("body")).includes(inv));
+// Deleting it is written to the support log (P13), and its old address says it was deleted, in the support pages (P12).
+await agent.click("[data-testid=delete-ticket]");
+await agent.click("[data-testid=delete-ticket-dialog] >> text=Delete it");
+await agent.waitForURL((u) => u.pathname === "/support", { timeout: 15000 }).catch(() => {});
+const ticketId = ticketUrl.split("/").pop();
+const delRow = await prisma.adminAction.findFirst({ where: { action: "support.delete", details: { path: ["ticketId"], equals: ticketId } } });
+ok("delete: written to the support log, without what was said", delRow?.actorEmail === AGENT && delRow.target === planEmail && !JSON.stringify(delRow.details).includes(inv));
+await agent.goto(ticketUrl);
+ok("delete: the old address says it was deleted, in the support pages", (await agent.textContent("[data-testid=ticket-gone]").catch(() => "")).includes("This conversation was deleted") && (await agent.locator("[data-testid=support-nav]").count()) === 1);
+await agent.goto(BASE + "/support/log?action=support.delete");
+ok("delete: shown in the support log", (await agent.textContent("[data-testid=history]").catch(() => "")).includes("Support conversation deleted"));
+// The support pages' links stay on one row on a narrow phone, scrolling sideways (P59).
+await agent.setViewportSize({ width: 320, height: 700 });
+await agent.goto(BASE + "/support/offers");
+const navRow = await agent.evaluate(() => {
+  const nav = document.querySelector("[data-testid=support-nav]");
+  const links = [...nav.querySelectorAll("a")].map((a) => a.getBoundingClientRect().top);
+  const on = nav.querySelector("[aria-current=page]").getBoundingClientRect();
+  const box = nav.getBoundingClientRect();
+  return { oneRow: new Set(links.map(Math.round)).size === 1, onShown: on.left >= box.left - 1 && on.right <= box.right + 1, wide: document.documentElement.scrollWidth <= innerWidth };
+});
+ok("320px: the support links stay on one row, the current one in view, no sideways page scroll", navRow.oneRow && navRow.onShown && navRow.wide, JSON.stringify(navRow));
+await agent.setViewportSize({ width: 1280, height: 1000 });
 await agent.goto(BASE + "/library");
 await agent.click("[data-testid=settings-menu-button]");
 ok("app: Support is in the Settings menu for the support address", (await agent.getAttribute("[data-testid=settings-menu] a:has-text('Support')", "href")) === "/support");

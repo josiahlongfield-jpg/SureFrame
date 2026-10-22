@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -9,8 +8,9 @@ import { isSupportAgent } from "@/lib/support/tickets";
 import { canInstall, readManifest } from "@/lib/ai/speechModel";
 import CompForm, { CompAiForm } from "./CompForm";
 import SpeechModelPanel, { type ModelStatus } from "./SpeechModelPanel";
+import { supportTitle } from "../_console/meta";
 
-export const metadata: Metadata = { title: "Free plans" };
+export const generateMetadata = supportTitle("Free plans");
 
 /** Founder-only: give a paid plan free of charge, for trials and partners. */
 export default async function Accounts({ searchParams }: { searchParams: Promise<{ email?: string; plan?: string }> }) {
