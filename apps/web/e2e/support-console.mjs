@@ -565,9 +565,47 @@ await admin.fill('textarea[name="reason"]', "Partner trial ended");
 await admin.click("text=Save");
 await admin.waitForSelector("text=back on the Free plan");
 mail = await waitMail(bEmail, (m) => m.subject === "Your free SureFrame plan has ended");
-ok("ending a complimentary plan: the owner is told, with the Free videos left", !!mail && norm(mail.text).includes(`The Studio plan SureFrame gave ${bName} free of charge has ended, so it's now on the Free plan.`) && norm(mail.text).includes("The Free plan includes 25 videos in total. You've used 4, so you have 21 left."), mail?.text);
+// One email for both: the free AI summaries ended with the plan, and it says so (P23).
+ok("ending a complimentary plan: the owner is told, with the Free videos left and the AI summaries", !!mail && norm(mail.text).includes(`The Studio plan SureFrame gave ${bName} free of charge has ended, and so have the free AI transcripts and summaries that came with it, so it's now on the Free plan.`) && norm(mail.text).includes("The Free plan includes 25 videos in total. You've used 4, so you have 21 left."), mail?.text);
 row = await lastAction({ workspaceId: wsB, action: "plan.complimentary" });
 ok("back to Free: logged", row?.details?.before?.plan === "STUDIO" && row.details.after.plan === "FREE" && row.details.after.aiAssist === false);
+// Nothing left to end: refused, not logged, nobody emailed (P18, P23).
+const rowsBefore = await prisma.adminAction.count({ where: { workspaceId: wsB } });
+const bMailsBefore = mailTo(bEmail).length;
+await admin.fill('[data-testid=comp-form] textarea[name="reason"]', "Again by mistake");
+await admin.click("[data-testid=comp-form] button:text-is('Save')");
+const noComp = await admin.waitForSelector("[data-testid=comp-form] [role=alert]", { timeout: 30000 }).then((e) => e.textContent()).catch(() => "");
+ok("back to Free on a Free business: refused in plain words", noComp.includes(`${bName} isn't on a complimentary plan`), noComp);
+await admin.fill('[data-testid=comp-ai] input[name="email"]', bEmail);
+await admin.selectOption("[data-testid=comp-ai] select", "off");
+await admin.fill('[data-testid=comp-ai] textarea[name="reason"]', "Tidying up");
+await admin.click("button:text-is('Save AI')");
+const noAi = await admin.waitForSelector("[data-testid=comp-ai] [role=alert]", { timeout: 30000 }).then((e) => e.textContent()).catch(() => "");
+ok("AI off when it's already off: refused", noAi.includes("already off"), noAi);
+await new Promise((r) => setTimeout(r, 1000));
+ok("no-op changes: nothing logged and nobody emailed", (await prisma.adminAction.count({ where: { workspaceId: wsB } })) === rowsBefore && mailTo(bEmail).length === bMailsBefore);
+// Support's own business: asked first, with a box to go ahead (P19); then "End" says what it fills in (P22).
+await open("/support/accounts");
+await admin.fill('[data-testid=comp-form] input[name="email"]', ADMIN);
+await admin.selectOption("[data-testid=comp-form] select", "SOLO");
+await admin.fill('[data-testid=comp-form] textarea[name="reason"]', "Trying it on our own business");
+await admin.click("[data-testid=comp-form] button:text-is('Save')");
+const ownMsg = await admin.waitForSelector("[data-testid=comp-form] [role=alert]", { timeout: 30000 }).then((e) => e.textContent()).catch(() => "");
+const ownWs = (await prisma.membership.findFirst({ where: { role: "OWNER", user: { email: ADMIN } }, orderBy: { workspace: { createdAt: "asc" } } }))?.workspaceId;
+ok("own business: asked first, nothing changed", ownMsg.includes("is your own business") && (await admin.isVisible("[data-testid=comp-own]")) && !(await prisma.workspace.findUnique({ where: { id: ownWs } })).complimentaryPlan, ownMsg);
+await admin.check("[data-testid=comp-own] input");
+await admin.click("[data-testid=comp-form] button:text-is('Save')");
+await admin.waitForSelector("text=Solo free of charge");
+ok("own business: given once the box is ticked", (await prisma.workspace.findUnique({ where: { id: ownWs } })).complimentaryPlan === "SOLO");
+await open("/support/accounts");
+await admin.click(`li:has-text("${ADMIN}") [data-testid=end-comp]`);
+const ending = await admin.waitForSelector("[data-testid=comp-ending]", { timeout: 15000 }).then((e) => e.textContent()).catch(() => "");
+ok("End: says whose plan it ends and what's left to do", /^Ending .+'s Solo: add a reason and press Save\.$/.test(ending.trim()) && (await admin.inputValue("[data-testid=comp-form] select")) === "FREE", ending);
+ok("End: the reason box has the cursor", await admin.evaluate(() => document.activeElement?.getAttribute("name") === "reason"));
+await admin.fill('[data-testid=comp-form] textarea[name="reason"]', "Done trying it");
+await admin.click("[data-testid=comp-form] button:text-is('Save')");
+await admin.waitForSelector("text=back on the Free plan");
+ok("own business: ended again", !(await prisma.workspace.findUnique({ where: { id: ownWs } })).complimentaryPlan);
 
 // =====================================================================================================
 // The support log

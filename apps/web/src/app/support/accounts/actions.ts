@@ -14,7 +14,8 @@ import { teamPath } from "@/lib/teamLink";
 import { videosUsed } from "@/lib/videoAllowance";
 import { currentSubscription } from "@/lib/subscription";
 
-export type CompResult = { ok: boolean; message: string } | null;
+/** `own`: refused because it's the support person's own business; the form then offers a box to go ahead anyway (P19). */
+export type CompResult = { ok: boolean; message: string; own?: boolean } | null;
 
 /** The internal reason every change needs, for the support log. */
 const reasonIn = (form: FormData) => String(form.get("reason") ?? "").trim();
@@ -24,6 +25,16 @@ const tellOwner = (form: FormData, ws: { deleteAt: Date | null; closedAt: Date |
 
 /** The support agent, for the support log. */
 const agentOf = (session: { user?: { id?: string | null; email?: string | null } } | null) => ({ userId: session?.user?.id ?? "", email: session?.user?.email ?? "" });
+
+/**
+ * Support giving its own business a free plan or AI is refused the first time, with a box to tick to go ahead (a test,
+ * say), so it isn't done by mistake (P19).
+ */
+function ownWorkspace(session: { user?: { id?: string | null } } | null, owner: { userId: string; workspace: { name: string } }, form?: FormData): CompResult {
+  if (owner.userId !== session?.user?.id) return null;
+  if (form?.get("own") === "on") return null;
+  return { ok: false, own: true, message: `${owner.workspace.name} is your own business (you're signed in as its owner). Tick "Yes, my own business" and save again if that's what you meant.` };
+}
 
 /** Gives (or takes back) a free paid plan on the workspace an email address owns. */
 export async function setComplimentary(_prev: CompResult, form: FormData): Promise<CompResult> {
@@ -42,6 +53,12 @@ export async function setComplimentary(_prev: CompResult, form: FormData): Promi
   // A subscription Stripe no longer has (say one from test mode) is cleared here, not counted as paying.
   const ws = (await currentSubscription(owner.workspace)) ? owner.workspace : await db.workspace.findUniqueOrThrow({ where: { id: owner.workspaceId } });
   if (ws.stripeSubscriptionId) return { ok: false, message: `${ws.name} already pays for ${PLANS[ws.plan].name}, so nothing was changed.` };
+  // Nothing to change: never logged, and never emailed as if something ended or started (P18).
+  if (plan === "FREE" && !ws.complimentaryPlan && ws.plan === "FREE") return { ok: false, message: `${ws.name} isn't on a complimentary plan, so nothing was changed.` };
+  if (plan !== "FREE" && ws.complimentaryPlan === plan && ws.plan === plan) return { ok: false, message: `${ws.name} already has ${PLANS[plan].name} free of charge, so nothing was changed.` };
+  // Ending one needs no second thought; giving one to support's own business does.
+  const own = plan === "FREE" ? null : ownWorkspace(session, owner, form);
+  if (own) return own;
 
   const row = await db.$transaction(async (tx) => {
     const after = await tx.workspace.update({
@@ -65,6 +82,8 @@ export async function setComplimentary(_prev: CompResult, form: FormData): Promi
   if (tellOwner(form, ws)) {
     const limit = PLANS.FREE.maxVideos!;
     const { used } = plan === "FREE" ? await videosUsed(ws.id) : { used: 0 };
+    // Ending the plan ends the free AI summaries with it: said in this one email, so no second one follows (P23).
+    const aiEnded = plan === "FREE" && ws.aiAssistComplimentary;
     await sendNotice(
       row.id,
       email,
@@ -72,7 +91,7 @@ export async function setComplimentary(_prev: CompResult, form: FormData): Promi
         subject: plan === "FREE" ? `Your free ${BRAND.name} plan has ended` : `You have the ${PLANS[plan].name} plan free of charge`,
         lead:
           plan === "FREE"
-            ? `The ${PLANS[ws.plan].name} plan ${BRAND.name} gave ${ws.name} free of charge has ended, so it's now on the Free plan.`
+            ? `The ${PLANS[ws.plan].name} plan ${BRAND.name} gave ${ws.name} free of charge has ended${aiEnded ? ", and so have the free AI transcripts and summaries that came with it" : ""}, so it's now on the Free plan.`
             : `${BRAND.name} has given ${ws.name} the ${PLANS[plan].name} plan free of charge. It was on ${PLANS[ws.plan].name} before.`,
         lines:
           plan === "FREE"
@@ -111,6 +130,11 @@ export async function setComplimentaryAi(_prev: CompResult, form: FormData): Pro
   const ws = (await currentSubscription(owner.workspace)) ? owner.workspace : await db.workspace.findUniqueOrThrow({ where: { id: owner.workspaceId } });
   if (ws.stripeSubscriptionId) return { ok: false, message: `${ws.name} pays by card, so they can add AI summaries in Settings > Billing. Nothing was changed.` };
   if (on && !ws.complimentaryPlan) return { ok: false, message: `Give ${ws.name} a free paid plan first. AI summaries aren't available on Free.` };
+  // Nothing to change: not logged or emailed (P23: ending a free plan already ended its AI summaries, and said so).
+  if (!on && !ws.aiAssistComplimentary) return { ok: false, message: `${ws.name} doesn't have free AI summaries, so they're already off and nothing was changed.` };
+  if (on && ws.aiAssistComplimentary && ws.aiAssist) return { ok: false, message: `${ws.name} already has AI summaries free of charge, switched on, so nothing was changed.` };
+  const own = on ? ownWorkspace(session, owner, form) : null;
+  if (own) return own;
 
   const row = await db.$transaction(async (tx) => {
     await tx.workspace.update({ where: { id: ws.id }, data: { aiAssistComplimentary: on, aiAssist: on } });
