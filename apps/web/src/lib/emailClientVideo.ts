@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { contactOf } from "@/lib/clientContact";
 import { clientBlock } from "@/lib/access";
 import { brandOf } from "@/lib/branding";
 import { clientLink } from "@/lib/clients";
@@ -64,7 +65,7 @@ async function clientVideoEmail(videoId: string): Promise<Mail | NotSent> {
   // A former team member's recording comes from the business itself (lib/team.ts senderName).
   return {
     to: c.email,
-    ...newVideoEmail({ business: ws.name, sender: video.formerStaffAt ? null : video.owner?.name, clientName: c.name, link: clientLink(c.token, video.id), title: video.title, durationMs: video.durationMs, logoUrl: brand.logoUrl, color: brand.color, unsubscribe: unsubscribeUrl(c.id), noReply: !replyTo }),
+    ...newVideoEmail({ business: ws.name, sender: video.formerStaffAt ? null : video.owner?.name, clientName: c.name, link: clientLink(c.token, video.id), title: video.title, durationMs: video.durationMs, logoUrl: brand.logoUrl, color: brand.color, unsubscribe: unsubscribeUrl(c.id), noReply: !replyTo, contact: contactOf(ws) }),
     fromName: ws.name,
     replyTo,
   };

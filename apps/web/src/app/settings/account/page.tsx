@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import AppHeader from "@/components/AppHeader";
 import ShowRecoveryKey from "@/components/ShowRecoveryKey";
+import BusinessTimeZone from "@/components/BusinessTimeZone";
 import DeleteAccountButton from "@/components/DeleteAccountButton";
 import ManageBillingButton from "@/components/ManageBillingButton";
 import MyEmailPrefs from "@/components/MyEmailPrefs";
@@ -196,6 +197,9 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
           {saved === "name" && <p role="status" className="mt-2 text-sm text-ok-fg">Saved.</p>}
           {error === "name" && <p className="mt-2 text-sm text-danger-fg">Enter your name.</p>}
         </section>}
+
+        {/* The business's time zone lives here (Decision 13); To-dos/Reminders links to it. */}
+        {!limited && <BusinessTimeZone business={workspace.name} timezone={workspace.timezone} canEdit={role !== "MEMBER"} />}
 
         {!onTeam && !limited && role === "OWNER" && (
           <section id="emails" className="mt-6 rounded-2xl border border-line bg-surface p-6">

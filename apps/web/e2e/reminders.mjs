@@ -45,25 +45,46 @@ await pro.fill('input[name="email"]', loginEmail);
 await pro.click("text=Continue");
 await pro.waitForURL("**/todos?tab=reminders");
 
-// 1. Settings, with a live preview of the email
+// 1. Settings. Decision 13: the time zone is on Settings > Account, the reply-to and personal message on Settings >
+// Branding (Client emails); To-dos/Reminders keeps the default reminders and the email preview, and links to both.
+ok("Reminders: the time zone is shown, with a link to Account", (await pro.getAttribute("[data-testid=reminders-time-zone] a", "href")) === "/settings/account#time-zone");
+ok("Reminders: the reply-to and message link to Branding, Client emails", (await pro.getAttribute("[data-testid=reminders-client-emails] a", "href")) === "/settings/branding#client-emails");
+ok("Reminders: no second time zone or reply-to control (moved, not copied)", (await pro.locator('select[aria-label="Time zone"]').count()) === 0 && (await pro.locator('input[aria-label="Reply-to email"]').count()) === 0 && (await pro.locator('textarea[aria-label="Personal message"]').count()) === 0);
+await pro.click("[data-testid=reminders-time-zone] a");
+await pro.waitForURL("**/settings/account**");
+await pro.waitForSelector("[data-testid=business-time-zone]");
 await pro.waitForFunction((tz) => document.querySelector('select[aria-label="Time zone"]')?.value === tz, TZ, { timeout: 5000 }).catch(() => {});
-ok("time zone picked up from the browser", (await pro.inputValue('select[aria-label="Time zone"]')) === TZ);
+ok("Account: time zone picked up from the browser", (await pro.inputValue('select[aria-label="Time zone"]')) === TZ);
 // The list can be searched, one match is picked, and one button goes back to the device's zone.
 await pro.fill("[data-testid=tz-search]", "Reykjavik");
 ok("searching a city picks its time zone", (await pro.inputValue('select[aria-label="Time zone"]')) === "Atlantic/Reykjavik" && /GMT/.test(await pro.textContent('select[aria-label="Time zone"] option:checked')));
 await pro.click("[data-testid=tz-device]");
 ok("Use my device's time zone goes back to it", (await pro.inputValue('select[aria-label="Time zone"]')) === TZ && (await pro.locator("[data-testid=tz-is-device]").count()) === 1);
 await pro.fill("[data-testid=tz-search]", "");
+// A business still without one saves the device's; one that has it already says so with Save off.
+if (!(await pro.isDisabled("text=Save time zone"))) {
+  await pro.click("text=Save time zone");
+  await pro.waitForSelector("[data-testid=business-time-zone] >> role=status >> text=Saved");
+}
 // The business name lives in Settings > Branding (any plan); Reminders shows it and links there.
+await pro.goto(BASE + "/settings/reminders");
 ok("Reminders links to Branding for the business name", (await pro.getAttribute("[data-testid=reminders-business] a", "href")) === "/settings/branding");
 await pro.goto(BASE + "/settings/branding");
 await pro.fill('[data-testid=business-name-form] input[aria-label="Business name"]', "Peak Fitness");
 await pro.click("text=Save name");
-await pro.waitForSelector("role=status >> text=Saved");
+await pro.waitForSelector("[data-testid=business-name-form] >> role=status >> text=Saved");
+await pro.fill('[data-testid=client-emails] input[aria-label="Reply-to email"]', "coach@peak.com");
+await pro.fill('[data-testid=client-emails] textarea[aria-label="Personal message"]', "Reply here if you need to reschedule.");
+await pro.click("text=Save client emails");
+await pro.waitForSelector("[data-testid=client-emails] >> role=status >> text=Saved");
+// Decision 5: the contact line goes into the client's reminder email too.
+await pro.fill('input[aria-label="Contact phone"]', "+61 7 3000 0000");
+await pro.click("text=Save contact details");
+await pro.waitForSelector("[data-testid=client-contact-form] >> role=status >> text=Saved");
 await pro.goto(BASE + "/settings/reminders");
 await pro.waitForSelector("[data-testid=reminders-business] >> text=Peak Fitness");
-await pro.fill('input[aria-label="Reply-to email"]', "coach@peak.com");
-await pro.fill('textarea[aria-label="Personal message"]', "Reply here if you need to reschedule.");
+ok("Reminders shows the reply-to set on Branding", (await pro.textContent("[data-testid=reminders-client-emails]")).includes("coach@peak.com"));
+ok("Reminders shows the time zone set on Account", (await pro.textContent("[data-testid=reminders-time-zone]")).includes(TZ.replace(/_/g, " ")));
 await pro.click("role=group[name='Reminders'] >> text=1 week before");
 ok("preview shows business name", (await pro.textContent("[data-testid=preview-subject]")).includes("Reminder from Peak Fitness"));
 ok("preview: from the business via SureFrame, as the real email", (await pro.textContent("[data-testid=preview-from]")).trim() === "From: Peak Fitness via SureFrame");
@@ -71,6 +92,7 @@ ok("preview shows personal message", (await pro.textContent("[data-testid=previe
 await pro.click("text=Save changes");
 await pro.waitForSelector("role=status >> text=Saved");
 ok("settings saved", sql(`select name || '|' || timezone || '|' || "reminderReplyTo" from "Workspace" w join "Membership" m on m."workspaceId"=w.id order by w."createdAt" desc limit 1`) === `Peak Fitness|${TZ}|coach@peak.com`);
+ok("saving reminders leaves the moved settings alone", sql(`select "reminderMessage" from "Workspace" w join "Membership" m on m."workspaceId"=w.id order by w."createdAt" desc limit 1`) === "Reply here if you need to reschedule.");
 await pro.screenshot({ path: `${shots}/reminder-settings.png`, fullPage: true });
 
 // 2. A client with an email
@@ -119,6 +141,7 @@ const [mail] = mailTo("riley@example.com");
 ok("email went to the client", mail?.to === "riley@example.com");
 ok("email from the business, reply-to set", mail?.from.startsWith("Peak Fitness via SureFrame <") && mail?.replyTo === "coach@peak.com");
 ok("email has the personal message and opt-out link", mail?.text.includes("Reply here if you need to reschedule.") && mail?.text.includes("/reminders/off?c="));
+ok("email has the business's contact line (Decision 5)", mail?.text.includes("Contact Peak Fitness on +61 7 3000 0000.") && mail?.html.includes("Contact Peak Fitness on +61 7 3000 0000."), mail?.text);
 ok("email never contains the to-do text", !JSON.stringify(mail).includes("weekly check-in"));
 console.log("   subject:", mail?.subject);
 ok("running again sends nothing new", (await cron()).body?.sent === 0);

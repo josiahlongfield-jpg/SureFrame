@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { scheduleReminders } from "@/lib/reminders";
 import { isTimeZone } from "@/lib/schedule";
 import { ReminderRules } from "@/lib/scheduleSchema";
+import { ContactFields, tidyContact } from "@/lib/clientContact";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
 
 const Body = z.object({
@@ -13,9 +14,11 @@ const Body = z.object({
   remindTeamDefault: z.boolean().optional(),
   reminderMessage: z.string().max(500).optional(),
   reminderReplyTo: z.union([z.string().email().max(200), z.literal("")]).optional(),
+  // The contact line clients see (Settings > Branding, lib/clientContact.ts). Blank clears it.
+  ...ContactFields,
 });
 
-/** Business name and reminder settings. */
+/** Business name, time zone (Settings > Account), client emails and contact line (Settings > Branding) and reminder settings. */
 export const PATCH = handle(async (req: Request) => {
   const me = await requireUser();
   requireRole(me, "OWNER", "ADMIN");
@@ -33,6 +36,8 @@ export const PATCH = handle(async (req: Request) => {
       remindTeamDefault: d.remindTeamDefault,
       reminderMessage: d.reminderMessage === undefined ? undefined : d.reminderMessage.trim() || null,
       reminderReplyTo: d.reminderReplyTo === undefined ? undefined : d.reminderReplyTo || null,
+      contactEmail: tidyContact(d.contactEmail),
+      contactPhone: tidyContact(d.contactPhone),
     },
   });
   // A new time zone moves every upcoming reminder to the right local time.
@@ -40,5 +45,5 @@ export const PATCH = handle(async (req: Request) => {
     const open = await db.item.findMany({ where: { workspaceId: workspace.id, done: false, dueAt: { gt: new Date() } } });
     for (const item of open) await scheduleReminders(item, d.timezone);
   }
-  return Response.json({ ok: true, name: updated.name });
+  return Response.json({ ok: true, name: updated.name, contactEmail: updated.contactEmail, contactPhone: updated.contactPhone });
 });

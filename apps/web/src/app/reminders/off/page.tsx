@@ -6,6 +6,8 @@ import { brandOf, brandStyle } from "@/lib/branding";
 import { db } from "@/lib/db";
 import { validUnsubscribe } from "@/lib/reminders";
 import { clientHelpLimitText } from "@/lib/support/clientHelp";
+import ClientContactLine from "@/components/ClientContactLine";
+import { contactOf } from "@/lib/clientContact";
 
 export const metadata: Metadata = { title: "Email reminders" };
 
@@ -21,7 +23,7 @@ export default async function RemindersOff({ searchParams }: { searchParams: Pro
   const client = ok
     ? await db.client.findUnique({
         where: { id: c },
-        include: { workspace: { select: { id: true, name: true, plan: true, brandColor: true, brandLogoType: true, brandVersion: true } } },
+        include: { workspace: { select: { id: true, name: true, plan: true, brandColor: true, brandLogoType: true, brandVersion: true, contactEmail: true, contactPhone: true } } },
       })
     : null;
   const back = `/reminders/off?c=${encodeURIComponent(c ?? "")}&s=${encodeURIComponent(s ?? "")}`;
@@ -44,7 +46,7 @@ export default async function RemindersOff({ searchParams }: { searchParams: Pro
   const name = client?.workspace.name;
   return (
     <div data-theme="fresh" className="flex min-h-screen flex-col bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
-      <ClientHeader brand={brand} allVideosLink help={client && s ? { for: [{ clientId: client.id, business: client.workspace.name, s, limits: clientHelpLimitText(client.workspace.plan) }], page: "emails" } : undefined} />
+      <ClientHeader brand={brand} allVideosLink help={client && s ? { for: [{ clientId: client.id, business: client.workspace.name, s, limits: clientHelpLimitText(client.workspace.plan), contact: contactOf(client.workspace) }], page: "emails" } : undefined} />
       <main className="mx-auto w-full max-w-xl flex-1 px-4 py-16 text-center">
         {!client ? (
           <p className="text-muted">This link isn&apos;t valid. Use the link from your most recent reminder email.</p>
@@ -75,6 +77,7 @@ export default async function RemindersOff({ searchParams }: { searchParams: Pro
             </form>
           </>
         )}
+        {client && <ClientContactLine business={client.workspace.name} contact={contactOf(client.workspace)} className="mt-8" />}
       </main>
       <MadeWith />
     </div>

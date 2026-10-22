@@ -1,5 +1,6 @@
 import { localParts } from "@/lib/schedule";
 import { EMAIL, emailButton, emailColors, emailLogo, emailShell, esc } from "@/lib/emailLook";
+import { clientEmailContact, type ClientContact } from "@/lib/clientContact";
 
 /**
  * The reminder email. Pure, so the settings page can show a live preview.
@@ -23,6 +24,8 @@ export function reminderEmail(o: {
   color?: string | null;
   /** No reply-to is set, so replies would go nowhere: say so. */
   noReply?: boolean;
+  /** The business's contact line for its clients (Settings > Branding), if it set one. */
+  contact?: ClientContact | null;
 }) {
   const when = dueText(o.due, o.now ?? new Date(), o.tz);
   // The time is the business's; say whose, since a client or staff member may be in another zone.
@@ -35,12 +38,13 @@ export function reminderEmail(o: {
     ? `You have a to-do from ${o.business} due ${whenZoned}.`
     : o.clientName ? `A to-do on ${o.clientName}'s list is due ${whenZoned}.` : `A to-do on your list is due ${whenZoned}.`;
   const message = o.team ? "" : o.message?.trim();
+  const reach = o.team ? null : clientEmailContact(o.business, o.contact, o.noReply);
   const text = [
     lead,
     message ? `\n${message}` : "",
     `\nOpen your list: ${o.link}`,
     "\nFor privacy, the details are only shown in the app.",
-    o.noReply ? `\nPlease don't reply to this email; contact ${o.business} directly.` : "",
+    reach ? `\n${reach}` : "",
     o.unsubscribe ? `\nStop emails from ${o.business}: ${o.unsubscribe}` : "",
     "\nSent with SureFrame",
   ].join("\n");
@@ -52,7 +56,7 @@ ${o.team ? `<p style="font-size:13px;font-weight:600;color:${EMAIL.muted};margin
 ${message ? `<p style="font-size:15px;line-height:1.5;white-space:pre-wrap;margin:0 0 16px;color:${EMAIL.body}">${esc(message)}</p>` : ""}
 ${emailButton(o.link, "Open your list", colors)}
 <p style="font-size:12px;color:${EMAIL.muted};margin:0">For privacy, the details are only shown in the app.</p>
-${o.noReply ? `<p style="font-size:12px;color:${EMAIL.muted};margin:8px 0 0">Please don&#39;t reply to this email; contact ${esc(o.business)} directly.</p>` : ""}
+${reach ? `<p style="font-size:12px;color:${EMAIL.muted};margin:8px 0 0">${esc(reach)}</p>` : ""}
 ${o.unsubscribe ? `<p style="font-size:12px;color:${EMAIL.muted};margin:8px 0 0"><a href="${esc(o.unsubscribe)}" style="color:${link}">Stop emails from ${esc(o.business)}</a></p>` : ""}`, undefined, colors.fill);
   return { subject, text, html, when };
 }

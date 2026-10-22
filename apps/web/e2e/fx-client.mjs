@@ -69,6 +69,8 @@ await owner.reload();
 await owner.waitForSelector("textarea[aria-label='Video title']", { timeout: 20000 });
 
 ok("after Stop: says it's saved and what's next", (await owner.textContent("[data-testid=just-saved]")).includes("Saved. Give it a title and choose who it's for below."));
+// Decision 10: after Stop, the title box says what clients see until it has a title.
+ok("after Stop: clients see 'A video from Business A' until it has a title (Decision 10)", (await owner.textContent("[data-testid=title-client-sees]").catch(() => "")).includes("A video from Business A"));
 
 // Not sent yet: no reactions, and no "be the first" prompt.
 ok("unsent video: no reactions", (await owner.locator("[data-testid=reactions]").count()) === 0);
@@ -173,6 +175,46 @@ ok("How this works: no '#k=' for clients (C47)", !how.includes("#k=") && how.inc
 ok("client: the page says who it's for (S17)", (await phone.textContent("[data-testid=video-for]")) === "For Client A");
 ok("client: download names the business and title", (await phone.getAttribute("a:has-text('Save to device')", "download"))?.startsWith("Business A - Week 1 plan"));
 ok("no floating button over the video, title or reactions", !(await phone.isVisible("[data-testid=chat-bubble]")));
+
+// Decision 10: an untitled video (still the date-made default) reads "A video from Business A" to the client, on the
+// page, in the tab and in All my videos. The team still sees the date-made title.
+const realTitle = (await prisma.video.findUnique({ where: { id: videoId } })).title;
+await prisma.video.update({ where: { id: videoId }, data: { title: "Recording Oct 22, 2026, 3:26 PM" } });
+await phone.reload();
+await phone.waitForSelector("[data-testid=video-title]", { timeout: 20000 });
+ok("untitled: the client's heading is 'A video from Business A' (Decision 10)", (await phone.textContent("[data-testid=video-title]")) === "A video from Business A");
+ok("untitled: the date it was sent still shows under it", / · \w{3} \d{1,2}, \d{4}/.test(await phone.textContent("[data-testid=video-meta]")), await phone.textContent("[data-testid=video-meta]"));
+ok("untitled: the tab says it once", (await phone.title()) === "A video from Business A", await phone.title());
+ok("untitled: the date-made title isn't on the client's page", !(await phone.textContent("main")).includes("Recording Oct 22"));
+await phone.goto(`${BASE}/inbox`);
+await phone.waitForSelector("[data-testid=inbox-for]", { timeout: 20000 });
+ok("untitled: All my videos lists it as 'A video from Business A'", (await phone.textContent("main")).includes("A video from Business A") && !(await phone.textContent("main")).includes("Recording Oct 22"));
+await owner.goto(`${BASE}/library`);
+ok("untitled: the team's library still shows the date-made title", !!(await owner.waitForSelector("main >> text=Recording Oct 22, 2026, 3:26 PM", { timeout: 15000 }).catch(() => null)));
+await owner.goto(`${BASE}/v/${videoId}`);
+await owner.waitForSelector("textarea[aria-label='Video title']", { timeout: 20000 });
+await prisma.video.update({ where: { id: videoId }, data: { title: realTitle } });
+
+// Decision 5: the business's optional contact line on its client's pages, a link each; nothing when blank.
+ok("contact line: none until the business sets one", (await phone.locator("[data-testid=client-contact]").count()) === 0);
+await prisma.workspace.update({ where: { id: ws }, data: { contactEmail: "hello@business-a.example", contactPhone: "+61 400 000 000" } });
+await phone.reload();
+await phone.waitForSelector("[data-testid=client-contact]", { timeout: 20000 });
+ok("contact line: under the business in All my videos", (await phone.textContent("[data-testid=client-contact]")).replace(/\s+/g, " ").trim() === "Contact Business A: hello@business-a.example · +61 400 000 000");
+ok("contact line: the email and phone are links", (await phone.getAttribute("[data-testid=client-contact-email]", "href")) === "mailto:hello@business-a.example" && (await phone.getAttribute("[data-testid=client-contact-phone]", "href")) === "tel:+61400000000");
+ok("contact line: All my videos fits 320px", await fits(phone));
+await phone.goto(`${BASE}/v/${videoId}`);
+await phone.waitForSelector("main [data-testid=client-contact]", { timeout: 20000 });
+ok("contact line: on the video page too", (await phone.textContent("main [data-testid=client-contact]")).includes("hello@business-a.example"));
+ok("contact line: the video page fits 320px", await fits(phone));
+await prisma.workspace.update({ where: { id: ws }, data: { contactEmail: null, contactPhone: "0400 000 000" } });
+await phone.reload();
+await phone.waitForSelector("main [data-testid=client-contact]", { timeout: 20000 });
+ok("contact line: phone only", (await phone.textContent("main [data-testid=client-contact]")).replace(/\s+/g, " ").trim() === "Contact Business A: 0400 000 000");
+await prisma.workspace.update({ where: { id: ws }, data: { contactEmail: null, contactPhone: null } });
+await phone.reload();
+await phone.waitForSelector("[data-testid=video-title]", { timeout: 20000 });
+ok("contact line: blank shows nothing", (await phone.locator("[data-testid=client-contact]").count()) === 0);
 ok("the reply card is in the page, right under the reactions", await phone.isVisible("[data-testid=chat-inline] >> text=Reply to Business A"));
 ok("client page fits 320px", await fits(phone));
 await phone.screenshot({ path: `${shots}/client-320.png`, fullPage: true });

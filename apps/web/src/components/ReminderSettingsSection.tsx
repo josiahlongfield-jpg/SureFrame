@@ -34,8 +34,8 @@ export default function ReminderSettingsSection({ workspace, role, membership }:
       ) : (
         <>
           <p className="mt-1 text-sm text-dim">
-            Choose how your business appears in reminder emails and which reminders new to-dos start with. You can still change them on any to-do. Staff can set their own defaults, message and
-            reply-to for the clients they look after; where they don&apos;t, these apply.
+            Choose which reminders new to-dos start with. You can still change them on any to-do. The time zone is on Settings &gt; Account, and the reply-to email and personal
+            message on Settings &gt; Branding, Client emails. Staff can set their own defaults, message and reply-to for the clients they look after; where they don&apos;t, the business&apos;s apply.
           </p>
           <ReminderSettings
             initial={{

@@ -22,6 +22,9 @@ import { askForLink } from "@/lib/askForLink";
 import { replacedLinks } from "@/lib/replacedLinks";
 import { keyHeldCookie } from "@/lib/e2e/keyHeld";
 import { helpForDevice } from "@/lib/support/clientHelp";
+import ClientContactLine from "@/components/ClientContactLine";
+import { contactOf } from "@/lib/clientContact";
+import { clientTitle } from "@/lib/videoTitle";
 import { senderName } from "@/lib/team";
 import ClientVideos from "@/components/ClientVideos";
 import { LibraryViewSwitch } from "@/components/LibraryTools";
@@ -77,7 +80,7 @@ export default async function Inbox({
         db.client.findMany({
           where: { token: { in: tokens }, ...usableClientWhere },
         include: {
-          workspace: { select: { id: true, name: true, plan: true, brandColor: true, brandLogoType: true, brandVersion: true, aiAssist: true, timezone: true } },
+          workspace: { select: { id: true, name: true, plan: true, brandColor: true, brandLogoType: true, brandVersion: true, aiAssist: true, timezone: true, contactEmail: true, contactPhone: true } },
           videos: {
             where: { replyToId: null, status: { not: "RECORDING" } },
             orderBy: { createdAt: "desc" },
@@ -304,6 +307,8 @@ export default async function Inbox({
                   <h2 className="text-sm font-semibold uppercase tracking-wide text-dim">From {c.workspace.name}</h2>
                   {/* Whose videos these are, so the page is plainly theirs (S17). */}
                   <p className="text-sm text-muted" data-testid="inbox-for">For {c.name}</p>
+                  {/* How to reach the business, when it set a contact line (Decision 5). */}
+                  <ClientContactLine business={c.workspace.name} contact={contactOf(c.workspace)} className="mt-0.5" />
                 </div>
                 <ForgetDevice clientId={c.id} business={c.workspace.name} workspaceId={c.workspaceId} forget={forget.bind(null, c.workspaceId, c.id)} />
               </div>
@@ -318,7 +323,8 @@ export default async function Inbox({
                     layout={layout}
                     videos={c.videos.map((v) => ({
                       id: v.id,
-                      title: v.title,
+                      // "A video from Business A" until it has a real title, never the date-made default (Decision 10).
+                      title: clientTitle(v.title, c.workspace.name),
                       // Grouped and dated by when it reached them, not when it was recorded.
                       createdAt: v.sentAt ?? v.createdAt,
                       durationMs: v.durationMs,

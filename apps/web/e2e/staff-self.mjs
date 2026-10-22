@@ -123,6 +123,9 @@ ok("owners use the business settings, not personal ones", (await status(owner.re
 await amy.goto(BASE + "/settings/account");
 const replyBox = '[role=switch][aria-labelledby="reply-emails-label"]';
 await amy.waitForSelector(replyBox);
+// Decision 13: the business's time zone is on Account; staff see it there but can't change it.
+ok("Account: staff see the business's time zone, read-only (Decision 13)", (await amy.textContent("[data-testid=business-time-zone-value]")).includes("Australia/Sydney") && (await amy.locator('[data-testid=business-time-zone] select').count()) === 0);
+ok("Reminders: her own settings point to Account for the time zone", page1.includes("An owner or admin sets it on Settings > Account"));
 ok("reply emails are a switch, named by its words (S56)", (await amy.getByRole("switch", { name: "Email me when my clients reply" }).count()) === 1);
 ok("reply emails start on", (await amy.getAttribute(replyBox, "aria-checked")) === "true" && (await amy.textContent("[data-testid=reply-emails-state]")) === "On");
 await amy.click(replyBox);

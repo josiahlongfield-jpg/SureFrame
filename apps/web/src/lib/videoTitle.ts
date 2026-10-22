@@ -14,3 +14,12 @@ export function videoLabel(title: string | null | undefined, recorded: Date, day
   const t = title?.trim();
   return t && !isDefaultTitle(t) ? `\u201c${t}\u201d` : `the video recorded ${day(recorded)}`;
 }
+
+/**
+ * What a client sees as a video's title (Decision 10): its title once it has been given one, else "A video from
+ * Business A" (never the date-made "Recording Oct 22, 2026, 3:26 PM"). The team still sees the title as it is.
+ */
+export function clientTitle(title: string | null | undefined, business: string) {
+  const t = title?.trim();
+  return t && !isDefaultTitle(t) ? t : `A video from ${business}`;
+}

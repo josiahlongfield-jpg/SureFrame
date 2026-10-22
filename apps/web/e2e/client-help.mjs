@@ -132,6 +132,17 @@ await prisma.client.update({ where: { id: clientA.id }, data: { assignedToId: nu
 const broke = await ask(phone, "explode please");
 ok("AI failure: still names the business", broke === `Sorry, I hit a problem answering that. Please contact ${nameA} at replies-a${stamp}@example.com.`, broke);
 
+// Decision 5: the contact line the business set on Branding comes first in the can't-answer and error replies,
+// beside the Reply button; and the page shows it too.
+await prisma.workspace.update({ where: { id: wsA.id }, data: { contactEmail: `hello-a${stamp}@example.com`, contactPhone: "+61 400 000 000" } });
+const viaContact = await ask(phone, "Can I move my appointment to Friday?");
+ok("can't help: names the business's contact line (Decision 5)", viaContact === `I can't help with that one. Please contact ${nameA} at hello-a${stamp}@example.com or on +61 400 000 000.`, viaContact);
+const brokeContact = await ask(phone, "explode again please");
+ok("AI failure: names the contact line too", brokeContact === `Sorry, I hit a problem answering that. Please contact ${nameA} at hello-a${stamp}@example.com or on +61 400 000 000.`, brokeContact);
+ok("the contact line isn't sent to the AI", !JSON.stringify(requests.at(-1).body).includes("hello-a") && !JSON.stringify(requests.at(-1).body).includes("400 000 000"));
+ok("with the contact line, the panel still fits 320px", await fits(phone));
+await prisma.workspace.update({ where: { id: wsA.id }, data: { contactEmail: null, contactPhone: null } });
+
 await phone.keyboard.press("Escape");
 ok("Escape closes the panel", (await phone.locator("[data-testid=client-help-panel]").count()) === 0);
 ok("focus goes back to Help", await phone.evaluate(() => document.activeElement?.getAttribute("data-testid") === "client-help-button"));
@@ -145,8 +156,8 @@ ok("nothing emailed to the support inbox (or anyone)", outbox().slice(mailsBefor
 
 // ---------- What's recorded: the question and the business, nothing else ----------
 const rows = await prisma.clientQuestion.findMany({ where: { workspaceId: wsA.id }, orderBy: { createdAt: "asc" } });
-ok("each question recorded", rows.length === 5, String(rows.length));
-ok("outcomes recorded", rows.map((r) => r.outcome).join() === "ANSWERED,CANT_HELP,ANSWERED,CANT_HELP,FAILED", rows.map((r) => r.outcome).join());
+ok("each question recorded", rows.length === 7, String(rows.length));
+ok("outcomes recorded", rows.map((r) => r.outcome).join() === "ANSWERED,CANT_HELP,ANSWERED,CANT_HELP,FAILED,CANT_HELP,FAILED", rows.map((r) => r.outcome).join());
 ok("only the typed text and the page", rows[1].question === "Can you sort out my tax?" && rows[1].page === "video" && !("clientId" in rows[1]));
 
 // ---------- The inbox, with two businesses on this device ----------

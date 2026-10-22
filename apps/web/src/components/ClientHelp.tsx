@@ -3,13 +3,16 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { HelpPage } from "@/lib/support/clientHelp";
+import { contactWords, type ClientContact } from "@/lib/clientContact";
+import ClientContactLine from "./ClientContactLine";
 
 /**
  * A business whose link this device (or this email link) has, and the proof the help chat checks. `limits` is how
  * many questions the panel says can be asked (lib/support/clientHelp.ts); `reply` is the video whose reply box the
- * "Reply to …" button opens, and who it's to, where the client can reply from here.
+ * "Reply to …" button opens, and who it's to, where the client can reply from here. `contact` is the business's own
+ * contact line (Settings > Branding, Decision 5), shown beside it when the chat can't answer.
  */
-export type HelpFor = { clientId: string; business: string; s?: string; limits?: string; reply?: { videoId: string; to: string } };
+export type HelpFor = { clientId: string; business: string; s?: string; limits?: string; reply?: { videoId: string; to: string }; contact?: ClientContact | null };
 
 /** WatchView listens for this and opens its reply box (the sheet on a phone), as its own "Reply to …" button does. */
 export const OPEN_REPLY_EVENT = "sureframe:open-reply";
@@ -184,7 +187,7 @@ export default function ClientHelp({ for: businesses, page, videoId }: { for: He
             text={
               replyButton
                 ? `Hi! Ask me how to watch, reply or use these pages. I can't answer questions about ${about.business} itself, like its services or appointments. For those, I'll give you a button to reply to ${about.business}.`
-                : `Hi! Ask me how to watch, reply or use these pages. I can't answer questions about ${about.business} itself, like its services or appointments. For those, please contact ${about.business} directly.`
+                : `Hi! Ask me how to watch, reply or use these pages. I can't answer questions about ${about.business} itself, like its services or appointments. For those, please contact ${about.business} ${about.contact ? contactWords(about.contact) : "directly"}.`
             }
           />
           {turns.map((t, i) => (
@@ -232,6 +235,10 @@ export default function ClientHelp({ for: businesses, page, videoId }: { for: He
                 {error}
               </p>
               {replyButton}
+              {/* An error from this browser (not the chat's own answer, which names it already): the business's contact line too. */}
+              {about.contact && ![about.contact.email, about.contact.phone].some((c) => c && error.includes(c)) && (
+                <ClientContactLine business={about.business} contact={about.contact} className="mt-1.5" />
+              )}
             </div>
           )}
           {about.limits && (
