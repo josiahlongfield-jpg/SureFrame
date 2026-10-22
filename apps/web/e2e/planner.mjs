@@ -50,7 +50,9 @@ await pro.waitForSelector('li:has-text("Send your weekly check-in")');
 
 ok("after adding, the share box is unticked again", !(await pro.isChecked("text=Share with Riley")));
 await pro.check("text=Share with Riley");
-await pro.click("role=tab[name='Note']");
+await pro.click("role=radio[name='Note']");
+// A choice, not tabs (O77): Note is checked and its box is there.
+ok("To-do/Note is a radio choice and Note shows the note box", (await pro.getAttribute("role=radio[name='Note']", "aria-checked")) === "true" && (await pro.isVisible('textarea[aria-label="New note"]')));
 ok("switching between To-do and Note unticks the share box", !(await pro.isChecked("text=Share with Riley")));
 ok("unticked says it's private", (await pro.textContent("[data-testid=share-choice]")).includes("Private: only your team will see this note") && (await pro.textContent("form >> button:has-text('Add')")) === "Add privately");
 await pro.check("text=Share with Riley");

@@ -116,6 +116,8 @@ export default function TeamKeyGate({
 
   async function recover(e: React.FormEvent) {
     e.preventDefault();
+    // Nothing typed yet: say what goes in the box, not that a key is wrong (S6).
+    if (!input.trim()) return setState({ kind: "recover", error: "Enter your recovery key: the letters and numbers you copied, downloaded or printed when it was shown to you. Spaces don't matter." });
     try {
       let key = await importKey(input.replace(/\s+/g, ""));
       if (fingerprint && (await keyFingerprint(key)) !== fingerprint) {

@@ -75,7 +75,9 @@ ok("doesn't open by itself", (await owner.getAttribute(toggle, "aria-expanded"))
 // The conversation sits beside the video on a computer, with no chat bubble.
 ok("1360px: conversation visible beside the video", await owner.isVisible("[data-testid=conversation]"));
 ok("1360px: no chat bubble", !(await owner.isVisible("[data-testid=chat-bubble]")));
-ok("1360px: larger-view button still there", await owner.isVisible("button[aria-label='Open conversation in a larger view']"));
+// An empty conversation has nothing more to show in a larger view (O68); the button comes with the first message.
+ok("1360px: no larger-view button while the conversation is empty", (await owner.locator("button[aria-label='Open conversation in a larger view']").count()) === 0);
+
 const sideBySide = await owner.evaluate(() => {
   const aside = document.querySelector("[data-testid=conversation]").getBoundingClientRect();
   const video = document.querySelector("main video").getBoundingClientRect();
@@ -109,6 +111,7 @@ const link = await owner.evaluate(() => navigator.clipboard.readText());
 await owner.fill('textarea[aria-label="Reply"]', "Have a look when you can");
 await owner.click("button:has-text('Send reply')");
 await owner.waitForSelector("aside ul >> text=Have a look when you can");
+ok("1360px: larger-view button there once it has a message", await owner.isVisible("button[aria-label='Open conversation in a larger view']"));
 
 // ---------- Client on a 390px phone ----------
 const phoneCtx = await browser.newContext({ permissions: ["camera", "microphone"], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });

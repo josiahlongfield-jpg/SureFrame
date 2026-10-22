@@ -316,13 +316,28 @@ export default function Planner({
       {note && <p className="mt-1 text-xs text-dim">{note}</p>}
       {role === "member" && (
         <form onSubmit={add} className="mt-4 grid gap-3">
-          <div role="tablist" aria-label="Item type" className="grid w-48 grid-cols-2 gap-1 rounded-lg bg-surface-2 p-1 text-xs">
+          {/* A choice of what to add, not tabs (O77): a radio group, with the arrow keys moving between the two. */}
+          <div
+            role="radiogroup"
+            aria-label="Add a to-do or a note"
+            className="grid w-48 grid-cols-2 gap-1 rounded-lg bg-surface-2 p-1 text-xs"
+            onKeyDown={(e) => {
+              if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+              e.preventDefault();
+              const next = kind === "TASK" ? "NOTE" : "TASK";
+              setShare(false);
+              setKind(next);
+              (e.currentTarget.querySelector(`[data-kind=${next}]`) as HTMLElement | null)?.focus();
+            }}
+          >
             {(["TASK", "NOTE"] as const).map((k) => (
               <button
                 key={k}
                 type="button"
-                role="tab"
-                aria-selected={kind === k}
+                role="radio"
+                aria-checked={kind === k}
+                tabIndex={kind === k ? 0 : -1}
+                data-kind={k}
                 onClick={() => {
                   if (k !== kind) setShare(false);
                   setKind(k);

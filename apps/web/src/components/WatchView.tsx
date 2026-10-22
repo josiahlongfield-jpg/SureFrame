@@ -696,6 +696,7 @@ function WatchBody({
       ? `Only ${recipient.name} and your team can see this conversation.`
       : "Not sent to a client yet. Anything you add here will be seen by the client you send this video to.";
   const isWebm = !video.mimeType.includes("mp4");
+  const saveName = `${fileName(business, title)}.${isWebm ? "webm" : "mp4"}`;
 
   const aiBox = ai && !expired && (
     <AiInsight
@@ -810,6 +811,8 @@ function WatchBody({
                   ) : titles.error ? (
                     <span className="font-medium text-danger-fg" role="alert" data-testid="title-error">{titles.error} </span>
                   ) : null}
+                  {/* The box saves itself (O29): no separate Save button is needed. */}
+                  <span data-testid="title-autosave">The title is saved as you type. </span>
                   Titles aren&apos;t encrypted, so keep private details in the video or your message.
                 </p>
               </>
@@ -837,10 +840,12 @@ function WatchBody({
               <a
                 href={playable}
                 onClick={() => {
+                  // Said under the button for long enough to be seen (O65): a browser may show nothing of its own.
                   setSaving(true);
-                  setTimeout(() => setSaving(false), 6000);
+                  setTimeout(() => setSaving(false), 12000);
                 }}
-                download={`${fileName(business, title)}.${isWebm ? "webm" : "mp4"}`}
+                download={saveName}
+                data-testid="save-to-device"
                 title={isWebm ? "Saves as a .webm file. Some iPhones and iPads can't play these; a computer can." : undefined}
                 className="rounded-xl border border-line-strong px-4 py-2 text-sm text-muted hover:bg-hover"
               >
@@ -875,7 +880,7 @@ function WatchBody({
         {/* A phone shows nothing of its own when a download starts, so the page says where it went. */}
         {saving && (
           <p role="status" className="mt-2 px-1 text-xs text-ok-fg" data-testid="saving-note">
-            Saving to your device. Look in your browser&apos;s downloads.
+            Saving &ldquo;{saveName}&rdquo; to your device. Look in your browser&apos;s downloads (on a phone, your Files or Downloads app).
           </p>
         )}
 
@@ -1071,7 +1076,8 @@ function WatchBody({
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
             </button>
-          ) : (
+          ) : (replies.length === 0 && !expanded) ? null : (
+          // Only once there's something to read: an empty conversation's larger view showed nothing more (O68).
           <button
             onClick={() => setExpanded((v) => !v)}
             aria-label={expanded ? "Close larger view" : "Open conversation in a larger view"}
@@ -1095,6 +1101,13 @@ function WatchBody({
               <li key={r.id} className={`flex flex-col ${r.mine ? "items-end" : "items-start"}`} data-mine={r.mine || undefined}>
                 <div className="mb-1 flex items-center gap-2 text-xs text-dim">
                   <span className="font-medium text-ink">{r.mine ? "You" : r.authorName}</span>
+                  {/* Said in words too, not only by the player (O70). */}
+                  {r.kind !== "TEXT" && r.media && !r.media.expired && (
+                    <span data-testid="reply-kind">
+                      {/* No length here: the player beside it gives the recording's own (C35). */}
+                      {r.kind === "AUDIO" ? "Voice reply" : "Video reply"}
+                    </span>
+                  )}
                   <span>{new Date(r.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
                 </div>
                 {r.kind === "TEXT" ? (

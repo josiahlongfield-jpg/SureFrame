@@ -173,7 +173,7 @@ await amy.waitForSelector("text=/1 day before · Cal and you/");
 ok("Amy changes the to-do's reminders", (await prisma.reminder.count({ where: { itemId: item.id, sentAt: null } })) === 2);
 
 // A note, made private then deleted; and a to-do ticked off and back.
-await amy.click("role=tab[name='Note']");
+await amy.click("role=radio[name='Note']");
 await amy.fill('textarea[aria-label="New note"]', "Prefers mornings");
 await amy.click("form >> button:has-text('Add')");
 await amy.waitForSelector("li:has-text('Prefers mornings')");

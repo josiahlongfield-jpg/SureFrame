@@ -165,7 +165,7 @@ await owner.goto(`${BASE}/clients/${clientB.id}`);
 ok("client page: a calm card, their first video sets them up, their link there too", norm(await owner.textContent("[data-testid=needs-first-card]")).includes("Client B hasn't opened a video yet") && norm(await owner.textContent("[data-testid=needs-first-card]")).includes("opening it sets them up") && (await owner.locator("[data-testid=needs-first-card] [data-testid=first-link-copy]").count()) === 1);
 ok("client page: to-dos say who sees them", norm(await owner.textContent("main")).includes("Only your team sees these unless you share one with Client B"));
 await owner.check("text=Share with Client B");
-await owner.click("role=tab[name='Note']");
+await owner.click("role=radio[name='Note']");
 ok("switching to Note unticks Share", !(await owner.isChecked("text=Share with Client B")));
 
 // ---- Sending ----
