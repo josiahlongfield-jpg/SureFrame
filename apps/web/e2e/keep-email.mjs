@@ -44,6 +44,9 @@ async function signInByEmail(ctx, email, { tick, openLinkIn = ctx }) {
   await page.fill('input[name="email"]', email);
   await page.click("text=Email me a sign-in link");
   await page.waitForURL("**/login/check**");
+  // S4: the keep-me-signed-in mark is in the emailed link, never in this page's address.
+  ok(`check page: no keep mark in its address (${tick ? "ticked" : "not ticked"})`, !decodeURIComponent(page.url()).includes("sf_keep"), page.url());
+  if (tick) ok("ticked: the emailed link carries the mark", /sf_keep(=|%3D|%253D)1/.test(linkFor(email)), linkFor(email));
   const p2 = await openLinkIn.newPage();
   await p2.goto(linkFor(email));
   await p2.click("[data-testid=confirm-sign-in]");

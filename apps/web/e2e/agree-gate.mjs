@@ -225,6 +225,13 @@ if (r.body?.video?.id) await prisma.video.delete({ where: { id: r.body.video.id 
 await noticeOver(oldUser.id, oldEmail);
 r = await oldStart();
 ok("after the notice period: recording waits for agreeing", r.status === 403 && r.body?.code === "TERMS_REQUIRED", JSON.stringify(r));
+// D12d: a plan switch refused for the terms says to agree first (not "reload"), beside its Review and agree button.
+await visit(old, "/pricing");
+await old.locator("button", { hasText: "Get Solo" }).first().click();
+await old.waitForSelector("[data-testid=plan-error]", { timeout: 15000 }).catch(() => {});
+const termsErr = norm(await old.textContent("[data-testid=plan-error]").catch(() => ""));
+ok("a switch refused for the terms says to agree first, with Review and agree", termsErr.includes("Please agree to the updated Terms of Service and Privacy Policy first.") && !/reload/i.test(termsErr) && (await old.locator("[data-testid=plan-error] a", { hasText: "Review and agree" }).count()) === 1, termsErr);
+await old.keyboard.press("Escape");
 await visit(old, "/library", "/agree");
 ok("an older account with no record lands on /agree once its notice period is over", path(old) === "/agree");
 ok("told the terms were updated", norm(await old.textContent("[data-testid=agree-heading]")) === "We’ve updated our Terms of Service and Privacy Policy");

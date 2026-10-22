@@ -31,7 +31,12 @@ const TOOL_NAMES: Record<string, string> = {
   read_notes: "notes",
   read_conversation: "a conversation",
   search_text: "a search",
+  // Something other than Claude Desktop's own tools, using a desktop connection's code (B13).
+  direct: "read directly, not through Claude Desktop",
 };
+// Claude Desktop's check for the team's current keys, every few minutes while it's open: logged, but it reads
+// nothing of the content, so it isn't listed as something read.
+const KEY_CHECK = "keys";
 
 /**
  * Settings > Connections: connect your own Claude to SureFrame (lib/connector), see what each connection has
@@ -46,7 +51,7 @@ export default async function Connections({ searchParams }: { searchParams: Prom
   const when = zoned(me.workspace.timezone);
   const grants = await db.connectorGrant.findMany({
     where: { workspaceId: me.workspace.id, revokedAt: null, ...(manager ? {} : { userId: me.user.id }), OR: [{ kind: "desktop" }, { refreshExpiresAt: { gt: new Date() } }] },
-    include: { user: { select: { name: true, email: true } }, uses: { orderBy: { createdAt: "desc" }, take: 5 }, _count: { select: { uses: true } } },
+    include: { user: { select: { name: true, email: true } }, uses: { where: { tool: { not: KEY_CHECK } }, orderBy: { createdAt: "desc" }, take: 5 }, _count: { select: { uses: { where: { tool: { not: KEY_CHECK } } } } } },
     orderBy: { createdAt: "desc" },
   });
   const mine = grants.filter((g) => g.userId === me.user.id);

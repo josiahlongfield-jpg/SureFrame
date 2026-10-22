@@ -82,8 +82,20 @@ async function ask(page, text) {
   return (await page.locator("[data-testid=client-help-messages] .whitespace-pre-wrap").last().textContent()).trim();
 }
 
+/** The chat's first message, once it has settled on what it can offer. */
+async function greeting(page, has) {
+  await page.waitForFunction((h) => document.querySelector("[data-testid=client-help-messages] .whitespace-pre-wrap")?.textContent.includes(h), has, { timeout: 5000 }).catch(() => {});
+  return ((await page.locator("[data-testid=client-help-messages] .whitespace-pre-wrap").first().textContent()) ?? "").replace(/\s+/g, " ").trim();
+}
+
 await phone.tap("[data-testid=client-help-button]");
 await phone.waitForSelector("[data-testid=client-help-panel]");
+{
+  // C17: with no reply box on this page (it can't open the video here) there's no button to promise, so it says to contact them.
+  const box = (await phone.locator("[data-testid=reply-composer]").count()) > 0;
+  const g = await greeting(phone, box ? "button to reply" : "contact");
+  ok("greeting: matches what this page can offer", (box ? g.includes(`I'll give you a button to reply to ${nameA}.`) : g.includes(`For those, please contact ${nameA} directly.`)) && !/how to reach/.test(g), JSON.stringify({ box, g }));
+}
 ok("Help opens with the cursor in the question box", await phone.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Your question"));
 ok("Help button says it's open", (await phone.getAttribute("[data-testid=client-help-button]", "aria-expanded")) === "true");
 const panelBox = await phone.locator("[data-testid=client-help-panel]").boundingBox();
@@ -226,6 +238,9 @@ ok("…and the conversation is with them, at the business", (await cPhone.textCo
 await cPhone.tap("[data-testid=client-help-button]");
 await cPhone.waitForSelector("[data-testid=client-help-panel]");
 ok("the panel states the limits (Free business: a day)", (await cPhone.textContent("[data-testid=client-help-limits]")) === "You can ask up to 5 questions a day.");
+// C17: the greeting promises only what it does: a button to reply to the business.
+const greet = await greeting(cPhone, "button to reply");
+ok("greeting: says what it can do (a button to reply), not that it'll say how to reach them", greet.includes(`For those, I'll give you a button to reply to ${nameA}.`) && !/how to reach/.test(greet), greet);
 const cant = await ask(cPhone, "Can you sort out my tax?");
 ok("can't help: still names the business", cant.startsWith("I can't help with that one."), cant);
 const replyBtn = cPhone.locator("[data-testid=client-help-messages] [data-testid=client-help-reply]");

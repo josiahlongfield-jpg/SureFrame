@@ -178,7 +178,15 @@ export default function ClientHelp({ for: businesses, page, videoId }: { for: He
           </label>
         )}
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite" data-testid="client-help-messages">
-          <Bubble mine={false} text={`Hi! Ask me how to watch, reply or use these pages. For anything about ${about.business} itself, I'll tell you how to reach them.`} />
+          {/* Promises only what it can do (C17): the Reply button where there's a reply box to open, else contacting them. */}
+          <Bubble
+            mine={false}
+            text={
+              replyButton
+                ? `Hi! Ask me how to watch, reply or use these pages. I can't answer questions about ${about.business} itself, like its services or appointments. For those, I'll give you a button to reply to ${about.business}.`
+                : `Hi! Ask me how to watch, reply or use these pages. I can't answer questions about ${about.business} itself, like its services or appointments. For those, please contact ${about.business} directly.`
+            }
+          />
           {turns.map((t, i) => (
             <div key={i}>
               <Bubble mine={t.role === "client"} text={t.text} />

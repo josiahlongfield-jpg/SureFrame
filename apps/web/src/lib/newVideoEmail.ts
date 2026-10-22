@@ -29,8 +29,8 @@ export function newVideoEmail(o: {
   const from = sender ? nameWithBusiness(sender, o.business, "from") : o.business;
   const title = o.title?.trim() && !isDefaultTitle(o.title) ? o.title.trim() : null;
   const length = o.durationMs && o.durationMs >= 1000 ? lengthOf(o.durationMs) : null;
-  // The email already comes from "Business A via SureFrame", so the subject names just the person (or the business without one).
-  const subject = `${sender ?? o.business} sent you a video${title ? `: ${title}` : ""}`;
+  // Names the business too (a client may know "Business A" but not "Owner A"), and a sole trader's name only once (C39).
+  const subject = `${sender ? nameWithBusiness(sender, o.business, "at") : o.business} sent you a video${title ? `: ${title}` : ""}`;
   const lead = `Hi ${o.clientName}, ${from} sent you a new video on SureFrame.`;
   const device =
     `It's private to you. The button opens it on any phone or computer where you've opened your personal link from ${o.business} before. ` +

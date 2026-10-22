@@ -57,6 +57,12 @@ async function open(extraArgs) {
   ok("working mic: says it's picking up sound", await page.isVisible("text=/Picking up sound/"));
   ok("names the microphone in use", (await page.textContent("[data-testid=mic-in-use]")).startsWith("Listening to: "));
   ok("never just says 'working'", !(await page.isVisible("text=/microphone is working/i")));
+  // V73: the browser's own "default" (and "communications") entry is the same microphone again, so it isn't listed
+  // twice; "Default microphone" is that choice.
+  const listed = await page.locator("label:has(span:text-is('Microphone')) select option").evaluateAll((os) => os.map((o) => ({ v: o.value, t: o.textContent })));
+  const browserMics = await page.evaluate(async () => (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput").map((d) => d.deviceId));
+  ok("mic list: the browser's default entry isn't listed again", browserMics.includes("default") && !listed.some((o) => o.v === "default" || o.v === "communications"), JSON.stringify({ listed, browserMics }));
+  ok("mic list: Default microphone first, then each microphone once", listed[0]?.v === "" && listed[0]?.t === "Default microphone" && listed.length === browserMics.filter((id) => id !== "default" && id !== "communications").length + 1, JSON.stringify(listed));
   const width = await page.$eval("[data-testid=mic-level] div div", (el) => parseFloat(el.style.width) || 0);
   ok("working mic: bar moves", width > 0, `${width}`);
   await page.screenshot({ path: `${shots}/mic-level.png` });

@@ -290,6 +290,13 @@ const staffSealed = await fetch(`${BASE}/api/connector/sealed`, { method: "POST"
 ok("staff can't fetch another client's encrypted content", staffSealed.status === 400, String(staffSealed.status));
 const staffItems = await (await fetch(`${BASE}/api/connector/sealed`, { method: "POST", headers: { Authorization: `Bearer ${staffToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ query: "items" }) })).json();
 ok("staff items leave out other clients'", staffItems.items?.every((i) => i.client_id !== avery.id), JSON.stringify(staffItems).slice(0, 300));
+// B13: every request with a desktop code is logged, also one naming no tool (or a made-up one).
+await fetch(`${BASE}/api/connector/sealed`, { method: "POST", headers: { Authorization: `Bearer ${staffToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ query: "keys" }) });
+await fetch(`${BASE}/api/connector/sealed`, { method: "POST", headers: { Authorization: `Bearer ${staffToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ tool: "nothing_to_see", query: "items" }) });
+const staffGrantId = (await prisma.connectorGrant.findFirst({ where: { userId: staff.id, workspaceId } })).id;
+const staffUses = (await prisma.connectorUse.findMany({ where: { grantId: staffGrantId } })).map((u) => u.tool);
+ok("a request naming no tool (or an unknown one) is logged as direct", staffUses.filter((t) => t === "direct").length === 3, JSON.stringify(staffUses));
+ok("the key check is logged too", staffUses.includes("keys"), JSON.stringify(staffUses));
 
 // ---------- Settings > Connections ----------
 await owner.goto(BASE + "/settings/connections");
@@ -303,6 +310,8 @@ ok("Copy puts the address on the clipboard", (await owner.evaluate(() => navigat
 ok("your connections list both", (await owner.locator("#yours [data-testid=connection-row]").count()) === 2);
 ok("recent uses are shown", (await owner.locator("#yours [data-testid=connection-uses]").first().textContent())?.includes("Recently read"));
 ok("owner sees staff connections", (await owner.locator("[data-testid=staff-connections] [data-testid=connection-row]").count()) === 1);
+const staffUsesText = (await owner.textContent("[data-testid=staff-connections] [data-testid=connection-uses]")) ?? "";
+ok("Settings shows a direct read as such, and not the key check", staffUsesText.includes("read directly, not through Claude Desktop") && !/keys/.test(staffUsesText), staffUsesText);
 await owner.locator("[data-testid=staff-connections] [data-testid=disconnect]").click();
 // Disconnect asks first, and says the staff member is told (S75).
 const confirmBox = (await owner.textContent("[data-testid=staff-connections] [data-testid=disconnect-confirm-box]")) ?? "";

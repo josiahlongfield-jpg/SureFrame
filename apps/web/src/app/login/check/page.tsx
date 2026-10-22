@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import AuthLinks from "@/components/AuthLinks";
 import Logo from "@/components/Logo";
+import { KEEP_NEXT_COOKIE } from "@/lib/activity";
 import { safeNext } from "@/lib/secrets";
 import { forClaude } from "@/lib/signInLink";
 import { emailLink } from "../actions";
@@ -76,6 +77,8 @@ export default async function CheckEmail({ searchParams }: { searchParams: Promi
             <input type="hidden" name="email" value={email} />
             <input type="hidden" name="next" value={redirectTo} />
             <input type="hidden" name="again" value="1" />
+            {/* "Keep me signed in", ticked on this browser: the new link carries it too (its address here doesn't, S4). */}
+            {jar.get(KEEP_NEXT_COOKIE)?.value === "1" && <input type="hidden" name="keep" value="1" />}
             {signup === "1" && <input type="hidden" name="signup" value="1" />}
             <SendAgain since={since} />
           </form>

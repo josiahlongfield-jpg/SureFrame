@@ -87,7 +87,9 @@ await owner.click("[data-testid=added-note] [data-testid=first-link-copy]");
 await owner.waitForTimeout(300);
 const clientA = await prisma.client.findFirst({ where: { workspaceId: ws, name: "Client A" } });
 ok("Copy puts Client A's personal link on the clipboard", (await clip()).includes(`/c/${clientA.token}#k=`));
-ok("new client marked as not opened yet", (await owner.textContent("li:has-text('Client A') [data-testid=needs-first-link]")) === "Not opened yet");
+ok("new client marked as not opened yet", (await owner.textContent("li:has-text('Client A') [data-testid=needs-first-link]"))?.includes("Not opened yet"));
+// R2-O18: screen readers hear what the badge means, not "Client ANot opened yet".
+ok("the badge reads out its meaning", norm(await owner.$eval("li:has-text('Client A') [data-testid=needs-first-link]", (e) => [...e.querySelectorAll(".sr-only")].map((x) => x.textContent).join("|"))) === ", |: you've sent them a link, and they haven't opened it yet");
 ok("no warning banner", (await owner.locator("[data-testid=waiting-banner]").count()) === 0);
 ok("copying doesn't count as reaching them", !(await prisma.client.findUnique({ where: { id: clientA.id } })).linkOpenedAt);
 
@@ -136,7 +138,7 @@ await owner.fill("[data-testid=clients-search]", "");
 await owner.selectOption("[data-testid=clients-filter]", "first");
 ok("filter: not opened a video yet", (await owner.locator("main ul > li a[href^='/clients/']:not([data-testid=row-more-ways])").allTextContents()).join() === "Client B,Client C");
 await owner.selectOption("[data-testid=clients-filter]", "all");
-ok("Client B: copied in the list, so marked not opened yet", (await owner.textContent("li:has-text('Client B') [data-testid=needs-first-link]")) === "Not opened yet");
+ok("Client B: copied in the list, so marked not opened yet", (await owner.textContent("li:has-text('Client B') [data-testid=needs-first-link]"))?.includes("Not opened yet"));
 
 // A duplicate made before Add refused them: removing it emails nobody, and it can't be restored while the other is there.
 const twin = await prisma.client.create({ data: { name: "Client A (old)", email: aEmail, token: `fxs-${stamp}-twin-${"x".repeat(20)}`, workspaceId: ws, teamKeyWrap: clientA.teamKeyWrap } });
@@ -189,7 +191,7 @@ await owner.waitForSelector("[data-testid=title-saved]");
 ok("title saved and shown as the heading", (await prisma.video.findUnique({ where: { id: vid } })).title === "Week 1 plan" && (await owner.inputValue("textarea[aria-label='Video title']")) === "Week 1 plan");
 await owner.click("[data-testid=client-picker]");
 ok("picker marks first-time clients", (await owner.locator("[role=listbox] li:has-text('Client B') [data-testid=needs-first-link]").count()) === 1 && (await owner.locator("[role=listbox] li:has-text('Client A') [data-testid=needs-first-link]").count()) === 0);
-ok("picker: same status as the Clients page (Client B's link was sent)", norm(await owner.textContent("[role=listbox] li:has-text('Client B') [data-testid=needs-first-link]")) === "Not opened yet");
+ok("picker: same status as the Clients page (Client B's link was sent)", norm(await owner.textContent("[role=listbox] li:has-text('Client B') [data-testid=needs-first-link]"))?.includes("Not opened yet"));
 await owner.keyboard.press("Escape");
 await chooseClients(owner, "Client A", "Client B", "Client C");
 ok("Send box: new clients chosen, their first videos go from you", norm(await owner.textContent("[data-testid=first-time]")).includes("Alongside each video is that client's personal link, so for privacy reasons SureFrame is unable to automate it"));

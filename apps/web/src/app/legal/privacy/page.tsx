@@ -11,7 +11,7 @@ export default function Page() {
     <LegalPage title="Privacy Policy" version={LEGAL.privacyVersion} updated={LEGAL.privacyUpdated} doc="privacy">
       <p>
         {operatorLine()} (&ldquo;we&rdquo;, &ldquo;us&rdquo;). This policy explains what personal information we collect when you use {LEGAL.product}, why, and what
-        choices you have. We handle personal information in line with the Australian Privacy Principles in the Privacy Act 1988 (Cth). Where they apply, we also
+        choices you have. We have chosen to follow the Australian Privacy Principles in the Privacy Act 1988 (Cth). Where they apply, we also
         follow the EU and UK General Data Protection Regulation (see <a href="#eu-uk">If you&rsquo;re in the EU or UK</a>).
       </p>
 
@@ -498,6 +498,10 @@ export default function Page() {
       <p>
         {LEGAL.product} accounts are for people aged {LEGAL.minimumAge} and over. Businesses may have clients who are children, such as a tutor&rsquo;s students.
         Clients under 18 may use a client link only with a parent&rsquo;s or guardian&rsquo;s permission, which the business is responsible for getting.
+      </p>
+      <p data-testid="privacy-children">
+        {LEGAL.product} doesn&rsquo;t knowingly collect children&rsquo;s information for its own purposes. A business that adds a client under 13 is responsible
+        for any parental consent the law requires, such as verifiable parental consent under the US Children&rsquo;s Online Privacy Protection Act (COPPA).
       </p>
 
       <h2 id="eu-uk">If you&rsquo;re in the EU or UK</h2>

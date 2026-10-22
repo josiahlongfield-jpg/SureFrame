@@ -227,6 +227,24 @@ await owner.request.delete(`${BASE}/api/team/invites/${pending.id}`);
 ok("cancelling an invite frees the login", (await mk()).status() === 201);
 await owner.goto(BASE + "/settings/team");
 ok("with every login in use, Need more? appears", !!(await owner.waitForSelector("select[aria-label='Extra staff logins']", { timeout: 15000 }).catch(() => null)));
+// FF-9: Cancel invite asks first, like Remove: focus moves in, Escape keeps the invite, focus returns to the button.
+{
+  const waiting = () => prisma.invite.count({ where: { workspaceId, acceptedAt: null, revokedAt: null } });
+  const before = await waiting();
+  const cancelBtn = owner.locator("[data-testid=cancel-invite]").first();
+  await cancelBtn.click();
+  const dlg = owner.locator("[data-testid=team-dialog]");
+  ok("Cancel invite asks first", (await dlg.isVisible()) && /Cancel (the|this) invite/.test(await dlg.textContent()) && /stops working straight away/.test(await dlg.textContent()));
+  ok("…with focus on Keep invite", await owner.evaluate(() => document.activeElement?.textContent === "Keep invite"));
+  await owner.keyboard.press("Escape");
+  ok("Escape keeps the invite and puts focus back on the button", !(await dlg.isVisible()) && (await waiting()) === before && before > 0 && (await owner.evaluate(() => document.activeElement?.dataset.testid)) === "cancel-invite");
+  await cancelBtn.click();
+  await owner.click("[data-testid=team-dialog] [data-testid=dialog-confirm]");
+  await owner.waitForTimeout(800);
+  ok("confirming cancels it", (await waiting()) === before - 1 && !(await dlg.isVisible()));
+  ok("put back for the checks below", (await mk()).status() === 201);
+  await owner.reload();
+}
 
 // Extra staff are billed on the subscription.
 const buy = await owner.request.post(BASE + "/api/billing/staff", { data: { extraStaff: 1 } });

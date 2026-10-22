@@ -84,8 +84,8 @@ export default function ExtensionPrompt({
       </h2>
       <p className="text-sm text-muted">
         {cameraOn
-          ? "It shows your camera bubble, with Pause and Stop, on any tab you visit while you record your screen. Without it, your bubble stays in a small floating window instead."
-          : "It shows Pause and Stop on any tab you visit while you record your screen. Without it, they stay in a small floating window instead."}
+          ? "It shows your camera bubble, with Pause and Stop, on any tab you visit while you record your screen. Without it, your camera shows in a small floating window when you share a tab or window. If you share your whole screen, your camera goes in the corner of the video, and Pause and Stop stay on this tab."
+          : "It shows Pause and Stop on any tab you visit while you record your screen. Without it, they show in a small floating window when you share a tab or window. If you share your whole screen, they stay on this tab."}
       </p>
       <div className="grid gap-1.5 rounded-xl bg-surface-2 p-3 text-sm text-muted" data-testid="extension-safe">
         <p className="font-medium text-ink">Why it&rsquo;s safe</p>

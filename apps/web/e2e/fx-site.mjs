@@ -285,10 +285,14 @@ const privacy2 = norm(await visitor.textContent("main"));
 for (const bit of ["their transcripts and summaries, and unlocks them on your own computer", "we email a 6-digit code instead of a link", "don’t get a new version: we update the “Last updated” date"]) {
   ok(`privacy says: ${bit}`, privacy2.includes(bit));
 }
+// G15, G8: a chosen commitment to the APPs (not a statutory duty), and children's information under "Age".
+ok("privacy: we have chosen to follow the Australian Privacy Principles", privacy2.includes("We have chosen to follow the Australian Privacy Principles in the Privacy Act 1988 (Cth)") && !privacy2.includes("in line with the Australian Privacy Principles"));
+ok("privacy Age: no children's information for our own purposes; a business adding a client under 13 is responsible for consent", norm(await visitor.textContent("[data-testid=privacy-children]")).startsWith("SureFrame doesn’t knowingly collect children’s information for its own purposes. A business that adds a client under 13 is responsible for any parental consent the law requires"));
 await visitor.goto(BASE + "/legal/archive");
 const archive = norm(await visitor.textContent("main"));
 ok("archive: titled Versions and changes, dated with the latest update (L8, V44, V45)", norm(await visitor.textContent("main h1")) === "Versions and changes" && norm(await visitor.textContent("[data-testid=legal-version]")) === `Last updated ${updatedOf("termsUpdated")}`);
 ok("archive: a Wording updates list with each date (L1)", (await visitor.$$("[data-testid=wording-updates] > li")).length >= 6 && archive.includes("13 October 2026") && archive.includes("Terms of Service: Founding prices and discount offers."));
+ok("archive: the 22 October wording updates list the Privacy changes (G15, G8)", archive.includes("We say we have chosen to follow the Australian Privacy Principles.") && archive.includes("a business adding a client under 13 is responsible for any parental consent the law requires"));
 ok("archive: the 11 October changes read as changes from the unnumbered versions (V46)", archive.includes("What changed from the earlier versions, which weren’t numbered:"));
 
 // Sign-in pages: the keep-me-signed-in tick comes before the button that signs in; links out to pricing and legal.
@@ -322,6 +326,22 @@ await phone.goto(BASE + "/");
 ok("phone home: Free for 3 clients shows", await seen(phone, "[data-testid=hero-free]"));
 ok("phone home: demo tab labels are at least 12px (D5)", (await phone.$$eval(".ff-tab", (ts) => ts.map((t) => parseFloat(getComputedStyle(t).fontSize)))).every((px) => px >= 12));
 ok("phone header: Start free, as on a computer", norm(await phone.textContent("header a[href='/signup']")) === "Start free");
+// R2-V67: at 320px Pricing and Sign in sit in a small menu at the end of the bar, with nothing scrolling sideways.
+await phone.click("[data-testid=site-menu-button]");
+ok("320px header: the menu holds Pricing and Sign in", (await phone.locator("[data-testid=site-menu] a[href='/pricing']").isVisible()) && (await phone.locator("[data-testid=site-menu] a[href='/login']").isVisible()));
+const menuBox = await phone.locator("[data-testid=site-menu]").boundingBox();
+ok("320px header: the open menu fits the screen", !!menuBox && menuBox.x >= 0 && menuBox.x + menuBox.width <= 320 && (await fits(phone)) <= 320, JSON.stringify(menuBox));
+await phone.keyboard.press("Escape");
+ok("320px header: Escape closes the menu, back on its button", !(await phone.isVisible("[data-testid=site-menu]")) && (await phone.evaluate(() => document.activeElement?.dataset.testid)) === "site-menu-button");
+await phone.setViewportSize({ width: 375, height: 700 });
+ok("375px header: Pricing shows in the bar, no menu", (await phone.isVisible("header > div > nav > a[href='/pricing']")) && !(await phone.isVisible("[data-testid=site-menu-button]")) && (await fits(phone)) <= 375);
+await phone.setViewportSize({ width: 320, height: 700 });
+// V14: the footer has a Contact link with the support email, and still fits 320px.
+ok("320px footer: Contact support@sureframe.app, as an email link", (await phone.getAttribute("footer [data-testid=footer-contact]", "href")) === "mailto:support@sureframe.app" && norm(await phone.textContent("footer [data-testid=footer-contact]")) === "Contact support@sureframe.app");
+const contactBox = await phone.locator("footer [data-testid=footer-contact]").boundingBox();
+ok("320px footer: the Contact link fits the screen", !!contactBox && contactBox.x >= 0 && contactBox.x + contactBox.width <= 320 && (await fits(phone)) <= 320, JSON.stringify(contactBox));
+// R2-V61: the demo's text panels aren't Tab stops (the tabs move with the arrow keys).
+ok("home demo: the panels aren't extra Tab stops", (await phone.$$eval("[role=tabpanel]", (ps) => ps.length > 0 && ps.every((p) => !p.hasAttribute("tabindex")))));
 ok("phone home: each point keeps its line", (await phone.$$eval("[data-testid=hero-points] li > span:last-child", (els) => els.filter((e) => e.offsetHeight > 0).length)) === 6);
 const phoneTabs = await phone.$eval(".ff-tabs", (s) => {
   const box = s.getBoundingClientRect();
