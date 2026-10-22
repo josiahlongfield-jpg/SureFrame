@@ -17,6 +17,7 @@ export const Icon = {
   shield: <Svg><path d="M12 3l8 3.5v5.5c0 4.8-3.4 8.3-8 9-4.6-.7-8-4.2-8-9V6.5z" /><path d="M8.5 12l2.5 2.5 4.5-5" /></Svg>,
   noAccount: <Svg><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-6.5 8-6.5 1.6 0 3 .3 4.3.9" /><path d="M17 17l4 4M21 17l-4 4" /></Svg>,
   bolt: <Svg><path d="M13 2L4 14h7l-1 8 9-12h-7z" /></Svg>,
+  plug: <Svg><path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5" /></Svg>,
   browser: <Svg><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M3 9h18M7 6.5h.01M10 6.5h.01" /></Svg>,
   record: <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.5" fill="currentColor" /></svg>,
   send: <Svg><path d="M21 3L10 14M21 3l-7 18-4-7-7-4z" /></Svg>,

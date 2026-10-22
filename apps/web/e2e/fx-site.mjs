@@ -119,7 +119,8 @@ await seen(visitor, ".ff-tab");
 ok("home: one sentence on how long videos are kept, up by How it works", norm(await visitor.textContent("[data-testid=home-storage]")).includes("kept on our servers for 30 days") && (await visitor.$eval("[data-testid=home-storage]", (e) => e.getBoundingClientRect().top + scrollY)) < 2000);
 ok("home: Record your first video opens sign-up", (await visitor.getAttribute("a:has-text('Record your first video, free')", "href")) === "/signup");
 const points = norm(await visitor.textContent("[data-testid=hero-points]"));
-ok("home: the add-ons point says they're paid, and phones are camera only", points.includes("Paid add-ons: AI and backup") && points.includes("camera only on phones"), points);
+// Phones being camera only moved to the FAQ when "Nothing to install" made way for the Claude bonus (22 October 2026).
+ok("home: the add-ons point says they're paid, and the Claude bonus is free", points.includes("Paid add-ons: AI and backup") && points.includes("Free bonus for Claude users"), points);
 const trust = norm(await visitor.textContent("[data-testid=home-trust]"));
 ok("home: who runs it and where data is kept, without naming anyone", trust.includes("run from Queensland, Australia (ABN 38 364 192 034)") && trust.includes("Oceania region (Australia, New Zealand and the Pacific)") && !/josiah|longfield/i.test(trust), trust);
 ok("home demo: the recording limit says it's per video, by plan", norm(await visitor.textContent("#ff-panel-record")).includes("4 hours per video on paid plans, 5 minutes on Free"));

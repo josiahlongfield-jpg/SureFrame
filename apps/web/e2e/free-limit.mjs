@@ -216,7 +216,7 @@ const visitor = await (await browser.newContext({ viewport: { width: 1280, heigh
 await visitor.goto(BASE + "/");
 const home = await visitor.textContent("main");
 ok("home: headline and sub-line", home.includes("One take is") && home.includes("Record it once, send it privately"));
-for (const t of ["Saved as you record", "End-to-end encrypted", "No account or expense for clients", "Paid add-ons: AI and backup", "Ready when you are", "Nothing to install"]) ok(`home: point "${t}"`, home.includes(t));
+for (const t of ["Saved as you record", "End-to-end encrypted", "No account or expense for clients", "Paid add-ons: AI and backup", "Ready when you are", "Free bonus for Claude users"]) ok(`home: point "${t}"`, home.includes(t));
 ok("home: the device copy is only until the upload finishes", home.includes("with a copy on your device until the upload finishes") && !home.includes("backed up on your device"));
 ok("home: eight feature tabs", (await visitor.locator("[role=tab]").count()) === 8);
 ok("home: removed staff can't open anything through SureFrame", home.includes("your team's keys and every client link are reset, so they can't open anything through SureFrame again."));
