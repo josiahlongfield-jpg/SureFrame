@@ -28,6 +28,19 @@ export type SupportTier = "paying" | "free" | "visitor";
 /** Signed out, on Free, or on a plan (paid, or given free by the team, which counts as a customer here). */
 export const supportTier = (workspace: { plan: Plan } | null | undefined): SupportTier => (!workspace ? "visitor" : workspace.plan === "FREE" ? "free" : "paying");
 
+/**
+ * The allowance in one line, for the help panel itself (O80, V40: the /help page says it above its chat, but the
+ * floating panel didn't until someone hit a limit). Nothing for paying businesses.
+ */
+export function limitsNote(tier: SupportTier) {
+  if (tier === "paying") return null;
+  const L = SUPPORT_LIMITS[tier];
+  const person = L.personEveryDays === 7 ? "once a week" : `once every ${L.personEveryDays} days`;
+  return tier === "visitor"
+    ? `Without an account: up to ${L.aiPerDay} answers a day (${L.aiPerWeek} a week), and Talk to a person ${person}, with your email address.`
+    : `On the Free plan: up to ${L.aiPerDay} answers a day (${L.aiPerWeek} a week), and Talk to a person ${person}. Paid plans get full help and can talk to a person any time.`;
+}
+
 export type Asker = { tier: SupportTier; workspaceId?: string | null; network: string; email?: string | null };
 
 const DAY = 86_400_000;
@@ -51,21 +64,31 @@ async function record(kind: string, a: Asker, extra: (string | null | undefined)
 export type Refusal = { message: string; until: Date | null };
 
 const askAgain = (until: Date) => `You can ask again from ${qldTime(until)}.`;
+/** How the chat names a shared network, for someone who didn't use the allowance themselves. */
+const NETWORK = "the same Wi-Fi or mobile connection";
 
 /** Whether this person can have another AI answer now. Always yes for paying businesses. */
 export async function aiRefusal(a: Asker): Promise<Refusal | null> {
   if (a.tier === "paying" || limitsOff) return null;
   const L = SUPPORT_LIMITS[a.tier];
   const S = SUPPORT_LIMITS.siteWide;
-  const [day, week] = await Promise.all([
-    Promise.all([freeFrom(netKey(a), "ai", L.aiPerDay, DAY), a.workspaceId ? freeFrom(`ws:${a.workspaceId}`, "ai", L.aiPerDay, DAY) : null]).then(latest),
-    Promise.all([freeFrom(netKey(a), "ai", L.aiPerWeek, 7 * DAY), a.workspaceId ? freeFrom(`ws:${a.workspaceId}`, "ai", L.aiPerWeek, 7 * DAY) : null]).then(latest),
+  // Each key on its own, so the message can say whose use it was: this business's, or someone else's on the same network.
+  const [netDay, wsDay, netWeek, wsWeek] = await Promise.all([
+    freeFrom(netKey(a), "ai", L.aiPerDay, DAY),
+    a.workspaceId ? freeFrom(`ws:${a.workspaceId}`, "ai", L.aiPerDay, DAY) : null,
+    freeFrom(netKey(a), "ai", L.aiPerWeek, 7 * DAY),
+    a.workspaceId ? freeFrom(`ws:${a.workspaceId}`, "ai", L.aiPerWeek, 7 * DAY) : null,
   ]);
+  const day = latest([netDay, wsDay]);
+  const week = latest([netWeek, wsWeek]);
   const upsell = a.tier === "free" ? " Paid plans get full help in the chat, and can talk to a person any time." : "";
   if (week || day) {
     const until = latest([day, week])!;
     const used = week ? `${L.aiPerWeek} answers a week` : `${L.aiPerDay} answers a day`;
-    return { until, message: `The help chat gives ${a.tier === "free" ? "Free plans" : "website visitors"} ${used}, and you've used them. ${askAgain(until)} Most questions are answered in the FAQ.${upsell}` };
+    // A visitor is only counted by network; a Free business by its own use too. Say "you" only when it was theirs.
+    const theirs = !!(week ? wsWeek : wsDay);
+    const who = theirs ? "you've used them" : `they've been used on your network (${NETWORK})`;
+    return { until, message: `The help chat gives ${a.tier === "free" ? "Free plans" : "website visitors"} ${used}, and ${who}. ${askAgain(until)} Most questions are answered in the FAQ.${upsell}` };
   }
   const visitorsBusy = a.tier === "visitor" ? await freeFrom(everyone("visitor"), "ai", S.visitorAiPerDay, DAY) : null;
   const unpaidBusy = (await countSince("ai", [everyone("visitor"), everyone("free")], DAY)) >= S.unpaidAiPerDay;
@@ -93,20 +116,29 @@ export async function personRefusal(a: Asker): Promise<Refusal | null> {
   if (limitsOff) return null;
   const L = SUPPORT_LIMITS[a.tier];
   const window = L.personEveryDays * DAY;
-  const mine = latest(
-    await Promise.all([
-      freeFrom(netKey(a), "handover", 1, window),
-      a.workspaceId ? freeFrom(`ws:${a.workspaceId}`, "handover", 1, window) : null,
-      a.email ? freeFrom(emailKey(a.email), "handover", 1, window) : null,
-    ]),
-  );
+  const [byNet, byWs, byEmail] = await Promise.all([
+    freeFrom(netKey(a), "handover", 1, window),
+    a.workspaceId ? freeFrom(`ws:${a.workspaceId}`, "handover", 1, window) : null,
+    a.email ? freeFrom(emailKey(a.email), "handover", 1, window) : null,
+  ]);
+  const mine = latest([byNet, byWs, byEmail]);
   if (mine) {
+    // Refused only because someone else on the same network (an office, a shared connection) used it: say so, rather than "you".
+    const network = !byWs && !byEmail;
+    const done =
+      a.tier === "free"
+        ? network
+          ? `someone on your network (${NETWORK}) has already done that this week`
+          : "you've already done that this week"
+        : network
+          ? `someone on your network (${NETWORK}) has already done that`
+          : "you've already done that";
     return {
       until: mine,
       message:
         a.tier === "free"
-          ? `On the Free plan you can talk to a person once a week, and you've already done that this week. ${askAgain(mine)} Paid plans can talk to a person any time. The assistant can still answer general questions.`
-          : `Website visitors can talk to a person once every ${L.personEveryDays} days, and you've already done that. ${askAgain(mine)} The assistant can still answer general questions.`,
+          ? `On the Free plan you can talk to a person once a week, and ${done}. ${askAgain(mine)} Paid plans can talk to a person any time. The assistant can still answer general questions.`
+          : `Website visitors can talk to a person once every ${L.personEveryDays} days, and ${done}. ${askAgain(mine)} The assistant can still answer general questions.`,
     };
   }
   const cap = a.tier === "visitor" ? SUPPORT_LIMITS.siteWide.visitorPersonPerDay : SUPPORT_LIMITS.siteWide.freePersonPerDay;

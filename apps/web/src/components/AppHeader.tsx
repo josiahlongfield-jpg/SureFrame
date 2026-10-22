@@ -8,6 +8,7 @@ import { accessOf } from "@/lib/permissions";
 import { currentUser } from "@/lib/session";
 import { formerTeams } from "@/lib/team";
 import { TEAM_PLANS } from "@/lib/plans";
+import { limitsNote, supportTier } from "@/lib/support/allowance";
 import { isSupportAgent } from "@/lib/support/tickets";
 import { settingsPages } from "@/lib/settingsMenu";
 import NamePrompt from "./NamePrompt";
@@ -117,7 +118,7 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
         />
       ) : null}
       {me && <TimeZoneSync shownZone={zoned(me.workspace.timezone).zone} setWorkspace={manager && !me.workspace.timezone} />}
-      <SupportWidget signedIn />
+      <SupportWidget signedIn limits={limitsNote(supportTier(me?.workspace))} />
     </header>
   );
 }

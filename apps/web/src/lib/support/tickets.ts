@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { sendMail } from "@/lib/mail";
 import { EMAIL, emailButton, emailColors, emailMark, emailShell } from "@/lib/emailLook";
 import { appUrl } from "@/lib/stripe";
+import { REPLY_WITHIN } from "@/lib/support/person";
 
 /** Where handed-over conversations are announced. Set SUPPORT_EMAIL in production. */
 export const supportInbox = () => process.env.SUPPORT_EMAIL || null;
@@ -60,6 +61,32 @@ ${paragraphs(transcript)}
 </div>`,
     replyTo: ticket.user?.email ?? ticket.email,
   }).catch((e) => console.error("support email failed", e));
+}
+
+/**
+ * A short "your question is with a person" email to the customer, sent once for each new hand-over when there's an
+ * address to send it to (a signed-in customer's, or the one a visitor gave in the chat), so they know it happened
+ * even after closing the chat (V36). Visitors' addresses aren't checked, so it says what to do if they didn't ask.
+ */
+export async function acknowledgeHandOver(ticketId: string) {
+  const ticket = await db.supportTicket.findUnique({ where: { id: ticketId }, include: { user: { select: { email: true } } } });
+  const to = ticket?.user?.email ?? ticket?.email;
+  if (!ticket || !to) return;
+  const link = appUrl(`/help#t=${ticket.accessToken}`);
+  const lines = [
+    `Thanks for getting in touch. Your question is with a person on the SureFrame team, and we reply ${REPLY_WITHIN} (Queensland, Australia time), by email and in the help chat.`,
+    "You don't need to do anything else. To add details, write in the help chat.",
+    ...(ticket.userId ? [] : ["If you didn't ask SureFrame for help, you can ignore this email."]),
+  ];
+  await sendMail({
+    to,
+    subject: "Your question is with a person at SureFrame",
+    text: [...lines, `See the conversation: ${link}`, "Sent with SureFrame"].join("\n\n"),
+    html: emailShell(`${emailMark()}<p style="font-size:13px;font-weight:600;color:${EMAIL.muted};margin:-8px 0 12px">Support</p>
+<div style="font-size:15px;line-height:1.5">${lines.map((l) => paragraphs(l)).join("")}</div>
+${emailButton(link, "See the conversation", emailColors())}`),
+    replyTo: supportInbox(),
+  }).catch((e) => console.error("support acknowledgement email failed", e));
 }
 
 /** A person's reply: stored on the ticket and emailed to the customer when we have an address. */

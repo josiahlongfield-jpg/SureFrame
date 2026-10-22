@@ -49,6 +49,9 @@ const visitor = await page({ viewport: { width: 1280, height: 900 } });
 await visitor.goto(BASE + "/");
 await visitor.click("button:has-text('Help')");
 ok("help panel opens", await visitor.isVisible("role=dialog[name='SureFrame help']"));
+// The panel says a visitor's limits up front (O80, V40), and that the email is needed for a person (V38).
+ok("panel: says a visitor's limits before they're reached", (await visitor.textContent("[data-testid=help-panel-limits]").catch(() => "")).includes("8 answers a day") && (await visitor.textContent("[data-testid=help-panel-limits]")).includes("once every 30 days"));
+ok("panel: the email box says it's needed to talk to a person", (await visitor.textContent("#help-email-note")).includes("needed to talk to a person") && !(await visitor.textContent("#help-email-note")).includes("optional"));
 await visitor.fill('input[aria-label="Your email"]', "visitor@example.com");
 const a1 = await ask(visitor, "How do I add a client?");
 ok("assistant answers", a1.includes("Clients page"), a1);
@@ -68,6 +71,9 @@ const mail = outbox().find((m) => m.to === AGENT);
 ok("support inbox emailed", !!mail && mail.subject.startsWith("[Urgent]") && mail.text.includes("double charge") && mail.replyTo === "visitor@example.com", mail?.subject);
 const link = mail.text.match(/https?:\/\/\S+\/support\/\S+/)?.[0];
 ok("email links to the conversation", !!link, link);
+// The customer is told by email too, since the visitor gave an address (V36).
+const ackMail = outbox().find((m) => m.to === "visitor@example.com" && m.subject === "Your question is with a person at SureFrame");
+ok("hand-over: the visitor gets a short email saying a person has it", !!ackMail && ackMail.text.includes("within 2 business days") && ackMail.text.includes("/help#t=") && ackMail.text.includes("If you didn't ask"), ackMail?.text?.slice(0, 200));
 await visitor.screenshot({ path: `${shots}/support-visitor.png` });
 
 // 3. Before a person replies, the assistant keeps helping, and the team hears about it
@@ -117,7 +123,7 @@ await agent.waitForLoadState("networkidle");
 // The reply email can land a moment after the page settles.
 let sent;
 for (let i = 0; i < 20 && !sent; i++) {
-  sent = outbox().find((m) => m.to === "visitor@example.com");
+  sent = outbox().find((m) => m.to === "visitor@example.com" && m.subject === "Reply from SureFrame support");
   if (!sent) await new Promise((r) => setTimeout(r, 500));
 }
 ok("customer emailed the reply", !!sent && sent.text.includes("refunded the second charge") && sent.text.includes("/help#t="));
@@ -129,6 +135,9 @@ await fromEmail.waitForSelector("text=SureFrame team");
 ok("reply shows in the chat", (await fromEmail.textContent("main")).includes("refunded the second charge"));
 ok("summary never reaches the customer", !(await fromEmail.content()).includes("Customer wants a refund"));
 ok("token removed from the address bar", !fromEmail.url().includes("#t="));
+// After the team's reply the status line says so, not that it's still waiting for a person (P15).
+const repliedLine = (await fromEmail.textContent("[data-testid=with-person]").catch(() => "")).trim();
+ok("after a person replies, the chat says the team replied", repliedLine.startsWith("SureFrame team replied.") && !repliedLine.includes("Passed to a person"), repliedLine);
 const callsBeforeFollowUp = requests.length;
 const ack = await ask(fromEmail, "Thanks! Will it show on my statement?");
 ok("after a person replies, follow-ups go to them", ack.includes("added that to your conversation") && requests.length === callsBeforeFollowUp, ack);
@@ -162,8 +171,13 @@ await owner.click("[data-testid=talk-to-person]");
 const weekly = await owner.waitForSelector("form [role=alert]", { timeout: 15000 }).then((e) => e.textContent(), () => "");
 ok("Free plan: a second person in a week is refused, with when to ask again", weekly.includes("once a week") && /You can ask again from \d{1,2} [A-Z][a-z]{2,3} \d{4}/.test(weekly) && weekly.includes("Paid plans can talk to a person any time"), weekly);
 ok("Free plan: refused without a hand-over, the AI or losing the message", (await owner.locator("[data-testid=with-person]").count()) === 0 && requests.length === callsBeforeRefusal && (await owner.inputValue('textarea[aria-label="Your message"]')).includes(inv));
-// Paying businesses can ask any time.
+ok("Free plan: Talk to a person is off until the allowance lifts", await owner.isDisabled("[data-testid=talk-to-person]"));
+// Paying businesses can ask any time (a fresh page: the one above remembers the refusal until it lifts).
 await prisma.workspace.updateMany({ where: { members: { some: { user: { email: planEmail } } } }, data: { plan: "SOLO" } });
+await owner.reload();
+await owner.click("button:has-text('Help')");
+ok("panel: nothing about limits for a paying business", (await owner.locator("[data-testid=help-panel-limits]").count()) === 0);
+await owner.fill('textarea[aria-label="Your message"]', `Can someone check my invoice ${inv} from last month?`);
 const callsBeforeTalk = requests.length;
 const mailsBeforeTalk = outbox().length;
 await owner.click("[data-testid=talk-to-person]");
@@ -188,17 +202,30 @@ await asker.fill('input[aria-label="Your email"]', "visitor2@example.com");
 await asker.click("[data-testid=talk-to-person]");
 await asker.waitForSelector("[data-testid=with-person]");
 ok("visitor with email: passed on, here and by email", (await asker.textContent("[data-testid=with-person]")).includes("here and by email"));
+ok("visitor with email: told by email too", outbox().some((m) => m.to === "visitor2@example.com" && m.subject === "Your question is with a person at SureFrame"));
 await asker.click("[data-testid=new-conversation]");
-await asker.fill('textarea[aria-label="Your message"]', "Another thing for a person");
+// With nothing typed: the refusal mustn't leave "I'd like to talk to a person" in the box (V37).
 await asker.click("[data-testid=talk-to-person]");
 const monthly = await asker.waitForSelector("form [role=alert]", { timeout: 15000 }).then((e) => e.textContent(), () => "");
-ok("visitor: a second person within 30 days is refused, with when to ask again", monthly.includes("once every 30 days") && monthly.includes("You can ask again from"), monthly);
+ok("visitor: a second person within 30 days is refused, with when to ask again", monthly.includes("once every 30 days") && monthly.includes("You can ask again from") && monthly.includes("you've already done that"), monthly);
+ok("visitor: the refusal leaves the message box empty", (await asker.inputValue('textarea[aria-label="Your message"]')) === "");
+ok("visitor: Talk to a person is off after the refusal, Send isn't blocked by it", (await asker.isDisabled("[data-testid=talk-to-person]")) && (await asker.fill('textarea[aria-label="Your message"]', "x").then(() => asker.isEnabled("form button:has-text('Send')"))));
+await asker.fill('textarea[aria-label="Your message"]', "");
 const sameEmail = await fetch(BASE + "/api/support", { method: "POST", headers: { "Content-Type": "application/json", "x-real-ip": "10.7.1.2" }, body: JSON.stringify({ body: "hi", email: "Visitor2@example.com", person: true }) });
 ok("visitor: the same email from another network is refused too", sameEmail.status === 429 && ((await sameEmail.json()).error ?? "").includes("once every 30 days"));
 // Across all visitors, at most 5 people a day (two so far: the refund and visitor2).
 await prisma.supportUse.createMany({ data: [1, 2, 3].map(() => ({ kind: "handover", key: "all:visitor" })) });
 const crowd = await fetch(BASE + "/api/support", { method: "POST", headers: { "Content-Type": "application/json", "x-real-ip": "10.7.1.3" }, body: JSON.stringify({ body: "hi", email: "visitor3@example.com", person: true }) });
 ok("visitors: past the day's ceiling, refused", crowd.status === 429 && ((await crowd.json()).error ?? "").includes("can't take more questions from website visitors today"));
+await prisma.supportUse.deleteMany({ where: { kind: "handover", key: "all:visitor" } });
+// Someone else on the same network used it: the refusal says so, rather than "you" (A1, V88).
+const shared = (email) => fetch(BASE + "/api/support", { method: "POST", headers: { "Content-Type": "application/json", "x-real-ip": "10.7.1.9" }, body: JSON.stringify({ body: "hi", email, person: true }) });
+const firstOnNet = await shared("net-one@example.com");
+ok("network: the first visitor on it is passed to a person", firstOnNet.status === 200 && (await firstOnNet.json()).status === "NEEDS_HUMAN");
+const secondOnNet = await shared("net-two@example.com");
+const netBody = await secondOnNet.json();
+ok("network: a second visitor is told someone on their network used it", secondOnNet.status === 429 && (netBody.error ?? "").includes("someone on your network") && !(netBody.error ?? "").includes("you've already"), netBody.error);
+ok("network: the refusal says when it lifts and what it stops", netBody.stops === "person" && !Number.isNaN(Date.parse(netBody.until)));
 await prisma.supportUse.deleteMany({ where: { kind: "handover", key: "all:visitor" } });
 
 // 8c2. A visitor gets 8 AI answers a day; then the chat says when they can ask again
@@ -211,6 +238,12 @@ await chatty.keyboard.press("Enter");
 const daily = await chatty.waitForSelector("form [role=alert]", { timeout: 15000 }).then((e) => e.textContent(), () => "");
 ok("visitor: the 9th answer in a day is refused, with when to ask again", daily.includes("8 answers a day") && daily.includes("You can ask again from") && requests.length === callsBeforeNinth, daily);
 ok("visitor: the limit doesn't point to the support email", !daily.includes("@"));
+ok("visitor: the limit names the network, not the visitor", daily.includes("used on your network"), daily);
+ok("visitor: Send stays off while the limit lasts", (await chatty.inputValue('textarea[aria-label="Your message"]')) === "And one more question" && (await chatty.isDisabled("form button:has-text('Send')")));
+const callsBeforeEnter = requests.length;
+await chatty.keyboard.press("Enter");
+await chatty.waitForTimeout(500);
+ok("visitor: Enter doesn't send while the limit lasts", requests.length === callsBeforeEnter);
 
 // 8d. The inbox: the hand-over is under Needs you, in the customer's words; closed ones can be found and reopened
 await agent.goto(BASE + "/support");
@@ -319,7 +352,15 @@ await small.waitForSelector("role=dialog[name='SureFrame help']");
 const room = await small.evaluate(() => document.querySelector("[role=dialog] [aria-live=polite]").clientHeight);
 ok("320px: the conversation gets room in the panel", room >= 240, String(room));
 ok("320px: no sideways scroll with the panel open", await small.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+// The page behind the open sheet doesn't scroll (V87).
+const behind = await small.evaluate(() => scrollY);
+await small.mouse.move(4, 300);
+await small.mouse.wheel(0, 500);
+await small.waitForTimeout(300);
+ok("320px: the page behind the help sheet doesn't scroll", (await small.evaluate(() => scrollY)) === behind && (await small.evaluate(() => getComputedStyle(document.documentElement).overflow)) === "hidden");
 await small.screenshot({ path: `${shots}/support-help-320.png` });
+await small.click("button[aria-label='Close help']");
+ok("320px: the page scrolls again once it's closed", (await small.evaluate(() => getComputedStyle(document.documentElement).overflow)) !== "hidden");
 await owner.setViewportSize({ width: 390, height: 844 });
 await owner.goto(BASE + "/library");
 await owner.click("[data-testid=menu-button]");
