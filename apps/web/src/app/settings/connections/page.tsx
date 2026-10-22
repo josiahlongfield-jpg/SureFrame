@@ -117,7 +117,7 @@ export default async function Connections() {
           </ol>
           <CopyConnectorUrl url={mcpResource()} />
           <ol start={3} className="mt-3 grid list-decimal gap-1 pl-5 text-sm text-ink">
-            <li>Choose Connect, sign in to SureFrame if asked, and choose Allow.</li>
+            <li>Choose Connect and then Allow. If you&apos;re asked to sign in, we email you a code: type it in that same window.</li>
           </ol>
         </section>
 

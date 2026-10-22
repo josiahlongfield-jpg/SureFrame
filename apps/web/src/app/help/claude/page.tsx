@@ -50,7 +50,7 @@ export default function HelpClaude() {
             </p>
             <p className="mt-2 text-sm text-muted">
               In Claude, open Settings, then Connectors, choose Add custom connector, and paste <code className="break-all text-ink">{mcpResource()}</code>.
-              Then choose Connect, sign in to {p} and choose Allow.
+              Then choose Connect and Allow. If {p} asks you to sign in there, we email you a 6-digit code to type in that same window (not a link), because the connection has to finish in the window Claude opened.
             </p>
           </section>
           <section className="rounded-2xl border border-line bg-surface p-5">

@@ -6,7 +6,7 @@
  */
 export const CLAUDE_BONUS = {
   kicker: "Free bonus for Claude users",
-  title: "Let Claude work through your SureFrame for you.",
+  title: "Let Claude work alongside you.",
   blurb:
     "Already use Claude? Connect it to SureFrame free of charge and ask it for things to help streamline your service such as client reports, checklists and much more. It only reads, and only sees what you can see.",
   /** The AI add-on and the Claude Desktop connector together (Josiah: show the synergy, so people want both). */

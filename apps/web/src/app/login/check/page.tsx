@@ -4,6 +4,7 @@ import Link from "next/link";
 import AuthLinks from "@/components/AuthLinks";
 import Logo from "@/components/Logo";
 import { safeNext } from "@/lib/secrets";
+import { forClaude } from "@/lib/signInLink";
 import { emailLink } from "../actions";
 import { errorText, SENT_TO_COOKIE } from "../errors";
 import SendAgain from "./SendAgain";
@@ -15,6 +16,8 @@ export default async function CheckEmail({ searchParams }: { searchParams: Promi
   const { next, again, error, signup } = await searchParams;
   const redirectTo = safeNext(next);
   const email = (await cookies()).get(SENT_TO_COOKIE)?.value;
+  // Connecting Claude: the email has only a code (lib/signInLink.ts forClaude).
+  const claude = forClaude(redirectTo);
   const startOver = `/login?next=${encodeURIComponent(redirectTo)}${signup === "1" ? "&signup=1" : ""}`;
   return (
     <main data-theme="navy" className="fit-screen navy-glow text-ink px-4 py-4 short:py-2">
@@ -22,7 +25,7 @@ export default async function CheckEmail({ searchParams }: { searchParams: Promi
         <Logo tone="dark" />
         <h1 className="mt-6 short:mt-3 text-xl font-semibold text-ink">Check your email</h1>
         <p className="mt-3 text-sm text-muted" data-testid="sent-to">
-          {again ? "We sent another sign-in link" : "We sent a sign-in link"}
+          {claude ? (again ? "We sent another code" : "We sent a 6-digit code") : again ? "We sent another sign-in link" : "We sent a sign-in link"}
           {email ? (
             <>
               {" "}to{" "}
@@ -33,10 +36,12 @@ export default async function CheckEmail({ searchParams }: { searchParams: Promi
               </span>
             </>
           ) : null}
-          . Open it on this device, in the browser you use for SureFrame, or type the code from the email here.
+          {claude
+            ? ". Type it here, in this window, to carry on connecting Claude."
+            : ". Open it on this device, in the browser you use for SureFrame, to continue. It works once and expires in 24 hours."}
         </p>
         {error && <p role="alert" className="mt-3 text-sm text-danger-fg" data-testid="check-error">{errorText(error)}</p>}
-        {email && (
+        {email && claude && (
           // A plain form, so the browser follows the sign-in redirect itself (login/code/route.ts).
           <form method="post" action="/login/code" className="mt-4" data-testid="code-form">
             <label htmlFor="code" className="text-sm font-medium text-ink">6-digit code</label>

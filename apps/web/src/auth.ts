@@ -47,11 +47,16 @@ if (emailLinks) {
         const { countSignInEmail } = await import("@/lib/signInGuard");
         await countSignInEmail(identifier);
         const { sendMail } = await import("@/lib/mail");
-        const { signInEmail } = await import("@/lib/signInEmail");
-        const { confirmLink } = await import("@/lib/signInLink");
-        const { makeSignInCode } = await import("@/lib/signInCode");
-        const code = await makeSignInCode(identifier, url);
-        await sendMail({ to: identifier, ...signInEmail(confirmLink(url), new URL(url).host, code) });
+        const { signInCodeEmail, signInEmail } = await import("@/lib/signInEmail");
+        const { callbackTarget, confirmLink, forClaude } = await import("@/lib/signInLink");
+        // Connecting Claude: a code instead of the link, so the sign-in can't wander off into another browser and
+        // finishes in the window Claude opened. Every other sign-in gets the link.
+        if (forClaude(callbackTarget(url))) {
+          const { makeSignInCode } = await import("@/lib/signInCode");
+          await sendMail({ to: identifier, ...signInCodeEmail(await makeSignInCode(identifier, url), new URL(url).host) });
+          return;
+        }
+        await sendMail({ to: identifier, ...signInEmail(confirmLink(url), new URL(url).host) });
       },
     }),
   );

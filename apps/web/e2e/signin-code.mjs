@@ -1,5 +1,6 @@
-// The 6-digit code in sign-in emails (lib/signInCode.ts): typed on the Check your email page, it signs in that same
-// window, so it works when the link would open somewhere else. Run against a server with AUTH_EMAIL_LINKS=true.
+// Signing in to connect Claude (lib/signInCode.ts): the email has a 6-digit code instead of a link, typed on the
+// Check your email page so the window Claude opened finishes the sign-in. Other sign-ins keep the link only.
+// Run against a server with AUTH_EMAIL_LINKS=true.
 import { chromium } from "@playwright/test";
 import { readdirSync, readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
@@ -19,9 +20,11 @@ const mails = (email) =>
     .sort()
     .map((f) => JSON.parse(readFileSync(`${outbox}/${f}`, "utf8")))
     .filter((m) => m.to === email);
-const codeFor = (email) => mails(email).at(-1)?.text.match(/sign-in page: (\d{3} \d{3})/)?.[1];
+const codeFor = (email) => mails(email).at(-1)?.text.match(/to SureFrame: (\d{3} \d{3})/)?.[1];
+// Claude's sign-in window lands here (src/app/oauth/authorize); the details don't matter for signing in.
+const CLAUDE = "/oauth/authorize?response_type=code&client_id=test";
 
-async function ask(page, email, next = "/library") {
+async function ask(page, email, next = CLAUDE) {
   await page.goto(`${BASE}/login?next=${encodeURIComponent(next)}`);
   await page.fill('input[name="email"]', email);
   await page.click("text=Email me a sign-in link");
@@ -39,12 +42,14 @@ const email = `code${Date.now()}@example.com`;
 await agreed(email);
 const ctx = await browser.newContext();
 const page = await ctx.newPage();
-await ask(page, email, "/settings/connections");
+await ask(page, email);
 const code = codeFor(email);
-ok("the sign-in email has a 6-digit code", /^\d{3} \d{3}$/.test(code ?? ""), String(code));
+ok("signing in to connect Claude emails a 6-digit code", /^\d{3} \d{3}$/.test(code ?? ""), String(code));
 const mail = mails(email).at(-1);
 ok("the code is in the email's HTML too", mail.html.includes(code), "");
-ok("the email still has the sign-in link", /https?:\/\/\S+\/login\/confirm\?link=/.test(mail.text));
+ok("and there's no sign-in link in it", !/https?:\/\//.test(mail.text) && !mail.html.includes("/login/confirm"), mail.text);
+ok("the email says it's for connecting Claude", mail.subject.includes("connect Claude"), mail.subject);
+ok("the page says to type it in this window", (await page.textContent("[data-testid=sent-to]")).includes("in this window"));
 ok("the Check your email page has a code box", await page.isVisible("[data-testid=code-form]"));
 await page.setViewportSize({ width: 320, height: 700 });
 ok("the Check your email page fits a small phone", await page.evaluate(() => document.documentElement.scrollWidth <= 320));
@@ -61,8 +66,8 @@ ok("the box is still there after a wrong code", await page.isVisible("[data-test
 await type(page, code);
 await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30000 });
 if (new URL(page.url()).pathname === "/agree") await passAgree(page);
-await page.waitForURL("**/settings/connections", { timeout: 30000 }).catch(() => {});
-ok("the right code signs in and goes where they were heading", new URL(page.url()).pathname === "/settings/connections", page.url());
+await page.waitForURL("**/oauth/authorize**", { timeout: 30000 }).catch(() => {});
+ok("the right code signs in and goes back to Claude's Allow page", new URL(page.url()).pathname === "/oauth/authorize", page.url());
 ok("the code is used up", (await prisma.signInCode.count({ where: { email } })) === 0);
 
 // ---------- a used code, a replaced code, and too many tries ----------
@@ -96,15 +101,18 @@ await type(p3, third);
 await p3.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30000 });
 ok("the window that asked can still use it", !new URL(p3.url()).pathname.startsWith("/login"), p3.url());
 
-// ---------- the link still works on its own ----------
+// ---------- every other sign-in: the link, and no code ----------
 const ctx4 = await browser.newContext();
 const p4 = await ctx4.newPage();
-await ask(p4, email);
-const link = mails(email).at(-1).text.match(/https?:\/\/\S+/)[0];
-await p4.goto(link);
+await ask(p4, email, "/library");
+const normal = mails(email).at(-1);
+ok("a normal sign-in email has the link and no code", /\/login\/confirm\?link=/.test(normal.text) && !/\d{3} \d{3}/.test(normal.text), normal.text);
+ok("and its Check your email page has no code box", !(await p4.isVisible("[data-testid=code-form]")));
+ok("no code is kept for it", (await prisma.signInCode.count({ where: { email } })) === 0);
+await p4.goto(normal.text.match(/https?:\/\/\S+/)[0]);
 await p4.click("[data-testid=confirm-sign-in]");
 await p4.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30000 });
-ok("the emailed link still signs in", !new URL(p4.url()).pathname.startsWith("/login"), p4.url());
+ok("the emailed link signs in", !new URL(p4.url()).pathname.startsWith("/login"), p4.url());
 
 await browser.close();
 await prisma.$disconnect();

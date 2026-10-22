@@ -4,11 +4,12 @@ import { appSecret, safeEqual } from "@/lib/secrets";
 import { CODE_MINUTES, CODE_TRIES } from "@/lib/signInCodeRules";
 
 /**
- * The 6-digit code in each sign-in email. Typing it on the Check your email page signs in the window that asked,
- * which matters when the email's link would open somewhere else: a phone's mail app opening links in another
- * browser, or Claude's sign-in window when connecting SureFrame to Claude (lib/connector), which then can't finish.
+ * The 6-digit code emailed instead of a link when someone signs in to connect Claude (lib/connector,
+ * lib/signInLink.ts forClaude). Claude's sign-in window has to finish the connection itself, and an emailed link
+ * would open in another browser, so the code is typed on the Check your email page in that window. Josiah
+ * (22 October 2026): codes only for this; every other sign-in email has the link.
  *
- * The code stands in for the email's link: a right code sends the browser to the same one-time Auth.js link. The
+ * The code stands in for the link: a right code sends the browser to the one-time Auth.js link. The
  * link (which holds Auth.js's token) is kept encrypted, the code only as a hash, and each code allows a few tries.
  */
 
