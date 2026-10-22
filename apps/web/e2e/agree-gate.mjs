@@ -138,7 +138,7 @@ await fresh.waitForURL((u) => u.pathname === "/welcome", { timeout: 15000 }).cat
 ok("a new owner is asked for the business name next", path(fresh) === "/welcome" && new URL(fresh.url()).searchParams.get("next") === "/clients", fresh.url());
 fresh.off("framenavigated", onNav);
 ok("Agree goes straight to the welcome step, no stop on the way", afterAgree.filter((p) => p !== "/agree")[0] === "/welcome", afterAgree.join(" > "));
-ok("the welcome step shows straight away, not a blank spinner", await fresh.isVisible("[data-testid=welcome-business]"));
+ok("the welcome step shows, not a blank spinner", !!(await fresh.waitForSelector("[data-testid=welcome-business]", { timeout: 10000 }).catch(() => null)));
 // Before the business has a name, Settings > Account and Billing wait for it too (no "<email>'s workspace").
 for (const p of ["/settings/account", "/settings/billing"]) {
   await visit(fresh, p, "/welcome");

@@ -203,12 +203,13 @@ ok("the new access token works", (await rpc(t2.access_token, "tools/list", {})).
 
 // ---------- desktop connector ----------
 await owner.goto(BASE + "/settings/connections");
+const lifetime = (await owner.textContent("[data-testid=code-lifetime]")) ?? "";
+ok("says a lost code means making another, and only Disconnect ends one (O95, B12)", lifetime.includes("Lost a code? Make another") && lifetime.includes("Resetting your team's key doesn't end a code; only Disconnect does"), lifetime);
 await owner.click("[data-testid=make-connection-code]");
 const connectionCode = await owner.inputValue("[data-testid=connection-code-text]");
 ok("connection code made in the browser", connectionCode.startsWith("sfc1_"));
 ok("Copy code is the main button by the code (S76)", await owner.isVisible("[data-testid=copy-connection-code]"));
-const lifetime = (await owner.textContent("[data-testid=code-lifetime]")) ?? "";
-ok("says a lost code means making another, and only Disconnect ends one (O95, B12)", lifetime.includes("Lost a code? Make another") && lifetime.includes("Resetting your team's key doesn't end a code; only Disconnect does"), lifetime);
+ok("with the code: says a lost one means making another", ((await owner.textContent("main")) ?? "").includes("Lost it later? Make another one; this one keeps working until you disconnect it"));
 await owner.reload();
 ok("an unused code shows as waiting for Claude Desktop (S73)", (await owner.locator("#yours [data-testid=connection-status]", { hasText: "waiting for Claude Desktop" }).count()) === 1);
 const desktopGrant = await prisma.connectorGrant.findFirst({ where: { userId: me.id, kind: "desktop" } });

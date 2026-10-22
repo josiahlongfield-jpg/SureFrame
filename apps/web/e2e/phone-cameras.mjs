@@ -72,6 +72,8 @@ async function recorder(opts, { phone, oneCamera = false } = {}) {
   await page.goto(BASE + "/record");
   await page.waitForSelector("[data-testid=mode-camera]", { timeout: 20000 });
   if (!phone) await page.click("text=Camera only");
+  // After the first recording, the camera and quality choices fold away (D12): open them to change them.
+  await page.evaluate(() => document.querySelector("[data-testid=recorder-settings]")?.setAttribute("open", ""));
   return { ctx, page };
 }
 

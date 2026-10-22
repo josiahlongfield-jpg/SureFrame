@@ -90,7 +90,8 @@ const qRow = "[data-testid=sent-row]:has-text('Client Q')";
 await owner.waitForSelector(`${qRow} [data-testid=first-link-copy]`);
 ok("Client Q is under Sent to, with the same buttons to send it again", norm(await owner.textContent("[data-testid=sent-list]")).includes("Client Q") && (await owner.locator("[data-testid=waiting-list]").count()) === 0);
 ok("their row: Not opened yet, no extra note", norm(await owner.textContent(qRow)).includes("Not opened yet") && (await owner.locator(`${qRow} [data-testid=row-first]`).count()) === 0);
-ok("status says the email app should open", norm(await owner.textContent("[data-testid=send-status]")).includes("Your email app should open"));
+// Said under Client Q's own row (S14), and not called sent: the email app only opened (O33, O41).
+ok("their row says the email app should open", norm(await owner.textContent(`${qRow} [data-testid=row-note]`)).includes("Your email app should open") && norm(await owner.textContent(qRow)).includes("Email app opened") && (await owner.locator("[data-testid=send-status]").count()) === 0);
 ok("marked as sent", !!(await waitFor(async () => (await prisma.client.findUnique({ where: { id: q.id } })).linkSentAt)));
 await owner.click(`${qRow} [data-testid=first-link-copy]`);
 await owner.waitForTimeout(300);
