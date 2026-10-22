@@ -66,17 +66,17 @@ const ROLE_LABEL: Record<Role, string> = { OWNER: "Owner", ADMIN: "Admin", MEMBE
  * wrap is already kept in this browser (lib/e2e/keystore.ts), so keeping the link here adds nothing new.
  */
 const INVITE_LINK = "framecast.invite-link:";
-const keptLink = (id: string) => {
+const keptLink = (workspaceId: string, id: string) => {
   try {
-    return localStorage.getItem(INVITE_LINK + id);
+    return localStorage.getItem(`${INVITE_LINK}${workspaceId}:${id}`);
   } catch {
     return null;
   }
 };
-const keepLink = (id: string, url: string | null) => {
+const keepLink = (workspaceId: string, id: string, url: string | null) => {
   try {
-    if (url) localStorage.setItem(INVITE_LINK + id, url);
-    else localStorage.removeItem(INVITE_LINK + id);
+    if (url) localStorage.setItem(`${INVITE_LINK}${workspaceId}:${id}`, url);
+    else localStorage.removeItem(`${INVITE_LINK}${workspaceId}:${id}`);
   } catch {
     /* storage blocked: the link is shown only until the page is left */
   }
@@ -136,14 +136,15 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
   useEffect(() => {
     const found: Record<string, string> = {};
     for (const i of initialInvites) {
-      const url = keptLink(i.id);
+      const url = keptLink(workspaceId, i.id);
       if (url) found[i.id] = url;
     }
     setLinks(found);
     // Links of invites that were used, cancelled or ran out are forgotten.
     try {
+      const mine = `${INVITE_LINK}${workspaceId}:`;
       const live = new Set(initialInvites.map((i) => i.id));
-      for (const k of Object.keys(localStorage)) if (k.startsWith(INVITE_LINK) && !live.has(k.slice(INVITE_LINK.length))) localStorage.removeItem(k);
+      for (const k of Object.keys(localStorage)) if (k.startsWith(mine) && !live.has(k.slice(mine.length))) localStorage.removeItem(k);
     } catch {}
     // A key reset's to-do list, until its recovery key was saved; only if it's this business's current key.
     void (async () => {
@@ -181,7 +182,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
     if (!res.ok) return setError(data.error ?? "Could not create the invite");
     const url = `${data.link}#k=${await exportKey(oneOff)}`;
     setLink({ url, emailedTo: data.emailed ? data.invite.email : null });
-    keepLink(data.invite.id, url);
+    keepLink(workspaceId, data.invite.id, url);
     setLinks((l) => ({ ...l, [data.invite.id]: url }));
     setInvites((list) => [...list, { ...data.invite, expiresAt: String(data.invite.expiresAt) }]);
     setSeats((s) => ({ ...s, pending: s.pending + 1, used: s.used + 1 }));
@@ -191,7 +192,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
   async function cancel(i: Invite) {
     const res = await fetch(`/api/team/invites/${i.id}`, { method: "DELETE" });
     if (!res.ok) return;
-    keepLink(i.id, null);
+    keepLink(workspaceId, i.id, null);
     setInvites((list) => list.filter((x) => x.id !== i.id));
     setSeats((s) => ({ ...s, pending: s.pending - 1, used: s.used - 1 }));
   }
@@ -245,7 +246,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
       keepReset(workspaceId, done);
       setResetDue(false);
       // Pending invites were cancelled with the old keys.
-      for (const i of invites) keepLink(i.id, null);
+      for (const i of invites) keepLink(workspaceId, i.id, null);
       setInvites([]);
       if (m) {
         setMembers((list) => list.filter((x) => x.userId !== m.userId));
