@@ -23,7 +23,13 @@ type Props = {
 /** The team's planner: private items use the team key, shared items the client's key. */
 export default function MemberPlanner({ workspaceId, fingerprint, lockedNote, ...rest }: Props) {
   return (
-    <TeamKeyGate workspaceId={workspaceId} fingerprint={fingerprint} lockedNote={lockedNote}>
+    <TeamKeyGate
+      workspaceId={workspaceId}
+      fingerprint={fingerprint}
+      lockedNote={lockedNote}
+      anchor="unlock"
+      why="To-dos and notes are end-to-end encrypted, so reading or adding them needs the key in this browser."
+    >
       {(teamKey) => <Unlocked teamKey={teamKey} {...rest} />}
     </TeamKeyGate>
   );

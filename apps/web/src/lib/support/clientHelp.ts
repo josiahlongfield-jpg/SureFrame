@@ -9,6 +9,7 @@ import { safeEqual } from "@/lib/secrets";
 import { anthropic, MODEL } from "@/lib/support/assistant";
 import { CLIENT_GUIDE } from "@/lib/support/clientKnowledge";
 import { browserNote } from "@/lib/support/browser";
+import { contactOf, contactWords } from "@/lib/clientContact";
 
 /**
  * How many questions a client can ask (api/client-help): short bursts, and a daily allowance per client, so one person
@@ -37,7 +38,7 @@ export type HelpPage = (typeof HELP_PAGES)[number];
 export async function helpClient(clientId: string, sig?: string) {
   const client = await db.client.findUnique({
     where: { id: clientId },
-    include: { workspace: { select: { ...clientGate, id: true, name: true, plan: true, aiAssist: true, reminderMessage: true, reminderReplyTo: true } } },
+    include: { workspace: { select: { ...clientGate, id: true, name: true, plan: true, aiAssist: true, reminderMessage: true, reminderReplyTo: true, contactEmail: true, contactPhone: true } } },
   });
   if (!client) return null;
   if (sig) return validUnsubscribe(clientId, sig) ? client : null;
@@ -47,10 +48,13 @@ export async function helpClient(clientId: string, sig?: string) {
 export type HelpClient = NonNullable<Awaited<ReturnType<typeof helpClient>>>;
 
 /**
- * Who to contact instead: the business whose link this is, with the reply-to address its emails to this client use
- * (the assigned staff member's own, else the business's), and nothing else about its account. Never SureFrame.
+ * Who to contact instead: the business whose link this is, with the contact line it set for its clients (Settings >
+ * Branding, Decision 5), else the reply-to address its emails to this client use (the assigned staff member's own,
+ * else the business's), and nothing else about its account. Never SureFrame.
  */
 export async function contactBusiness(client: HelpClient) {
+  const line = contactOf(client.workspace);
+  if (line) return `Please contact ${client.workspace.name} ${contactWords(line)}.`;
   const assigned = client.assignedToId
     ? await db.membership.findUnique({ where: { userId_workspaceId: { userId: client.assignedToId, workspaceId: client.workspaceId } } })
     : null;
@@ -162,6 +166,6 @@ export async function answerClient(client: HelpClient, page: HelpPage, turns: He
 export async function helpForDevice() {
   const tokens = (await cookies()).getAll().filter((c) => c.name.startsWith("fc_client_")).map((c) => c.value);
   if (!tokens.length) return [];
-  const clients = await db.client.findMany({ where: { token: { in: tokens } }, select: { id: true, workspace: { select: { name: true, plan: true } } }, orderBy: { createdAt: "asc" } });
-  return clients.map((c) => ({ clientId: c.id, business: c.workspace.name, limits: clientHelpLimitText(c.workspace.plan) }));
+  const clients = await db.client.findMany({ where: { token: { in: tokens } }, select: { id: true, workspace: { select: { name: true, plan: true, contactEmail: true, contactPhone: true } } }, orderBy: { createdAt: "asc" } });
+  return clients.map((c) => ({ clientId: c.id, business: c.workspace.name, limits: clientHelpLimitText(c.workspace.plan), contact: contactOf(c.workspace) }));
 }

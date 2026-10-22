@@ -29,6 +29,9 @@ import { formerTeams, senderName } from "@/lib/team";
 import { nameWithBusiness } from "@/lib/senderLine";
 import { clientHelpLimitText } from "@/lib/support/clientHelp";
 import { replacedLinks } from "@/lib/replacedLinks";
+import ClientContactLine from "@/components/ClientContactLine";
+import { contactOf } from "@/lib/clientContact";
+import { clientTitle, isDefaultTitle } from "@/lib/videoTitle";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ team?: string; asClient?: string; new?: string }> };
 
@@ -52,7 +55,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     : !found.viewer || (await keyless(found.viewer))
       ? "Private video"
       : found.viewer.kind === "client"
-        ? `${found.video.title} · from ${found.video.workspace.name}`
+        ? // An untitled video is "A video from Business A" to clients (Decision 10), so it isn't said twice.
+          isDefaultTitle(found.video.title)
+          ? clientTitle(found.video.title, found.video.workspace.name)
+          : `${found.video.title} · from ${found.video.workspace.name}`
         : found.video.title;
   return { title, robots: { index: false } };
 }
@@ -86,14 +92,16 @@ export default async function Watch({ params, searchParams }: Props) {
   }
 
   if (viewer.kind === "client" && (await keyless(viewer))) {
-    const workspace = await db.workspace.findUniqueOrThrow({ where: { id: video.workspaceId }, select: { ...brandFields, timezone: true } });
+    const workspace = await db.workspace.findUniqueOrThrow({ where: { id: video.workspaceId }, select: { ...brandFields, ...contactFields, timezone: true } });
     // Which video this is (C48): who from and when. Not its title: like All my videos, a device without the key shows
     // none of the client's details (Decision 1), and the tab says only "Private video".
     const about = `A video from ${workspace.name}, sent ${zoned(workspace.timezone).longDay(video.sentAt ?? video.createdAt)}.`;
     return (
-      <CantOpenShell brand={brandOf(workspace)} help={{ for: [{ clientId: viewer.client.id, business: workspace.name, limits: clientHelpLimitText(workspace.plan) }], page: "cant-open", videoId: id }}>
+      <CantOpenShell brand={brandOf(workspace)} help={{ for: [{ clientId: viewer.client.id, business: workspace.name, limits: clientHelpLimitText(workspace.plan), contact: contactOf(workspace) }], page: "cant-open", videoId: id }}>
         <div className="mx-auto max-w-md">
           <ClientKeyGate clientId={viewer.client.id} business={workspace.name} signInNext={`/v/${id}`} about={about} />
+          {/* No reply box on this page: the business's own contact line, when it has one (Decision 5). */}
+          <ClientContactLine business={workspace.name} contact={contactOf(workspace)} className="mt-4 text-center" />
         </div>
       </CantOpenShell>
     );
@@ -185,6 +193,7 @@ export default async function Watch({ params, searchParams }: Props) {
                       clientId: viewer.client.id,
                       business: workspace.name,
                       limits: clientHelpLimitText(workspace.plan),
+                      contact: contactOf(workspace),
                       // The help chat's "Reply to …" opens this page's reply box (not on an expired link's page).
                       reply: expired ? undefined : { videoId: id, to: replyTo },
                     },
@@ -221,11 +230,13 @@ export default async function Watch({ params, searchParams }: Props) {
         {expired ? (
           <CantOpen title="This link has expired">
             <p>Ask {workspace.name} to send the video again if you still need it.</p>
+            {viewer.kind === "client" && <ClientContactLine business={workspace.name} contact={contactOf(workspace)} />}
           </CantOpen>
         ) : (
           <WatchView
             // Only the team sees how often the client opened it; clients aren't sent the count at all.
-            video={{ ...publicVideo(video), viewCount: isMember ? video.viewCount + copyViews : 0 }}
+            // Clients see "A video from Business A" until it has a real title (Decision 10); the team sees the title as it is.
+            video={{ ...publicVideo(video), title: isMember ? video.title : clientTitle(video.title, workspace.name), viewCount: isMember ? video.viewCount + copyViews : 0 }}
             // Clients see "Team member 1 from Business A" (never an email); the team sees the name or email (lib/team.ts).
             ownerName={senderName(video, workspace.name, isMember ? "team" : "client")}
             ownerNote={!isMember && video.formerStaffAt ? `Recorded by someone who has since left ${workspace.name}. Your replies still reach ${workspace.name}.` : undefined}
@@ -277,6 +288,8 @@ export default async function Watch({ params, searchParams }: Props) {
             promo={!isMember && PLANS[workspace.plan].showsPromo ? { workspaceId: workspace.id } : undefined}
           />
         )}
+        {/* How this client can reach the business, when it set a contact line (Decision 5). */}
+        {viewer.kind === "client" && !expired && <ClientContactLine business={workspace.name} contact={contactOf(workspace)} className="mt-8 border-t border-line pt-4" />}
       </main>
       {!isMember && <MadeWith />}
     </div>
@@ -285,6 +298,8 @@ export default async function Watch({ params, searchParams }: Props) {
 
 /** What brandOf needs from a workspace. */
 const brandFields = { id: true, name: true, plan: true, brandColor: true, brandLogoType: true, brandVersion: true } as const;
+/** The business's contact line for its clients (lib/clientContact.ts). */
+const contactFields = { contactEmail: true, contactPhone: true } as const;
 
 /** A page around the one "can't open" card, in the business's colours when this device is one of their clients. */
 function CantOpenShell({ brand, team = false, help, children }: { brand: Brand | null; team?: boolean; help?: ComponentProps<typeof ClientHeader>["help"]; children: ReactNode }) {
@@ -312,7 +327,7 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
   const path = `/v/${video.id}`;
   // A client of this business on this device whose link has stopped working: they're told who and why.
   const token = video.clientId ? (await cookies()).get(clientCookie(video.workspaceId))?.value : undefined;
-  const mine = token ? await db.client.findUnique({ where: { token }, include: { workspace: { select: { ...clientGate, ...brandFields } } } }) : null;
+  const mine = token ? await db.client.findUnique({ where: { token }, include: { workspace: { select: { ...clientGate, ...brandFields, ...contactFields } } } }) : null;
   const block = mine?.id === video.clientId ? clientBlock(mine) : null;
   if (mine && block) {
     const name = mine.workspace.name;
@@ -327,9 +342,11 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
               ? ["This link no longer opens your videos", `${name} has closed their SureFrame account. If you need anything, contact them directly.`, "video-closed"]
               : ["Your access is paused", `${name} changed its SureFrame plan, so your access is paused. Nothing has been deleted; contact them to have it restored.`, "video-paused"];
     return (
-      <CantOpenShell brand={brandOf(mine.workspace)} help={{ for: [{ clientId: mine.id, business: name, limits: clientHelpLimitText(mine.workspace.plan) }], page: "cant-open", videoId: video.id }}>
+      <CantOpenShell brand={brandOf(mine.workspace)} help={{ for: [{ clientId: mine.id, business: name, limits: clientHelpLimitText(mine.workspace.plan), contact: block === "unavailable" ? null : contactOf(mine.workspace) }], page: "cant-open", videoId: video.id }}>
         <CantOpen title={title} testId={testId}>
           <p>{text}</p>
+          {/* Its contact line, so "contact them" has a way (Decision 5). Not while support has it unavailable. */}
+          {block !== "unavailable" && <ClientContactLine business={name} contact={contactOf(mine.workspace)} />}
         </CantOpen>
       </CantOpenShell>
     );

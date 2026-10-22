@@ -56,40 +56,22 @@ async function catchUp(workspaceId: string, key: CryptoKey) {
 }
 
 /**
- * Makes sure this device holds the team's end-to-end key before rendering
- * children that record, send or play videos. The first device creates the
- * key (the header then shows its recovery key until it's saved); other
- * devices enter that recovery key.
+ * This device's copy of the team's end-to-end key: loads it, brings it up to date after a key reset, or (the first
+ * device of a new business) creates it. While it's missing, `state` is "recover" and `recover` takes the recovery
+ * key. Every gate on a page opens together (UNLOCKED). Pages that work without the key (the Clients list, Decision 15)
+ * use this directly and lock only what needs it; TeamKeyGate below locks a whole part of the page.
  */
-export default function TeamKeyGate({
-  workspaceId,
-  fingerprint,
-  children,
-  loading,
-  lockedNote,
-  onUnlock,
-}: {
-  workspaceId: string;
-  fingerprint: string | null;
-  children: (key: CryptoKey) => React.ReactNode;
-  /** Shown while checking this device's key (default: "Unlocking…"). */
-  loading?: React.ReactNode;
-  /** Shown instead of the unlock form when another gate on the page has it (components/LibraryUnlock). */
-  lockedNote?: React.ReactNode;
-  /** Called after the recovery key was entered here. */
-  onUnlock?: () => void;
-}) {
+export function useTeamKey(workspaceId: string, fingerprint: string | null, onUnlock?: () => void) {
   const [state, setState] = useState<State>({ kind: "loading" });
-  const [input, setInput] = useState("");
   // Bumped when another gate on the page unlocks, so every gate opens together.
   const [unlockedElsewhere, setUnlockedElsewhere] = useState(0);
   const locked = useRef(false);
   locked.current = state.kind === "recover";
 
   useEffect(() => {
-    const onUnlock = (e: Event) => locked.current && (e as CustomEvent<string>).detail === workspaceId && setUnlockedElsewhere((n) => n + 1);
-    window.addEventListener(UNLOCKED, onUnlock);
-    return () => window.removeEventListener(UNLOCKED, onUnlock);
+    const onOther = (e: Event) => locked.current && (e as CustomEvent<string>).detail === workspaceId && setUnlockedElsewhere((n) => n + 1);
+    window.addEventListener(UNLOCKED, onOther);
+    return () => window.removeEventListener(UNLOCKED, onOther);
   }, [workspaceId]);
 
   useEffect(() => {
@@ -114,8 +96,7 @@ export default function TeamKeyGate({
     };
   }, [workspaceId, fingerprint, unlockedElsewhere]);
 
-  async function recover(e: React.FormEvent) {
-    e.preventDefault();
+  async function recover(input: string) {
     // Nothing typed yet: say what goes in the box, not that a key is wrong (S6).
     if (!input.trim()) return setState({ kind: "recover", error: "Enter your recovery key: the letters and numbers you copied, downloaded or printed when it was shown to you. Spaces don't matter." });
     try {
@@ -135,35 +116,89 @@ export default function TeamKeyGate({
     }
   }
 
+  return { state, recover };
+}
+
+/**
+ * The recovery key box: what's locked in this browser and why, in plain words (Decision 15). `why` leads with what
+ * this page needs the key for; the rest says what the key is, where to find it, and what works without it.
+ */
+export function UnlockBox({ error, onRecover, why, anchor }: { error?: string; onRecover: (input: string) => void; why?: React.ReactNode; anchor?: string }) {
+  const [input, setInput] = useState("");
+  return (
+    <div id={anchor} className="mt-6 max-w-md scroll-mt-6 rounded-2xl border border-line bg-surface p-6" data-testid="unlock-box">
+      <h2 className="font-semibold text-ink">Unlock your videos in this browser</h2>
+      {why && <p className="mt-2 text-sm font-medium text-ink" data-testid="unlock-why">{why}</p>}
+      <p className="mt-2 text-sm text-muted" data-testid="unlock-what">
+        Your videos, replies, to-dos and notes, and each client&apos;s private key, are end-to-end encrypted with your team&apos;s key, so not even we can open them.
+        Each browser keeps its own copy of that key, so a new device, a different browser or cleared browser data asks for it once. Your client list, settings and
+        billing work without it.
+      </p>
+      <p className="mt-2 text-sm text-muted">
+        Enter the recovery key saved when the account was set up. On a team, everyone has the same recovery key: it was shown to you when you joined, and the owner or an admin has it too. If you joined from an invite link, opening that same link again in this browser also works, until the team&apos;s keys are next reset.
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onRecover(input);
+        }}
+        className="mt-4 grid gap-3"
+      >
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          aria-label="Recovery key"
+          placeholder="Recovery key"
+          autoComplete="off"
+          spellCheck={false}
+          className="min-w-0 rounded-lg border border-line-strong px-3 py-2 font-mono text-sm"
+        />
+        <button className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover">Unlock</button>
+      </form>
+      {error && <p role="alert" className="mt-2 text-sm text-danger-fg">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * Makes sure this device holds the team's end-to-end key before rendering
+ * children that record, send or play videos. The first device creates the
+ * key (the header then shows its recovery key until it's saved); other
+ * devices enter that recovery key.
+ */
+export default function TeamKeyGate({
+  workspaceId,
+  fingerprint,
+  children,
+  loading,
+  lockedNote,
+  onUnlock,
+  why,
+  anchor,
+}: {
+  workspaceId: string;
+  fingerprint: string | null;
+  children: (key: CryptoKey) => React.ReactNode;
+  /** Shown while checking this device's key (default: "Unlocking…"). */
+  loading?: React.ReactNode;
+  /** Shown instead of the unlock form when another gate on the page has it (components/LibraryUnlock). */
+  lockedNote?: React.ReactNode;
+  /** Called after the recovery key was entered here. */
+  onUnlock?: () => void;
+  /** What this part of the page needs the key for, said first in the unlock box. */
+  why?: React.ReactNode;
+  /** The unlock box's id, so a note elsewhere on the page can link to it. */
+  anchor?: string;
+}) {
+  const { state, recover } = useTeamKey(workspaceId, fingerprint, onUnlock);
+
   if (state.kind === "loading") {
     return loading !== undefined ? <>{loading}</> : <div className="grid h-40 place-items-center text-sm text-dim">Unlocking…</div>;
   }
 
   if (state.kind === "recover" && lockedNote !== undefined) return <>{lockedNote}</>;
 
-  if (state.kind === "recover") {
-    return (
-      <div className="mt-6 max-w-md rounded-2xl border border-line bg-surface p-6">
-        <h2 className="font-semibold text-ink">Unlock your videos in this browser</h2>
-        <p className="mt-2 text-sm text-muted">
-          Your videos are end-to-end encrypted, so not even we can open them. Each browser keeps its own copy of the key, so a new device, a different browser or cleared browser data asks for it once. Enter the recovery key saved when the account was set up. On a team, everyone has the same recovery key: it was shown to you when you joined, and the owner or an admin has it too. If you joined from an invite link, opening that same link again in this browser also works, until the team&apos;s keys are next reset.
-        </p>
-        <form onSubmit={recover} className="mt-4 grid gap-3">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            aria-label="Recovery key"
-            placeholder="Recovery key"
-            autoComplete="off"
-            spellCheck={false}
-            className="rounded-lg border border-line-strong px-3 py-2 font-mono text-sm"
-          />
-          <button className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover">Unlock</button>
-        </form>
-        {state.error && <p role="alert" className="mt-2 text-sm text-danger-fg">{state.error}</p>}
-      </div>
-    );
-  }
+  if (state.kind === "recover") return <UnlockBox error={state.error} onRecover={recover} why={why} anchor={anchor} />;
 
   return <>{children(state.key)}</>;
 }
@@ -176,7 +211,13 @@ export default function TeamKeyGate({
 export function LibraryUnlock({ workspaceId, fingerprint }: { workspaceId: string; fingerprint: string | null }) {
   return (
     <div id="unlock" className="scroll-mt-6 empty:hidden [&>div]:mb-8 [&>div]:mt-0" data-testid="library-unlock">
-      <TeamKeyGate workspaceId={workspaceId} fingerprint={fingerprint} loading={null} onUnlock={() => window.location.reload()}>
+      <TeamKeyGate
+        workspaceId={workspaceId}
+        fingerprint={fingerprint}
+        loading={null}
+        onUnlock={() => window.location.reload()}
+        why="Your list of videos is below. Playing them, and their stills, needs the key in this browser."
+      >
         {() => null}
       </TeamKeyGate>
     </div>

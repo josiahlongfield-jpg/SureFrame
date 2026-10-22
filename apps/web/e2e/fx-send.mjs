@@ -65,6 +65,8 @@ await owner.waitForSelector("text=I've saved it", { timeout: 15000 }).then((b) =
 // ---- Adding clients (Free: 3 seats) ----
 await owner.waitForSelector("[data-testid=first-link-rule]");
 ok("adding (no clients yet): how clients get videos is explained up front", norm(await owner.textContent("[data-testid=first-link-rule]")).includes("Send their first video yourself") && norm(await owner.textContent("[data-testid=first-link-rule]")).includes("After that, we email them"));
+// The Clients page's copy of "Why does the first video come from me?" is Josiah's approved wording too (Decision 18).
+ok("Clients page: the first-video why is Josiah's wording (Decision 18)", norm(await owner.textContent("[data-testid=first-link-rule] [data-testid=first-why-text]")) === "A new client's first link has to come from you, because it carries their private key, which we never see. Once they've opened it, Send by email does the rest.");
 const aEmail = `client-a-${stamp}@example.com`;
 await owner.fill('input[aria-label="Client name"]', "x".repeat(81));
 await owner.click("button:has-text('Add client')");
@@ -194,7 +196,7 @@ ok("picker marks first-time clients", (await owner.locator("[role=listbox] li:ha
 ok("picker: same status as the Clients page (Client B's link was sent)", norm(await owner.textContent("[role=listbox] li:has-text('Client B') [data-testid=needs-first-link]"))?.includes("Not opened yet"));
 await owner.keyboard.press("Escape");
 await chooseClients(owner, "Client A", "Client B", "Client C");
-ok("Send box: new clients chosen, their first videos go from you", norm(await owner.textContent("[data-testid=first-time]")).includes("Alongside each video is that client's personal link, so for privacy reasons SureFrame is unable to automate it"));
+ok("Send box: new clients chosen, their first videos go from you", norm(await owner.textContent("[data-testid=first-time]")).includes("A new client's first link has to come from you, because it carries their private key, which we never see."));
 const firstBox = norm(await owner.textContent("[data-testid=first-links]"));
 ok("chosen first-timers: each named, with their own Copy link", (await owner.locator("[data-testid=first-link-row]:has-text('Client B') [data-testid=first-link-copy]").count()) === 1 && (await owner.locator("[data-testid=first-link-row]:has-text('Client C') [data-testid=first-link-copy]").count()) === 1, firstBox);
 ok("several first-timers: each row still has Copy link + message (S15)", (await owner.locator("[data-testid=first-link-row]:has-text('Client B') [data-testid=first-link-message]").count()) === 1 && (await owner.locator("[data-testid=first-link-row]:has-text('Client C') [data-testid=first-link-message]").count()) === 1);

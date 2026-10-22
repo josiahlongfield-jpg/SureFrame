@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import BrandingForm, { BusinessNameForm } from "@/components/BrandingForm";
+import { ClientContactForm, ClientEmailsForm } from "@/components/ClientEmailSettings";
 import { brandOf } from "@/lib/branding";
 import { PLANS } from "@/lib/plans";
 import { requirePageUser } from "@/lib/session";
@@ -17,7 +18,7 @@ export default async function BrandingSettings() {
       <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Branding</h1>
         <p className="mt-1 text-sm text-dim">
-          Your business name, logo and colour on the pages and emails your clients see.
+          Your business name, logo and colour on the pages and emails your clients see, how clients can reach you, and your client emails.
         </p>
         {role === "MEMBER" ? (
           <p className="mt-6 rounded-2xl border border-line bg-surface p-6 text-sm text-muted">Ask an owner or admin of {workspace.name} to change the branding.</p>
@@ -36,6 +37,13 @@ export default async function BrandingSettings() {
           </>
         ) : (
           <BrandingForm workspaceId={workspace.id} name={workspace.name} color={brand.color} logoUrl={brand.logoUrl} />
+        )}
+        {/* On every plan (not part of custom branding): how clients reach the business, and the emails they get (Decisions 5, 13). */}
+        {role !== "MEMBER" && (
+          <>
+            <ClientContactForm business={workspace.name} email={workspace.contactEmail ?? ""} phone={workspace.contactPhone ?? ""} />
+            <ClientEmailsForm replyTo={workspace.reminderReplyTo ?? ""} message={workspace.reminderMessage ?? ""} />
+          </>
         )}
       </main>
     </>

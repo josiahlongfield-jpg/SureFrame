@@ -818,6 +818,8 @@ function WatchBody({
                   ) : null}
                   {/* The box saves itself (O29): no separate Save button is needed. */}
                   <span data-testid="title-autosave">The title is saved as you type. </span>
+                  {/* Decision 10: clients never see the date-made title. */}
+                  {isDefaultTitle(title) && <span data-testid="title-client-sees">Until you give it a title, clients see &ldquo;A video from {business}&rdquo;. </span>}
                   Titles aren&apos;t encrypted, so keep private details in the video or your message.
                 </p>
               </>
@@ -829,7 +831,7 @@ function WatchBody({
                     For {clientName}
                   </p>
                 )}
-                <h1 className="text-2xl font-semibold leading-snug text-ink [overflow-wrap:break-word]">{title}</h1>
+                <h1 className="text-2xl font-semibold leading-snug text-ink [overflow-wrap:break-word]" data-testid="video-title">{title}</h1>
               </>
             )}
             <p className="mt-1 px-1 text-sm text-dim" data-testid="video-meta">

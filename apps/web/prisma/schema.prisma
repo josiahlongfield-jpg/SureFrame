@@ -160,6 +160,10 @@ model Workspace {
   reminderMessage       String?
   /// Where client replies to reminder emails go.
   reminderReplyTo       String?
+  /// Optional contact line shown to the business's own clients (their pages, the client help chat's
+  /// can't-answer replies and client emails). Set on Branding; blank shows nothing (lib/clientContact.ts).
+  contactEmail          String?
+  contactPhone          String?
   /// Custom branding (paid plans) shown to clients: logo image and accent colour (#rrggbb).
   brandLogo             Bytes?
   brandLogoType         String?

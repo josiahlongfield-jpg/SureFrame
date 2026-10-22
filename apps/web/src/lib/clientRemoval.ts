@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { contactOf } from "@/lib/clientContact";
 import { db, type Workspace } from "@/lib/db";
 import { BRAND } from "@/lib/brand";
 import { brandOf } from "@/lib/branding";
@@ -53,7 +54,7 @@ export async function emailClientRemoved(clientId: string) {
   const assigned = c.assignedToId ? await db.membership.findUnique({ where: { userId_workspaceId: { userId: c.assignedToId, workspaceId: ws.id } } }) : null;
   const { replyTo } = clientMailSettings(ws, assigned);
   const brand = brandOf(ws, appUrl(""));
-  const mail = clientRemovedEmail({ business: ws.name, clientName: c.name, until: zoned(ws.timezone).longDay(c.purgeAt), logoUrl: brand.logoUrl, color: brand.color, noReply: !replyTo });
+  const mail = clientRemovedEmail({ business: ws.name, clientName: c.name, until: zoned(ws.timezone).longDay(c.purgeAt), logoUrl: brand.logoUrl, color: brand.color, noReply: !replyTo, contact: contactOf(ws) });
   try {
     await sendMail({ to: c.email, ...mail, fromName: ws.name, replyTo });
     return true;
@@ -107,7 +108,7 @@ export async function restoreClient(workspace: Workspace, id: string, { ignoreSe
     const brand = brandOf(workspace, appUrl(""));
     const assigned = c.assignedToId ? await db.membership.findUnique({ where: { userId_workspaceId: { userId: c.assignedToId, workspaceId: workspace.id } } }) : null;
     const { replyTo } = clientMailSettings(workspace, assigned);
-    const mail = newLinkEmail({ business: workspace.name, clientName: c.name, link: clientLink(c.token), logoUrl: brand.logoUrl, color: brand.color });
+    const mail = newLinkEmail({ business: workspace.name, clientName: c.name, link: clientLink(c.token), logoUrl: brand.logoUrl, color: brand.color, contact: contactOf(workspace) });
     emailed = await sendMail({ to: c.email, ...mail, fromName: workspace.name, replyTo }).then(
       async () => {
         await markReplacedEmailed(c.id).catch(() => {});

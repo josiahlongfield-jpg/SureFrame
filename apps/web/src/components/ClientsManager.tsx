@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { exportKey, fingerprint, generateKey, unwrapKey, wrapKey } from "@/lib/e2e/crypto";
 import { zoned } from "@/lib/dates";
 import { shareLink, useCanShare, writeClipboard } from "@/lib/clipboard";
-import TeamKeyGate from "./TeamKeyGate";
+import { UnlockBox, useTeamKey } from "./TeamKeyGate";
 import RemoveExtras from "./RemoveExtras";
 import { ReplyBadges, type Conv } from "./LibraryTools";
 import FirstLinkSender, { PersonalLinkSteps } from "./FirstLinkSender";
@@ -114,18 +114,43 @@ export function parseClientList(text: string) {
   return { clients: out, bad };
 }
 
+/**
+ * Decision 15: in a browser that doesn't hold the team's key yet, the client list, seats, assigning and removing all
+ * work (none of it is encrypted). Only what needs the key asks for it: adding a client (their private key is made here
+ * and locked with the team's key) and copying a personal link (it carries the client's key, unlocked with the team's).
+ */
 export default function ClientsManager({ workspaceId, fingerprint, ...rest }: Props) {
+  const team = useTeamKey(workspaceId, fingerprint);
+  const locked = team.state.kind === "recover";
+  // A moment while this browser's key is looked up, as before: the list then opens with or without it.
+  if (team.state.kind === "loading") return <div className="grid h-40 place-items-center text-sm text-dim">Unlocking…</div>;
   return (
-    <TeamKeyGate workspaceId={workspaceId} fingerprint={fingerprint}>
-      {(teamKey) => <Manager {...rest} teamKey={teamKey} />}
-    </TeamKeyGate>
+    <>
+      {locked && (
+        <UnlockBox
+          anchor="unlock"
+          error={team.state.kind === "recover" ? team.state.error : undefined}
+          onRecover={team.recover}
+          why="Your client list is below. Adding a client and copying a client's personal link need the key in this browser: each client's private key is locked with your team's key."
+        />
+      )}
+      <Manager {...rest} teamKey={team.state.kind === "ready" ? team.state.key : null} locked={locked} />
+    </>
   );
 }
+
+/** In place of a control that needs the team's key, while this browser doesn't have it: a link up to the unlock box. */
+const UnlockFirst = ({ children, testId }: { children: React.ReactNode; testId?: string }) => (
+  <a href="#unlock" data-testid={testId} className="rounded-lg px-2.5 py-1 font-medium text-accent hover:bg-hover">
+    {children}
+  </a>
+);
 
 type Filter = "all" | "first" | "no-email" | "paused";
 
 function Manager({
   teamKey,
+  locked = false,
   business,
   initialClients,
   initialSeats,
@@ -148,7 +173,7 @@ function Manager({
   timezone,
   cloudBackup = false,
   seatsAdded,
-}: Omit<Props, "workspaceId" | "fingerprint"> & { teamKey: CryptoKey }) {
+}: Omit<Props, "workspaceId" | "fingerprint"> & { teamKey: CryptoKey | null; locked?: boolean }) {
   const [clients, setClients] = useState(initialClients);
   const [seats, setSeats] = useState(initialSeats);
   const [name, setName] = useState("");
@@ -229,7 +254,7 @@ function Manager({
     setError(undefined);
     setNotice(undefined);
     if (name.trim().length > NAME_MAX) return setError(`That name is too long. Names can be up to ${NAME_MAX} characters.`);
-    if (activeMatch) return;
+    if (activeMatch || !teamKey) return;
     setBusy(true);
     const res = await fetch("/api/clients", {
       method: "POST",
@@ -259,7 +284,7 @@ function Manager({
   // The seat-buying row: when seats are nearly used, or a pasted list doesn't fit (its "Add seats" link goes there).
   const showBuy = nearlyFull || fresh.length > left || unfit.length > 0;
   async function addMany() {
-    if (!fits.length) return;
+    if (!fits.length || !teamKey) return;
     setBusy(true);
     setError(undefined);
     setNotice(undefined);
@@ -362,7 +387,7 @@ function Manager({
     setTimeout(() => setAssigned((cur) => (cur?.id === c.id ? undefined : cur)), 4000);
   }
 
-  const linkOf = (c: Client) => personalLink(c.link, c.teamKeyWrap, teamKey);
+  const linkOf = (c: Client) => (teamKey ? personalLink(c.link, c.teamKeyWrap, teamKey) : Promise.reject(new Error("This browser doesn't have your team's key yet.")));
   // Sent (copied, shared or emailed by the team): the badge says so, until they open it.
   const sent = (c: Client) => {
     void markLinkSent(c.id);
@@ -412,13 +437,20 @@ function Manager({
             <PersonalLinkSteps />
           </div>
         )}
+        {locked ? (
+          <p className="mt-3 text-sm text-muted" data-testid="add-locked">
+            To add clients in this browser, <a href="#unlock" className="font-medium text-accent hover:underline">enter your recovery key</a> first. Each new
+            client&apos;s private key is made here and locked with your team&apos;s key, so we never see it.
+          </p>
+        ) : (
         <form onSubmit={add} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
           <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Name" aria-label="Client name" className="min-w-0 rounded-lg border border-line-strong px-3 py-2 text-sm" />
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email (optional)" aria-label="Client email" className="min-w-0 rounded-lg border border-line-strong px-3 py-2 text-sm" />
-          <button disabled={busy || full || !!activeMatch} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
+          <button disabled={busy || full || !!activeMatch || !teamKey} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
             Add client
           </button>
         </form>
+        )}
         {activeMatch && (
           <p className="mt-2 text-sm text-warn-fg" data-testid="duplicate-match">
             {activeMatch.email ? `${activeMatch.name} already uses this email, so they're on your list.` : `You already have a client called ${activeMatch.name} with no email. Add an email to tell them apart.`}{" "}
@@ -486,7 +518,7 @@ function Manager({
             </button>
           </div>
         )}
-        {bulk === null ? (
+        {locked ? null : bulk === null ? (
           <button type="button" onClick={() => setBulk("")} className="mt-3 text-sm font-medium text-accent hover:underline" data-testid="bulk-open">
             Add several at once
           </button>
@@ -544,7 +576,7 @@ function Manager({
               </p>
             )}
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={addMany} disabled={busy || !fits.length} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
+              <button type="button" onClick={addMany} disabled={busy || !fits.length || !teamKey} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
                 {busy ? "Adding…" : fresh.length > fits.length && fits.length ? `Add the ${plural(fits.length, "client", "clients")} that fit` : `Add ${fits.length || ""} ${fits.length === 1 ? "client" : "clients"}`}
               </button>
               <button type="button" onClick={() => { setBulk(null); setUnfit([]); setUnread([]); }} className="rounded-lg px-3 py-2 text-sm text-dim hover:text-ink">Cancel</button>
@@ -738,12 +770,13 @@ function Manager({
                     )}
                     {assigned?.id === c.id && <span role="status" className="self-center text-xs text-ok-fg" data-testid="assign-saved">{assigned.text}</span>}
                     {/* New clients are set up by their first video's link, sent from its Send box, so their own link is no more urgent than anyone's. */}
-                    {!c.linkOff && (
+                    {!c.linkOff && locked && <UnlockFirst testId="row-unlock-link">Unlock to copy link</UnlockFirst>}
+                    {!c.linkOff && !locked && (
                       <>
-                        <button onClick={() => copy(c)} aria-label={`Copy link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover">
+                        <button onClick={() => copy(c)} disabled={!teamKey} aria-label={`Copy link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover">
                           {copied === c.id ? "Copied" : "Copy link"}
                         </button>
-                        {canShare && <button onClick={() => share(c)} aria-label={`Share personal link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover">Share</button>}
+                        {canShare && <button onClick={() => share(c)} disabled={!teamKey} aria-label={`Share personal link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover">Share</button>}
                         {/* Until they've opened a link, their page has every way to send it (from your email, with a message) (O22). */}
                         {!c.reached && (
                           <Link href={`/clients/${c.id}`} aria-label={`More ways to send ${c.name} their link`} data-testid="row-more-ways" className="rounded-lg px-2.5 py-1 font-medium text-accent hover:bg-hover">

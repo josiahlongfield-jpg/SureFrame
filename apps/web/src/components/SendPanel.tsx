@@ -485,10 +485,8 @@ export default function SendPanel({
   const linkBox = soloFirst ? (
     <div className="mt-3" data-testid="first-time">
       <FirstWhy one={chosenFirst[0].name}>
-        <p>
-          Alongside the video is their personal link, so for privacy reasons SureFrame is unable to automate it the first time around. Send it from your email or copy the link to be sent however you choose.{" "}
-          Once they open it, everything beyond that point is delivered on your behalf to the device the client link is held on, if you select the Send by email function.
-        </p>
+        {/* Josiah's words (Decision 18). */}
+        <p>A new client&apos;s first link has to come from you, because it carries their private key, which we never see. Once they&apos;ve opened it, Send by email does the rest.</p>
       </FirstWhy>
       {!chosenFirst[0].email && (
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="no-email">
@@ -505,10 +503,7 @@ export default function SendPanel({
   ) : (
     <div className="mt-3 rounded-xl bg-surface-2 p-3 text-sm text-ink" data-testid="first-time">
       <FirstWhy many={chosenFirst.map((c) => c.name)}>
-        <p>
-          Alongside each video is that client&apos;s personal link, so for privacy reasons SureFrame is unable to automate it the first time around. Send each from your email or copy the link to be sent however you choose.{" "}
-          Once they open it, everything beyond that point is delivered on your behalf to the device the client link is held on, if you select the Send by email function.
-        </p>
+        <p>A new client&apos;s first link has to come from you, because it carries their private key, which we never see. Once they&apos;ve opened it, Send by email does the rest.</p>
       </FirstWhy>
       <ul className="mt-2 grid gap-2" data-testid="first-links">
         {chosenFirst.map((c) => (
@@ -620,6 +615,7 @@ export default function SendPanel({
           {!uploading && clients.length > 0 && (isDefaultTitle(video.title) || titled) && (
             <TitlePrompt
               videoId={video.id}
+              business={business}
               onTitle={(t) => {
                 setTitled(true);
                 onTitle?.(t);
@@ -923,7 +919,7 @@ function QuickAddClient({ teamKey, onAdded, onCancel }: { teamKey: CryptoKey; on
  * The date-made title says nothing to a client: offer to name the video before it's sent. Saved as it's typed
  * and when the page is left, like the title box above it, so a typed title isn't lost (O52); Save title saves now.
  */
-function TitlePrompt({ videoId, onTitle }: { videoId: string; onTitle?: (title: string) => void }) {
+function TitlePrompt({ videoId, business, onTitle }: { videoId: string; business: string; onTitle?: (title: string) => void }) {
   const [title, setTitle] = useState("");
   const saver = useTitleSaver(videoId, "", onTitle);
   return (
@@ -954,7 +950,13 @@ function TitlePrompt({ videoId, onTitle }: { videoId: string; onTitle?: (title: 
       {saver.state === "saved" ? (
         <p className="w-full text-xs text-ok-fg" role="status" data-testid="title-saved">Title saved.</p>
       ) : (
-        !saver.error && <p className="w-full text-xs text-dim">Saved as you type, and it becomes this video&apos;s title above. Save title saves it now.</p>
+        !saver.error && (
+          <p className="w-full text-xs text-dim" data-testid="title-nudge">
+            {/* Decision 10: an untitled video reaches clients as "A video from Business A", never the date it was made. */}
+            {!title.trim() && <span className="font-medium text-muted">Without a title, your clients see &ldquo;A video from {business}&rdquo;. </span>}
+            Saved as you type, and it becomes this video&apos;s title above. Save title saves it now.
+          </p>
+        )
       )}
       {saver.error && <p role="alert" className="w-full text-xs text-danger-fg">{saver.error}</p>}
     </form>

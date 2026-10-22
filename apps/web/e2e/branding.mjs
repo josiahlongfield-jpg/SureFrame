@@ -47,6 +47,28 @@ ok("Free plan is told clients see standard SureFrame pages", await visible(page,
 const denied = await page.request.post(BASE + "/api/workspace/branding", { multipart: { color: "#0f766e" } });
 ok("Free plan can't save branding", denied.status() === 402);
 
+// Decision 5: "How clients can reach you" is on every plan (Free too), checked as it's typed and by the server.
+ok("Free plan: 'How clients can reach you' is on Branding (Decision 5)", await visible(page, "[data-testid=client-contact-form]"));
+await page.fill('input[aria-label="Contact email"]', "not-an-email");
+ok("contact email: checked as it's typed", await visible(page, "[data-testid=contact-email-error]") && await page.isDisabled("text=Save contact details"));
+await page.fill('input[aria-label="Contact email"]', "hello@business-b.example");
+await page.fill('input[aria-label="Contact phone"]', "call me maybe");
+ok("contact phone: checked as it's typed", await visible(page, "[data-testid=contact-phone-error]") && await page.isDisabled("text=Save contact details"));
+await page.fill('input[aria-label="Contact phone"]', "+61 7 3000 0000");
+ok("contact: shows the line clients will see", ((await page.textContent("[data-testid=contact-preview]")) ?? "").replace(/\s+/g, " ").includes("hello@business-b.example · +61 7 3000 0000"));
+await page.click("text=Save contact details");
+ok("contact: saved, and says so", await visible(page, "[data-testid=client-contact-form] >> text=Saved. Your clients see this now."));
+const contactWs = (await prisma.membership.findFirst({ where: { user: { email: loginEmail } }, include: { workspace: true } })).workspace;
+ok("contact: stored", contactWs.contactEmail === "hello@business-b.example" && contactWs.contactPhone === "+61 7 3000 0000", JSON.stringify([contactWs.contactEmail, contactWs.contactPhone]));
+ok("contact: the server refuses a bad phone", (await page.request.patch(BASE + "/api/workspace/settings", { data: { contactPhone: "<b>12</b>" } })).status() === 400);
+ok("contact: the server refuses a bad email", (await page.request.patch(BASE + "/api/workspace/settings", { data: { contactEmail: "hello@" } })).status() === 400);
+// Decision 13: the business's reply-to and personal message for client emails are here now, on every plan.
+ok("Client emails section on Branding (Decision 13)", await visible(page, "[data-testid=client-emails] >> input[aria-label='Reply-to email']") && await page.isVisible("[data-testid=client-emails] >> textarea[aria-label='Personal message']"));
+await page.setViewportSize({ width: 320, height: 720 });
+ok("Branding with both sections fits 320px", await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+await page.screenshot({ path: `${process.argv[2] ?? "/tmp"}/branding-contact-320.png`, fullPage: true });
+await page.setViewportSize({ width: 1280, height: 720 });
+
 // Upgrade to Solo through the fake Stripe.
 const { url } = await (await page.request.post(BASE + "/api/billing/checkout", { data: { plan: "SOLO" } })).json();
 const session = state.sessions.at(-1).params;
@@ -163,6 +185,7 @@ await cpage.goto(`${BASE}/v/${videoId}`);
 ok("Free plan: page that can't open says why", !!(await cpage.waitForSelector("[data-testid=lost-key]", { timeout: 15000 }).catch(() => null)));
 ok("Free plan: no intro over a page that can't open", !(await visible(cpage, "[data-testid=sureframe-promo]", 2000)));
 ok("can't-open page offers to ask for the link again", await cpage.isVisible("text=Ask for my link again"));
+ok("can't-open page: the business's contact line, where there's no reply box (Decision 5)", ((await cpage.textContent("[data-testid=client-contact]").catch(() => "")) ?? "").includes("hello@business-b.example"));
 await cpage.screenshot({ path: `${process.argv[2] ?? "/tmp"}/cant-open-free.png` });
 await cpage.goto(BASE + "/inbox");
 ok("on Free, clients see plain SureFrame again", !(await cpage.getAttribute("div.min-h-screen", "style"))?.includes("#0f766e") && !(await cpage.isVisible("header img")));

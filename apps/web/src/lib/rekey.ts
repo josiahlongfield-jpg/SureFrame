@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { contactOf } from "@/lib/clientContact";
 import type { Prisma } from "@prisma/client";
 import { db, type Workspace } from "@/lib/db";
 import { clientLink, newClientToken } from "@/lib/clients";
@@ -110,7 +111,7 @@ export async function applyRekey(workspace: Workspace, d: z.infer<typeof RekeyBo
   // Sent in batches, so a business with many clients isn't held up by the per-second sending limit.
   const emailed = await sendMails(
     emails.map((e) => {
-      const mail = newLinkEmail({ business: workspace.name, clientName: e.name, link: clientLink(e.token), logoUrl: brand.logoUrl, color: brand.color });
+      const mail = newLinkEmail({ business: workspace.name, clientName: e.name, link: clientLink(e.token), logoUrl: brand.logoUrl, color: brand.color, contact: contactOf(workspace) });
       // Replies reach whoever looks after the client, as with every other client email.
       const { replyTo } = clientMailSettings(workspace, members.find((m) => m.userId === e.assignedToId));
       return { to: e.email, ...mail, fromName: workspace.name, replyTo };

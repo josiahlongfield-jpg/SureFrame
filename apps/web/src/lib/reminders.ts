@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { contactOf } from "@/lib/clientContact";
 import { Prisma, type Item, type Membership } from "@prisma/client";
 import { db, type Workspace } from "@/lib/db";
 import { appUrl } from "@/lib/stripe";
@@ -183,7 +184,7 @@ export async function runReminders(now = new Date()) {
         to: c.email,
         replyTo: own.replyTo,
         fromName: ws.name,
-        m: reminderEmail({ ...base, ...brandOf(ws, appUrl("")), message: own.message, link: appUrl(`/c/${c.token}`), unsubscribe: unsubscribeUrl(c.id), noReply: !own.replyTo }),
+        m: reminderEmail({ ...base, ...brandOf(ws, appUrl("")), message: own.message, link: appUrl(`/c/${c.token}`), unsubscribe: unsubscribeUrl(c.id), noReply: !own.replyTo, contact: contactOf(ws) }),
       });
     } else {
       // A client's to-dos live on their page; the team's own list is the To-dos page.

@@ -87,6 +87,8 @@ await page.locator("[data-testid=client-row-actions]").first().locator("xpath=an
 // into it, Escape closes it without removing anyone, and focus goes back to the Remove client button.
 await page.setViewportSize({ width: 1280, height: 900 });
 await page.goto(`${BASE}/clients`);
+// The list is on the page before this browser's key is checked (Decision 15); Copy link turns on once the page is live.
+await page.waitForSelector("button[aria-label^='Copy link for']:not([disabled])", { timeout: 20000 });
 const removeB = page.locator("button[aria-label='Remove client Client B']");
 await removeB.focus();
 await page.keyboard.press("Enter");

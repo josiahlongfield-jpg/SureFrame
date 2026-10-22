@@ -64,7 +64,7 @@ await owner.fill("[data-testid=quick-add] input[aria-label='Client email']", `cl
 await owner.click("[data-testid=quick-add] button:has-text('Add client')");
 await owner.waitForSelector("[data-testid=first-links]", { timeout: 15000 });
 const box = norm(await owner.textContent("[data-testid=first-links]"));
-ok("added and chosen: this is Client Q's first video, sent from your own email or texts", norm(await owner.textContent("[data-testid=first-time]")).includes("Alongside the video is their personal link, so for privacy reasons SureFrame is unable to automate it") && !norm(await owner.textContent("[data-testid=send-panel]")).includes("can't be connected") && (await owner.textContent("[data-testid=client-picker]")).includes("Client Q"));
+ok("added and chosen: this is Client Q's first video, sent from your own email or texts", norm(await owner.textContent("[data-testid=first-time]")).includes("A new client's first link has to come from you, because it carries their private key, which we never see.") && !norm(await owner.textContent("[data-testid=send-panel]")).includes("can't be connected") && (await owner.textContent("[data-testid=client-picker]")).includes("Client Q"));
 ok("every way to send it is offered, their own email first", ["Copy link", "Copy link + message", "Send from your email"].every((t) => box.includes(t)) && (await owner.locator("[data-testid=first-links] [data-testid=first-link-sender] button").first().getAttribute("data-testid")) === "first-link-email", box);
 const q = await prisma.client.findFirst({ where: { workspaceId: ws, name: "Client Q" } });
 ok("Client Q has their own key", !!q?.teamKeyWrap);
