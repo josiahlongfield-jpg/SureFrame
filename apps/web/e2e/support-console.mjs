@@ -696,7 +696,7 @@ if (isAgent) {
   const logged = await lastAction({ action: "subprocessor.notice" });
   ok("notices: logged in the support log", logged?.actorEmail === ADMIN && logged.target === `Provider A ${stamp} from ${earliest}` && logged.details?.sent === owners.size && logged.details?.status === "sent", JSON.stringify(logged));
   await admin.goto(BASE + "/support/log?action=subprocessor.notice");
-  ok("notices: shown in the support log under its own kind", norm(await admin.textContent("main")).includes(`Provider A ${stamp}`));
+  ok("notices: shown in the support log under its own kind", !!(await admin.waitForSelector(`main :text("Provider A ${stamp} from ${earliest}")`, { timeout: 15000 }).catch(() => null)) && norm(await admin.textContent("main")).includes("New sub-processor notice emailed"));
   // The same notice again: refused, nothing sent.
   await open("/support/notices");
   await admin.fill("[data-testid=notice-name]", `Provider A ${stamp}`);
