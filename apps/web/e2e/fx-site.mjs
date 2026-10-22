@@ -189,7 +189,7 @@ ok("privacy: a table of contents linking to the For clients section", await seen
 // The page's own "last updated" date (lib/legal.ts), which moves when wording that needs no new agreement changes.
 const legalTs = readFileSync(new URL("../src/lib/legal.ts", import.meta.url), "utf8");
 const updatedOf = (key) => legalTs.match(new RegExp(`${key}: "([^"]+)"`))?.[1];
-ok("privacy: version, when it took effect, last updated, all versions", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 2026-10-11 (in effect from 11 October 2026) · Last updated ${updatedOf("privacyUpdated")} · All versions`, await visitor.textContent("[data-testid=legal-version]"));
+ok("privacy: version, when it took effect, last updated, versions and changes", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 2026-10-11 (in effect from 11 October 2026) · Last updated ${updatedOf("privacyUpdated")} · Versions and changes`, await visitor.textContent("[data-testid=legal-version]"));
 const privacy = norm(await visitor.textContent("main"));
 for (const bit of ["Keep me signed in", "the short SureFrame intro is shown once per device for each business; your browser remembers this", "Clients can delete their own replies", "The business can see"]) {
   ok(`privacy says: ${bit}`, privacy.includes(bit));
@@ -200,10 +200,53 @@ await visitor.click("[data-testid=legal-toc] a[href='#for-clients']");
 ok("contents links jump to the section", await visitor.evaluate(() => location.hash === "#for-clients" && document.getElementById("for-clients").getBoundingClientRect().top < 200));
 await visitor.goto(BASE + "/legal/terms");
 ok("terms: contents, and the cancel link goes to Billing", (await seen(visitor, "[data-testid=legal-toc]")) && (await visitor.$$("main a[href='/settings/billing']")).length >= 1);
-ok("terms: the same version line", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 2026-10-11 (in effect from 11 October 2026) · Last updated ${updatedOf("termsUpdated")} · All versions`);
+ok("terms: the same version line", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 2026-10-11 (in effect from 11 October 2026) · Last updated ${updatedOf("termsUpdated")} · Versions and changes`);
 await visitor.goto(BASE + "/legal/dpa");
-ok("DPA: the same version line", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 1.0 (in effect from 11 October 2026) · Last updated ${updatedOf("dpaUpdated")} · All versions`, await visitor.textContent("[data-testid=legal-version]"));
+ok("DPA: the same version line", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 1.0 (in effect from 11 October 2026) · Last updated ${updatedOf("dpaUpdated")} · Versions and changes`, await visitor.textContent("[data-testid=legal-version]"));
 ok("DPA: no Google sign-in", !norm(await visitor.textContent("main")).includes("Google (verified"));
+// Round 3 legal wording (Checker C L1-L11, K7, G5-G17; visitor V43-V49).
+const dpaText = norm(await visitor.textContent("main"));
+for (const bit of ["making the information it can read available to it on your instruction", "view counts and emoji reactions", "our own site and our browser extension", "within 48 hours of becoming aware", "6-digit code instead", "as a readable copy unlocked in your browser", "plus two weeks for us to act on it"]) {
+  ok(`DPA says: ${bit}`, dpaText.includes(bit));
+}
+ok("DPA: what changed on its last-updated date (V43)", norm(await visitor.textContent("[data-testid=legal-latest] summary")) === `What changed on ${updatedOf("dpaUpdated")}`);
+await visitor.goto(BASE + "/legal/terms");
+const terms = norm(await visitor.textContent("main"));
+ok("terms: a five-point short version first (V49)", (await visitor.$$("[data-testid=terms-short] > li")).length === 5 && (await visitor.$eval("[data-testid=legal-toc] a", (a) => a.getAttribute("href"))) === "#short-version");
+for (const bit of [
+  "Smaller changes that only clarify, add to what you get, or keep less of your information don’t get a new version",
+  "using your own AI assistant in your browser is allowed: see section 23",
+  "Your own AI assistant in your browser.",
+  "24. Our browser extension and Claude Desktop connector",
+  "under Anthropic’s terms for Claude Desktop",
+  "download a readable copy of your clients, messages, replies, to-dos and notes",
+  "Videos longer than 30 minutes can’t be transcribed at present.",
+  "shows the limits that apply to you",
+  "This limit doesn’t apply to liability that can’t be limited by law",
+  "The Australian Consumer Law applies to consumers in Australia.",
+  "at least 30 days’ notice by email before ending it",
+  "plus two weeks for us to act on it",
+]) {
+  ok(`terms say: ${bit}`, terms.includes(bit));
+}
+ok("terms: no stale export line or re-agree-on-every-update promise (L1, L4)", !terms.includes("text in the data export stays encrypted") && !terms.includes("When we update them, we’ll ask you"));
+await visitor.click("[data-testid=legal-latest] summary");
+ok("terms: what changed on the last-updated date, linking to earlier changes (V43)", (await seen(visitor, "[data-testid=legal-latest] li")) && (await visitor.$$("[data-testid=legal-latest] a[href='/legal/archive#wording-updates']")).length === 1);
+ok("terms: Back to contents is hidden at the top (V55)", (await visitor.$eval("[data-testid=back-to-contents]", (a) => getComputedStyle(a).opacity)) === "0");
+await visitor.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
+ok("terms: Back to contents shows once the contents are scrolled away (V55)", await waitFor(() => visitor.$eval("[data-testid=back-to-contents]", (a) => getComputedStyle(a).opacity === "1")));
+await visitor.click("[data-testid=back-to-contents]");
+ok("terms: Back to contents goes back to the contents", await waitFor(() => visitor.evaluate(() => location.hash === "#contents" && Math.abs(document.getElementById("contents").getBoundingClientRect().top) < 200)));
+await visitor.goto(BASE + "/legal/privacy");
+const privacy2 = norm(await visitor.textContent("main"));
+for (const bit of ["their transcripts and summaries, and unlocks them on your own computer", "we email a 6-digit code instead of a link", "don’t get a new version: we update the “Last updated” date"]) {
+  ok(`privacy says: ${bit}`, privacy2.includes(bit));
+}
+await visitor.goto(BASE + "/legal/archive");
+const archive = norm(await visitor.textContent("main"));
+ok("archive: titled Versions and changes, dated with the latest update (L8, V44, V45)", norm(await visitor.textContent("main h1")) === "Versions and changes" && norm(await visitor.textContent("[data-testid=legal-version]")) === `Last updated ${updatedOf("termsUpdated")}`);
+ok("archive: a Wording updates list with each date (L1)", (await visitor.$$("[data-testid=wording-updates] > li")).length >= 6 && archive.includes("13 October 2026") && archive.includes("Terms of Service: Founding prices and discount offers."));
+ok("archive: the 11 October changes read as changes from the unnumbered versions (V46)", archive.includes("What changed from the earlier versions, which weren’t numbered:"));
 
 // Sign-in pages: the keep-me-signed-in tick comes before the button that signs in; links out to pricing and legal.
 await visitor.goto(BASE + "/signup");

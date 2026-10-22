@@ -13,7 +13,7 @@ const DOCS = [
   { href: "/legal/terms", title: "Terms of Service", line: "The agreement for using SureFrame: plans, billing, cancelling, and what you and we are responsible for.", updated: LEGAL.termsUpdated },
   { href: "/legal/privacy", title: "Privacy Policy", line: "What information we collect, why, who handles it, where it's kept and for how long.", updated: LEGAL.privacyUpdated },
   { href: "/legal/dpa", title: "Data Processing Agreement", line: "For businesses: how we handle the client information you put into SureFrame.", updated: LEGAL.dpaUpdated },
-  { href: "/legal/archive", title: "Earlier versions", line: "Each version of the Terms and Privacy Policy people have agreed to, and what changed.", updated: null },
+  { href: "/legal/archive", title: "Versions and changes", line: "Each version of the Terms and Privacy Policy people have agreed to, and every wording update since.", updated: null },
 ];
 
 /** /legal itself: the legal documents in one list, for anyone who trims a document's address. */

@@ -9,16 +9,41 @@ export default function Page() {
   const mail = <a href={`mailto:${LEGAL.email}`}>{LEGAL.email}</a>;
   const freeVideos = PLANS.FREE.maxVideos;
   return (
-    <LegalPage title="Terms of Service" version={LEGAL.termsVersion} updated={LEGAL.termsUpdated}>
+    <LegalPage title="Terms of Service" version={LEGAL.termsVersion} updated={LEGAL.termsUpdated} doc="terms">
       <p>
         {operatorLine()} (&ldquo;we&rdquo;, &ldquo;us&rdquo;). These terms apply when you use {LEGAL.product} at {LEGAL.website} (and in any apps we release).
       </p>
       <p>
         To use {LEGAL.product} with an account, you must agree to these terms and our <Link href="/legal/privacy">privacy policy</Link> by ticking the box we show
-        you, when you sign up and again whenever we update them (see section 18). We keep a record of each time you agree: when, which versions, and the email
+        you, when you sign up and again whenever we give them a new version (see section 18). We keep a record of each time you agree: when, which versions, and the email
         address, IP address and browser you used. Until you agree, you can still sign out, download your data, <Link href="/settings/billing">manage or cancel your subscription</Link> and delete your
         account, and a recording that was already uploading still finishes, but you can&rsquo;t otherwise use {LEGAL.product}.
       </p>
+
+      <h2 id="short-version">The short version</h2>
+      <p>This summary doesn&rsquo;t replace the terms below; where they differ, the full terms apply.</p>
+      <ul data-testid="terms-short">
+        <li>
+          <strong>What you pay:</strong> the Free plan costs nothing and includes {freeVideos} videos in total. Paid plans are billed in advance, monthly or
+          yearly, in US dollars plus any tax, and renew automatically (section 5). Your clients never pay.
+        </li>
+        <li>
+          <strong>Cancelling:</strong> cancel any time in Settings &gt; Billing. Your plan runs to the end of the period you paid for, then moves to Free; there
+          are no refunds for part periods unless the law requires one (sections 5 and 15).
+        </li>
+        <li>
+          <strong>What we can&rsquo;t recover:</strong> your content is end-to-end encrypted, so we can&rsquo;t open it if your recovery key is lost. Without cloud
+          backup, recordings leave our servers after {LEGAL.retentionDays} days. Keep copies of anything important (sections 3 and 7).
+        </li>
+        <li>
+          <strong>What we can suspend you for:</strong> unlawful, harmful or abusive use, spam, fraud or serious breaches of these terms. You can ask for a review
+          within {LEGAL.reviewDays} days (section 9).
+        </li>
+        <li>
+          <strong>Disputes:</strong> email us first and we&rsquo;ll try to sort it out within 30 days. These terms are governed by {LEGAL.state} law, and your rights
+          under the Australian Consumer Law and your local consumer laws stay (sections 15, 19 and 20).
+        </li>
+      </ul>
 
       <h2>1. Who can use {LEGAL.product}</h2>
       <p>
@@ -166,7 +191,7 @@ export default function Page() {
         count of videos your workspace has used (for example after a failed upload), and we&rsquo;ll usually tell the owner by email when we do.
       </p>
       <p>
-        Clients of Free workspaces see a short {LEGAL.product} introduction before videos. We may change or end the Free plan with reasonable notice.
+        Clients of Free workspaces see a short {LEGAL.product} introduction before videos. We may change the Free plan with reasonable notice, and we&rsquo;ll give at least 30 days&rsquo; notice by email before ending it.
       </p>
 
       <h2>7. Storage and lost recordings</h2>
@@ -215,7 +240,10 @@ export default function Page() {
         <li>send spam or unwanted messages to people who haven&rsquo;t agreed to hear from you;</li>
         <li>distribute malware, or try to break into, overload or disrupt the service or other people&rsquo;s accounts;</li>
         <li>copy, resell or reverse-engineer the service, except as the law allows;</li>
-        <li>use automated tools to access the service or create accounts, except through features we provide for that;</li>
+        <li>
+          use automated tools to access the service or create accounts, except through features we provide for that (using your own AI assistant in your
+          browser is allowed: see <a href="#connectors">section 23</a>);
+        </li>
         <li>give us false information, or pay with a card or account you&rsquo;re not allowed to use;</li>
         <li>get around a suspension, a closure or a plan limit, for example by opening another account;</li>
         <li>use the service where it&rsquo;s prohibited by Australian or other applicable sanctions laws.</li>
@@ -262,8 +290,8 @@ export default function Page() {
           suspended straight away. Unlike when you delete your own account (section 17), you can&rsquo;t keep or reactivate it by signing in. If the owner has a
           team, the whole workspace is closed and its staff are taken off it, keeping their own logins. A closed login is also taken off any other team it&rsquo;s
           on, and pending invites are cancelled. Any subscription is cancelled straight away. We may also stop the account&rsquo;s email address being used to sign
-          in or sign up again. The account, its workspaces and their content are permanently deleted {LEGAL.closureDeleteDays} days after closure (or on the date
-          already set, if you&rsquo;d already deleted your account), unless the law requires us to keep them or they&rsquo;re on legal hold. Because you can&rsquo;t
+          in or sign up again. The account, its workspaces and their content are permanently deleted {LEGAL.closureDeleteDays} days after closure (the {LEGAL.reviewDays} days you have to
+          ask for a review or a copy of your data, plus two weeks for us to act on it), or on the date already set, if you&rsquo;d already deleted your account, unless the law requires us to keep them or they&rsquo;re on legal hold. Because you can&rsquo;t
           sign in, you can email {mail} within {LEGAL.reviewDays} days of the closure for a copy of your account data download, unless the law stops us sending
           it. If a review finds we got it wrong before the deletion date, we can reopen the account (if you&rsquo;d already deleted it yourself, it goes back to
           being deleted on its date unless you keep it); a subscription we cancelled and staff taken off the team don&rsquo;t come back, so you would subscribe
@@ -361,8 +389,7 @@ export default function Page() {
       </p>
       <p id="help-limits">
         Businesses on a paid plan can ask for a person at any time. For visitors without an account and businesses on the Free plan, the help chat gives
-        brief answers to general questions, up to a set number a day and a week, and a person can be asked for once in a set period. The current limits are
-        shown on the <Link href="/help">Help page</Link>, and the chat says when you can ask again. Clients of businesses on the Free plan can ask the help
+        brief answers to general questions, up to a set number a day and a week, and a person can be asked for once in a set period. The <Link href="/help">Help page</Link> shows the limits that apply to you, and the chat says when you can ask again. Clients of businesses on the Free plan can ask the help
         chat on client pages up to 5 questions a day each, within a daily limit for all of that business&rsquo;s clients together. We may change these limits.
       </p>
 
@@ -387,6 +414,8 @@ export default function Page() {
       <p>
         To the extent the law allows, we&rsquo;re not liable for indirect or consequential loss, such as lost profits, revenue or data. Our total liability for any
         claim relating to {LEGAL.product} is limited to the greater of the amount paid for {LEGAL.product} in the 12 months before the claim arose and US$50.
+        This limit doesn&rsquo;t apply to liability that can&rsquo;t be limited by law, such as for fraud, death or personal injury, or under the consumer
+        guarantees of the Australian Consumer Law (see section 15).
       </p>
       <p>
         We&rsquo;re not responsible for delays or failures caused by events outside our reasonable control, such as outages at our providers, internet failures,
@@ -407,7 +436,8 @@ export default function Page() {
         {LEGAL.removedClientDays} days end meanwhile are still deleted. A browser that was still signed in when you deleted your account can&rsquo;t reactivate
         it: sign in again first. If your paid period ends during those days, your workspace moves to the Free plan, and you can subscribe again after
         reactivating. After {LEGAL.deletionGraceDays} days, your account, workspace and content are permanently deleted and can&rsquo;t be recovered, so save
-        anything you want to keep first: save videos from each video&rsquo;s page (text in the data export stays encrypted). To have your account deleted sooner,
+        anything you want to keep first: download a readable copy of your clients, messages, replies, to-dos and notes from Settings &gt; Account (it&rsquo;s
+        unlocked in your browser with your key), and save videos from each video&rsquo;s page. To have your account deleted sooner,
         or to cancel the deletion before the date if you can&rsquo;t sign in, email {mail} from your account&rsquo;s email address.
       </p>
       <p>
@@ -418,16 +448,18 @@ export default function Page() {
 
       <h2>18. Changes to these terms</h2>
       <p>
-        We may update these terms. If a change is significant, we&rsquo;ll email you at least {LEGAL.changeNoticeDays} days before it takes effect. When we update
-        them, we&rsquo;ll ask you to read the new version and agree to it by ticking the box before you carry on using {LEGAL.product}, and we keep a record of your
-        agreement (see the start of these terms). If you already have an account, you can keep using {LEGAL.product} under the version you agreed to until the
-        new one takes effect for you, {LEGAL.changeNoticeDays} days after we email you about it. Continuing to use {LEGAL.product} after agreeing to an updated version means that version applies. If you don&rsquo;t agree to a
+        We may update these terms. If a change is significant, we&rsquo;ll give it a new version number, email you at least {LEGAL.changeNoticeDays} days before
+        it takes effect, and ask you to agree to it by ticking the box before you carry on using {LEGAL.product}, and we keep a record of your agreement (see the
+        start of these terms). Smaller changes that only clarify, add to what you get, or keep less of your information don&rsquo;t get a new version: we update
+        the &ldquo;Last updated&rdquo; date, note them in our <Link href="/legal/archive#wording-updates">list of versions and changes</Link>, and they apply from
+        that date. If you already have an account, you can keep using {LEGAL.product} under the version you agreed to until a new version takes effect for you,{" "}
+        {LEGAL.changeNoticeDays} days after we email you about it. Continuing to use {LEGAL.product} after agreeing to an updated version means that version applies. If you don&rsquo;t agree to a
         change, don&rsquo;t tick the box: you can stop using {LEGAL.product}, and you can still download your data, cancel your subscription and delete your account
         (see section 17). If you
         use {LEGAL.product} only as a client, through a business&rsquo;s link, the version published here when you use it applies.
       </p>
       <p>
-        Each version has a number, shown at the top. Versions from 11 October 2026 onwards are listed in our <Link href="/legal/archive">archive of versions</Link>,
+        Each version has a number, shown at the top. Versions from 11 October 2026 onwards, and the wording updates since, are listed in our <Link href="/legal/archive">archive of versions</Link>,
         and we&rsquo;ll send you a copy of any earlier version if you ask.
       </p>
 
@@ -439,8 +471,8 @@ export default function Page() {
 
       <h2>20. Governing law</h2>
       <p>
-        These terms are governed by the laws of {LEGAL.state}, {LEGAL.country}, and the courts of {LEGAL.state} have jurisdiction. If you&rsquo;re a consumer in
-        another country, you keep any protections your local law gives you.
+        These terms are governed by the laws of {LEGAL.state}, {LEGAL.country}, and the courts of {LEGAL.state} have jurisdiction. The Australian Consumer Law
+        applies to consumers in Australia. If you&rsquo;re a consumer in another country, you keep any protections your local law gives you.
       </p>
 
       <h2>21. General</h2>
@@ -471,7 +503,8 @@ export default function Page() {
         <li>
           <strong>Devices and browsers.</strong> Making a transcript needs a recent browser and enough memory, and works best on a computer. On older or low-memory
           devices, phones, some browsers, or with long videos, a transcript may be slow, may not finish, or may not be possible. Poor audio, accents, background noise,
-          several people talking at once, or some languages can also mean a transcript is incomplete or can&rsquo;t be made.
+          several people talking at once, or some languages can also mean a transcript is incomplete or can&rsquo;t be made. Videos longer than 30 minutes
+          can&rsquo;t be transcribed at present.
         </li>
         <li>
           <strong>Accuracy.</strong> Transcripts and summaries are made by machines. They can mishear words, names and numbers, get things wrong, or leave things out.
@@ -507,6 +540,12 @@ export default function Page() {
 
       <h2 id="connectors">23. Connecting your own AI assistant</h2>
       <ul>
+        <li id="own-ai">
+          <strong>Your own AI assistant in your browser.</strong> You may use an AI assistant signed in to your own account (such as Claude in Chrome) on your{" "}
+          {LEGAL.product} pages. Section 9&rsquo;s rule on automated tools doesn&rsquo;t stop that, but it acts as you: you&rsquo;re responsible for anything it
+          sends, changes or deletes, and for telling your clients if it reads their details (see our <Link href="/legal/privacy#own-ai">privacy policy</Link>).
+          Don&rsquo;t use automated tools to create accounts, scrape other people&rsquo;s content or get around limits.
+        </li>
         <li>
           <strong>Your choice, your account.</strong> You can connect your own Claude to {LEGAL.product} (Settings &gt; Connections). Claude is provided by
           Anthropic under your own account with them, not by us, and what it reads goes to Anthropic under their terms. We aren&rsquo;t responsible for what it
@@ -530,7 +569,15 @@ export default function Page() {
         </li>
       </ul>
 
-      <h2>24. Contact</h2>
+      <h2 id="extension">24. Our browser extension and Claude Desktop connector</h2>
+      <p>
+        Both are optional and free. The extension is installed from the Chrome Web Store or Edge Add-ons under that store&rsquo;s terms; the Claude Desktop
+        connector is installed in Claude Desktop under Anthropic&rsquo;s terms for Claude Desktop. You may use them only with {LEGAL.product}, you can remove them at
+        any time, and we may change or withdraw them. They&rsquo;re provided as part of {LEGAL.product} under these terms, including sections 14 and 16. The
+        extension never records, stores or sends your camera or the pages you visit (see our <Link href="/legal/privacy#extension">privacy policy</Link>).
+      </p>
+
+      <h2>25. Contact</h2>
       <p>Questions about these terms? Email {mail}.</p>
       {LEGAL.postalAddress && <p>Postal address: {LEGAL.postalAddress}</p>}
     </LegalPage>

@@ -114,7 +114,8 @@ function GoodToKnow() {
       "Cancelling",
       <>
         Cancel any time in Settings &gt; Billing. Your plan stays until the end of the period you&rsquo;ve paid for, then your workspace moves to Free. Payments
-        aren&rsquo;t refunded for part of a period, except where the law requires it, including under the Australian Consumer Law.
+        aren&rsquo;t refunded for part of a period, except where the law requires it, including under the Australian Consumer Law, or where Link,
+        which sells our plans, gives one under its own terms.
       </>,
     ],
     [

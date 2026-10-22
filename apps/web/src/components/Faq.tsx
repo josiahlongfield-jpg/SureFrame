@@ -153,7 +153,7 @@ export const BUSINESS_FAQ: Qa[] = [
       <p>
         Choose Cancel plan in Settings &gt; Billing. Your plan stays until the end of the period you&rsquo;ve paid for, then your workspace moves to Free; you can
         undo it before then with Keep my plan. Payments aren&rsquo;t refundable for part of a period, except where the law requires a refund (including under the
-        Australian Consumer Law). If you think you&rsquo;ve been charged in error, email {mail}. Receipts come by email from Link, Stripe&rsquo;s payment
+        Australian Consumer Law), or where Link, which sells our plans, gives one under its own terms. If you think you&rsquo;ve been charged in error, email {mail}. Receipts come by email from Link, Stripe&rsquo;s payment
         service, and past invoices are under Settings &gt; Billing, Manage subscription.
       </p>
     ),

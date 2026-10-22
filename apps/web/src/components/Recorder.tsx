@@ -47,7 +47,7 @@ const fmt = (ms: number) => {
 const EXTENSION_URL = process.env.NEXT_PUBLIC_EXTENSION_URL;
 
 const NO_CAMERA = "No camera found on this device. If you've just plugged one in, it will appear here once your computer finds it.";
-const CAMERA_BUSY = "Your camera is being used by another app, such as the Camera app, Zoom or Teams. Close that app and come back to this page.";
+const CAMERA_BUSY = "Your camera is being used by another app, such as a video-call app or the Camera app. Close it and come back to this page.";
 const CAMERA_PERMISSION = "Camera permission is needed for this mode. Allow it in your browser's address bar, or choose Screen only.";
 const CAMERA_ERRORS = [NO_CAMERA, CAMERA_BUSY, CAMERA_PERMISSION];
 
