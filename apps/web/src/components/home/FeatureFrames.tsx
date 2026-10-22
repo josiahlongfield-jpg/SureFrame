@@ -118,7 +118,7 @@ export default function FeatureFrames({ retentionDays }: { retentionDays: number
             </div>
           </div>
           {list.map((f, i) => (
-            <div key={f.key} id={`ff-panel-${f.key}`} role="tabpanel" aria-labelledby={`ff-tab-${f.key}`} tabIndex={0} hidden={i !== active} className="ff-panel" style={{ ["--dur" as string]: `${dur}s` }}>
+            <div key={f.key} id={`ff-panel-${f.key}`} role="tabpanel" aria-labelledby={`ff-tab-${f.key}`} hidden={i !== active} className="ff-panel" style={{ ["--dur" as string]: `${dur}s` }}>
               {/* Started afresh with each turn, so a frame with steps inside it (To-dos/Reminders) keeps time with the bar. */}
               <div key={i === active ? run : "idle"} style={{ display: "contents" }}>{f.body}</div>
             </div>

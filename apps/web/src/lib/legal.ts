@@ -139,6 +139,11 @@ export const LEGAL = {
    * and are listed on /legal/archive; the Claude Desktop connector also reads transcripts when the AI add-on is used; 6-digit
    * sign-in codes for connecting Claude; and why a closed account is deleted after 44 days. They describe what the app already
    * does, so they keep privacyVersion.
+   * Also 22 October 2026: the opening says we have chosen to follow the Australian Privacy Principles (G15), and "Age" says we
+   * don't knowingly collect children's information for our own purposes and that a business adding a client under 13 is
+   * responsible for any parental consent the law requires (G8). They say plainly what already applies (the business was
+   * already responsible for a parent's permission for clients under 18) and add no duty for customers, so they keep
+   * privacyVersion. The Terms are unchanged.
    */
   privacyUpdated: "22 October 2026",
 };
@@ -185,6 +190,8 @@ export const WORDING_UPDATES: WordingUpdate[] = [
       "6-digit sign-in codes for connecting Claude.",
       "“Changes” explains which changes get a new version you agree to, and which only move the date and are listed here.",
       "Why an account we close is deleted after 44 days.",
+      "We say we have chosen to follow the Australian Privacy Principles.",
+      "“Age”: we don’t knowingly collect children’s information for our own purposes, and a business adding a client under 13 is responsible for any parental consent the law requires.",
     ],
     dpa: [
       "The readable copy of your data, connecting your own AI assistant, 6-digit sign-in codes, emoji reactions among what we can read, and camera access for our browser extension.",

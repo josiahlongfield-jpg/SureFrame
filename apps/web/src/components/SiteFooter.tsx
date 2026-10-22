@@ -31,6 +31,8 @@ export default async function SiteFooter({ widget = true }: { widget?: boolean }
           {/* Help is the chat and contact details, FAQ the written answers: named so it's clear which is which (V26). */}
           <Link href="/help" className="hover:text-ink">Help &amp; contact</Link>
           <Link href="/faq" className="hover:text-ink">FAQ</Link>
+          {/* The address itself, for anyone who'd rather just email (V14). */}
+          <a href={`mailto:${LEGAL.email}`} className="hover:text-ink [overflow-wrap:anywhere]" data-testid="footer-contact">Contact {LEGAL.email}</a>
           <Link href="/about" className="hover:text-ink">About</Link>
           <Link href="/legal/privacy" className="hover:text-ink">Privacy</Link>
           <Link href="/legal/terms" className="hover:text-ink">Terms</Link>
