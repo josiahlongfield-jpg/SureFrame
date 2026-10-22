@@ -16,7 +16,8 @@ const insensitive = (q: string) => ({ contains: q, mode: "insensitive" as const 
  * support powers.
  */
 export default async function Lookup({ searchParams }: { searchParams: Promise<{ q?: string; done?: string }> }) {
-  const { q: raw = "", done } = await searchParams;
+  const { q: asked, done } = await searchParams;
+  const raw = asked ?? "";
   await consoleAdmin(`/support/lookup${raw ? `?q=${encodeURIComponent(raw)}` : ""}`);
   const q = raw.trim().slice(0, 200);
   const searching = q.length >= 2;
@@ -26,7 +27,11 @@ export default async function Lookup({ searchParams }: { searchParams: Promise<{
           where: { OR: [{ email: insensitive(q) }, { name: insensitive(q) }, { id: q }] },
           take: 20,
           orderBy: { createdAt: "desc" },
-          select: { id: true, email: true, name: true, suspendedAt: true, closedAt: true, deleteAt: true },
+          select: {
+            id: true, email: true, name: true, suspendedAt: true, closedAt: true, deleteAt: true,
+            // The workspaces each login is on, so a login result says which business it is (P38).
+            memberships: { select: { role: true, workspace: { select: { name: true, plan: true } } }, orderBy: { id: "asc" }, take: 5 },
+          },
         }),
         db.workspace.findMany({
           where: { OR: [{ name: insensitive(q) }, { id: q }, { stripeCustomerId: q }, { stripeSubscriptionId: q }] },
@@ -67,7 +72,8 @@ export default async function Lookup({ searchParams }: { searchParams: Promise<{
         <button className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">Search</button>
       </form>
       <p className="mt-2 text-xs text-dim">Also finds account, workspace and client ids, and Stripe customer and subscription ids.</p>
-      {raw && !searching && <p className="mt-6 text-sm text-muted">Type at least 2 characters.</p>}
+      {/* Searching with an empty box (or one character) says what's needed rather than showing nothing (P38). */}
+      {asked !== undefined && !searching && <p className="mt-6 text-sm text-muted" data-testid="search-too-short">Type at least 2 characters.</p>}
       {nothing && (
         <p className="mt-6 text-sm text-muted" data-testid="no-results">
           Nothing matches &ldquo;{q}&rdquo;.
@@ -86,6 +92,11 @@ export default async function Lookup({ searchParams }: { searchParams: Promise<{
                     {u.closedAt ? <Badge tone="red">Closed by support</Badge> : u.suspendedAt && <Badge tone="red">Login suspended</Badge>}
                     {u.deleteAt && <Badge tone="amber">Deletion {qldDay(u.deleteAt)}</Badge>}
                   </div>
+                  {u.memberships.length > 0 && (
+                    <p className="mt-1 break-words text-sm text-muted" data-testid="user-workspaces">
+                      {u.memberships.map((m) => `${m.workspace.name} (${planName(m.workspace.plan)}${m.role === "OWNER" ? ", owner" : m.role === "ADMIN" ? ", admin" : ", staff"})`).join(" · ")}
+                    </p>
+                  )}
                 </Link>
               </li>
             ))}

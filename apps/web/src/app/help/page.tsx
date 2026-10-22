@@ -24,10 +24,12 @@ const COMMON = ["storage", "free-plan", "first-email", "phone", "recovery-key", 
 export default async function Help({ searchParams }: { searchParams: Promise<{ from?: string }> }) {
   const { from } = await searchParams;
   const signedIn = !!(await auth())?.user;
-  const tier = supportTier(signedIn ? (await currentUser().catch(() => null))?.workspace : null);
+  const me = signedIn ? await currentUser().catch(() => null) : null;
+  const tier = supportTier(me?.workspace);
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
-      <SiteHeader navy />
+      {/* Suspended or paused: Library and New recording would only bounce back, so the bar leads back to that page (P44). */}
+      <SiteHeader navy away={me?.suspended ? "/suspended" : me?.paused ? "/paused" : undefined} />
       <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
         <p className="kicker">Help</p>
         <h1 className="display mt-3 text-3xl text-ink">How can we help?</h1>

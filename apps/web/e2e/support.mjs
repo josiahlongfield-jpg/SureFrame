@@ -303,6 +303,7 @@ await agent.waitForSelector("[data-testid=ticket-done]");
 await agent.goto(BASE + "/support");
 ok("reopened: back under Needs you", (await agent.textContent("[data-testid=inbox-list]")).includes(inv));
 await agent.goto(ticketUrl);
+ok("delete: says what the customer will see (P16)", (await agent.textContent("[data-testid=delete-ticket-note]")).includes("The customer isn’t emailed"));
 await agent.click("[data-testid=delete-ticket]");
 ok("delete: asks first, in the page", await agent.isVisible("[data-testid=delete-ticket-dialog]"));
 await agent.click("[data-testid=delete-ticket-dialog] >> text=Cancel");
@@ -315,6 +316,10 @@ await agent.waitForURL((u) => u.pathname === "/support", { timeout: 15000 }).cat
 const ticketId = ticketUrl.split("/").pop();
 const delRow = await prisma.adminAction.findFirst({ where: { action: "support.delete", details: { path: ["ticketId"], equals: ticketId } } });
 ok("delete: written to the support log, without what was said", delRow?.actorEmail === AGENT && delRow.target === planEmail && !JSON.stringify(delRow.details).includes(inv));
+// The customer's chat says it ended, rather than going blank (P16); support is told that's all they see.
+await owner.reload();
+await owner.click("button:has-text('Help')");
+ok("delete: the customer's chat says the conversation ended and was removed (P16)", (await owner.textContent("[data-testid=chat-gone]", { timeout: 15000 }).catch(() => "")).includes("Your earlier conversation has ended and was removed"));
 await agent.goto(ticketUrl);
 ok("delete: the old address says it was deleted, in the support pages", (await agent.textContent("[data-testid=ticket-gone]").catch(() => "")).includes("This conversation was deleted") && (await agent.locator("[data-testid=support-nav]").count()) === 1);
 await agent.goto(BASE + "/support/log?action=support.delete");

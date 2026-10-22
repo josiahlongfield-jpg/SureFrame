@@ -45,6 +45,15 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
   // They'd closed it themselves before support did (closeAccount stamps both at once otherwise).
   const selfDeleted = !!u.closedAt && !!u.deletionRequestedAt && u.deletionRequestedAt < u.closedAt;
   const emailThem = `Email ${u.email}`;
+  // What signed them out everywhere (P50): support's own button, support closing the account (even if since reopened),
+  // or, with neither logged then, the customer closing their account themselves (keeping it doesn't undo that).
+  const cutoff = u.sessionsValidAfter;
+  const cause = cutoff
+    ? history
+        .filter((h) => (h.action === "user.sign_out_everywhere" || h.action === "account.close") && Math.abs(h.createdAt.getTime() - cutoff.getTime()) < 120_000)
+        .sort((a, b) => Math.abs(a.createdAt.getTime() - cutoff.getTime()) - Math.abs(b.createdAt.getTime() - cutoff.getTime()))[0]
+    : undefined;
+  const signedOutWhy = !cutoff ? "" : cause?.action === "account.close" ? " (when support closed the account)" : cause ? " (support pressed Sign out everywhere)" : " (when they closed their account themselves)";
 
   return (
     <div>
@@ -99,7 +108,7 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
                   : "Not scheduled",
               ],
               ["Email blocked", blocked ? "Yes: it can't sign in or sign up" : "No"],
-              ["Signed out everywhere", u.sessionsValidAfter ? qldTime(u.sessionsValidAfter) : "Never"],
+              ["Signed out everywhere", cutoff ? `${qldTime(cutoff)}${signedOutWhy}` : "Never"],
               ["Google sign-in linked", u.accounts.some((a) => a.provider === "google") ? "Yes" : "No"],
               ["Created", qldTime(u.createdAt)],
             ]}

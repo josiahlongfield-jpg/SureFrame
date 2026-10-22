@@ -45,6 +45,8 @@ export function SupportChat({ signedIn, limits, className = "" }: { signedIn: bo
   const [askEmail, setAskEmail] = useState(false);
   // A limit reached: Send (or Talk to a person) stays off until it lifts (O80, V88).
   const [blocked, setBlocked] = useState<Blocked | null>(null);
+  // The conversation this browser (or an email's link) had no longer exists.
+  const [gone, setGone] = useState(false);
   const end = useRef<HTMLDivElement>(null);
   const emailBox = useRef<HTMLInputElement>(null);
 
@@ -56,6 +58,8 @@ export function SupportChat({ signedIn, limits, className = "" }: { signedIn: bo
       setToken(null);
       setTicket(null);
       if (res.status === 403) setError("That conversation belongs to an account. Sign in to it to see the conversation, or ask a new question here.");
+      // Deleted by support (test chats and spam), or an old email's link to it: said, rather than an empty chat (P16).
+      else setGone(true);
       return;
     }
     if (res.ok) setTicket(await res.json());
@@ -235,6 +239,11 @@ export function SupportChat({ signedIn, limits, className = "" }: { signedIn: bo
             Send
           </button>
         </div>
+        {gone && !ticket && (
+          <p role="status" className="mt-2 text-sm text-muted" data-testid="chat-gone">
+            Your earlier conversation has ended and was removed. If you still need help, ask a new question here.
+          </p>
+        )}
         {error && <p role="alert" className="mt-2 text-sm text-danger-fg">{error}</p>}
         <div className="mt-2 flex flex-wrap justify-between gap-2 text-sm">
           {!withPerson ? (

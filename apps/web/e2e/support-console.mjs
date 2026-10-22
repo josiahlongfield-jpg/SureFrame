@@ -203,6 +203,10 @@ const anon = await (await browser.newContext()).newPage();
 await anon.goto(`${BASE}/support/workspaces/${wsA}`);
 ok("signed out: sent to sign in", await anon.waitForURL((u) => u.pathname === "/login", { timeout: 30000 }).then(() => true, () => false));
 
+await open("/settings");
+ok("Settings marks Support as for SureFrame staff only (P2)", (await text("[data-testid=settings-index] a[href='/support'] [data-testid=settings-tag]")) === "SureFrame staff only");
+await open("/support/inbox");
+ok("/support/inbox goes to the inbox (P57)", new URL(admin.url()).pathname === "/support", admin.url());
 await open("/support");
 ok("inbox links to the console", (await admin.locator('a[href="/support/lookup"]').count()) === 1 && (await admin.locator('a[href="/support/log"]').count()) === 1);
 ok("the free plans link is still there", (await admin.locator('a[href="/support/accounts"]').count()) >= 1);
@@ -212,6 +216,7 @@ ok("the free plans link is still there", (await admin.locator('a[href="/support/
 // =====================================================================================================
 await open(`/support/lookup?q=${encodeURIComponent(aEmail)}`);
 ok("lookup by email: the login", (await text("[data-testid=results-users]")).includes(aEmail));
+ok("a login result names its workspace and plan (P38)", (await text("[data-testid=results-users] [data-testid=user-workspaces]")).includes(`${aName} (Solo, owner)`), await text("[data-testid=results-users]"));
 await admin.screenshot({ path: `${shots}/lookup-phone.png`, fullPage: true });
 await open(`/support/lookup?q=${encodeURIComponent(`console a ${stamp}`)}`);
 ok("lookup by workspace name (any case): the workspace and its owner", (await text("[data-testid=results-workspaces]")).includes(aName) && (await text("[data-testid=results-workspaces]")).includes(aEmail));
@@ -221,6 +226,8 @@ await open(`/support/lookup?q=${aVideo.id}`);
 ok("lookup by video id: its workspace", (await text("[data-testid=results-video]")).includes(aName));
 await open(`/support/lookup?q=${aCustomer}`);
 ok("lookup by Stripe customer id", (await text("[data-testid=results-workspaces]")).includes(aName));
+await open("/support/lookup?q=");
+ok("an empty search says what's needed (P38)", (await text("[data-testid=search-too-short]")) === "Type at least 2 characters.");
 await open(`/support/lookup?q=nobody-${stamp}`);
 ok("lookup: says when nothing matches", (await admin.locator("[data-testid=no-results]").count()) === 1);
 await open(`/support/lookup?q=${encodeURIComponent(aEmail)}`);
@@ -343,6 +350,7 @@ ok("unsuspend login: cleared and emailed", r.done && !(await prisma.user.findUni
 r = await power("power-signOutEverywhere", { reason: "Lost phone" });
 ok("sign out everywhere: done", r.done && r.message.includes("Signed out everywhere"), r.message);
 ok("sign out everywhere: recorded on the login and shown", !!(await prisma.user.findUnique({ where: { id: sam.id } })).sessionsValidAfter && !(await text("[data-testid=user-status]")).includes("Signed out everywhere Never"));
+ok("sign out everywhere: says support did it (P50)", (await text("[data-testid=user-status]")).includes("(support pressed Sign out everywhere)"), await text("[data-testid=user-status]"));
 await samPage.goto(BASE + "/library");
 ok("sign out everywhere: their browser is signed out", await lands(samPage, "/login"));
 ok("sign out everywhere: emailed", !!(await waitMail(samEmail, (m) => m.subject === "You've been signed out of SureFrame everywhere")));
@@ -505,6 +513,8 @@ r = await power("power-reopenAccount", { reason: "Review: the threats came from 
 ok("reopen: done", r.done && r.message.includes("Account reopened"), r.message);
 ok("reopen: open again, no deletion", !(await prisma.user.findUnique({ where: { id: eUser.id } })).closedAt && !(await prisma.user.findUnique({ where: { id: eUser.id } })).deleteAt && !(await prisma.workspace.findUnique({ where: { id: wsE } })).closedAt);
 ok("reopen: emailed", !!(await waitMail(eEmail, (m) => m.subject === "Your SureFrame account is open again")));
+await open(`/support/users/${eUser.id}`);
+ok("reopened: the signed-out-everywhere time says it came from the closure (P50)", (await text("[data-testid=user-status]")).includes("(when support closed the account)"), await text("[data-testid=user-status]"));
 await open(`/support/workspaces/${wsE}`);
 r = await power("power-legalHoldOff", { reason: "Review finished" });
 ok("legal hold off after the review", r.done && !(await prisma.workspace.findUnique({ where: { id: wsE } })).legalHoldAt);

@@ -1,9 +1,10 @@
 import type { Plan } from "@prisma/client";
 import { TEAM_PLANS } from "@/lib/plans";
 import { CLAUDE_BONUS } from "@/lib/claudeBonus";
+import { BRAND } from "@/lib/brand";
 
 /** One settings page: where it is, its name in the Settings menu, and a line on what it's for (the /settings page). */
-export type SettingsPage = { href: string; label: string; blurb: string };
+export type SettingsPage = { href: string; label: string; blurb: string; /** A small label beside the name, for a page customers never see (P2). */ tag?: string };
 
 /**
  * The settings pages someone can use, in menu order: the header's Settings menu and the /settings page both list
@@ -23,7 +24,7 @@ export function settingsPages({
   workspaces: number;
   supportAgent?: boolean;
 }): SettingsPage[] {
-  const support: SettingsPage[] = supportAgent ? [{ href: "/support", label: "Support", blurb: "The support console: help conversations, accounts and discount codes." }] : [];
+  const support: SettingsPage[] = supportAgent ? [{ href: "/support", label: "Support", blurb: "The support console: help conversations, accounts and discount codes.", tag: `${BRAND.name} staff only` }] : [];
   // A team plan keeps its team pages while the owner is on their own; a business of one on another plan has none.
   const teamPages = teamSize > 1 || (manager && TEAM_PLANS.includes(plan));
   if (manager) {
