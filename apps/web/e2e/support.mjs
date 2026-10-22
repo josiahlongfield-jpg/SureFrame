@@ -268,7 +268,7 @@ for (const p of ["/support", "/support/lookup", "/support/log", "/support/accoun
   await agent.goto(BASE + p);
   navs.push((await agent.textContent("[data-testid=support-nav]")).trim());
 }
-ok("support pages: the same links on every page, Discounts included", navs.every((n) => n === navs[0]) && navs[0] === "InboxLook upSupport logFree plansDiscounts", navs.join(" | "));
+ok("support pages: the same links on every page, Discounts and the sub-processor notice included", navs.every((n) => n === navs[0]) && navs[0] === "InboxLook upSupport logSub-processor noticeFree plansDiscounts", navs.join(" | "));
 await agent.goto(BASE + "/support");
 await agent.click(`[data-testid=inbox-list] a:has-text('${inv}')`);
 await agent.waitForSelector("text=Look up this account");
@@ -369,7 +369,7 @@ await kb.keyboard.press("Escape");
 const backOnHelp = await kb.waitForFunction(() => document.activeElement?.dataset.testid === "help-button", null, { timeout: 5000 }).then(() => true, () => false);
 ok("panel: Escape closes it and focus goes back to Help", (await kb.locator("role=dialog[name='SureFrame help']").count()) === 0 && backOnHelp);
 
-// 8f. Phones: no floating Help button (decision 1). Help is in the top bar (375px and wider) or its menu (narrower), and
+// 8f. Phones: no floating Help button (decision 1). Help is in the top bar (440px and wider) or its small menu (narrower), and
 // opens the panel as a sheet over the page; the panel leaves room for the conversation
 const small = await (await browser.newContext({ viewport: { width: 320, height: 568 }, isMobile: true, hasTouch: true })).newPage();
 await small.goto(BASE + "/");
@@ -384,6 +384,7 @@ await small.evaluate(() => window.scrollTo(0, 0));
 await small.tap("[data-testid=site-menu-button]");
 await small.tap("[data-testid=site-menu-help]");
 await small.waitForSelector("role=dialog[name='SureFrame help']");
+const room = await small.evaluate(() => document.querySelector("[role=dialog] [aria-live=polite]").clientHeight);
 ok("320px: the conversation gets room in the panel", room >= 240, String(room));
 ok("320px: no sideways scroll with the panel open", await small.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 // The page behind the open sheet doesn't scroll (V87).
