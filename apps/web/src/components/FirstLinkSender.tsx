@@ -193,11 +193,8 @@ export function PersonalLinkSteps({ className = "", compact, skipAdd }: { classN
       </ol>
       <details className="mt-3 text-xs text-muted">
         <summary className="cursor-pointer font-medium text-accent">Why does the first video come from me?</summary>
-        <p className="mt-1">
-          Your videos are end-to-end encrypted. The link to a client&apos;s first video also carries the key to all their videos, and only your team&apos;s devices have it,
-          so we couldn&apos;t email it without being able to see their videos. Once they&apos;ve opened it, their phone or computer remembers it, and every video you send
-          opens there.
-        </p>
+        {/* Josiah's words (Decision 18), the same as the Send box's. */}
+        <p className="mt-1" data-testid="first-why-text">A new client&apos;s first link has to come from you, because it carries their private key, which we never see. Once they&apos;ve opened it, Send by email does the rest.</p>
       </details>
     </div>
   );

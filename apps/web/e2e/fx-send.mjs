@@ -65,6 +65,8 @@ await owner.waitForSelector("text=I've saved it", { timeout: 15000 }).then((b) =
 // ---- Adding clients (Free: 3 seats) ----
 await owner.waitForSelector("[data-testid=first-link-rule]");
 ok("adding (no clients yet): how clients get videos is explained up front", norm(await owner.textContent("[data-testid=first-link-rule]")).includes("Send their first video yourself") && norm(await owner.textContent("[data-testid=first-link-rule]")).includes("After that, we email them"));
+// The Clients page's copy of "Why does the first video come from me?" is Josiah's approved wording too (Decision 18).
+ok("Clients page: the first-video why is Josiah's wording (Decision 18)", norm(await owner.textContent("[data-testid=first-link-rule] [data-testid=first-why-text]")) === "A new client's first link has to come from you, because it carries their private key, which we never see. Once they've opened it, Send by email does the rest.");
 const aEmail = `client-a-${stamp}@example.com`;
 await owner.fill('input[aria-label="Client name"]', "x".repeat(81));
 await owner.click("button:has-text('Add client')");

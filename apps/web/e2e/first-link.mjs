@@ -103,9 +103,11 @@ ok("no first-video box while no new client is chosen", !(await owner.isVisible("
 await choose("Zoe Park");
 // One line like the Clients page's steps; Josiah's longer why sits behind the expander (O32, S13).
 ok("choosing Zoe: her first video goes from you, said plainly", await owner.isVisible("[data-testid=first-time]") && (await owner.textContent("[data-testid=first-why-line]")).includes("First video for Zoe Park: send it yourself") && (await owner.textContent("[data-testid=first-why-line]")).includes("After that, we email them") && !(await owner.textContent("[data-testid=first-time]")).includes("This video still goes to"));
-ok("the longer why is folded under the expander", (await owner.textContent("[data-testid=first-why-more]")).includes("Why does the first video come from me?") && !(await owner.isVisible("text=/Once they open it, everything beyond that point/")) && (await owner.textContent("[data-testid=first-why]")).includes("Once they open it, everything beyond that point is delivered on your behalf to the device the client link is held on, if you select the Send by email function"));
+// Josiah's approved wording (Decision 18).
+const WHY = "A new client's first link has to come from you, because it carries their private key, which we never see. Once they've opened it, Send by email does the rest.";
+ok("the longer why is folded under the expander", (await owner.textContent("[data-testid=first-why-more]")).includes("Why does the first video come from me?") && !(await owner.isVisible("text=/first link has to come from you/")) && (await owner.textContent("[data-testid=first-why]")).includes(WHY));
 await owner.click("[data-testid=first-why-more]");
-ok("opening it shows Josiah's explanation", await owner.isVisible("text=/Once they open it, everything beyond that point/"));
+ok("opening it shows Josiah's explanation (Decision 18)", await owner.isVisible("text=/first link has to come from you, because it carries their private key/"));
 ok("a first-time client isn't offered Send by email", (await owner.locator("[data-testid=send-email]").count()) === 0 && (await owner.textContent("[data-testid=first-time]")).includes("Zoe Park") && (await owner.locator("[data-testid=first-links] [data-testid=first-link-copy]").count()) === 1);
 ok("dropdown shows who's chosen", (await owner.textContent("[data-testid=client-picker]")).includes("Zoe Park"));
 ok("only her first-video buttons: no separate Copy link", (await owner.locator("[data-testid=send-link]").count()) === 0);
