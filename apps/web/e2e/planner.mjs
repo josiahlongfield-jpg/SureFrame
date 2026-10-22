@@ -144,7 +144,7 @@ await pro.waitForSelector("li:has-text('Prefers morning calls') >> text=Private 
 ok("Make private needs no question", sql(`select shared from "Item" where id='${privateId}'`) === "f");
 
 // Repeats and reminders appear while adding once there's a due date (O13, O74); before that, one hint says so.
-await pro.click("role=tab[name='To-do']");
+await pro.click("role=radio[name='To-do']");
 ok("add form: no Repeat or Remind before a due date, just a hint", (await pro.locator("form [data-testid=schedule-extras]").count()) === 0 && (await pro.textContent("form [data-testid=schedule-extras-hint]")).includes("Pick a due date to make it repeat or to get reminders"));
 await pro.fill('textarea[aria-label="New to-do"]', "Weekly review");
 await pro.fill('input[aria-label="Due date"]', "2027-01-05T09:00");

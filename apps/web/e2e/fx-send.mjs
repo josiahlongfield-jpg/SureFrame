@@ -131,10 +131,10 @@ await prisma.workspace.update({ where: { id: ws }, data: { plan: "SOLO" } });
 await owner.reload();
 await owner.waitForSelector("[data-testid=clients-search]");
 await owner.fill("[data-testid=clients-search]", "client-c");
-ok("search by email", (await owner.locator("main ul > li a[href^='/clients/']").allTextContents()).join() === "Client C");
+ok("search by email", (await owner.locator("main ul > li a[href^='/clients/']:not([data-testid=row-more-ways])").allTextContents()).join() === "Client C");
 await owner.fill("[data-testid=clients-search]", "");
 await owner.selectOption("[data-testid=clients-filter]", "first");
-ok("filter: not opened a video yet", (await owner.locator("main ul > li a[href^='/clients/']").allTextContents()).join() === "Client B,Client C");
+ok("filter: not opened a video yet", (await owner.locator("main ul > li a[href^='/clients/']:not([data-testid=row-more-ways])").allTextContents()).join() === "Client B,Client C");
 await owner.selectOption("[data-testid=clients-filter]", "all");
 ok("Client B: copied in the list, so marked not opened yet", (await owner.textContent("li:has-text('Client B') [data-testid=needs-first-link]")) === "Not opened yet");
 

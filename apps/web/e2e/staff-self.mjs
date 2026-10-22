@@ -182,7 +182,7 @@ await amy.click("li:has-text('Prefers mornings') >> button[aria-label=Delete]");
 await amy.click("[data-testid=delete-confirm-yes]");
 await amy.waitForSelector("li:has-text('Prefers mornings')", { state: "detached" });
 ok("Amy adds and deletes a note", (await prisma.item.count({ where: { clientId: calId, kind: "NOTE" } })) === 0);
-await amy.click("role=tab[name='To-do']");
+await amy.click("role=radio[name='To-do']");
 await amy.fill('textarea[aria-label="New to-do"]', "Book a check-in");
 await amy.click("form >> button:has-text('Add')");
 await amy.waitForSelector(`input[aria-label='Mark "Book a check-in" done']`);
