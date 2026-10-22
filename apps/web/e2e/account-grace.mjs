@@ -286,6 +286,7 @@ const samReply = await prisma.reply.create({ data: { kind: "TEXT", body: "sealed
 const samPage = await signIn(samEmail, "/library");
 await samPage.goto(BASE + "/settings/account");
 const samExplainer = norm(await samPage.textContent("[data-testid=delete-explainer]"));
+ok("staff: leaving the team is offered on its own, apart from deleting the account (S40)", norm(await samPage.textContent("[data-testid=leave-team]")).includes(`Leave ${teamName}`) && (await samPage.locator("[data-testid=delete-team]").count()) === 1, norm(await samPage.textContent("[data-testid=leave-team]")));
 ok("staff explainer: leave the team now, keeping won't put you back", samExplainer.includes(`You leave ${teamName} straight away, and keeping your account won't put you back.`) && !samExplainer.includes("Your workspace goes with it"), samExplainer);
 await closeAccount(samPage, samEmail);
 ok("staff: membership ended at once", !(await prisma.membership.findFirst({ where: { workspaceId: team, userId: sam.id } })));
@@ -318,6 +319,22 @@ ok("closed staff: the restore page says the team won't come back", norm(await sa
 await samJoin.click("button:text-is('Keep my account')");
 await samJoin.waitForURL((u) => u.pathname === "/library", { timeout: 30000 });
 ok("staff kept: open again, on their own and not on the team", new URL(samJoin.url()).searchParams.get("restored") === "1" && !(await prisma.membership.findFirst({ where: { workspaceId: team, userId: sam.id } })) && !(await prisma.user.findUnique({ where: { id: sam.id } })).deleteAt);
+
+// Leaving a team without closing the login (S40): the same steps as closing, but the account stays open.
+const leeEmail = `grace-lee${stamp}@example.com`;
+const lee = await prisma.user.create({ data: { email: leeEmail, name: `Lee ${stamp}`, activeWorkspaceId: team, memberships: { create: { workspaceId: team, role: "MEMBER" } } } });
+const leeVideo = await prisma.video.create({ data: { id: `grl${stamp.toString(36)}`, mimeType: "video/webm", storageKey: `test/${stamp}/lee`, status: "UPLOADED", workspaceId: team, ownerId: lee.id } });
+const leePage = await signIn(leeEmail, "/settings/account");
+await leePage.click("[data-testid=leave-team-button]");
+ok("leave: asks once more first", (await leePage.textContent("[data-testid=leave-team-confirm]")).includes(`Leave ${teamName} now?`));
+await leePage.click("[data-testid=leave-team-yes]");
+await leePage.waitForSelector("[data-testid=left-team]", { timeout: 30000 });
+ok("leave: off the team, login still open", !(await prisma.membership.findFirst({ where: { workspaceId: team, userId: lee.id } })) && !(await prisma.user.findUnique({ where: { id: lee.id } })).deleteAt);
+ok("leave: their recording stays with the team, under the owner", (await prisma.video.findUnique({ where: { id: leeVideo.id } })).ownerId === teamOwnerUser.id);
+ok("leave: the team is asked to reset its keys", (await prisma.workspace.findUnique({ where: { id: team } })).keyResetNeeded === `Lee ${stamp}`);
+const leeLeftMail = await waitMail(teamOwnerEmail, (m) => m.subject === `Lee ${stamp} left ${teamName} on SureFrame`);
+ok("leave: the owner is emailed that they left (not that they closed their account)", !!leeLeftMail && leeLeftMail.text.includes("left your team on SureFrame") && leeLeftMail.text.includes("reset the keys on Settings > Team and staff"), leeLeftMail?.text);
+ok("leave: no more Leave block once off the team", (await leePage.locator("[data-testid=leave-team]").count()) === 0);
 
 await browser.close();
 await prisma.$disconnect();

@@ -74,10 +74,12 @@ type Props = {
   sentNote: string;
   /** Told when the "Discard this reply?" question opens, so any other question on the page closes. */
   onAsk?: () => void;
+  /** Told when a recorded reply is waiting to be sent or discarded, so the page can say so while the box is closed (C34). */
+  onReviewChange?: (waiting: boolean) => void;
 };
 
 const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyComposer(
-  { videoId, conversationKey, currentTimeMs, onReplied, onBusyChange, offscreen = false, sentNote, onAsk },
+  { videoId, conversationKey, currentTimeMs, onReplied, onBusyChange, offscreen = false, sentNote, onAsk, onReviewChange },
   ref,
 ) {
   const [mode, setMode] = useState<Mode>("TEXT");
@@ -210,6 +212,8 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
 
   const recording = phase === "recording";
   useEffect(() => onBusyChange?.(recording), [recording, onBusyChange]);
+  const waiting = phase === "review" || phase === "sending";
+  useEffect(() => onReviewChange?.(waiting), [waiting, onReviewChange]);
   // Hidden away with only a camera preview open: back to text, which turns the camera and mic off.
   // A recording under review stays, ready to send when they come back.
   useEffect(() => {
@@ -529,17 +533,16 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
             }}
             placeholder="Write a reply…"
             aria-label="Reply"
-            aria-describedby={touch ? undefined : `${videoId}-enter-hint`}
+            aria-describedby={`${videoId}-enter-hint`}
             enterKeyHint={touch ? "enter" : "send"}
             data-focus-target="text"
             rows={3}
             className="w-full resize-none rounded-lg border border-line-strong px-3 py-2 text-sm focus:border-primary"
           />
-          {!touch && (
-            <p id={`${videoId}-enter-hint`} className="mt-1 text-xs text-dim" data-testid="enter-hint">
-              Enter sends. Shift+Enter starts a new line.
-            </p>
-          )}
+          {/* Each says what Enter does there, so someone who uses both a phone and a computer isn't caught out (C51). */}
+          <p id={`${videoId}-enter-hint`} className="mt-1 text-xs text-dim" data-testid="enter-hint">
+            {touch ? "Enter starts a new line. Tap Send reply to send." : "Enter sends. Shift+Enter starts a new line."}
+          </p>
           <button disabled={textBusy || !text.trim()} className="mt-2 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
             {textBusy ? "Sending…" : "Send reply"}
           </button>

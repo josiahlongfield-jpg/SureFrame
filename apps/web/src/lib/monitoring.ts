@@ -128,7 +128,13 @@ export async function teamStats(workspaceId: string, o: { days: number; staleDay
     avgReplyMs: avg(allReplyTimes),
     overdueTodos: overdue.length,
   };
-  return { since, staff, shared, overall, unanswered, stale, noVideoYet, overdue };
+  // Their own row in the table, so the Videos sent column adds up to the whole business's (S81). Only what they sent:
+  // their clients and conversations are the team's now, under whoever looks after them.
+  const formerSent = sent.get("former") ?? 0;
+  const former: StaffStats | null = formerSent
+    ? { userId: null, name: "Former team members", videosSent: formerSent, staleClients: 0, unanswered: 0, avgReplyMs: null, overdueTodos: 0 }
+    : null;
+  return { since, staff, shared, former, overall, unanswered, stale, noVideoYet, overdue };
 }
 
 /** "3h", "2d", "45m". */

@@ -236,6 +236,12 @@ await phone.waitForTimeout(1500);
 await phone.tap("button:has-text('Stop recording')");
 await phone.waitForSelector("[data-testid=reply-review] audio", { timeout: 15000 });
 ok("after Stop: played back for review, not sent yet", (await phone.locator("[data-testid=conversation] ul audio").count()) === 0);
+// Closed with the recording waiting: the page says a reply is unsent, without a reload (C34); it's still there on reopening.
+await phone.tap("[data-testid=chat-close]");
+await phone.waitForSelector("[data-testid=conversation]:not([data-sheet])", { state: "attached", timeout: 5000 });
+ok("closing with a recording to send: the card says there's an unsent reply (C34)", (await phone.textContent("[data-testid=inline-unsent]", { timeout: 5000 }).catch(() => "")).includes("You have an unsent reply"));
+await phone.tap(open);
+await phone.waitForSelector("[data-testid=reply-review] audio", { timeout: 10000 });
 await phone.tap("button:has-text('Send voice reply')");
 await phone.waitForSelector("[data-testid=conversation] ul audio", { timeout: 30000 });
 ok("the voice reply sends", true);

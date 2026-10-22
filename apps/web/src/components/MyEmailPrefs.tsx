@@ -26,21 +26,27 @@ export default function MyEmailPrefs({ initial, owner = false }: { initial: { re
 
   return (
     <div className="mt-4 grid gap-2 text-sm">
-      <label className="flex items-start gap-2">
-        <input
-          type="checkbox"
-          checked={replyEmails}
-          onChange={(e) => save(e.target.checked)}
-          aria-label={owner ? "Email me when clients reply" : "Email me when my clients reply"}
-          className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
-          data-testid="reply-emails"
-        />
+      {/* A switch beside the words, like the other on/off settings, so it reads as something to press, not a label and a status (S56). */}
+      <div className="flex items-start justify-between gap-4">
         <span>
-          <span className="font-medium text-ink">{owner ? "Email me when clients reply" : "Email me when my clients reply"}</span>
-          <span className="ml-2 rounded-full border border-line px-2 py-0.5 text-xs text-dim" data-testid="reply-emails-state">{replyEmails ? "On" : "Off"}</span>
+          <span className="font-medium text-ink" id="reply-emails-label">{owner ? "Email me when clients reply" : "Email me when my clients reply"}</span>
           <span className="block text-xs text-dim">Several replies within 15 minutes come as one email. Replies always show in the app either way.</span>
         </span>
-      </label>
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="text-xs text-dim" data-testid="reply-emails-state">{replyEmails ? "On" : "Off"}</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={replyEmails}
+            aria-labelledby="reply-emails-label"
+            onClick={() => void save(!replyEmails)}
+            className={`relative h-7 w-12 shrink-0 rounded-full transition ${replyEmails ? "bg-primary" : "bg-line-strong"}`}
+            data-testid="reply-emails"
+          >
+            <span className={`absolute top-1 h-5 w-5 rounded-full bg-surface shadow transition ${replyEmails ? "left-6" : "left-1"}`} />
+          </button>
+        </span>
+      </div>
       {owner ? (
         <div className="text-xs text-dim" data-testid="always-sent">
           <p>These always come, as they&apos;re about losing something or about your account:</p>

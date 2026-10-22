@@ -105,9 +105,7 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
               )}
               {s.role === "MEMBER" && s.own && (
                 <p className="mt-2 text-xs text-dim" data-testid="own-settings">
-                  Their own settings: reply emails {s.own.replyEmails ? "on" : "off"}
-                  {" · "}reminder defaults: {s.own.ownDefaults ? "their own" : "the business's"}
-                  {" · "}client emails: {s.own.message ? "their own message" : "the business's message"}, replies to {s.own.replyTo ?? "the business's reply-to"}
+                  <OwnSettingsLine own={s.own} />
                 </p>
               )}
               {saved?.userId === s.userId && (
@@ -169,6 +167,20 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
       )}
       {note && <p role="status" className="text-sm text-muted">{note}</p>}
     </div>
+  );
+}
+
+/** What a member set for themselves, said once, with everything else as "the business's settings" (S68). */
+function OwnSettingsLine({ own }: { own: OwnSettings }) {
+  const theirs = [own.ownDefaults && "reminder defaults", own.message && "message on client emails", own.replyTo && `reply-to address (${own.replyTo})`].filter(Boolean) as string[];
+  const list = theirs.length > 1 ? `${theirs.slice(0, -1).join(", ")} and ${theirs.at(-1)}` : theirs[0];
+  return (
+    <>
+      Reply emails {own.replyEmails ? "on" : "off"}.{" "}
+      {!theirs.length
+        ? "Reminders and client emails use the business's settings."
+        : `Their own ${list}${theirs.length < 3 ? "; the rest uses the business's settings" : ""}.`}
+    </>
   );
 }
 
@@ -302,7 +314,8 @@ export function StaffReminderForm({ meId, staff, clients, videos }: { meId: stri
     );
   }
   // Why Send isn't ready yet, said next to it.
-  const missing = !to.size ? "Pick who to remind." : !message.trim() ? "Write a message." : null;
+  // Both at once when both are missing, so picking someone doesn't look like it did nothing (S61).
+  const missing = !to.size && !message.trim() ? "Pick who to remind and write a message." : !to.size ? "Pick who to remind." : !message.trim() ? "Write a message." : null;
   return (
     <form onSubmit={send} className="grid gap-3 rounded-2xl border border-line bg-surface p-5 text-sm">
       <div className="flex flex-wrap items-center gap-3">

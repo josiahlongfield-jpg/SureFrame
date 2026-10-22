@@ -160,6 +160,10 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     <>
       {/* Kept by the business after its recorder left: not shown as the owner's (lib/team.ts). */}
       {v.formerStaffAt && <p className="truncate text-xs text-dim" data-testid="video-former">{senderName({ ...v, owner: { name: null } }, workspace.name, "team")}</p>}
+      {/* Left behind unsent by someone who's gone: nobody else will send it, so say it can go (S81). */}
+      {v.formerStaffAt && !sentTo(v).length && v.status !== "EXPIRED" && (
+        <p className="text-xs text-dim" data-testid="video-former-unsent">Never sent. Delete it from its page if it isn&apos;t needed.</p>
+      )}
       <span className="mt-1 block empty:hidden">
         <ReplyBadges convs={convsOf(v)} />
       </span>

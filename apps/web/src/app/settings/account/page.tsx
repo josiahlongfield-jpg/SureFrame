@@ -12,6 +12,8 @@ import { permsOf } from "@/lib/permissions";
 import Link from "next/link";
 import { signOut } from "@/auth";
 import { DELETION_GRACE_DAYS, deletionDate, requestAccountDeletion } from "@/lib/accountDeletion";
+import { leaveTeam, leaverName } from "@/lib/account";
+import LeaveTeamButton from "@/components/LeaveTeamButton";
 import { zoned } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { LEGAL } from "@/lib/legal";
@@ -46,7 +48,8 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
   const mine = await db.membership.findMany({ where: { userId: user.id }, include: { workspace: { select: { name: true, timezone: true, stripeSubscriptionId: true, _count: { select: { members: true } } } } } });
   const ownWorkspace = mine.find((m) => m.role === "OWNER" && m.workspace._count.members === 1)?.workspace;
   const ownsAlone = !!ownWorkspace;
-  const teamNames = mine.filter((m) => m.role !== "OWNER" && m.workspace._count.members > 1).map((m) => m.workspace.name);
+  const teams = mine.filter((m) => m.role !== "OWNER" && m.workspace._count.members > 1);
+  const teamNames = teams.map((m) => m.workspace.name);
   // Deleted for good this long after closing, unless they sign in and keep it (lib/accountDeletion.ts).
   const deletesOn = zoned(ownWorkspace?.timezone).longDay(deletionDate());
   // "Keep me signed in on this device" (lib/activity.ts), for this browser.
@@ -96,6 +99,18 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
     }
     await sendMail({ to: user.email, ...emailChangeNoticeEmail("asked", user.email, to) }).catch(() => {});
     redirect(`/settings/account?saved=email-sent&to=${encodeURIComponent(to)}#email`);
+  }
+
+  // Leaving a team you work for, keeping your login (S40): the same steps as when staff close their account.
+  async function leave(form: FormData) {
+    "use server";
+    const { user } = await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: "existing" });
+    const workspaceId = String(form.get("workspaceId") ?? "");
+    const m = await db.membership.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } }, include: { workspace: true } });
+    if (!m || m.role === "OWNER") redirect("/settings/account?error=leave#leave-result");
+    await leaveTeam(user.id, m.workspace, leaverName(user), { chose: true });
+    revalidatePath("/", "layout");
+    redirect("/settings/account?saved=left#leave-result");
   }
 
   async function remove(form: FormData) {
@@ -265,19 +280,52 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
           </div>
         </section>
 
+        {saved === "left" && (
+          <p id="leave-result" role="status" className="mt-6 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="left-team">
+            You&apos;ve left the team. Its owner and admins have been emailed. Your login still works for a business of your own, free.
+          </p>
+        )}
+        {error === "leave" && (
+          <p id="leave-result" role="alert" className="mt-6 text-sm text-danger-fg">You&apos;re not on that team any more, or you own it.</p>
+        )}
+        {teams.length > 0 && (
+          <section id="leave-team" className="mt-6 rounded-2xl border border-line bg-surface p-6" data-testid="leave-team">
+            <h2 className="font-semibold text-ink">Leave {teamNames.length === 1 ? teamNames[0] : "a team"}</h2>
+            <p className="mt-1 text-sm text-muted">
+              Only want to stop working with {teamNames.length === 1 ? "this team" : "one of these teams"}? Leave it here and keep your login. Recordings you made for it stay
+              with it, and its owner and admins are emailed. To come back, you&apos;d need a new invite.
+            </p>
+            {teams.map((t) => (
+              <form key={t.workspaceId} action={leave} className="mt-4">
+                <input type="hidden" name="workspaceId" value={t.workspaceId} />
+                <LeaveTeamButton team={t.workspace.name} />
+              </form>
+            ))}
+          </section>
+        )}
+
         <section className="mt-6 rounded-2xl border border-danger-line bg-surface p-6">
           <h2 className="font-semibold text-danger-fg">Delete account</h2>
-          <p className="mt-1 text-sm text-muted" data-testid="delete-explainer">
-            Nothing is scheduled yet. If you delete your account, it&apos;s closed straight away and permanently deleted {DELETION_GRACE_DAYS} days later (on{" "}
-            {deletesOn} if you delete it today). Until then, you can sign in to keep it with everything as it was.
-            {ownsAlone && (
-              <> Your workspace goes with it: its recordings, clients, to-dos and notes. Your clients&apos; links stop working now{ownWorkspace.stripeSubscriptionId ? <>, your plan won&apos;t renew</> : null}, recordings without cloud backup still expire on their usual dates, and removed clients are still deleted on their dates.</>
+          {/* Short paragraphs, one per thing affected, so your own workspace and a team you work for don't run together (S40). */}
+          <div className="mt-1 grid gap-2 text-sm text-muted" data-testid="delete-explainer">
+            <p>
+              Nothing is scheduled yet. If you delete your account, it&apos;s closed straight away and permanently deleted {DELETION_GRACE_DAYS} days later (on{" "}
+              {deletesOn} if you delete it today). Until then, you can sign in to keep it with everything as it was.
+            </p>
+            {(ownsAlone || teamNames.length > 0) && (
+              <ul className="list-disc space-y-1 pl-5">
+                {ownsAlone && (
+                  <li data-testid="delete-own"> Your workspace goes with it: its recordings, clients, to-dos and notes. Your clients&apos; links stop working now{ownWorkspace.stripeSubscriptionId ? <>, your plan won&apos;t renew</> : null}, recordings without cloud backup still expire on their usual dates, and removed clients are still deleted on their dates.</li>
+                )}
+                {teamNames.length > 0 && (
+                  <li data-testid="delete-team"> You leave {teamNames.join(" and ")} straight away, and keeping your account won&apos;t put you back. Recordings you made for {teamNames.length === 1 ? "that team" : "those teams"} stay with {teamNames.length === 1 ? "it" : "them"}, and {teamNames.length === 1 ? "its" : "their"} clients aren&apos;t affected.</li>
+                )}
+              </ul>
             )}
-            {teamNames.length > 0 && (
-              <> You leave {teamNames.join(" and ")} straight away, and keeping your account won&apos;t put you back. Recordings you made for {teamNames.length === 1 ? "that team" : "those teams"} stay with {teamNames.length === 1 ? "it" : "them"}, and {teamNames.length === 1 ? "its" : "their"} clients aren&apos;t affected.</>
-            )}
-            {" "}Want it deleted sooner? Email <a href={`mailto:${LEGAL.email}`} className="font-medium text-accent hover:underline">{LEGAL.email}</a>.
-          </p>
+            <p>
+              Want it deleted sooner? Email <a href={`mailto:${LEGAL.email}`} className="font-medium text-accent hover:underline">{LEGAL.email}</a>.
+            </p>
+          </div>
           <form action={remove} className="mt-4 space-y-3">
             {error === "confirm" && <p role="alert" className="text-sm text-danger-fg">That doesn&apos;t match your email.</p>}
             {error === "failed" && <p role="alert" className="text-sm text-danger-fg">Your account couldn&apos;t be closed just now (we must stop any subscription first). Please try again in a few minutes, or ask in Help.</p>}

@@ -88,6 +88,8 @@ type Props = {
   video: Video;
   viewer: WatchViewer;
   ownerName: string;
+  /** Clients: a line under it saying why it's from a former team member, and that replies still reach the business (S84). */
+  ownerNote?: string;
   /** Clients: who the business's message above the video is from ("Owner B, Business B"). */
   messageFrom?: string;
   /** Clients: who their reply goes to ("Sam at Business" when Sam sent it and looks after them, else the business). */
@@ -225,6 +227,7 @@ function WatchBody({
   video,
   viewer,
   ownerName,
+  ownerNote,
   messageFrom,
   replyTo,
   clientName,
@@ -289,6 +292,8 @@ function WatchBody({
     setRecording(busy);
   }, []);
   const [askDiscard, setAskDiscard] = useState(false);
+  // A recorded reply waiting in the reply box to be sent or discarded (C34): said on the page while the sheet is closed.
+  const [draftWaiting, setDraftWaiting] = useState(false);
   // The floating Reply button only shows while the reply card and reactions are scrolled out of sight, so it never covers them.
   const [bubbleShown, setBubbleShown] = useState(false);
   const [ended, setEnded] = useState(false);
@@ -831,6 +836,9 @@ function WatchBody({
               {/* Only the team sees how often the client opened it. */}
               {canEdit && ` · ${video.viewCount} ${video.viewCount === 1 ? "view" : "views"}`}
             </p>
+            {ownerNote && !canEdit && (
+              <p className="mt-0.5 px-1 text-xs text-dim" data-testid="video-former-note">{ownerNote}</p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2 sm:shrink-0">
             {playable && (
@@ -984,7 +992,7 @@ function WatchBody({
                 {unread > 0 && <span className="font-medium text-accent"> · {unread} new</span>}
               </p>
               {/* A reply recorded but never sent waits inside the conversation; say so before it's forgotten. */}
-              {held.length > 0 && (
+              {(held.length > 0 || (draftWaiting && !sheet)) && (
                 <p className="mt-0.5 text-xs font-medium text-warn-fg" data-testid="inline-unsent">
                   You have an unsent reply. Open the conversation to send or delete it.
                 </p>
@@ -1018,7 +1026,7 @@ function WatchBody({
           type="button"
           onClick={openSheet}
           data-testid="chat-bubble"
-          aria-label={`Open conversation (${replies.length} ${replies.length === 1 ? "reply" : "replies"}${unread ? `, ${unread} new` : ""}${held.length ? ", 1 unsent reply" : ""})`}
+          aria-label={`Open conversation (${replies.length} ${replies.length === 1 ? "reply" : "replies"}${unread ? `, ${unread} new` : ""}${held.length || draftWaiting ? ", 1 unsent reply" : ""})`}
           className="fixed bottom-5 left-5 z-50 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-semibold text-on-primary shadow-lg hover:bg-primary-hover lg:hidden"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -1201,6 +1209,7 @@ function WatchBody({
           offscreen={!wide && !sheet}
           sentNote={sentNote}
           onAsk={() => setConfirming(null)}
+          onReviewChange={setDraftWaiting}
         />
       </aside>
     </div>

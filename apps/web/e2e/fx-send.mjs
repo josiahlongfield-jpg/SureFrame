@@ -210,7 +210,7 @@ ok("email subject has the title", mail?.subject.endsWith("sent you a video: Week
 ok("email is from 'Business A via SureFrame'", mail?.from.startsWith(`${business} via SureFrame <`), mail?.from);
 ok("email shows the business name and title", mail?.html.includes(business) && mail.html.includes("Week 1 plan"));
 ok("email body names the video and says how long it is (C39)", /\nWeek 1 plan\n\d+ seconds?\n/.test(mail?.text ?? ""), mail?.text);
-ok("email explains the device rule plainly", mail?.text.includes("The button opens it on any phone or computer where you've opened your personal link") && !mail.text.includes("use the personal link they gave you first"));
+ok("email explains the device rule plainly, in one short line (S50, C38)", mail?.text.includes("It's private to you. Doesn't open? Open the personal link") && mail.text.includes("on that phone or computer first, then the button works there too.") && !mail.text.includes("The button opens it on any phone or computer") && !mail.text.includes("use the personal link they gave you first"), mail?.text);
 await owner.waitForSelector("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-copy]");
 const both = await clip();
 ok("Send to all copies the first-timers' own conversations, not the emailed client's", /Client B: .*v=.*#k=/.test(both) && /Client C: .*v=.*#k=/.test(both) && !both.includes("Client A:"), both);

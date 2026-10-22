@@ -32,10 +32,9 @@ export function newVideoEmail(o: {
   // The email already comes from "Business A via SureFrame", so the subject names just the person (or the business without one).
   const subject = `${sender ?? o.business} sent you a video${title ? `: ${title}` : ""}`;
   const lead = `Hi ${o.clientName}, ${from} sent you a new video on SureFrame.`;
-  const device =
-    `It's private to you. The button opens it on any phone or computer where you've opened your personal link from ${o.business} before. ` +
-    `On a different one, open that personal link first (${o.business} sent it to you themselves, for example by text or message), then the button works there too. ` +
-    `Can't find it? Ask ${o.business} to send it again.`;
+  // Short (S50, C38): most people tap the button on the phone or computer they always use. The page it opens on a new one
+  // explains the rest and can ask the business for the link again (app/v/[id], locked).
+  const device = `It's private to you. Doesn't open? Open the personal link ${o.business} sent you on that phone or computer first, then the button works there too.`;
   const after = device + (o.noReply ? ` Please don't reply to this email; contact ${o.business} directly.` : "");
   const stop = o.unsubscribe ? `Don't want emails from ${o.business}? Turn them off: ${o.unsubscribe}` : "";
   const text = [o.business, "", lead, ...(title ? ["", title] : []), ...(length ? [title ? length : `Length: ${length}`] : []), "", `Watch it: ${o.link}`, "", after, ...(stop ? ["", stop] : []), "", "Sent with SureFrame"].join("\n");

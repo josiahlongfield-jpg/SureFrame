@@ -26,7 +26,8 @@ export function AskForLink({ business, url, action, unlocks = "this video" }: { 
     return (
       <p className="rounded-xl bg-ok-bg p-3 text-sm text-ok-fg" role="status" data-testid="lost-key-asked">
         Done. We&rsquo;ve emailed {business} to ask them to send you your personal link again. They&rsquo;ll send it to you themselves. When it arrives, open it
-        on this device and {unlocks} will unlock.
+        on this device and {unlocks} will unlock. Meanwhile, look in your texts, chats and email for the link you were sent before: opening it here works
+        straight away.
       </p>
     );
   }
@@ -35,6 +36,8 @@ export function AskForLink({ business, url, action, unlocks = "this video" }: { 
       <button onClick={ask} disabled={state === "busy"} data-testid="ask-link" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60">
         {state === "busy" ? "Asking…" : "Ask for my link again"}
       </button>
+      {/* Who gets asked, and how the link comes back (C48): nothing is emailed to the client by us. */}
+      <p className="mt-2 text-xs text-dim" data-testid="ask-link-how">We email {business}, and they send you the link themselves, usually the way they sent it before.</p>
       {state === "failed" && <p role="alert" className="mt-2 text-sm text-danger-fg">That didn&rsquo;t go through. Please contact {business} directly.</p>}
     </>
   );
@@ -47,7 +50,7 @@ export function AskForLink({ business, url, action, unlocks = "this video" }: { 
  * personal link again, so this asks them to. Its heading is the same "private" one a plain /v/ address
  * gets (app/v/[id]/page.tsx), as it's the same situation for the client.
  */
-export default function LostKey({ clientId, business, signInNext, unlocks = "this video" }: { clientId: string; business: string; signInNext?: string; unlocks?: string }) {
+export default function LostKey({ clientId, business, signInNext, unlocks = "this video", about }: { clientId: string; business: string; signInNext?: string; unlocks?: string; about?: string }) {
   return (
     <CantOpen
       title={unlocks === "this video" ? "This video is private" : "Your videos are private"}
@@ -55,6 +58,8 @@ export default function LostKey({ clientId, business, signInNext, unlocks = "thi
       signInNext={signInNext}
       action={<AskForLink business={business} url={`/api/clients/${clientId}/lost-key`} unlocks={unlocks} />}
     >
+      {/* Which video this is (C48): who it's from, and its title or date (neither is encrypted). */}
+      {about && <p className="font-medium text-ink" data-testid="lost-key-about">{about}</p>}
       <p>
         Videos from {business} unlock with the personal link they sent you. Use the whole link from their message: it&rsquo;s long, and its end is the part that
         unlocks them.
@@ -125,7 +130,7 @@ export function BadLinkNote({ clientId, now = false }: { clientId: string; now?:
  * server was told), it tells the server and reloads into the videos (once per device); otherwise it explains
  * how to get it. A link whose key isn't theirs is never saved over a key this device has (lib/e2e/linkKey.ts).
  */
-export function ClientKeyGate({ clientId, business, signInNext, unlocks }: { clientId: string; business: string; signInNext?: string; unlocks?: string }) {
+export function ClientKeyGate({ clientId, business, signInNext, unlocks, about }: { clientId: string; business: string; signInNext?: string; unlocks?: string; about?: string }) {
   const [state, setState] = useState<"checking" | "opening" | "missing" | "wrong">("checking");
   const tried = useRef(false);
   useEffect(() => {
@@ -145,7 +150,7 @@ export function ClientKeyGate({ clientId, business, signInNext, unlocks }: { cli
     })().catch(() => setState("missing"));
   }, [clientId]);
   if (state === "wrong") return <BadLinkKey clientId={clientId} business={business} signInNext={signInNext} unlocks={unlocks} />;
-  if (state === "missing") return <LostKey clientId={clientId} business={business} signInNext={signInNext} unlocks={unlocks} />;
+  if (state === "missing") return <LostKey clientId={clientId} business={business} signInNext={signInNext} unlocks={unlocks} about={about} />;
   return (
     <p className="rounded-2xl border border-line bg-surface p-10 text-center text-sm text-muted" role="status" data-testid="key-checking">
       {state === "opening" ? "Opening your videos…" : "One moment…"}
