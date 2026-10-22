@@ -244,6 +244,20 @@ export default function Page() {
         them and getting any consent the law requires. An assistant that can click on your pages can also send or delete things, so only let it do what you&rsquo;d
         do yourself.
       </p>
+      <h3 id="claude-connectors">{LEGAL.product} connectors for Claude</h3>
+      <p>
+        You can also connect your own Claude to {LEGAL.product} in Settings &gt; Connections. The online connector signs in with your {LEGAL.product} account and
+        reads your activity in that team: client names and who looks after them, video titles, when videos were sent and whether they were opened, when replies were
+        written and who&rsquo;s waiting for an answer, and to-do due dates. It can&rsquo;t read your encrypted content. The Claude Desktop connector also fetches your
+        encrypted to-dos, notes, messages, replies and AI summaries and unlocks them on your own computer with your team&rsquo;s key, which you give it as a
+        connection code; we never receive the key. Both only read, and only what you can see.
+      </p>
+      <p>
+        For each connection we keep a one-way fingerprint of its access tokens, when it was made and last used, and which tools it used and when (never what they
+        returned) for 90 days, so you, and your team&rsquo;s owners and admins, can see them in Settings &gt; Connections and disconnect them. A connection stops
+        working when it&rsquo;s disconnected, and an online one after 60 days unused; its records are deleted 90 days after that. What Claude reads goes to Anthropic
+        under your own account, as above.
+      </p>
 
       <h2>Who we share it with</h2>
       <p>We use trusted service providers to run {LEGAL.product}. They may only use your information to provide their service to us:</p>

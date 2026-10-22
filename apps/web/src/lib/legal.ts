@@ -82,8 +82,10 @@ export const LEGAL = {
    * the Free plan), turning "Keep me signed in" on or off in Settings, "Former team member", the client help chat's daily
    * limit on Free, and how we hold keys. They clarify what the app already does (Josiah, 20 October 2026), so they keep
    * termsVersion.
+   * 22 October 2026: section 23 on connecting your own Claude (Settings > Connections), an optional, read-only feature someone
+   * has to switch on; it takes nothing away, so it keeps termsVersion.
    */
-  termsUpdated: "20 October 2026",
+  termsUpdated: "22 October 2026",
   /**
    * The Data Processing Agreement's own "last updated" date: "Keep me signed in" added to its security measures (17 October 2026).
    * Google sign-in taken out of its security measures, since only email sign-in links are offered, and file storage's location
@@ -118,8 +120,11 @@ export const LEGAL = {
    * settings (camera shape, sharper stills), and a section on using your own AI assistant (such as Claude in Chrome) with your
    * pages, where what it reads goes to its provider under your own agreement (Josiah, 21 October 2026). They describe what the
    * app already does, so they keep privacyVersion.
+   * 22 October 2026: the SureFrame connectors for Claude (#claude-connectors): what the online one reads, that the desktop one
+   * unlocks content on the person's own computer, and the 90-day list of which tools a connection used. Optional, switched on
+   * by the person, and read-only, so it keeps privacyVersion.
    */
-  privacyUpdated: "21 October 2026",
+  privacyUpdated: "22 October 2026",
 };
 
 /**

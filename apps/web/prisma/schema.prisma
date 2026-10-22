@@ -31,6 +31,7 @@ model User {
   teamNotifications   TeamNotification[]
   noticesSent         StaffNotice[]      @relation("NoticeFrom")
   noticesReceived     StaffNotice[]      @relation("NoticeTo")
+  connectorGrants     ConnectorGrant[]
   /// They asked to delete their account (lib/accountDeletion.ts). Only a sign-in after this can keep it.
   deletionRequestedAt DateTime?
   /// Closed until then and deleted for good after it, unless they sign in and keep it. Null while active.
@@ -189,6 +190,7 @@ model Workspace {
   teamNotifications     TeamNotification[]
   staffNotices          StaffNotice[]
   clientQuestions       ClientQuestion[]
+  connectorGrants       ConnectorGrant[]
 }
 
 /// An invitation for a staff member to join a workspace. The link carries a
@@ -888,4 +890,74 @@ model ClientQuestionDigest {
   questions Int
 
   @@index([sentAt])
+}
+
+// ---------- Connectors for AI assistants (lib/connector) ----------
+
+/// One person's read-only connection from their own AI assistant (the SureFrame connectors for Claude). It can
+/// only read, only what that person can see in the workspace it was made for, and stops when they disconnect it
+/// or lose access. Nothing readable is stored here: only one-way fingerprints (sha256) of its tokens.
+model ConnectorGrant {
+  id               String         @id @default(cuid())
+  /// "online": the connector added in Claude by its web address and signed in with OAuth; it sees activity only.
+  /// "desktop": the connector installed on the person's own computer; it also fetches encrypted content and
+  /// unlocks it there with their recovery key, which never reaches us.
+  kind             String
+  /// Shown in Settings: the assistant's name as it registered (online), or "Claude desktop connector".
+  name             String
+  oauthClientId    String?
+  /// Fingerprint of the current access token. Online ones expire; desktop ones last until disconnected.
+  accessHash       String         @unique
+  accessExpiresAt  DateTime?
+  /// Fingerprint of the current refresh token (online only), replaced on every refresh.
+  refreshHash      String?        @unique
+  refreshExpiresAt DateTime?
+  createdAt        DateTime       @default(now())
+  lastUsedAt       DateTime?
+  revokedAt        DateTime?
+  userId           String
+  workspaceId      String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace        Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  uses             ConnectorUse[]
+
+  @@index([userId])
+  @@index([workspaceId])
+}
+
+/// Each time a connector used one of its tools, shown in Settings and kept 90 days (lib/connector/grants.ts).
+/// Which tool and when, never what it returned.
+model ConnectorUse {
+  id        String         @id @default(cuid())
+  tool      String
+  createdAt DateTime       @default(now())
+  grantId   String
+  grant     ConnectorGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@index([grantId, createdAt])
+  @@index([createdAt])
+}
+
+/// An AI assistant registered for OAuth sign-in (dynamic client registration, RFC 7591). Public clients only:
+/// no secret, PKCE on every sign-in. Only Claude's redirect addresses are accepted (lib/connector/oauth.ts).
+model OAuthClient {
+  id           String   @id
+  name         String
+  redirectUris String[]
+  createdAt    DateTime @default(now())
+}
+
+/// A one-time sign-in code waiting to be swapped for tokens (10 minutes). Stored as a fingerprint.
+model OAuthCode {
+  codeHash      String    @id
+  clientId      String
+  redirectUri   String
+  codeChallenge String
+  userId        String
+  workspaceId   String
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([expiresAt])
 }

@@ -505,7 +505,32 @@ export default function Page() {
         <li>Section 16 (limit of liability) applies to any claim about the add-on, including about transcripts or summaries that are missing or wrong.</li>
       </ul>
 
-      <h2>23. Contact</h2>
+      <h2 id="connectors">23. Connecting your own AI assistant</h2>
+      <ul>
+        <li>
+          <strong>Your choice, your account.</strong> You can connect your own Claude to {LEGAL.product} (Settings &gt; Connections). Claude is provided by
+          Anthropic under your own account with them, not by us, and what it reads goes to Anthropic under their terms. We aren&rsquo;t responsible for what it
+          does with it or for what it says.
+        </li>
+        <li>
+          <strong>Read-only.</strong> A connection can only read, and only what the person who connected it can see in {LEGAL.product}. It can&rsquo;t send, change or
+          delete anything.
+        </li>
+        <li>
+          <strong>Your clients.</strong> If you use it on your clients&rsquo; details or conversations, you&rsquo;re responsible for telling them and getting any
+          consent the law requires, the same as for AI summaries (section 22).
+        </li>
+        <li>
+          <strong>Keep codes private.</strong> A Claude Desktop connection code holds your team&rsquo;s key. Keep it as safe as your recovery key, and disconnect
+          any connection you no longer use. Owners and admins can disconnect their staff&rsquo;s connections.
+        </li>
+        <li>
+          <strong>Changes.</strong> We may change, limit or end the connectors, for example if Claude changes how they work. Section 16 (limit of liability) applies
+          to them.
+        </li>
+      </ul>
+
+      <h2>24. Contact</h2>
       <p>Questions about these terms? Email {mail}.</p>
       {LEGAL.postalAddress && <p>Postal address: {LEGAL.postalAddress}</p>}
     </LegalPage>

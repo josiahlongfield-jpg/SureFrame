@@ -33,12 +33,14 @@ export function settingsPages({
         : { href: "/settings/team", label: "Invite staff", blurb: "Invite people to work with you, and see which plans include staff logins." },
       { href: "/settings/billing", label: "Billing", blurb: "Your plan, what you pay, add-ons, discount codes, and where to find receipts and invoices." },
       { href: "/settings/account", label: "Account", blurb: "Your name, recovery key, emails you get, downloading your data and deleting your account." },
+      { href: "/settings/connections", label: "Connections", blurb: "Connect your own Claude to read your activity and make reports for you." },
       ...support,
     ];
   }
   return [
     { href: "/settings/account", label: "Account", blurb: "Your name, emails you get, downloading your data and deleting your account." },
     ...(workspaces > 1 ? [{ href: "/settings/team", label: "Switch business", blurb: "The businesses you're part of, and switching between them." }] : []),
+    { href: "/settings/connections", label: "Connections", blurb: "Connect your own Claude to read your activity and make reports for you." },
     ...support,
   ];
 }

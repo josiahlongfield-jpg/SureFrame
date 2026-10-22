@@ -1,0 +1,53 @@
+{
+  "manifest_version": "0.3",
+  "name": "sureframe",
+  "display_name": "SureFrame",
+  "version": "1.0.0",
+  "description": "Let Claude read your SureFrame clients, conversations, to-dos and notes to make reports. Read-only, and unlocked on your own computer.",
+  "long_description": "Ask Claude about your SureFrame clients: who's waiting for an answer, which videos haven't been opened, what a client said, and what's due this week. Claude can only read, never send, change or delete. Your to-dos, notes, messages, replies and summaries are end-to-end encrypted: this connector unlocks them here on your computer with your team key, which Claude Desktop keeps in your computer's keychain. SureFrame's servers never see the key. What Claude reads goes to Anthropic under your own Claude account. Disconnect any time in SureFrame under Settings > Connections.",
+  "author": { "name": "SureFrame", "email": "support@sureframe.app", "url": "https://sureframe.app" },
+  "homepage": "https://sureframe.app/help/claude",
+  "documentation": "https://sureframe.app/help/claude",
+  "support": "https://sureframe.app/support",
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": { "SUREFRAME_CONNECTION_CODE": "${user_config.connection_code}" }
+    }
+  },
+  "tools": [
+    { "name": "get_overview", "description": "A summary of activity for your clients: videos sent and opened, who's waiting for an answer, quiet clients and to-dos due." },
+    { "name": "list_clients", "description": "Your clients, with who looks after them, their last video and whether they're waiting for an answer." },
+    { "name": "get_client_activity", "description": "One client's videos, replies and to-do dates." },
+    { "name": "list_replies_waiting", "description": "Conversations where a client is waiting for an answer." },
+    { "name": "list_todos", "description": "Open to-dos by due date." },
+    { "name": "list_videos", "description": "Videos sent to clients, opened or not." },
+    { "name": "get_team_activity", "description": "How each team member is keeping up (owners and admins)." },
+    { "name": "read_client", "description": "One client's to-dos, notes and conversations, unlocked on your computer." },
+    { "name": "read_todos", "description": "Open to-dos with their text, unlocked on your computer." },
+    { "name": "read_notes", "description": "Notes with their text, unlocked on your computer." },
+    { "name": "read_conversation", "description": "A video's message, replies and summary, unlocked on your computer." },
+    { "name": "search_text", "description": "Search messages, replies, to-dos, notes and summaries, unlocked on your computer." }
+  ],
+  "keywords": ["sureframe", "video", "clients", "reports"],
+  "license": "Proprietary",
+  "user_config": {
+    "connection_code": {
+      "type": "string",
+      "title": "Connection code",
+      "description": "Make one in SureFrame under Settings > Connections, then paste it here. It's kept in your computer's keychain.",
+      "required": true,
+      "sensitive": true
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "node": ">=18.0.0" }
+  },
+  "privacy_policies": ["https://sureframe.app/legal/privacy"]
+}

@@ -32,6 +32,16 @@ const nextConfig: NextConfig = {
     if (process.env.VERCEL_ENV !== "production" || !process.env.APP_URL) return [];
     return [{ source: "/:path((?!api/).*)", has: [{ type: "host", value: oldHosts }], destination: `${process.env.APP_URL}/:path`, permanent: true }];
   },
+  // The connectors for Claude (lib/connector): the address people paste in, and the OAuth discovery documents.
+  async rewrites() {
+    return [
+      { source: "/mcp", destination: "/api/mcp" },
+      { source: "/.well-known/oauth-authorization-server", destination: "/api/oauth/metadata" },
+      { source: "/.well-known/oauth-authorization-server/:path*", destination: "/api/oauth/metadata" },
+      { source: "/.well-known/oauth-protected-resource", destination: "/api/oauth/resource" },
+      { source: "/.well-known/oauth-protected-resource/:path*", destination: "/api/oauth/resource" },
+    ];
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
