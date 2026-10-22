@@ -85,17 +85,21 @@ ok("inbox told about the new message", outbox().slice(mailsBefore).some((m) => m
 
 // 4. Not an agent: the inbox is hidden
 const other = await (await browser.newContext()).newPage();
-await other.goto(BASE + "/support");
+// Signed out, /support itself goes to /help (V60), so they sign in on the way to it.
+await other.goto(BASE + "/login?next=%2Fsupport");
 const otherEmail = `someone${Date.now()}@peak.com`;
 await agreed(otherEmail);
 await other.fill('input[name="email"]', otherEmail);
 await other.click("text=Continue");
-await other.waitForURL("**/support");
-await other.waitForSelector("text=Page not found");
-ok("inbox hidden from customers", !(await other.textContent("body")).includes("visitor@example.com"));
-ok("its tab says Page not found too, not Support inbox", (await other.title()).startsWith("Page not found"), await other.title());
-ok("with a real 404", (await other.request.get(BASE + "/support/accounts")).status() === 404);
+// Signed in but not on the support team: sent to Help, which is what they wanted (V60), never the inbox.
+await other.waitForURL((u) => u.pathname === "/help", { timeout: 30000 });
+ok("inbox hidden from customers: sent to Help", !(await other.textContent("body")).includes("visitor@example.com") && (await other.locator("[data-testid=inbox-list]").count()) === 0);
+ok("its tab is Help's, not Support inbox", !(await other.title()).includes("Support inbox"), await other.title());
+const otherAccounts = await other.request.get(BASE + "/support/accounts");
+ok("the other support pages send them to Help too", new URL(otherAccounts.url()).pathname === "/help", otherAccounts.url());
 // ...and isn't offered to them: no Support in their Settings menu or on the Settings page.
+// Past the one welcome step a new owner gets, so the app's own pages open.
+await prisma.user.update({ where: { email: otherEmail }, data: { onboardedAt: new Date() } });
 await other.goto(BASE + "/library");
 await other.click("[data-testid=settings-menu-button]");
 await other.waitForSelector("[data-testid=settings-menu]");
@@ -106,7 +110,7 @@ ok("nor does their Settings page", (await other.locator("main a[href='/support']
 // 5. The agent answers from the inbox
 const agentCtx = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
 const agent = await agentCtx.newPage();
-await agent.goto(BASE + "/support");
+await agent.goto(BASE + "/login?next=%2Fsupport");
 await agreed(AGENT);
 await agent.fill('input[name="email"]', AGENT);
 await agent.click("text=Continue");
@@ -303,6 +307,7 @@ await agent.waitForSelector("[data-testid=ticket-done]");
 await agent.goto(BASE + "/support");
 ok("reopened: back under Needs you", (await agent.textContent("[data-testid=inbox-list]")).includes(inv));
 await agent.goto(ticketUrl);
+ok("delete: says what the customer will see (P16)", (await agent.textContent("[data-testid=delete-ticket-note]")).includes("The customer isn’t emailed"));
 await agent.click("[data-testid=delete-ticket]");
 ok("delete: asks first, in the page", await agent.isVisible("[data-testid=delete-ticket-dialog]"));
 await agent.click("[data-testid=delete-ticket-dialog] >> text=Cancel");
@@ -315,6 +320,10 @@ await agent.waitForURL((u) => u.pathname === "/support", { timeout: 15000 }).cat
 const ticketId = ticketUrl.split("/").pop();
 const delRow = await prisma.adminAction.findFirst({ where: { action: "support.delete", details: { path: ["ticketId"], equals: ticketId } } });
 ok("delete: written to the support log, without what was said", delRow?.actorEmail === AGENT && delRow.target === planEmail && !JSON.stringify(delRow.details).includes(inv));
+// The customer's chat says it ended, rather than going blank (P16); support is told that's all they see.
+await owner.reload();
+await owner.click("button:has-text('Help')");
+ok("delete: the customer's chat says the conversation ended and was removed (P16)", (await owner.textContent("[data-testid=chat-gone]", { timeout: 15000 }).catch(() => "")).includes("Your earlier conversation has ended and was removed"));
 await agent.goto(ticketUrl);
 ok("delete: the old address says it was deleted, in the support pages", (await agent.textContent("[data-testid=ticket-gone]").catch(() => "")).includes("This conversation was deleted") && (await agent.locator("[data-testid=support-nav]").count()) === 1);
 await agent.goto(BASE + "/support/log?action=support.delete");

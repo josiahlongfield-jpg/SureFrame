@@ -80,6 +80,7 @@ const link = await (await owner.waitForSelector("[data-testid=invite-link]")).te
 ok("the counter says an invite is waiting, not that two people are on the team", /1\s*on the team/.test(await owner.textContent("[data-testid=staff-logins]")) && /1 invite waiting to join/.test(await owner.textContent("[data-testid=staff-logins-detail]")));
 const inviteMail = mailSince(beforeInvite).find((m) => m.to === `staff${stamp}@example.com`);
 ok("the invited person is emailed to expect the link", !!inviteMail && /invited you to join/.test(inviteMail.subject), JSON.stringify(inviteMail));
+ok("the invite email says what to do if the link never comes (S25)", !!inviteMail && inviteMail.text.includes("No link after a day, or it says it has expired? Ask") && inviteMail.text.includes("to send it again or make you a new one."), inviteMail?.text);
 ok("the invite email has no join link or key", !!inviteMail && !inviteMail.text.includes("/join/") && !inviteMail.text.includes("#k=") && !inviteMail.html.includes("/join/"));
 ok("the page says they were emailed", (await owner.textContent("[data-testid=invite-created]")).includes(`We've emailed staff${stamp}@example.com`));
 ok("invite link carries a key in the fragment", /\/join\/[\w-]+#k=[\w-]+$/.test(link), link);
@@ -108,6 +109,9 @@ const staffCtx = await browser.newContext();
 const staff = await staffCtx.newPage();
 await staff.goto(link);
 await staff.click("text=Sign in to join");
+await staff.waitForSelector("[data-testid=login-lead]");
+const joinLead = await staff.textContent("[data-testid=login-lead]");
+ok("the sign-in page for a join link talks about joining, not a free account (S30)", joinLead.includes("Use the email your invite went to") && !joinLead.includes("free account"), joinLead);
 await agreed(`staff${stamp}@example.com`, { name: null });
 await staff.fill('input[name="email"]', `staff${stamp}@example.com`);
 await staff.click("text=Continue");

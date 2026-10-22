@@ -30,8 +30,13 @@ export default async function Help({ searchParams }: { searchParams: Promise<{ f
   const tier = supportTier(me?.workspace);
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
-      {/* Signed in, the app's own header with its Clients, Library, To-dos and Settings, as on Pricing (V78). The page is the chat, so no floating one. */}
-      {me ? <AppHeader email={me.user.email} plan={PLANS[me.workspace.plan].name} widget={false} /> : <SiteHeader navy />}
+      {/* Signed in, the app's own header with its Clients, Library, To-dos and Settings, as on Pricing (V78). The page is the chat, so no floating one.
+          Suspended or paused: Library and New recording would only bounce back, so the bar leads back to that page (P44). */}
+      {me && !me.suspended && !me.paused ? (
+        <AppHeader email={me.user.email} plan={PLANS[me.workspace.plan].name} widget={false} />
+      ) : (
+        <SiteHeader navy away={me?.suspended ? "/suspended" : me?.paused ? "/paused" : undefined} />
+      )}
       <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
         <p className="kicker">Help</p>
         <h1 className="display mt-3 text-3xl text-ink">How can we help?</h1>

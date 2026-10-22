@@ -214,6 +214,7 @@ await phone.waitForSelector("[data-testid=inbox-video]", { timeout: 15000 });
 ok("client's inbox: the removed member's video reads Former team member · business", (await phone.textContent("main")).includes("Former team member ·"));
 await phone.goto(`${BASE}/v/${staffVideoId}`);
 ok("client's video page too", (await phone.textContent("[data-testid=video-meta]", { timeout: 20000 })).includes("Former team member ·"));
+ok("and says they've left, and that replies still reach the business (S84)", (await phone.textContent("[data-testid=video-former-note]")).includes("Recorded by someone who has since left") && (await phone.textContent("[data-testid=video-former-note]")).includes("Your replies still reach"));
 
 // Blake's new link from the panel works on a fresh device.
 await owner.click("[data-testid=key-reset] li:has-text('Blake') >> text=Copy new link");

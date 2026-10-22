@@ -27,8 +27,9 @@ export default async function Settings() {
         <ul className="mt-6 grid gap-3" data-testid="settings-index">
           {pages.map((p) => (
             <li key={p.href}>
-              <Link href={p.href} className="block rounded-2xl border border-line bg-surface p-5 hover:bg-hover">
+              <Link href={p.href} className={`block rounded-2xl border bg-surface p-5 hover:bg-hover ${p.tag ? "border-dashed border-line-strong" : "border-line"}`}>
                 <span className="font-semibold text-ink">{p.label}</span>
+                {p.tag && <span className="ml-2 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted" data-testid="settings-tag">{p.tag}</span>}
                 <span className="mt-1 block text-sm text-muted">{p.blurb}</span>
               </Link>
             </li>

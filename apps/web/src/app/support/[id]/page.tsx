@@ -52,6 +52,8 @@ export default async function SupportTicketPage({
   const { user } = await requirePageUser(`/support/${id}`, { allowPaused: true, allowSuspended: true, allowTermsPending: true });
   if (!isSupportAgent(user.email)) notFound();
   if (user.suspendedAt && !isSupportAdmin(user.email)) redirect("/suspended");
+  // The inbox is /support itself; /support/inbox is a natural guess at its address (P57).
+  if (id === "inbox") redirect("/support");
   const ticket = await db.supportTicket.findUnique({ where: { id }, include: { user: true, messages: { orderBy: { createdAt: "asc" } } } });
   if (!ticket) return <Gone id={id} />;
   const workspace = ticket.workspaceId ? await db.workspace.findUnique({ where: { id: ticket.workspaceId } }) : null;
@@ -142,7 +144,10 @@ export default async function SupportTicketPage({
           It&rsquo;s removed for you and for the customer, and can&rsquo;t be brought back. Use it for test chats and spam; to keep it but tidy the inbox, close it
           instead.
         </ConfirmAction>
-        <p className="mt-1 text-xs text-dim">Removes it for good, for you and the customer. Use it for test chats and spam.</p>
+        <p className="mt-1 text-xs text-dim" data-testid="delete-ticket-note">
+          Removes it for good, for you and the customer. Use it for test chats and spam. The customer isn&rsquo;t emailed: their chat (and any link to it) just
+          says the conversation ended and was removed.
+        </p>
       </div>
     </div>
   );

@@ -18,6 +18,7 @@ import { clientBlock, clientCookie, clientGate, type Viewer } from "@/lib/access
 import { loadVideo } from "./load";
 import { agreePath, currentUser } from "@/lib/session";
 import { keyHeldCookie } from "@/lib/e2e/keyHeld";
+import { auth } from "@/auth";
 import { reactionsBy } from "@/lib/reactions";
 import { clientLink } from "@/lib/clients";
 import { publicVideo } from "@/lib/videos";
@@ -85,11 +86,14 @@ export default async function Watch({ params, searchParams }: Props) {
   }
 
   if (viewer.kind === "client" && (await keyless(viewer))) {
-    const workspace = await db.workspace.findUniqueOrThrow({ where: { id: video.workspaceId }, select: brandFields });
+    const workspace = await db.workspace.findUniqueOrThrow({ where: { id: video.workspaceId }, select: { ...brandFields, timezone: true } });
+    // Which video this is (C48): who from and when. Not its title: like All my videos, a device without the key shows
+    // none of the client's details (Decision 1), and the tab says only "Private video".
+    const about = `A video from ${workspace.name}, sent ${zoned(workspace.timezone).longDay(video.sentAt ?? video.createdAt)}.`;
     return (
       <CantOpenShell brand={brandOf(workspace)} help={{ for: [{ clientId: viewer.client.id, business: workspace.name, limits: clientHelpLimitText(workspace.plan) }], page: "cant-open", videoId: id }}>
         <div className="mx-auto max-w-md">
-          <ClientKeyGate clientId={viewer.client.id} business={workspace.name} signInNext={`/v/${id}`} />
+          <ClientKeyGate clientId={viewer.client.id} business={workspace.name} signInNext={`/v/${id}`} about={about} />
         </div>
       </CantOpenShell>
     );
@@ -133,6 +137,10 @@ export default async function Watch({ params, searchParams }: Props) {
   const lastClientId = justRecorded
     ? (await db.video.findFirst({ where: { workspaceId: video.workspaceId, ownerId: video.ownerId, id: { not: video.id }, replyToId: null, clientId: { not: null }, sentAt: { not: null } }, orderBy: { sentAt: "desc" }, select: { clientId: true } }))?.clientId ?? null
     : null;
+  // Someone on this business's team whose browser also holds this client's personal link, on a video their own
+  // access doesn't open (say, a client looked after by someone else): the page is the client's view, so it says so (S41).
+  const signedInId = viewer.kind === "client" ? (await auth())?.user?.id : null;
+  const staffAsClient = !!signedInId && (await db.membership.count({ where: { userId: signedInId, workspaceId: video.workspaceId } })) > 0;
   // Clients see the business's branding; the team sees the normal app.
   const brand = isMember ? null : brandOf(workspace);
   const memberEmail = viewer.kind === "member" ? (await db.user.findUnique({ where: { id: viewer.userId }, select: { email: true } }))?.email : null;
@@ -189,6 +197,12 @@ export default async function Watch({ params, searchParams }: Props) {
         />
       )}
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        {viewer.kind === "client" && staffAsClient && (
+          <p role="status" className="mb-6 max-w-2xl rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-sm text-warn-fg" data-testid="staff-viewing-as-client">
+            You&rsquo;re viewing this as {viewer.client.name}. This browser holds their personal link, so you see what they see, and anything you reply or react
+            here goes to {workspace.name} as {viewer.client.name}.
+          </p>
+        )}
         {isMember && (await searchParams).asClient && (
           <p role="status" className="mb-6 max-w-2xl rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-sm text-warn-fg" data-testid="team-view-of-client-link">
             You&rsquo;re signed in to {workspace.name}, so this is your team&rsquo;s view of the video. Opening a client&rsquo;s link anywhere else (a private
@@ -214,6 +228,7 @@ export default async function Watch({ params, searchParams }: Props) {
             video={{ ...publicVideo(video), viewCount: isMember ? video.viewCount + copyViews : 0 }}
             // Clients see "Team member 1 from Business A" (never an email); the team sees the name or email (lib/team.ts).
             ownerName={senderName(video, workspace.name, isMember ? "team" : "client")}
+            ownerNote={!isMember && video.formerStaffAt ? `Recorded by someone who has since left ${workspace.name}. Your replies still reach ${workspace.name}.` : undefined}
             // Above the business's message: "Owner B, Business B", not "Message from Owner B from Business B" (O38).
             messageFrom={video.owner.name && !video.formerStaffAt ? nameWithBusiness(video.owner.name, workspace.name, ",") : senderName(video, workspace.name, "client")}
             replyTo={replyTo}

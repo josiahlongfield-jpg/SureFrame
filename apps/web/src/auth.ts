@@ -53,10 +53,10 @@ if (emailLinks) {
         // finishes in the window Claude opened. Every other sign-in gets the link.
         if (forClaude(callbackTarget(url))) {
           const { makeSignInCode } = await import("@/lib/signInCode");
-          await sendMail({ to: identifier, ...signInCodeEmail(await makeSignInCode(identifier, url), new URL(url).host) });
+          await sendMail({ to: identifier, ...signInCodeEmail(await makeSignInCode(identifier, url)) });
           return;
         }
-        await sendMail({ to: identifier, ...signInEmail(confirmLink(url), new URL(url).host) });
+        await sendMail({ to: identifier, ...signInEmail(confirmLink(url)) });
       },
     }),
   );

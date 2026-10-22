@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import { Delegations, StaffReminderForm } from "@/components/TeamOverview";
+import RepliesScopeHint from "@/components/RepliesScopeHint";
 import { PermChecks } from "@/components/StaffPerms";
 import { db } from "@/lib/db";
 import { duration, PERIODS, teamStats, type StaffStats } from "@/lib/monitoring";
@@ -64,6 +65,7 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
     ...stats.staff.map((r) => ({ id: r.userId!, r })),
     // "Unassigned clients" only means something once there's someone to assign them to.
     ...(!alone && (stats.shared.staleClients || stats.shared.unanswered || stats.shared.overdueTodos) ? [{ id: "shared", r: stats.shared }] : []),
+    ...(!alone && stats.former ? [{ id: "former", r: stats.former }] : []),
     { id: "all", r: stats.overall },
   ];
   const q2 = (o: { days?: number }) => `/team?days=${o.days ?? days}#monitoring`;
@@ -85,6 +87,8 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
           {" · "}
           <Link href="/settings/account#emails" className="font-medium text-accent hover:underline">Emails to you</Link>
         </p>
+        {/* The default "Only my own clients" for client replies (S66): said here once, so staff clients' replies aren't missed unknowingly. */}
+        {!alone && teamSize > 1 && members.find((m) => m.userId === user.id)?.replyNotify === "MINE" && <RepliesScopeHint />}
         {alone && (
           <p className="mt-4 rounded-xl border border-primary-line bg-primary-soft p-3 text-sm text-ink" data-testid="team-alone">
             You&apos;re the only one on the team right now, so this covers your own clients. Your sent reminders stay below.{" "}
@@ -128,17 +132,17 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
                   <tr key={id} data-testid={`stats-${id}`} className={`block px-4 py-3 md:table-row md:p-0 ${id === "all" ? "bg-canvas font-medium" : ""}`}>
                     <td className="block pb-1 font-medium text-ink md:table-cell md:px-4 md:py-2.5 md:font-normal">{r.name}</td>
                     <td className={CELL} data-label="Videos sent" data-col="sent">{id === "shared" ? "–" : r.videosSent}</td>
-                    <td className={CELL} data-label={`Clients with no video in ${staleDays}d`} data-col="stale">{r.staleClients}</td>
-                    <td className={CELL} data-label="Unanswered replies" data-col="unanswered">{r.unanswered}</td>
+                    <td className={CELL} data-label={`Clients with no video in ${staleDays}d`} data-col="stale">{id === "former" ? "–" : r.staleClients}</td>
+                    <td className={CELL} data-label="Unanswered replies" data-col="unanswered">{id === "former" ? "–" : r.unanswered}</td>
                     <td className={CELL} data-label="Avg reply time" data-col="avg">{r.avgReplyMs === null ? "–" : duration(r.avgReplyMs)}</td>
-                    <td className={CELL} data-label="Overdue to-dos" data-col="overdue">{r.overdueTodos}</td>
+                    <td className={CELL} data-label="Overdue to-dos" data-col="overdue">{id === "former" ? "–" : r.overdueTodos}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <p className="mt-2 text-xs text-dim">
-            Last {days} days. Videos sent counts videos sent to clients, by who recorded them (a former team member&apos;s count only towards the whole business). Reply time runs from a client&apos;s reply to the team&apos;s next reply in that conversation.
+            Last {days} days. Videos sent counts videos sent to clients, by who recorded them (people no longer on the team are counted together as Former team members). Reply time runs from a client&apos;s reply to the team&apos;s next reply in that conversation.
             Clients added in that time who haven&apos;t had a video yet are listed under No video yet, not counted as quiet. Worked out from dates only; nothing encrypted is read.
           </p>
           </>
@@ -229,7 +233,8 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
                     <p className="text-ink">{n.message}</p>
                     <p className="text-xs text-dim">
                       {display(n.from)} to {display(n.to)} · {dates.shortDayTime(n.createdAt)}
-                      {n.linkLabel && ` · ${n.linkLabel}`} · {n.dismissedAt ? "Seen and dismissed" : "Not dismissed yet"}
+                      {/* Someone who has left will never dismiss it, so say they've gone instead (S88). */}
+                      {n.linkLabel && ` · ${n.linkLabel}`} · {n.dismissedAt ? "Seen and dismissed" : members.some((m) => m.userId === n.toUserId) ? "Not dismissed yet" : "No longer on the team"}
                     </p>
                   </li>
                 ))}

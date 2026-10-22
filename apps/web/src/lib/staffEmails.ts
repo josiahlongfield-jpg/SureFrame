@@ -15,6 +15,7 @@ export function inviteEmail(o: { business: string; inviter: string; admin: boole
     lines: [
       { text: `${o.inviter} will send you your private join link themselves, by text, chat or their own email. It holds the key to the team's encrypted videos, so it can't come from us.` },
       { text: "When it arrives, open it in the browser you'll use. It works once and expires 7 days after it was made." },
+      { text: `No link after a day, or it says it has expired? Ask ${o.inviter} to send it again or make you a new one.` },
     ],
     button: { label: `About ${BRAND.name}`, link: appUrl("/about") },
     footer: `Not expecting this? You can ignore it: nothing happens unless you open the link ${o.inviter} sends.`,

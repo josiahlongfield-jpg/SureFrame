@@ -265,6 +265,21 @@ const before3 = outbox().length;
 await shaPage.request.post(`${BASE}/api/videos/${vOwnerSha}/replies`, { data: { kind: "TEXT", body: "s", encrypted: true } });
 const mail3 = await waitFor(() => outbox().slice(before3).find((m) => m.subject?.includes("Sha replied")));
 ok("a different conversation isn't throttled, and goes to the owner who recorded it", mail3?.to === `sa-owner${stamp}@example.com`, JSON.stringify(mail3));
+ok("to the person who sent it, the reply email says \"your video\" (S54)", /^Sha replied to your video/.test(mail3?.subject ?? "") && /Sha replied to your video .*on SureFrame\./.test(mail3?.text ?? ""), `${mail3?.subject} | ${mail3?.text}`);
+ok("to someone else (the assigned staff member), it names the video instead", !mail?.subject.includes("your video") && mail2?.subject.startsWith("Sha replied to your video"), `${mail?.subject} | ${mail2?.subject}`);
+
+// ---- A client's link held in a staff member's browser (S41) ----
+// Amy (sees only her own clients) has Ben's personal link in her browser: Ben's video opens as Ben, and says so.
+const benToken = (await prisma.client.findUnique({ where: { id: ben.id } })).token;
+await amy.context().addCookies([{ name: `fc_key_${ben.id}`, value: "1", url: BASE }]);
+await amy.goto(`${BASE}/c/${benToken}?v=${vOwnerBen}`);
+const asBen = await amy.waitForSelector("[data-testid=staff-viewing-as-client]", { timeout: 15000 }).catch(() => null);
+ok("staff viewing a video through a client's link are told they're seeing it as that client (S41)", !!asBen && (await asBen.textContent()).includes("viewing this as Ben") && (await asBen.textContent()).includes("goes to"), asBen ? await asBen.textContent() : "no notice");
+await benPage.goto(`${BASE}/v/${vOwnerBen}`);
+await benPage.waitForSelector("main");
+ok("the client themselves never sees that notice", (await benPage.locator("[data-testid=staff-viewing-as-client]").count()) === 0);
+await amy.context().clearCookies({ name: `fc_client_${workspaceId}` });
+await amy.context().clearCookies({ name: `fc_key_${ben.id}` });
 
 // ---- Team reminders for a client go to the assigned staff member ----
 const due = new Date(Date.now() + 3 * 86_400_000).toISOString();
@@ -319,6 +334,20 @@ ok("and says since when", (await owner.textContent("[data-testid=overdue]")).inc
 await owner.goto(BASE + "/team?days=90");
 await owner.waitForSelector("[data-testid=team-stats]");
 ok("a longer period counts the older video", (await cell(owner, ownerUser.id, "sent")) === "2" && (await cell(owner, "all", "sent")) === "6");
+// A former team member's sends get their own row, so the column adds up (S81).
+await prisma.video.update({ where: { id: vOwnerSha }, data: { formerStaffAt: new Date() } });
+await owner.goto(BASE + "/team?days=90");
+await owner.waitForSelector("[data-testid=team-stats]");
+ok("former team members have their own Videos sent row (S81)", (await cell(owner, "former", "sent")) === "1" && (await cell(owner, ownerUser.id, "sent")) === "1" && (await cell(owner, "all", "sent")) === "6" && (await cell(owner, "former", "unanswered")) === "–",
+  [await cell(owner, "former", "sent"), await cell(owner, ownerUser.id, "sent"), await cell(owner, "all", "sent")].join());
+await prisma.video.update({ where: { id: vOwnerSha }, data: { formerStaffAt: null } });
+// One they recorded and never sent: the library says it can go.
+const leftover = await prisma.video.create({ data: { id: `left${stamp.toString(36)}`, title: "Leftover", mimeType: "video/webm", storageKey: `test/${stamp}/leftover`, status: "UPLOADED", workspaceId, ownerId: ownerUser.id, formerStaffAt: new Date() } });
+await owner.goto(BASE + "/library");
+const unsentNote = await owner.waitForSelector("[data-testid=video-former-unsent]", { timeout: 15000 }).catch(() => null);
+ok("library: a former member's never-sent recording says it can be deleted (S81)", !!unsentNote && (await unsentNote.textContent()).includes("Never sent. Delete it from its page if it isn't needed."));
+await prisma.video.delete({ where: { id: leftover.id } });
+await owner.goto(BASE + "/team?days=30");
 await owner.screenshot({ path: `${shots}/team-overview.png`, fullPage: true });
 
 // Bulk reassign from the overview.
@@ -358,6 +387,15 @@ mark = outbox().length;
 await replyAs(anaClient, await record(amy, "Amy 5", ana.id));
 ok("all staff: the owner hears about Amy's client too", !!(await waitFor(() => mailsTo(mark, ownerUser.email, "Ana replied").length)) && mailsTo(mark, amyUser.email, "Ana replied").length === 1);
 await prefs({ replyNotify: "MINE" });
+// With "Only my own clients" (the default), the Team page says so once (S66).
+await owner.goto(BASE + "/team");
+const scopeHint = await owner.waitForSelector("[data-testid=replies-scope-hint]", { timeout: 10000 }).catch(() => null);
+ok("Team page: 'only your own clients' replies hint, with a way to change it (S66)", !!scopeHint && (await scopeHint.textContent()).includes("only emailed about replies from your own clients") && (await owner.locator("[data-testid=replies-scope-hint] a[href='/settings/account#emails']").count()) === 1);
+await owner.click("[data-testid=replies-scope-hint] >> text=Got it");
+await owner.reload();
+await owner.waitForSelector("[data-testid=team-stats]");
+await owner.waitForTimeout(800); // the hint checks this browser's dismissal after the page loads
+ok("once dismissed it stays away", (await owner.locator("[data-testid=replies-scope-hint]").count()) === 0);
 
 // "Tell me when they send a video", set with the owner's own email settings (Settings > Account).
 await owner.goto(BASE + "/settings/account#emails");
@@ -385,7 +423,9 @@ ok("then go out together as one digest", flush.digests >= 1 && digest.length ===
 // Reminders to staff.
 ok("a link must open for everyone it's sent to", (await status(owner.request.post(BASE + "/api/team/notices", { data: { to: [amyUser.id], message: "Check Ben", link: { kind: "client", id: ben.id } } }))) === 400);
 await owner.goto(BASE + "/team");
+ok("an empty reminder says both what's missing (S61)", (await owner.textContent("[data-testid=remind-missing]")) === "Pick who to remind and write a message.");
 await owner.check(`input[aria-label="Remind sa-amy${stamp}"]`);
+ok("after picking someone, it says only the message is missing", (await owner.textContent("[data-testid=remind-missing]")) === "Write a message.");
 await owner.fill('textarea[aria-label="Reminder message"]', "Please send Ana her plan by Friday");
 await owner.selectOption('select[aria-label="Link to"]', `client:${ana.id}`);
 mark = outbox().length;
@@ -411,6 +451,12 @@ ok("a reminder to all staff reaches everyone else", (await allRes.json()).sent =
 await owner.goto(BASE + "/team");
 const history = await owner.textContent("[data-testid=notice-history]");
 ok("history lists sent reminders and whether they were dismissed", history.includes("Please send Ana her plan by Friday") && history.includes("Seen and dismissed") && history.includes("Team meeting at 9"));
+// One sent to someone who has since left the team (S88): it never will be dismissed, so it says they've gone.
+const goneUser = await prisma.user.create({ data: { email: `sa-gone${stamp}@example.com`, name: "Gone Person" } });
+await prisma.staffNotice.create({ data: { workspaceId, fromUserId: ownerUser.id, toUserId: goneUser.id, message: "Before you left" } });
+await owner.reload();
+const goneRow = await owner.textContent("[data-testid=notice-history] li:has-text('Before you left')");
+ok("a reminder to someone no longer on the team says so, not 'Not dismissed yet' (S88)", goneRow.includes("No longer on the team") && !goneRow.includes("Not dismissed yet"), goneRow);
 
 // ---- Display name ----
 // Dev sign-in fills in a name from the email; email-link users start with none.

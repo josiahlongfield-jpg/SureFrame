@@ -67,14 +67,16 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
         <h1 className="mt-6 short:mt-3 text-xl font-semibold text-ink" data-testid="login-heading">
           {claude ? "Connect Claude" : creating ? "Create your free account" : joining ? "Sign in to join your team" : "Sign in"}
         </h1>
-        <p className="mt-1 text-sm text-muted">
+        <p className="mt-1 text-sm text-muted" data-testid="login-lead">
           {picked
             ? `Sign in or create your account; we'll bring you back to ${picked}.`
             : claude
               ? `Sign in to ${BRAND.name} so Claude can read your activity. We'll email you a code to type in this window.`
               : creating
                 ? "Already have one? The same email signs you in."
-                : `${opens && !joining ? `Sign in to see ${opens}. ` : ""}New to ${BRAND.name}? Entering your email creates your free account.`}
+                : joining
+                  ? `Use the email your invite went to, if you were sent one. No ${BRAND.name} login yet? Signing in makes one for you.`
+                  : `${opens ? `Sign in to see ${opens}. ` : ""}New to ${BRAND.name}? Entering your email creates your free account.`}
         </p>
         {deleted && (
           <p role="status" className="mt-3 rounded-lg bg-ok-bg px-3 py-2 text-sm text-ok-fg" data-testid="deleted-note">

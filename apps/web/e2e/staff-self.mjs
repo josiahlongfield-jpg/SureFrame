@@ -121,10 +121,12 @@ ok("owners use the business settings, not personal ones", (await status(owner.re
 
 // ---- Amy's own email preference ----
 await amy.goto(BASE + "/settings/account");
-const replyBox = 'input[aria-label="Email me when my clients reply"]';
+const replyBox = '[role=switch][aria-labelledby="reply-emails-label"]';
 await amy.waitForSelector(replyBox);
-ok("reply emails start on", await amy.isChecked(replyBox));
-await amy.uncheck(replyBox);
+ok("reply emails are a switch, named by its words (S56)", (await amy.getByRole("switch", { name: "Email me when my clients reply" }).count()) === 1);
+ok("reply emails start on", (await amy.getAttribute(replyBox, "aria-checked")) === "true" && (await amy.textContent("[data-testid=reply-emails-state]")) === "On");
+await amy.click(replyBox);
+await amy.waitForSelector(`${replyBox}[aria-checked=false]`);
 await waitFor(async () => (await amyMembership()).replyNotify === "OFF");
 ok("Amy turns her reply emails off", (await amyMembership()).replyNotify === "OFF");
 
@@ -259,7 +261,7 @@ ok("owner sees Amy's overdue to-do", (await cellOf(amyUser.id, "overdue")) === "
 ok("owner sees Cal's unanswered reply under Amy", (await cellOf(amyUser.id, "unanswered")) === "1" && (await owner.locator(`[data-testid=unanswered] a[href='/v/${vCal}']`).count()) === 1);
 ok("owner sees Amy's video in her numbers", (await cellOf(amyUser.id, "sent")) === "1");
 const own = await owner.textContent(`[data-testid="staff-${amyUser.email}"] [data-testid=own-settings]`);
-ok("owner sees Amy's own settings, reply emails off", own.includes("reply emails off") && own.includes("their own") && own.includes(`amy-desk${stamp}@summit.test`), own);
+ok("owner sees Amy's own settings, reply emails off, in plain words (S68)", own.includes("Reply emails off.") && own.includes("Their own") && own.includes(`reply-to address (amy-desk${stamp}@summit.test)`) && (own.match(/the business's/g) ?? []).length <= 1, own);
 await owner.screenshot({ path: `${shots}/staff-self-overview.png`, fullPage: true });
 // The owner's own team emails are with their settings (Settings > Account), and say who turned theirs off.
 await owner.goto(BASE + "/settings/account#emails");

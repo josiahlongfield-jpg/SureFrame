@@ -194,6 +194,8 @@ await staff.waitForURL((u) => u.pathname === "/suspended", { timeout: 15000 }).c
 ok("staff: a video link leads to the suspended page", new URL(staff.url()).pathname === "/suspended", staff.url());
 ok("staff: no billing controls", (await staff.locator("text=You can still manage or cancel your subscription.").count()) === 0);
 ok("help still opens", (await owner.request.get(BASE + "/help")).status() === 200);
+await owner.goto(BASE + "/help");
+ok("help's top bar leads back to the suspended page, not to Library or New recording (P44)", (await owner.getAttribute("[data-testid=header-away]", "href")) === "/suspended" && (await owner.locator("header a[href='/library'], header a[href='/record']").count()) === 0);
 
 // The clients' side: unavailable, never "suspended".
 await anaPhone.goto(BASE + "/inbox");

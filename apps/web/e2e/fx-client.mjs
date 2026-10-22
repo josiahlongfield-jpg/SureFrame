@@ -9,7 +9,7 @@
 // - one reaction at a time, which says it reached the business, toggles and never doubles up (and fits one
 //   row at 320px); the team's own row says whose it is; the business's message (encrypted) shows above the video;
 // - deleting a reply or unsent reply, discarding a recording and "Remove from this device" ask in the page,
-//   with wording true to who's affected; a text reply says Sent; Enter sends only on a computer (with a hint);
+//   with wording true to who's affected; a text reply says Sent; Enter sends only on a computer (each says which in a hint);
 //   keyboard focus follows Record / Stop / Send / Discard / Delete; Escape closes the larger view;
 // - one plain "can't open" card for every dead end (a replaced link says so, the private page can ask for the
 //   link again, an unknown /v/ address stays in the client frame); a device without the key lists nothing;
@@ -222,7 +222,7 @@ await phone.tap("[data-testid=chat-open]");
 await phone.waitForSelector("[data-testid=conversation][data-sheet]");
 ok("sheet names the business", (await phone.textContent("[data-testid=conversation-title]")) === "Conversation with Business A");
 ok("empty conversation says it's private", (await phone.textContent("[data-testid=conversation-empty]")) === "Only you and Business A can see this conversation.");
-ok("phone: no 'Enter sends' hint (Enter is a new line there)", !(await phone.isVisible("[data-testid=enter-hint]")));
+ok("phone: the hint says Enter is a new line there, not that it sends (C51)", (await phone.textContent("[data-testid=enter-hint]")) === "Enter starts a new line. Tap Send reply to send.");
 await phone.fill('textarea[aria-label="Reply"]', "Hello from Client A");
 await phone.press('textarea[aria-label="Reply"]', "Enter");
 ok("phone: Enter makes a new line rather than sending", (await phone.inputValue('textarea[aria-label="Reply"]')) === "Hello from Client A\n" && (await prisma.reply.count({ where: { videoId } })) === 0);
@@ -488,8 +488,13 @@ ok("no key: the same heading as the private page (C60)", (await stranger.textCon
 ok("no key: no '#k=', and a link cut short is explained (C47, C58)", !(await stranger.textContent("[data-testid=lost-key]")).includes("#k=") && (await stranger.textContent("[data-testid=lost-key]")).includes("it may have been cut short: open it again from the original message"));
 ok("no key: no intro over it", !(await shown(stranger, "[data-testid=sureframe-promo]", 2000)));
 ok("no key: the tab doesn't show the title", (await stranger.title()).startsWith("Private video"));
+const lockedAbout = await stranger.textContent("[data-testid=lost-key-about]").catch(() => "");
+ok("no key: says which video, by business and date, not title (C48)", /^A video from Business A, sent \w+ \d+, \d{4}\.$/.test(lockedAbout), lockedAbout);
+ok("no key: says how the link comes back before asking (C48)", (await stranger.textContent("[data-testid=ask-link-how]")).includes("they send you the link themselves"));
 await stranger.click("text=Ask for my link again");
-ok("Ask again: says who was asked and what happens next", (await stranger.textContent("[data-testid=lost-key-asked]", { timeout: 10000 }).catch(() => "")).includes("emailed Business A"));
+const askedText = await stranger.textContent("[data-testid=lost-key-asked]", { timeout: 10000 }).catch(() => "");
+ok("Ask again: says who was asked and what happens next", askedText.includes("emailed Business A"));
+ok("and suggests looking for the link they were sent before (C48)", askedText.includes("look in your texts, chats and email for the link you were sent before"), askedText);
 await stranger.screenshot({ path: `${shots}/lost-key-320.png`, fullPage: true });
 // Decision 1: a device that only opened the email link lists nothing of the client's.
 await stranger.goto(BASE + "/inbox");
