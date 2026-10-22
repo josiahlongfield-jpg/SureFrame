@@ -567,13 +567,15 @@ function Switcher({ workspaces }: { workspaces: { id: string; name: string; acti
 
 /** An in-page confirmation (not the browser's own box): Escape or Cancel closes it. */
 function Dialog({ title, children, confirmLabel, cancelLabel = "Cancel", danger, onCancel, onConfirm }: { title: string; children: ReactNode; confirmLabel: string; cancelLabel?: string; danger?: boolean; onCancel: () => void; onConfirm: () => void }) {
-  // Focus goes back to the button that opened it (if it's still there) once it closes.
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    return () => {
+  // Focus goes back to the button that opened it (if it's still there) once it closes. Noted while rendering, before
+  // autoFocus moves focus to Cancel.
+  const [opener] = useState(() => (typeof document === "undefined" ? null : (document.activeElement as HTMLElement | null)));
+  useEffect(
+    () => () => {
       if (opener?.isConnected) opener.focus();
-    };
-  }, []);
+    },
+    [opener],
+  );
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
     document.addEventListener("keydown", esc);
