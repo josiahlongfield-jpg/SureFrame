@@ -292,6 +292,16 @@ ok("suspended owner login: billing still offered", (await owner.locator("text=Yo
 ok("suspended owner login: the billing portal opens", (await owner.request.post(BASE + "/api/billing/portal")).status() === 200);
 ok("suspended owner login: the rest of the API is still refused", (await apiStatus(owner)).status === 403);
 await act({ action: "unsuspendUser", userId: ownerUser.id, reason: "Done checking", notify: false });
+// A Free owner with no subscription (a Stripe customer from a discount code, say) isn't offered one to manage (P43).
+const freeEmail = `su-free${stamp}@example.com`;
+const freeOwner = await signIn(freeEmail, "/library");
+const freeUser = await prisma.user.findUnique({ where: { email: freeEmail }, include: { memberships: true } });
+await prisma.workspace.update({ where: { id: freeUser.memberships[0].workspaceId }, data: { stripeCustomerId: `cus_free${stamp}` } });
+r = await act({ action: "suspendUser", userId: freeUser.id, reason: "Checking the suspended page on Free", category: "terms", notify: false });
+await freeOwner.goto(BASE + "/library");
+await freeOwner.waitForURL((u) => u.pathname === "/suspended", { timeout: 15000 }).catch(() => null);
+ok("suspended Free owner: no Manage subscription without a subscription", r.status === 200 && new URL(freeOwner.url()).pathname === "/suspended" && (await freeOwner.locator("text=You can still manage or cancel your subscription.").count()) === 0 && (await freeOwner.locator("[data-testid=suspended-export]").count()) === 1);
+await act({ action: "unsuspendUser", userId: freeUser.id, reason: "Done checking", notify: false });
 
 // =====================================================================================================
 // Signing a login out everywhere
