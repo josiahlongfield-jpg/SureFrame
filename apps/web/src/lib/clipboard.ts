@@ -8,9 +8,17 @@ import { useEffect, useState } from "react";
  */
 export async function writeClipboard(text: Promise<string> | string) {
   if (typeof text === "string") {
-    // Some in-app and older browsers have no clipboard API, or refuse it: the old copy command still works there.
-    if (!navigator.clipboard?.writeText) return legacyCopy(text);
-    return navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
+    // The old copy command first, while the tap still counts: some phone browsers (Brave on iPhone) refuse the
+    // clipboard API or never answer it. The API is the backup, given a moment to answer.
+    try {
+      return legacyCopy(text);
+    } catch {
+      if (!navigator.clipboard?.writeText) throw new Error("Couldn't copy");
+      return Promise.race([
+        navigator.clipboard.writeText(text),
+        new Promise<never>((_, no) => setTimeout(() => no(new Error("Couldn't copy")), 2000)),
+      ]);
+    }
   }
   const pending = Promise.resolve(text);
   if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
@@ -32,7 +40,8 @@ function legacyCopy(text: string) {
   const box = document.createElement("textarea");
   box.value = text;
   box.setAttribute("readonly", "");
-  box.style.cssText = "position:fixed;top:0;left:0;opacity:0;font-size:16px";
+  // Off screen rather than see-through, at the current scroll so the page doesn't jump (as clipboard.js does for iPhones).
+  box.style.cssText = `position:absolute;left:-9999px;top:${window.scrollY}px;border:0;padding:0;margin:0;font-size:16px`;
   document.body.appendChild(box);
   box.select();
   box.setSelectionRange(0, text.length);

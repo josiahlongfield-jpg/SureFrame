@@ -8,7 +8,12 @@ export const CLAUDE_BONUS = {
   kicker: "Free bonus for Claude users",
   title: "Let Claude work through your SureFrame for you.",
   blurb:
-    "Already use Claude? Connect it to SureFrame free of charge and ask it for reports, follow-up lists, to-do lists and more to help streamline your service. It only reads, and only sees what you can see.",
+    "Already use Claude? Connect it to SureFrame free of charge and ask it for things to help streamline your service such as client reports, checklists and much more. It only reads, and only sees what you can see.",
+  /** The AI add-on and the Claude Desktop connector together (Josiah: show the synergy, so people want both). */
+  withAddOn:
+    "Even better with our AI add-on: Claude Desktop can also read your videos' transcripts and summaries, so your reports include what was said in each video, not just who sent what and when.",
+  /** Said beside the AI add-on, pointing back to the bonus. */
+  addOnTeaser: "Use Claude? With our free Claude Desktop connector, Claude can read these transcripts and summaries too and use them in your reports.",
   privacy:
     "Your messages and notes stay end-to-end encrypted: the online connector can't read them, and the Claude Desktop connector unlocks them on your own computer.",
   /** Needs their own Claude account; Claude's plans decide which connectors they can add. */

@@ -249,6 +249,7 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
                 A transcript and a short summary with key points and action items under each video, for your team and your client. The transcript is made on your own
                 device and the audio isn&apos;t sent anywhere for it; only the transcript text is sent to Anthropic&apos;s Claude to write the summary. AI summaries can contain mistakes. Works on videos up to {MAX_TRANSCRIBE_MINUTES} minutes long; longer videos don&apos;t get a transcript or summary.
               </p>
+              <p className="mt-2 text-sm text-muted">{CLAUDE_BONUS.addOnTeaser}</p>
               <ul className="mt-4 space-y-1 text-sm text-muted">
                 {(["SOLO", "STUDIO", "AGENCY"] as const).map((id) => (
                   <li key={id} className="flex justify-between gap-3">
@@ -273,6 +274,7 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
           <p className="text-xs font-semibold uppercase tracking-wide text-accent">Free on every plan</p>
           <h3 className="mt-1 font-semibold text-ink">{CLAUDE_BONUS.kicker}: SureFrame for Claude</h3>
           <p className="mt-2 text-sm text-muted">{CLAUDE_BONUS.blurb}</p>
+          <p className="mt-2 text-sm font-medium text-ink">{CLAUDE_BONUS.withAddOn}</p>
           <p className="mt-2 text-sm text-muted">{CLAUDE_BONUS.privacy}</p>
           <p className="mt-3 text-xs text-dim">
             No extra charge from us. {CLAUDE_BONUS.needs} {CLAUDE_BONUS.trademark}{" "}

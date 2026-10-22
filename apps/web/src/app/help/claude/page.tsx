@@ -60,6 +60,10 @@ export default function HelpClaude() {
               key, which Claude Desktop keeps in your computer&apos;s keychain. The connector fetches your encrypted to-dos, notes, messages, replies
               and AI summaries and unlocks them on your computer, so {p}&apos;s servers still never see your key or what&apos;s inside.
             </p>
+            <p className="mt-2 text-sm text-muted">
+              With our AI add-on, it can also read each video&apos;s transcript and summary, so Claude&apos;s reports can include what was said in your
+              videos, not just who sent what and when.
+            </p>
           </section>
         </div>
 

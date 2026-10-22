@@ -120,6 +120,7 @@ export default async function Home() {
               transcript is made on your own device (it works best on a computer); only its text is sent to write the summary, and both are stored encrypted.
               Available on paid plans. AI summaries can contain mistakes.
             </p>
+            <p className="mt-3 text-sm font-medium text-ink">{CLAUDE_BONUS.addOnTeaser}</p>
             <Link href="/pricing#add-ons" className="mt-6 inline-block text-sm font-semibold text-accent hover:underline">
               See add-on pricing
             </Link>
@@ -131,6 +132,7 @@ export default async function Home() {
             <p className="kicker">{CLAUDE_BONUS.kicker}</p>
             <h2 className="display mt-3 text-3xl sm:text-4xl">{CLAUDE_BONUS.title}</h2>
             <p className="mt-4 text-muted">{CLAUDE_BONUS.blurb}</p>
+            <p className="mt-3 font-medium text-ink" data-testid="home-claude-addon">{CLAUDE_BONUS.withAddOn}</p>
             <p className="mt-3 text-sm text-muted">{CLAUDE_BONUS.privacy}</p>
             <Link href="/help/claude" className="mt-6 inline-block text-sm font-semibold text-accent hover:underline">
               How it works

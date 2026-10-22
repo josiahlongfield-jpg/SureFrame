@@ -191,7 +191,8 @@ export const BUSINESS_FAQ: Qa[] = [
         </p>
         <p>
           The online connector sees activity only (names, dates and whether things were opened or answered), not your encrypted messages or notes. The Claude
-          Desktop connector also reads those, unlocking them on your own computer. What Claude reads goes to Anthropic under your own Claude account.{" "}
+          Desktop connector also reads those, unlocking them on your own computer, along with any transcripts and summaries
+          made with our AI add-on, so your reports can include what was said in each video. What Claude reads goes to Anthropic under your own Claude account.{" "}
           <Link href="/help/claude">How it works</Link>.
         </p>
       </>
