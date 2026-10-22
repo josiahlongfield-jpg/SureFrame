@@ -104,7 +104,10 @@ const mails = readdirSync(".data/outbox").filter((f) => !outboxBefore.has(f)).ma
 const toThem = (m) => [clients.Ben.email, clients.Cal.email].includes(m.to);
 ok("both clients emailed", mails.filter((m) => toThem(m) && /sent you a video/.test(m.subject)).length === 2);
 const recorder = await prisma.user.findUnique({ where: { id: original.ownerId } });
-ok("emails name who recorded it", mails.filter((m) => /sent you a video/.test(m.subject)).every((m) => m.subject.startsWith(`${recorder.name} sent you a video`)), mails.map((m) => m.subject).join(" | "));
+const sentWs = await prisma.workspace.findUnique({ where: { id: original.workspaceId } });
+// C39: the subject names who recorded it and the business ("Sam at Business"), or the name once when it's the business's own.
+const subjectFrom = recorder.name.trim().toLowerCase() === sentWs.name.trim().toLowerCase() ? sentWs.name : `${recorder.name} at ${sentWs.name}`;
+ok("emails name who recorded it and the business", mails.filter((m) => /sent you a video/.test(m.subject)).every((m) => m.subject.startsWith(`${subjectFrom} sent you a video`)), mails.map((m) => m.subject).join(" | "));
 ok("emails carry no key", mails.every((m) => !m.text.includes("#k=")));
 ok("emails credit SureFrame", mails.every((m) => m.html.includes("Sent with SureFrame")));
 

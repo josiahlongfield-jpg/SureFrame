@@ -195,7 +195,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
                 <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">{fmt(v.durationMs)}</span>
               ) : null}
             </div>
-            <h3 className="mt-3 truncate font-medium text-ink group-hover:text-accent">{v.title}</h3>
+            <h3 className="mt-3 line-clamp-2 text-sm font-medium sm:text-base text-ink [overflow-wrap:anywhere] group-hover:text-accent" data-testid="video-title">{v.title}</h3>
             <p className="text-xs text-dim">
               <span data-testid="video-time">{when(v, inDay)}</span> · {views(v)} {views(v) === 1 ? "view" : "views"}
             </p>
@@ -219,7 +219,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
               ) : null}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium text-ink group-hover:text-accent">{v.title}</span>
+              <span className="line-clamp-2 text-sm font-medium text-ink [overflow-wrap:anywhere] group-hover:text-accent" data-testid="video-title">{v.title}</span>
               <span className="block truncate text-xs text-dim">
                 <span data-testid="video-time">{when(v, inDay)}</span> · <span data-testid="video-recipients" title={sentTo(v).join(", ") || undefined}>{recipients(v)}</span>
               </span>

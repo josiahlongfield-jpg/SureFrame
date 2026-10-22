@@ -841,11 +841,12 @@ function Manager({
 export function LinkBadge({ sent }: { sent?: boolean }) {
   return sent ? (
     <span className="ml-1 inline-block rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-dim" data-testid="needs-first-link" title="You've sent them a link, and they haven't opened it yet. Once they do, we can email them your videos.">
-      Not opened yet
+      {/* Read out with its meaning, not run on from the name (R2-O18). */}
+      <span className="sr-only">, </span>Not opened yet<span className="sr-only">: you&apos;ve sent them a link, and they haven&apos;t opened it yet</span>
     </span>
   ) : (
     <span className="ml-1 inline-block rounded-full bg-primary-soft px-2 py-0.5 text-xs font-semibold text-accent" data-testid="needs-first-link" title="Their first video comes from you, by your own email, texts or chat. After that we can email them.">
-      New
+      <span className="sr-only">, </span>New<span className="sr-only">: their first video comes from you</span>
     </span>
   );
 }

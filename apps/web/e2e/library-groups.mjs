@@ -176,6 +176,22 @@ for (const [view, layout] of [["client", "list"], ["client", "tiles"], ["date", 
     ok(`phone, by ${view}: closed folders sit two to a row`, tops.length >= 2 && tops[0] === tops[1], JSON.stringify(tops));
   }
 }
+// S92: a title wraps to two lines (never one line cut short), so the default "Recording <date>, <time>" titles stay
+// told apart on a phone, in tiles and in the list.
+await page.goto(`${BASE}/library?q=${encodeURIComponent("Recording")}`);
+for (const layout of ["tiles", "list"]) {
+  await page.click(`[data-testid=layout-${layout}]`);
+  await page.waitForSelector(`[data-testid=layout-${layout}][aria-pressed=true]`);
+  await page.waitForTimeout(500);
+  const t = await page.locator(`main a[href="/v/${realId}"] [data-testid=video-title]`).first().evaluate((e) => {
+    const cs = getComputedStyle(e);
+    const line = parseFloat(cs.lineHeight);
+    return { clamp: cs.webkitLineClamp, nowrap: cs.whiteSpace === "nowrap", whole: e.scrollHeight <= e.clientHeight + 1, lines: Math.round(e.clientHeight / line), text: e.textContent };
+  }).catch((e) => ({ error: String(e) }));
+  ok(`phone ${layout}: the default title shows in full on up to two lines`, t.clamp === "2" && !t.nowrap && t.whole && t.lines <= 2 && /^Recording /.test(t.text ?? ""), JSON.stringify(t));
+  ok(`phone ${layout}: still fits 320px`, (await page.evaluate(() => document.documentElement.scrollWidth)) <= 320);
+}
+await page.goto(BASE + "/library");
 await page.locator("[data-testid=month-folder] > summary").first().click();
 await page.waitForTimeout(300);
 const wide = await page.evaluate(() => document.documentElement.scrollWidth);

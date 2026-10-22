@@ -86,6 +86,11 @@ ok("inbox preview", await visible(preview, "[data-testid=preview-inbox] >> text=
 await page.screenshot({ path: `${shots}/brand-phone-inbox.png`, fullPage: true });
 await page.click('[aria-label="Page"] >> text=Email');
 ok("email preview: '{business} sent you a video: {title}'", await visible(preview, "[data-testid=email-subject] >> text=/sent you a video: Your weekly check-in$/"));
+{
+  // C39: the subject names the business as well as who recorded it.
+  const subj = ((await preview.locator("[data-testid=email-subject]").textContent()) ?? "").trim();
+  ok("email preview: the subject is '{name} at {business} sent you a video'", /^\S.* at .*workspace.* sent you a video: Your weekly check-in$/.test(subj), subj);
+}
 ok("email preview carries the logo", /^data:image/.test((await preview.frameLocator('iframe[title="Email body"]').locator("img").getAttribute("src")) ?? ""));
 await page.click('[aria-label="Screen size"] >> text=Desktop');
 await page.screenshot({ path: `${shots}/brand-desktop-email.png`, fullPage: true });
