@@ -290,6 +290,8 @@ for (const p of ["/settings/account", "/settings/billing"]) {
   await staff.waitForURL((u) => u.pathname === "/agree", { timeout: 15000 }).catch(() => {});
   ok(`before joining, ${p} goes to /agree`, path(staff) === "/agree", staff.url());
 }
+// A login with no name yet (as with an emailed sign-in link) is asked for one on the join page.
+await prisma.user.update({ where: { email: `fx-staff${stamp}@example.com` }, data: { name: null } });
 await staff.goto(BASE + joinPath);
 await staff.waitForSelector("[data-testid=join-agree]");
 ok("joining: agree and join are one step", (await staff.isDisabled("[data-testid=join-team]")) && (await staff.textContent("[data-testid=join-team]")).trim() === "Agree and join");

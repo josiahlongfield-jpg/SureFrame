@@ -6,7 +6,7 @@ import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 import { start, state, createSubscription } from "./fake-stripe.mjs";
 import { agreed } from "./agree.mjs";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const ok = (label, cond, extra = "") => {
@@ -15,7 +15,8 @@ const ok = (label, cond, extra = "") => {
 };
 const prisma = new PrismaClient();
 // Emails written to the local outbox since `since` (a set of file names), as { to, subject, text }.
-const outbox = () => new Set(readdirSync(".data/outbox"));
+// No outbox folder yet on a fresh copy, until the first email is written.
+const outbox = () => new Set(existsSync(".data/outbox") ? readdirSync(".data/outbox") : []);
 const waitFor = async (fn, ms = 10000) => {
   for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 250))) {
     const v = await fn();
