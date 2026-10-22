@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { FirstStepsState } from "@/lib/firstSteps";
-import { RecoveryKeyStep } from "./RecoveryKey";
+import { RecoveryKeyStep, useDeviceKey } from "./RecoveryKey";
 import { PersonalLinkSteps } from "./FirstLinkSender";
 
 /**
@@ -16,9 +16,25 @@ import { PersonalLinkSteps } from "./FirstLinkSender";
 export default function FirstSteps({ steps, workspaceId, fingerprint, business }: { steps: FirstStepsState; workspaceId: string; fingerprint: string | null; business: string }) {
   const router = useRouter();
   const [hiding, setHiding] = useState(false);
-  const done = Object.values(steps).filter(Boolean).length;
+  // V91: the key was saved on another device, but this one is still locked: the step isn't shown as done here, since
+  // this is where a key that wasn't really saved would be missed.
+  const deviceKey = useDeviceKey(workspaceId, fingerprint).value;
+  const keyMissingHere = steps.key && !!fingerprint && deviceKey === null;
+  const shown: FirstStepsState = { ...steps, key: steps.key && !keyMissingHere };
+  const done = Object.values(shown).filter(Boolean).length;
   const items: { key: keyof FirstStepsState; title: string; body: React.ReactNode }[] = [
-    { key: "key", title: "Save your recovery key", body: <RecoveryKeyStep workspaceId={workspaceId} fingerprint={fingerprint} business={business} /> },
+    keyMissingHere
+      ? {
+          key: "key",
+          title: "Enter your recovery key on this device",
+          body: (
+            <p className="text-sm text-muted" data-testid="step-key-here">
+              You saved it on another device. Type it into the box above to open your videos here. Lost it? Show it again under Settings &gt; Account on a
+              device that&apos;s already unlocked.
+            </p>
+          ),
+        }
+      : { key: "key", title: "Save your recovery key", body: <RecoveryKeyStep workspaceId={workspaceId} fingerprint={fingerprint} business={business} /> },
     {
       key: "name",
       title: "Add your business name",
@@ -78,7 +94,7 @@ export default function FirstSteps({ steps, workspaceId, fingerprint, business }
       </div>
       <ol className="mt-5 grid gap-3">
         {items.map((item, i) => {
-          const ticked = steps[item.key];
+          const ticked = shown[item.key];
           return (
             <li key={item.key} className={`rounded-xl border px-4 py-3 ${ticked ? "border-line" : "border-primary-line"}`} data-testid={`step-${item.key}`} data-done={ticked ? "yes" : "no"}>
               <p className={`flex items-center gap-3 font-medium ${ticked ? "text-dim" : "text-ink"}`}>

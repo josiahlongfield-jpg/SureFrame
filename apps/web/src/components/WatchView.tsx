@@ -1195,7 +1195,7 @@ function VideoReplyChip({ reply, mediaKey }: { reply: ReplyDTO; mediaKey: Crypto
             <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z" /></svg>
           </span>
         </span>
-        {length ? <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-[11px] leading-4 text-white">{clock(length)}</span> : null}
+        {length ? <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-xs leading-4 text-white">{clock(length)}</span> : null}
       </button>
       <dialog
         ref={dialog}

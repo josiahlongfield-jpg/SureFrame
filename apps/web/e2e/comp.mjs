@@ -26,9 +26,9 @@ const t = await signIn(tester, "/settings/billing");
 ok("tester starts on Free", (await t.textContent("main")).includes("Free plan"));
 
 const stranger = await signIn(`x${Date.now()}@example.com`, "/library");
-const res = await stranger.goto(BASE + "/support/accounts");
-// With app/loading.tsx the page streams, so a not-found arrives as a 200 with the not-found page.
-ok("non-founder can't open free plans page", res.status() === 404 || !!(await stranger.waitForSelector("text=Page not found", { timeout: 15000 }).catch(() => null)));
+await stranger.goto(BASE + "/support/accounts");
+// Someone who doesn't answer support is sent to Help instead of the console (V60).
+ok("non-founder can't open free plans page: sent to Help", await stranger.waitForURL((u) => u.pathname === "/help", { timeout: 15000 }).then(() => true, () => false), stranger.url());
 ok("non-founder sees no free plans", !(await stranger.isVisible("text=Currently free")));
 
 const owner = await signIn("owner@test.dev", "/support/accounts");

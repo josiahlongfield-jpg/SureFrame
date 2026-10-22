@@ -169,7 +169,7 @@ export default function ClientHelp({ for: businesses, page, videoId }: { for: He
               {error}
             </p>
           )}
-          <p className="mt-2 text-[0.6875rem] leading-4 text-dim">
+          <p className="mt-2 text-xs leading-4 text-dim">
             Answers come from an AI assistant and can be wrong. It can&apos;t see your videos or replies, and nobody reads this chat, so don&apos;t type anything private.{" "}
             <a href="/legal/privacy#for-clients" className="underline hover:text-muted">Privacy</a>
           </p>

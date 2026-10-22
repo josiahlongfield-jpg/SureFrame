@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import Logo from "@/components/Logo";
 import { db } from "@/lib/db";
@@ -10,14 +10,15 @@ import SupportNav from "./_console/SupportNav";
 
 /**
  * The frame of every support page: SureFrame's navy bar with a way back to the app, then one row of
- * links. Anyone signed in who doesn't answer support gets the site's not-found page, with a real 404 since
- * it's refused here, before the loading screen streams; signed out, the page sends them to sign in.
+ * links. Anyone signed in who doesn't answer support is sent to Help, before the loading screen streams; signed
+ * out, /support itself goes to Help (src/middleware.ts) and the other pages send them to sign in.
  */
 export default async function SupportLayout({ children }: { children: React.ReactNode }) {
   const id = (await auth())?.user?.id;
   const me = id ? await db.user.findUnique({ where: { id }, select: { email: true } }) : null;
   if (!me) return children;
-  if (!isSupportAgent(me.email)) notFound();
+  // Someone signed in who doesn't answer support wants help, not a "Page not found" (V60).
+  if (!isSupportAgent(me.email)) redirect("/help");
   const admin = isSupportAdmin(me.email);
   const links = [
     ["/support", "Inbox"],

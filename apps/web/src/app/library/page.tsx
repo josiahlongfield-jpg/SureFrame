@@ -205,7 +205,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             <span className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-solid sm:w-28">
               {still(v)}
               {v.durationMs ? (
-                <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-[10px] leading-4 text-white">{fmt(v.durationMs)}</span>
+                <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-xs leading-4 text-white">{fmt(v.durationMs)}</span>
               ) : null}
             </span>
             <span className="min-w-0 flex-1">

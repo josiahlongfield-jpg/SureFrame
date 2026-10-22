@@ -16,7 +16,7 @@ import Logo from "./Logo";
 import MobileMenu from "./MobileMenu";
 import NavLinks, { SettingsMenu } from "./NavLinks";
 import RecoverUploads from "./RecoverUploads";
-import RecoveryKeyReminder from "./RecoveryKey";
+import RecoveryKeyReminder, { KeyNotKeptNote } from "./RecoveryKey";
 import RemovedNotice from "./RemovedNotice";
 import SupportWidget from "./SupportChat";
 import TimeZoneSync from "./TimeZoneSync";
@@ -73,7 +73,7 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
             title={`Your plan: ${plan}. ${manager ? "Open Billing" : "See plans"}`}
             aria-label={`Your plan: ${plan}. ${manager ? "Open Billing" : "See plans"}`}
             data-testid="plan-pill"
-            className="hidden rounded-full border border-line px-2.5 py-1 font-mono text-[0.6875rem] font-medium uppercase tracking-wider text-muted hover:border-line-strong hover:text-ink min-[24rem]:inline"
+            className="hidden rounded-full border border-line px-2.5 py-1 font-mono text-xs font-medium uppercase tracking-wider text-muted hover:border-line-strong hover:text-ink min-[24rem]:inline"
           >
             {plan}
           </Link>
@@ -115,6 +115,8 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
           hiddenOn={null}
           note={owner ? "Your team's keys were reset, so your recovery key changed. Save the new one: you need it to open your videos on another device." : undefined}
         />
+      ) : me && !me.paused ? (
+        <KeyNotKeptNote workspaceId={me.workspace.id} />
       ) : null}
       {me && <TimeZoneSync shownZone={zoned(me.workspace.timezone).zone} setWorkspace={manager && !me.workspace.timezone} />}
       <SupportWidget signedIn />

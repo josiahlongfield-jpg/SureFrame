@@ -17,7 +17,11 @@ const AUDIENCES = "Coaches, personal trainers, consultants, tutors, agencies, cl
 const PRIVACY = [
   ["Encrypted on your device", "Videos, replies, to-dos and notes are locked before they leave your phone or computer. Our servers only hold scrambled copies of them."],
   ["Every client gets their own copy", "Send one video to one client or a hundred. Each opens it from their own personal link, and nobody sees anyone else's replies."],
-  ["Staff who leave are locked out", `Remove someone from your team and your team's keys and every client link are reset, so they can't open anything through ${BRAND.name} again.`],
+  // What clients experience when a key reset replaces their link (V9): lib/rekey.ts and lib/newLinkEmail.ts.
+  [
+    "Staff who leave are locked out",
+    `Remove someone from your team and we reset your team's keys and every client's link, so they can't open anything through ${BRAND.name} again. Clients who've opened their link are emailed a new one that works on the device they used before; nothing they have is lost.`,
+  ],
 ];
 
 const STEPS = [
@@ -131,9 +135,12 @@ export default async function Home() {
           <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
             <p className="kicker">{CLAUDE_BONUS.kicker}</p>
             <h2 className="display mt-3 text-3xl sm:text-4xl">{CLAUDE_BONUS.title}</h2>
-            <p className="mt-4 text-muted">{CLAUDE_BONUS.blurb}</p>
+            <p className="mt-4 text-muted">
+              {CLAUDE_BONUS.intro} {CLAUDE_BONUS.blurb}
+            </p>
             <p className="mt-3 font-medium text-ink" data-testid="home-claude-addon">{CLAUDE_BONUS.withAddOn}</p>
             <p className="mt-3 text-sm text-muted">{CLAUDE_BONUS.privacy}</p>
+            <p className="mt-3 text-sm text-muted" data-testid="home-claude-separate">{CLAUDE_BONUS.notTheAddOn}</p>
             <Link href="/help/claude" className="mt-6 inline-block text-sm font-semibold text-accent hover:underline">
               How it works
             </Link>

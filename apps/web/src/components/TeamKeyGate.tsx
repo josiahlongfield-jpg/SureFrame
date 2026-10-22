@@ -41,7 +41,7 @@ function createTeamKey(workspaceId: string) {
   return pending;
 }
 
-const UNLOCKED = "sureframe-team-key-unlocked";
+export const UNLOCKED = "sureframe-team-key-unlocked";
 
 /**
  * If the team's keys were reset (someone left), bring a key this device or

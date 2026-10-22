@@ -14,6 +14,7 @@ import AuthLinks from "@/components/AuthLinks";
 import { emailLink } from "./actions";
 import { errorText } from "./errors";
 import { BRAND } from "@/lib/brand";
+import { PLANS } from "@/lib/plans";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -29,6 +30,8 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   // "Start free" (it opens /record) and a plan picked on the pricing page: say an account is being made.
   const creating = signup === "1" || /^\/(record|pricing)(\/|\?|$)/.test(redirectTo);
   const joining = redirectTo.startsWith("/join/");
+  // A paid plan picked on the pricing page ("Get Solo"): say we'll come back to it (V18).
+  const picked = planPicked(redirectTo);
   // Checked against the database: a sign-in left over from a deleted account must not bounce back and forth.
   const userId = (await auth())?.user?.id;
   const signedInAs = userId ? await db.user.findUnique({ where: { id: userId }, select: { deleteAt: true } }) : null;
@@ -60,7 +63,11 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
           {creating ? "Create your free account" : joining ? "Sign in to join your team" : "Sign in"}
         </h1>
         <p className="mt-1 text-sm text-muted">
-          {creating ? "Already have one? The same email signs you in." : `New to ${BRAND.name}? Entering your email creates your free account.`}
+          {picked
+            ? `Sign in or create your account; we'll bring you back to ${picked}.`
+            : creating
+              ? "Already have one? The same email signs you in."
+              : `New to ${BRAND.name}? Entering your email creates your free account.`}
         </p>
         {deleted && (
           <p role="status" className="mt-3 rounded-lg bg-ok-bg px-3 py-2 text-sm text-ok-fg" data-testid="deleted-note">
@@ -96,7 +103,8 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
               {creating && <input type="hidden" name="signup" value="1" />}
               <label className="grid gap-1 text-sm">
                 <span className="font-medium text-muted">Email</span>
-                <input name="email" type="email" required autoComplete="email" placeholder="you@company.com" className="rounded-lg border border-line-strong px-3 py-2" />
+                {/* The page's one box, ready to type in (V62). */}
+                <input name="email" type="email" required autoFocus autoComplete="email" placeholder="you@company.com" className="rounded-lg border border-line-strong px-3 py-2" />
               </label>
               {keepAt === "email" && keep}
               <button className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover">Email me a sign-in link</button>
@@ -119,7 +127,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
             >
               <label className="grid gap-1 text-sm">
                 <span className="font-medium text-muted">Work email</span>
-                <input name="email" type="email" required placeholder="you@company.com" className="rounded-lg border border-line-strong px-3 py-2" />
+                <input name="email" type="email" required autoFocus={!hasEmail} placeholder="you@company.com" className="rounded-lg border border-line-strong px-3 py-2" />
               </label>
               {previewPassword && (
                 <label className="grid gap-1 text-sm">
@@ -141,6 +149,15 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
       </div>
     </main>
   );
+}
+
+/** "Solo (monthly)" when the way back is a paid plan's checkout on the pricing page (/pricing?plan=SOLO&interval=month). */
+function planPicked(next: string) {
+  if (!next.startsWith("/pricing?")) return null;
+  const q = new URLSearchParams(next.slice("/pricing?".length));
+  const key = q.get("plan") as keyof typeof PLANS | null;
+  if (!key || key === "FREE" || !(key in PLANS)) return null;
+  return `${PLANS[key].name} (${q.get("interval") === "year" ? "yearly" : "monthly"})`;
 }
 
 /** A callbackUrl may be a whole address on this site; only its path and query are used. */

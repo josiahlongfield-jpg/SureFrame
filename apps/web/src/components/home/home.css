@@ -212,7 +212,7 @@
   .ff { grid-template-rows: auto 22.5rem; }
   /* Four to a row, icon over the label, so all eight fit in two rows on a phone. */
   .ff-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .ff-tab { flex-direction: column; gap: 0.25rem; padding: 0.5rem 0.125rem 0.625rem; font-size: 0.6875rem; }
+  .ff-tab { flex-direction: column; gap: 0.25rem; padding: 0.5rem 0.125rem 0.625rem; font-size: 0.75rem; }
   .f-hide-sm { display: none !important; }
   .f-only-sm { display: block; }
   .f-client .f-screen { aspect-ratio: 16 / 7; }

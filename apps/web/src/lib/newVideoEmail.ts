@@ -42,6 +42,6 @@ export function newVideoEmail(o: {
 ${title ? `<p style="font-size:18px;line-height:1.4;font-weight:600;color:${EMAIL.ink};margin:0">${esc(title)}</p>` : ""}
 ${emailButton(o.link, "Watch the video", colors)}
 <p style="font-size:12px;line-height:1.5;color:${EMAIL.muted};margin:0">${esc(after)}</p>
-${o.unsubscribe ? `<p style="font-size:11px;color:${EMAIL.dim};margin:16px 0 0">Don&#39;t want emails from ${esc(o.business)}? <a href="${esc(o.unsubscribe)}" style="color:${link}">Turn them off</a></p>` : ""}`, undefined, colors.fill);
+${o.unsubscribe ? `<p style="font-size:12px;color:${EMAIL.dim};margin:16px 0 0">Don&#39;t want emails from ${esc(o.business)}? <a href="${esc(o.unsubscribe)}" style="color:${link}">Turn them off</a></p>` : ""}`, undefined, colors.fill);
   return { subject, text, html };
 }

@@ -148,7 +148,7 @@ export default function BrandingForm(props: { workspaceId: string; name: string;
                 title={`${s.name} (${s.hex})`}
                 aria-pressed={color === s.hex}
                 onClick={() => setColor(s.hex)}
-                className="grid w-12 justify-items-center gap-1 text-[0.6875rem] text-muted"
+                className="grid w-12 justify-items-center gap-1 text-xs text-muted"
               >
                 <span className={`h-8 w-8 rounded-full border border-line-strong ring-offset-2 ${color === s.hex ? "ring-2 ring-ink ring-offset-surface" : ""}`} style={{ background: s.hex }} />
                 <span className={color === s.hex ? "font-semibold text-ink" : ""}>{s.name}</span>
