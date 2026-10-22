@@ -110,6 +110,16 @@ r = await api(fresh, "POST", "/api/team/join", { token: "t".repeat(30) });
 ok("joining a team waits for agreeing too", r.status === 403 && r.body?.code === "TERMS_REQUIRED", JSON.stringify(r));
 await visit(fresh, "/library", "/agree");
 ok("every account page goes to /agree", path(fresh) === "/agree" && new URL(fresh.url()).searchParams.get("next") === "/library");
+// A brand-new account has no data or subscription to keep: Settings > Account and Billing go to /agree like the rest,
+// rather than opening half-working (they used to, with 403s in the console).
+const consoleErrors = [];
+fresh.on("console", (m) => m.type() === "error" && consoleErrors.push(m.text()));
+for (const p of ["/settings/account", "/settings/billing", "/settings"]) {
+  await visit(fresh, p, "/agree");
+  ok(`a new account's ${p} goes to /agree too`, path(fresh) === "/agree" && new URL(fresh.url()).searchParams.get("next") === p, fresh.url());
+}
+await visit(fresh, "/pricing");
+ok("pricing before agreeing: no 403s in the console", !consoleErrors.some((t) => /403/.test(t)), consoleErrors.join(" | "));
 await fresh.goto(BASE + "/agree?next=/clients");
 
 // The server checks the box itself: a form sent without it records nothing.

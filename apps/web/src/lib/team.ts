@@ -39,6 +39,19 @@ export async function staffUsage(
 export const isPlaceholderName = (name: string) => /'s workspace$/i.test(name.trim());
 
 /**
+ * A business this person really works in, as opposed to the empty Free workspace every login is given on
+ * first use (lib/session.ts currentUser), which someone who joined a team from an invite never set up: still
+ * named after their email, on Free, with no subscription or complimentary plan. "Switch business" is only
+ * offered between real ones (and the one open now).
+ */
+export const isRealBusiness = (m: { role: string; workspace: { name: string; plan: string; stripeSubscriptionId: string | null; complimentaryPlan: string | null } }) =>
+  m.role !== "OWNER" || !isPlaceholderName(m.workspace.name) || m.workspace.plan !== "FREE" || !!m.workspace.stripeSubscriptionId || !!m.workspace.complimentaryPlan;
+
+/** The businesses to offer in "Switch business": the real ones, and the one open now. */
+export const switchableBusinesses = <M extends Parameters<typeof isRealBusiness>[0] & { workspaceId: string }>(memberships: M[], activeId: string) =>
+  memberships.filter((m) => m.workspaceId === activeId || isRealBusiness(m));
+
+/**
  * Teams this person joined from an invite and is no longer on: an owner or
  * admin removed them (the invite stays accepted; the membership goes). Told
  * plainly, rather than finding themselves in a new empty workspace.

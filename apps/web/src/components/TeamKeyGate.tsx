@@ -144,7 +144,7 @@ export default function TeamKeyGate({
       <div className="mt-6 max-w-md rounded-2xl border border-line bg-surface p-6">
         <h2 className="font-semibold text-ink">Unlock your videos in this browser</h2>
         <p className="mt-2 text-sm text-muted">
-          Your videos are end-to-end encrypted, so not even we can open them. Each browser keeps its own copy of the key, so a new device, a different browser or cleared browser data asks for it once. Enter the recovery key saved when the account was set up. If you joined from an invite link, you can open that link again in this browser instead.
+          Your videos are end-to-end encrypted, so not even we can open them. Each browser keeps its own copy of the key, so a new device, a different browser or cleared browser data asks for it once. Enter the recovery key saved when the account was set up. On a team, everyone has the same recovery key: it was shown to you when you joined, and the owner or an admin has it too. If you joined from an invite link, opening that same link again in this browser also works, until the team&apos;s keys are next reset.
         </p>
         <form onSubmit={recover} className="mt-4 grid gap-3">
           <input

@@ -236,7 +236,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
   const { upgraded, ws } = await searchParams;
   await followTeamLink(ws, "/settings/billing");
   // Reachable before agreeing to updated terms, to manage or cancel the plan (Terms, introduction); the rest waits for /agree.
-  const { user, workspace, role, agreed } = await requirePageUser(upgraded ? "/settings/billing?upgraded=1" : "/settings/billing", { allowTermsPending: true });
+  const { user, workspace, role, agreed } = await requirePageUser(upgraded ? "/settings/billing?upgraded=1" : "/settings/billing", { allowTermsPending: "existing" });
   if (!agreed && role !== "OWNER") redirect(agreePath("/settings/billing"));
   const plan = PLANS[workspace.plan];
   const comp = !!workspace.complimentaryPlan && !workspace.stripeSubscriptionId;

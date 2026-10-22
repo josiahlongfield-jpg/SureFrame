@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { exportKey, generateKey, wrapKey } from "@/lib/e2e/crypto";
 import { saveKey, teamKeyName } from "@/lib/e2e/keystore";
@@ -12,7 +13,7 @@ import { writeClipboard } from "@/lib/clipboard";
 
 /** US$8, US$37.50 */
 const money = (n: number) => `US$${Number.isInteger(n) ? n : n.toFixed(2)}`;
-import { PermChecks, savePerm, type Perms } from "./StaffPerms";
+import { PERMS, permNames, type Perms } from "./StaffPerms";
 import RemoveExtras from "./RemoveExtras";
 import PurchaseNotice, { reloadAfterPurchase } from "./PurchaseNotice";
 import type { NewLink } from "@/lib/rekey";
@@ -24,10 +25,6 @@ const FORMER = "Former team member";
 
 /** A client the team sends their new link to after a key reset: never opened their personal link, or has no email. */
 type ToSend = { id: string; name: string; email: string | null; link: string; firstLink: boolean };
-
-/** What a member can now do, in words, after one switch changed. */
-const permSaved = (name: string, key: keyof Perms, on: boolean) =>
-  `Saved. ${name} ${on ? "can now" : "can no longer"} ${{ seeAllClients: "see all clients", addClients: "add new clients", deleteAnyVideo: "delete any video", sendToMany: "send one video to several clients" }[key]}.`;
 
 type Role = "OWNER" | "ADMIN" | "MEMBER";
 type Member = { userId: string; name: string; email: string; role: Role; perms: Perms; paused?: boolean };
@@ -57,9 +54,49 @@ type Props = {
   keyResetNeeded: string | null;
   /** Studio or Agency: staff can be invited. Other plans see the plans box on the page instead of a form. */
   teamPlan?: boolean;
+  /** What a new member can do until it's changed on the Team page (lib/permissions.ts DEFAULT_STAFF_PERMS). */
+  defaultPerms: Perms;
 };
 
 const ROLE_LABEL: Record<Role, string> = { OWNER: "Owner", ADMIN: "Admin", MEMBER: "Member" };
+
+/**
+ * Invite links, kept in this browser until the invite is used, cancelled or expires: the server only has a
+ * hash of the token, and the key after # never reaches it, so it can't show a link again. The team key they
+ * wrap is already kept in this browser (lib/e2e/keystore.ts), so keeping the link here adds nothing new.
+ */
+const INVITE_LINK = "framecast.invite-link:";
+const keptLink = (id: string) => {
+  try {
+    return localStorage.getItem(INVITE_LINK + id);
+  } catch {
+    return null;
+  }
+};
+const keepLink = (id: string, url: string | null) => {
+  try {
+    if (url) localStorage.setItem(INVITE_LINK + id, url);
+    else localStorage.removeItem(INVITE_LINK + id);
+  } catch {
+    /* storage blocked: the link is shown only until the page is left */
+  }
+};
+
+/**
+ * What a key reset left to do (new links to send, the new recovery key), kept in this browser until the
+ * owner presses "I've saved it", so a reload or a wander off the page doesn't lose it. Only on a device that
+ * already holds the new team key, which everything here is sealed with or derived from.
+ */
+type ResetState = { name: string | null; removed: boolean; emailed: number; toSend: ToSend[]; recoveryKey: string };
+const RESET = "framecast.key-reset:";
+const keepReset = (workspaceId: string, state: ResetState | null) => {
+  try {
+    if (state) localStorage.setItem(RESET + workspaceId, JSON.stringify(state));
+    else localStorage.removeItem(RESET + workspaceId);
+  } catch {
+    /* storage blocked: shown until the page is left */
+  }
+};
 
 export default function TeamManager(props: Props) {
   return (
@@ -80,7 +117,7 @@ type Confirm =
   | { kind: "remove"; member: Member; bundle: Bundle }
   | { kind: "buy" };
 
-function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeats, includedStaff, extraStaff, canBuyStaff, staffPrice, per = "month", initialMembers, initialInvites, timezone, business = "", teamPlan = true }: Props & { teamKey?: CryptoKey }) {
+function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeats, includedStaff, extraStaff, canBuyStaff, staffPrice, per = "month", initialMembers, initialInvites, timezone, business = "", teamPlan = true, defaultPerms }: Props & { teamKey?: CryptoKey }) {
   const [members, setMembers] = useState(initialMembers);
   const [invites, setInvites] = useState(initialInvites);
   const [seats, setSeats] = useState(initialSeats);
@@ -92,9 +129,33 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
   const [busy, setBusy] = useState(false);
   const [buyQty, setBuyQty] = useState(1);
   const [removing, setRemoving] = useState<string>();
-  const [reset, setReset] = useState<{ name: string | null; removed: boolean; emailed: number; toSend: ToSend[]; recoveryKey: string }>();
-  // "Saved" next to whatever was just changed for someone (role or what they can do).
-  const [saved, setSaved] = useState<{ userId: string; text: string }>();
+  const [reset, setReset] = useState<ResetState>();
+  // Invite links made in this browser (see INVITE_LINK), by invite id.
+  const [links, setLinks] = useState<Record<string, string>>({});
+  const [copiedInvite, setCopiedInvite] = useState<string>();
+  useEffect(() => {
+    const found: Record<string, string> = {};
+    for (const i of initialInvites) {
+      const url = keptLink(i.id);
+      if (url) found[i.id] = url;
+    }
+    setLinks(found);
+    // Links of invites that were used, cancelled or ran out are forgotten.
+    try {
+      const live = new Set(initialInvites.map((i) => i.id));
+      for (const k of Object.keys(localStorage)) if (k.startsWith(INVITE_LINK) && !live.has(k.slice(INVITE_LINK.length))) localStorage.removeItem(k);
+    } catch {}
+    // A key reset's to-do list, until its recovery key was saved; only if it's this business's current key.
+    void (async () => {
+      try {
+        const kept = localStorage.getItem(RESET + workspaceId);
+        if (!kept || !teamKey) return;
+        const state = JSON.parse(kept) as ResetState;
+        if (state.recoveryKey === (await exportKey(teamKey))) setReset(state);
+        else keepReset(workspaceId, null);
+      } catch {}
+    })();
+  }, [initialInvites, workspaceId, teamKey]);
   const [resetDue, setResetDue] = useState(!!keyResetNeeded);
   const [confirming, setConfirming] = useState<Confirm>();
   const [checking, setChecking] = useState<string>();
@@ -118,7 +179,10 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) return setError(data.error ?? "Could not create the invite");
-    setLink({ url: `${data.link}#k=${await exportKey(oneOff)}`, emailedTo: data.emailed ? data.invite.email : null });
+    const url = `${data.link}#k=${await exportKey(oneOff)}`;
+    setLink({ url, emailedTo: data.emailed ? data.invite.email : null });
+    keepLink(data.invite.id, url);
+    setLinks((l) => ({ ...l, [data.invite.id]: url }));
     setInvites((list) => [...list, { ...data.invite, expiresAt: String(data.invite.expiresAt) }]);
     setSeats((s) => ({ ...s, pending: s.pending + 1, used: s.used + 1 }));
     setEmail("");
@@ -127,28 +191,9 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
   async function cancel(i: Invite) {
     const res = await fetch(`/api/team/invites/${i.id}`, { method: "DELETE" });
     if (!res.ok) return;
+    keepLink(i.id, null);
     setInvites((list) => list.filter((x) => x.id !== i.id));
     setSeats((s) => ({ ...s, pending: s.pending - 1, used: s.used - 1 }));
-  }
-
-  async function changeRole(m: Member, next: Role) {
-    setError(undefined);
-    setSaved(undefined);
-    const res = await fetch(`/api/team/members/${m.userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: next }) });
-    if (!res.ok) return setError((await res.json().catch(() => ({}))).error ?? "Could not change the role");
-    setMembers((list) => list.map((x) => (x.userId === m.userId ? { ...x, role: next } : x)));
-    setSaved({ userId: m.userId, text: next === "ADMIN" ? `Saved. ${m.name} is now an admin, with full access to every client and video.` : `Saved. ${m.name} is now a member: they see the clients assigned to them.` });
-  }
-
-  async function setPerm(m: Member, key: keyof Perms, value: boolean) {
-    setError(undefined);
-    setSaved(undefined);
-    setMembers((list) => list.map((x) => (x.userId === m.userId ? { ...x, perms: { ...x.perms, [key]: value } } : x)));
-    const error = await savePerm(m.userId, key, value);
-    if (error) {
-      setMembers((list) => list.map((x) => (x.userId === m.userId ? { ...x, perms: { ...x.perms, [key]: !value } } : x)));
-      setError(error);
-    } else setSaved({ userId: m.userId, text: permSaved(m.name, key, value) });
   }
 
   /** Asks first, in the page, listing the clients whose links change: the key reset needs everything it re-seals anyway. */
@@ -195,8 +240,12 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
             return { id: l.id, name: names.get(l.id)?.name ?? "Client", email: names.get(l.id)?.email ?? null, link: key ? `${l.link}#k=${await exportKey(key)}` : l.link, firstLink: !l.opened };
           }),
       );
-      setReset({ name: m?.name ?? keyResetNeeded ?? null, removed: !!m, emailed: data.emailed, toSend, recoveryKey: await exportKey(team) });
+      const done: ResetState = { name: m?.name ?? keyResetNeeded ?? null, removed: !!m, emailed: data.emailed, toSend, recoveryKey: await exportKey(team) };
+      setReset(done);
+      keepReset(workspaceId, done);
       setResetDue(false);
+      // Pending invites were cancelled with the old keys.
+      for (const i of invites) keepLink(i.id, null);
       setInvites([]);
       if (m) {
         setMembers((list) => list.filter((x) => x.userId !== m.userId));
@@ -269,8 +318,13 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
         <section className="rounded-2xl border border-line bg-surface p-6">
           <h2 className="font-semibold text-ink">Invite someone</h2>
           <p className="mt-1 text-sm text-dim">
-            Members record, send and reply to the clients assigned to them; you choose what else each one can do below. Admins have full access: they can also invite and remove staff
-            and assign clients. Only the owner can add staff logins or change the plan.
+            Members record, send and reply to the clients assigned to them. Admins have full access: they can also invite and remove staff and assign clients. Only the owner can
+            add staff logins or change the plan.
+          </p>
+          <p className="mt-2 text-sm text-dim" data-testid="invite-defaults">
+            A new member can {permNames(PERMS.filter((p) => defaultPerms[p.key]).map((p) => p.key)) || "record, send and reply"}
+            {PERMS.some((p) => !defaultPerms[p.key]) && `, but not ${permNames(PERMS.filter((p) => !defaultPerms[p.key]).map((p) => p.key), "or")}`}. Once they&apos;ve joined, you
+            change their role and what they can do on the <Link href="/team" className="font-medium text-accent hover:underline">Team page</Link>.
           </p>
           {full && (
             <p className="mt-3 text-sm text-warn-fg" data-testid="logins-full">
@@ -291,6 +345,9 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
             <div className="mt-4 rounded-xl border border-ok-line bg-ok-bg p-4 text-sm" data-testid="invite-created">
               <p className="font-medium text-ok-fg [overflow-wrap:anywhere]">
                 {link.emailedTo ? `We've emailed ${link.emailedTo} to say you invited them. Now send them this link yourself.` : "Send this link to them yourself."} It works once and expires in 7 days.
+              </p>
+              <p className="mt-1 text-xs text-ok-fg" data-testid="invite-kept">
+                This browser keeps it under Waiting to join below until it&apos;s used, cancelled or expires. We can&apos;t show it anywhere else, so copy it now if you&apos;ll send it from another device.
               </p>
               <p data-testid="invite-link" className="mt-2 break-all rounded-lg bg-surface px-3 py-2 font-mono text-xs text-ink">{link.url}</p>
               <button
@@ -318,7 +375,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
           </button>
         </section>
       )}
-      {reset && <ResetDone {...reset} business={business} />}
+      {reset && <ResetDone {...reset} business={business} onKeySaved={() => keepReset(workspaceId, null)} />}
       {confirming?.kind === "remove" && (
         <RemoveDialog member={confirming.member} bundle={confirming.bundle} onCancel={() => setConfirming(undefined)} onConfirm={() => resetKeys(confirming.member, confirming.bundle)} />
       )}
@@ -334,6 +391,11 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
       )}
 
       <section className="rounded-2xl border border-line bg-surface">
+        {canManage && members.some((m) => m.role !== "OWNER") && (
+          <p className="border-b border-line px-6 py-3 text-sm text-dim" data-testid="perms-elsewhere">
+            Each person&apos;s role and what they can do are on the <Link href="/team" className="font-medium text-accent hover:underline">Team page</Link>, beside the clients they look after.
+          </p>
+        )}
         <ul className="divide-y divide-line">
           {members.map((m) => (
             <li key={m.userId} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
@@ -349,35 +411,44 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
                 <p className="text-xs text-dim">{m.email}</p>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                {canManage && m.role !== "OWNER" ? (
-                  <select aria-label={`Role for ${m.name}`} value={m.role} onChange={(e) => changeRole(m, e.target.value as Role)} className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
-                    <option value="MEMBER">Member</option>
-                    <option value="ADMIN">Admin</option>
-                  </select>
-                ) : (
-                  <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted">{ROLE_LABEL[m.role]}</span>
-                )}
+                <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted" data-testid="member-role">{ROLE_LABEL[m.role]}</span>
                 {m.role !== "OWNER" && canManage && m.userId !== meId && (
                   <button onClick={() => remove(m)} disabled={!!removing || !!checking} data-testid="remove-member" className="rounded-lg px-3 py-1.5 text-dim hover:bg-hover hover:text-danger-fg disabled:opacity-50">
                     {removing === m.userId ? "Resetting keys…" : checking === m.userId ? "Checking…" : "Remove"}
                   </button>
                 )}
               </div>
-              {m.role === "MEMBER" && (canManage || m.userId === meId) && (
-                <PermChecks name={m.name} email={m.email} perms={m.perms} self={m.userId === meId} editable={canManage && m.userId !== meId} onChange={(key, value) => setPerm(m, key, value)} />
-              )}
-              {saved?.userId === m.userId && (
-                <p role="status" className="w-full text-sm text-ok-fg" data-testid="member-saved">{saved.text}</p>
-              )}
+
             </li>
           ))}
           {invites.map((i) => (
-            <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-              <div>
-                <p className="font-medium text-muted">{i.email ?? "Invite link"}</p>
+            <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4" data-testid="pending-invite">
+              <div className="min-w-0">
+                <p className="break-words font-medium text-muted">{i.email ?? "Invite link"}</p>
                 <p className="text-xs text-dim">Waiting to join · {ROLE_LABEL[i.role]} · expires {dates.day(new Date(i.expiresAt))}</p>
+                {!links[i.id] && (
+                  <p className="mt-1 text-xs text-dim" data-testid="invite-link-elsewhere">
+                    Its link was shown once, in the browser that made it. Lost it? Cancel this invite and make a new one.
+                  </p>
+                )}
               </div>
-              <button onClick={() => cancel(i)} className="rounded-lg px-3 py-1.5 text-sm text-dim hover:bg-hover hover:text-danger-fg">Cancel invite</button>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                {links[i.id] && (
+                  <button
+                    onClick={async () => {
+                      await writeClipboard(links[i.id]);
+                      setCopiedInvite(i.id);
+                      setTimeout(() => setCopiedInvite((c) => (c === i.id ? undefined : c)), 2000);
+                    }}
+                    data-testid="copy-invite-again"
+                    aria-label={`Copy the invite link${i.email ? ` for ${i.email}` : ""}`}
+                    className="rounded-lg border border-line-strong px-3 py-1.5 font-medium text-ink hover:bg-hover"
+                  >
+                    {copiedInvite === i.id ? "Copied" : "Copy invite link"}
+                  </button>
+                )}
+                <button onClick={() => cancel(i)} className="rounded-lg px-3 py-1.5 text-dim hover:bg-hover hover:text-danger-fg">Cancel invite</button>
+              </div>
             </li>
           ))}
         </ul>
@@ -386,7 +457,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
   );
 }
 
-function ResetDone({ name, removed, emailed, toSend, recoveryKey, business }: { name: string | null; removed: boolean; emailed: number; toSend: ToSend[]; recoveryKey: string; business: string }) {
+function ResetDone({ name, removed, emailed, toSend, recoveryKey, business, onKeySaved }: ResetState & { business: string; onKeySaved: () => void }) {
   const [keySaved, setKeySaved] = useState(false);
   const box = useRef<HTMLElement>(null);
   // The removal was asked for further down the page: bring what to do next into view.
@@ -427,11 +498,14 @@ function ResetDone({ name, removed, emailed, toSend, recoveryKey, business }: { 
         </>
       )}
       {keySaved ? (
-        <p className="mt-4 font-medium" data-testid="new-key-saved">Saved. Use your new recovery key from now on.</p>
+        <p className="mt-4 font-medium" data-testid="new-key-saved">Saved. Use your new recovery key from now on. It&apos;s also under Settings &gt; Account, Show recovery key.</p>
       ) : (
         <div className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-4 text-warn-fg" data-testid="new-key-box">
           <p className="font-medium">Save your new recovery key</p>
-          <p className="mt-1">Your team&apos;s keys changed, so this is your recovery key from now on. Keep it in place of the old one. Anyone else on the team is asked to save it too.</p>
+          <p className="mt-1">
+            Your team&apos;s keys changed, so this is your recovery key from now on. Keep it in place of the old one. Anyone else on the team is asked to save it too. This
+            box stays here until you press I&apos;ve saved it, and the key is always under Settings &gt; Account, Show recovery key.
+          </p>
           <KeyText value={recoveryKey} testId="new-recovery-key" className="mt-2" />
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <KeyActions value={recoveryKey} business={business} tone="warn" />
@@ -440,6 +514,7 @@ function ResetDone({ name, removed, emailed, toSend, recoveryKey, business }: { 
               onClick={async () => {
                 await fetch("/api/workspace/key/saved", { method: "POST" }).catch(() => null);
                 setKeySaved(true);
+                onKeySaved();
               }}
               data-testid="new-key-saved-button"
               className="rounded-lg bg-amber-900 px-3 py-1.5 text-sm font-medium text-white"

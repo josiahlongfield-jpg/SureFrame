@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import type { Membership, Role, User } from "@prisma/client";
 import { db, type Workspace } from "@/lib/db";
-import { hasAgreed, noticePeriod, TERMS_REQUIRED } from "@/lib/terms";
+import { agreementKind, hasAgreed, noticePeriod, TERMS_REQUIRED } from "@/lib/terms";
 import { setViewerZone, TZ_COOKIE } from "@/lib/dates";
 
 /** Shown to staff the plan no longer covers (lib/seatLimits.ts). */
@@ -142,7 +142,15 @@ export const welcomePath = (next: string) => `/welcome?next=${encodeURIComponent
 /** A new owner who hasn't done the one-step welcome yet. Staff are never asked: their business already has a name. */
 export const needsWelcome = (me: { role: Role; user: Pick<User, "onboardedAt"> }) => me.role === "OWNER" && !me.user.onboardedAt;
 
-export async function requirePageUser(next = "/library", { allowPaused = false, allowSuspended = false, allowTermsPending = false, allowWelcome = false } = {}) {
+/**
+ * `allowTermsPending`: true lets anyone who hasn't agreed to the current terms in; "existing" only an account
+ * that agreed to an earlier version (it may have data to download or a subscription to cancel). Someone who has
+ * never agreed, like a new sign-up or a person on their way to join a team, goes to /agree like everywhere else.
+ */
+export async function requirePageUser(
+  next = "/library",
+  { allowPaused = false, allowSuspended = false, allowTermsPending = false as boolean | "existing", allowWelcome = false } = {},
+) {
   const me = await currentUser();
   if (!me) {
     // A closed account just signed in again: offer to keep it.
@@ -155,7 +163,7 @@ export async function requirePageUser(next = "/library", { allowPaused = false, 
   if (me.paused && !allowPaused) redirect("/paused");
   // Not agreed to the current Terms and Privacy Policy yet (lib/terms.ts): only /agree, their account
   // page (to download their data or delete it) and the support console.
-  if (!me.agreed && !allowTermsPending) redirect(agreePath(next));
+  if (!me.agreed && (!allowTermsPending || (allowTermsPending === "existing" && (await agreementKind(me.user)) !== "update"))) redirect(agreePath(next));
   // Just signed up: the business name clients will see, and their own (app/welcome).
   if (me.agreed && needsWelcome(me) && !allowWelcome && !allowTermsPending) redirect(welcomePath(next));
   return me;

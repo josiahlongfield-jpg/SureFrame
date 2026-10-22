@@ -71,7 +71,8 @@ export default async function Welcome({ searchParams }: { searchParams: Promise<
             An owner or admin removed you, so you can&apos;t open that team&apos;s videos or clients any more. If that&apos;s a mistake, ask them for a new invite link.
           </p>
           <p className="mt-2">
-            You can still use {BRAND.name} for your own business below, free. Not what you want?{" "}
+            You can still use {BRAND.name} for your own business below, free. It&apos;s separate from {former.length === 1 ? `${former[0].name}'s team` : "those teams"}, with
+            its own clients and its own recovery key, which you&apos;re shown next. Not what you want?{" "}
             <Link href="/settings/account" className="font-medium underline">Delete this account</Link>.
           </p>
         </div>

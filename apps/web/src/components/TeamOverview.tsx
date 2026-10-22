@@ -17,6 +17,8 @@ const ROLE_LABEL: Record<Role, string> = { OWNER: "Owner", ADMIN: "Admin", MEMBE
 
 /** Staff, what they can do, and who looks after which clients (with bulk reassign). */
 export function Delegations({ meId, initialStaff, initialClients }: { meId: string; initialStaff: OverviewStaff[]; initialClients: OverviewClient[] }) {
+  // Moving clients between people needs at least two people.
+  const alone = initialStaff.length < 2;
   const [staff, setStaff] = useState(initialStaff);
   const [clients, setClients] = useState(initialClients);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -40,6 +42,18 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
     } else setSaved({ userId: s.userId, text: `Saved. ${s.name} ${value ? "can now" : "can no longer"} ${PERMS.find((p) => p.key === key)!.label.toLowerCase()}.` });
   }
 
+  async function changeRole(s: OverviewStaff, role: Role) {
+    setNote(undefined);
+    setSaved(undefined);
+    const res = await fetch(`/api/team/members/${s.userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }) });
+    if (!res.ok) return setNote((await res.json().catch(() => ({}))).error ?? "Could not change the role");
+    setStaff((list) => list.map((x) => (x.userId === s.userId ? { ...x, role } : x)));
+    setSaved({
+      userId: s.userId,
+      text: role === "ADMIN" ? `Saved. ${s.name} is now an admin, with full access to every client and video.` : `Saved. ${s.name} is now a member: they see the clients assigned to them.`,
+    });
+  }
+
   async function assign() {
     setBusy(true);
     setNote(undefined);
@@ -49,7 +63,7 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
     setBusy(false);
     if (!res.ok) return setNote(data.error ?? "Could not assign those clients");
     setClients((list) => list.map((c) => (picked.has(c.id) ? { ...c, assignedToId } : c)));
-    setNote(`${data.updated} ${data.updated === 1 ? "client" : "clients"} ${assignedToId ? `now with ${nameOf(assignedToId)}` : "now unassigned: the owner and admins look after them"}.`);
+    setNote(`Saved. ${data.updated} ${data.updated === 1 ? "client" : "clients"} ${assignedToId ? `now with ${nameOf(assignedToId)}` : "now unassigned: the owner and admins look after them"}.`);
     setPicked(new Set());
   }
 
@@ -67,7 +81,20 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
                   <p className="font-medium text-ink">{s.name}{s.userId === meId && " (you)"}</p>
                   <p className="text-xs text-dim">{s.email}</p>
                 </div>
-                <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted">{ROLE_LABEL[s.role]}</span>
+                {/* The role sits beside what they can do; the owner's, and your own, can't be changed here. */}
+                {s.role !== "OWNER" && s.userId !== meId ? (
+                  <select
+                    aria-label={`Role for ${s.name}`}
+                    value={s.role}
+                    onChange={(e) => changeRole(s, e.target.value as Role)}
+                    className="rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm"
+                  >
+                    <option value="MEMBER">Member</option>
+                    <option value="ADMIN">Admin</option>
+                  </select>
+                ) : (
+                  <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted">{ROLE_LABEL[s.role]}</span>
+                )}
               </div>
               {s.role === "MEMBER" ? (
                 <div className="mt-3">
@@ -83,7 +110,11 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
                   {" · "}client emails: {s.own.message ? "their own message" : "the business's message"}, replies to {s.own.replyTo ?? "the business's reply-to"}
                 </p>
               )}
-              {saved?.userId === s.userId && <p role="status" className="mt-2 text-sm text-ok-fg" data-testid="perm-saved">{saved.text}</p>}
+              {saved?.userId === s.userId && (
+                <p role="status" className="mt-2 text-sm text-ok-fg" data-testid="perm-saved">
+                  {saved.text}
+                </p>
+              )}
               <p className="mt-3 text-sm text-muted" data-testid="looks-after">
                 <span className="font-medium">Looks after:</span>{" "}
                 {theirs.map((c, i) => (
@@ -102,7 +133,8 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
         })}
       </ul>
 
-      <section className="rounded-2xl border border-line bg-surface p-5">
+      {!alone && (
+      <section className="rounded-2xl border border-line bg-surface p-5" data-testid="reassign">
         <h3 className="font-semibold text-ink">Reassign clients</h3>
         <p className="mt-1 text-xs text-dim">Tick clients, then choose who looks after them. Members only see the clients assigned to them, unless they can see all clients. Unassigned clients are looked after by the owner and admins.</p>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
@@ -134,6 +166,7 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
           </button>
         </div>
       </section>
+      )}
       {note && <p role="status" className="text-sm text-muted">{note}</p>}
     </div>
   );

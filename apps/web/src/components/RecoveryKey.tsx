@@ -127,15 +127,39 @@ function SavedNote() {
 }
 
 /** The key with everything needed to keep it, and "I've saved it". Used by the header reminder and the first steps. */
-export function RecoveryKeyBox({ value, business, onSaved, onLater, titled = true }: { value: string; business: string; onSaved: () => void; onLater?: () => void; /** Off inside the first steps, whose step already says it. */ titled?: boolean }) {
+export function RecoveryKeyBox({
+  value,
+  business,
+  onSaved,
+  onLater,
+  titled = true,
+  shared = false,
+}: {
+  value: string;
+  business: string;
+  onSaved: () => void;
+  onLater?: () => void;
+  /** Off inside the first steps, whose step already says it. */
+  titled?: boolean;
+  /** Shown to staff: it's the team's key, the same for everyone on it. */
+  shared?: boolean;
+}) {
   const [saved, setSaved] = useState(false);
   if (saved) return <SavedNote />;
   return (
     <div role="region" aria-label="Save your recovery key" className="rounded-2xl border border-warn-line bg-warn-bg p-5" data-testid="recovery-key-box">
       {titled && <h2 className="mb-1 font-semibold text-warn-fg">Save your recovery key</h2>}
-      <p className="text-sm text-warn-fg">
-        Your videos are end-to-end encrypted on this device. You&apos;ll need this key to open them on another computer, phone or browser. We can&apos;t recover it for you, so keep it somewhere private, like a password manager.
-      </p>
+      {shared ? (
+        <p className="text-sm text-warn-fg" data-testid="recovery-key-shared">
+          This is {business}&apos;s team key: everyone on the team has the same one. Your team&apos;s videos are end-to-end encrypted, and you&apos;ll need it to open them on
+          another computer, phone or browser. It changes when someone is removed from the team, and you&apos;re asked to save the new one then. We can&apos;t recover it for you,
+          so keep it somewhere private, like a password manager, and don&apos;t share it outside the team.
+        </p>
+      ) : (
+        <p className="text-sm text-warn-fg">
+          Your videos are end-to-end encrypted on this device. You&apos;ll need this key to open them on another computer, phone or browser. We can&apos;t recover it for you, so keep it somewhere private, like a password manager.
+        </p>
+      )}
       <KeyText value={value} className="mt-3" />
       <p className="mt-1 text-xs text-warn-fg">Numbers are in colour, so 0 (zero) and O, or 1 and l, can&apos;t be mixed up. Spaces don&apos;t matter.</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -202,7 +226,22 @@ const LATER = "sf-recovery-key-later";
  * one line that opens it again, for the rest of this browser session. Asked
  * again after the team's keys are reset (`note` then says why).
  */
-export default function RecoveryKeyReminder({ workspaceId, fingerprint, business, hiddenOn, note }: { workspaceId: string; fingerprint: string | null; business: string; hiddenOn: string | null; note?: string }) {
+export default function RecoveryKeyReminder({
+  workspaceId,
+  fingerprint,
+  business,
+  hiddenOn,
+  note,
+  shared = false,
+}: {
+  workspaceId: string;
+  fingerprint: string | null;
+  business: string;
+  hiddenOn: string | null;
+  note?: string;
+  /** Staff: the key is the team's, shared by everyone on it. */
+  shared?: boolean;
+}) {
   const router = useRouter();
   const hidden = usePathname() === hiddenOn;
   const { value } = useDeviceKey(workspaceId, fingerprint);
@@ -235,7 +274,7 @@ export default function RecoveryKeyReminder({ workspaceId, fingerprint, business
       {!later ? (
         <>
           {note && <p className="mb-2 text-sm font-medium text-warn-fg">{note}</p>}
-          <RecoveryKeyBox value={value} business={business} onSaved={() => { setSaved(true); router.refresh(); }} onLater={() => remindLater(true)} />
+          <RecoveryKeyBox value={value} business={business} shared={shared} onSaved={() => { setSaved(true); router.refresh(); }} onLater={() => remindLater(true)} />
         </>
       ) : (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warn-line bg-warn-bg px-4 py-2.5 text-sm text-warn-fg">

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fingerprint, importKey, unwrapKey } from "@/lib/e2e/crypto";
 import { saveKey, teamKeyName } from "@/lib/e2e/keystore";
 
@@ -25,6 +25,7 @@ export default function JoinTeam({ token, signedIn, agreed, needsName = false, b
   const [ticked, setTicked] = useState(false);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const nameBox = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fromLink = new URLSearchParams(window.location.hash.slice(1)).get("k");
@@ -37,14 +38,22 @@ export default function JoinTeam({ token, signedIn, agreed, needsName = false, b
     }
   }, [token]);
 
-  async function join() {
+  async function join(e?: React.FormEvent) {
+    e?.preventDefault();
     if (!inviteKey) return;
+    // Clients see this name on every video, so it's needed (the server checks too).
+    if (needsName && !name.trim()) {
+      setError("Enter your name: clients see it on the videos you send.");
+      nameBox.current?.focus();
+      return;
+    }
     setBusy(true);
     setError(undefined);
     try {
       const res = await fetch("/api/team/join", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, ...(agreed ? {} : { agree: ticked }), ...(name.trim() ? { name: name.trim() } : {}) }) });
       const data = await res.json().catch(() => ({}));
       if (res.status === 403 && data.code === "TERMS_REQUIRED") throw new Error("Tick the box to agree to the Terms of Service and Privacy Policy.");
+      if (data.code === "NAME_NEEDED") nameBox.current?.focus();
       if (!res.ok) throw new Error(data.error ?? "Could not join the team");
       const teamKey = await unwrapKey(data.teamKeyWrap, await importKey(inviteKey)).catch(() => {
         throw new Error("This invite link is damaged. Ask for a new one.");
@@ -73,11 +82,26 @@ export default function JoinTeam({ token, signedIn, agreed, needsName = false, b
   return (
     <div className="mt-6 grid gap-3">
       {signedIn ? (
-        <>
+        <form onSubmit={join} noValidate className="grid gap-3">
           {needsName && (
             <label className="grid gap-1 text-sm text-ink">
               <span className="font-medium">Your name</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="name" placeholder="The name your clients know you by" data-testid="join-name" className="rounded-lg border border-line-strong bg-surface px-3 py-2" />
+              <input
+                ref={nameBox}
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setError(undefined);
+                }}
+                required
+                aria-required="true"
+                aria-invalid={!!error && !name.trim() ? true : undefined}
+                maxLength={80}
+                autoComplete="name"
+                placeholder="The name your clients know you by"
+                data-testid="join-name"
+                className="rounded-lg border border-line-strong bg-surface px-3 py-2"
+              />
               <span className="text-xs text-dim">Clients see it on the videos you send, as &ldquo;{name.trim() || "Your name"} from {business}&rdquo;. You can change it later under Settings &gt; Account.</span>
             </label>
           )}
@@ -91,10 +115,10 @@ export default function JoinTeam({ token, signedIn, agreed, needsName = false, b
               </span>
             </label>
           )}
-          <button onClick={join} disabled={busy || (!agreed && !ticked)} data-testid="join-team" className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
+          <button disabled={busy || (!agreed && !ticked)} data-testid="join-team" className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
             {busy ? "Joining…" : agreed ? "Join the team" : "Agree and join"}
           </button>
-        </>
+        </form>
       ) : (
         <Link href={`/login?next=${encodeURIComponent(`/join/${token}`)}`} className="rounded-xl bg-primary px-4 py-3 text-center font-semibold text-on-primary hover:bg-primary-hover">
           Sign in to join

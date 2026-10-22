@@ -24,7 +24,7 @@ export const metadata: Metadata = { title: "Team" };
 
 /** A number cell: a labelled line on phones (the label comes from data-label), a plain cell from tablets up. */
 const CELL = "flex justify-between gap-3 py-0.5 before:text-dim before:content-[attr(data-label)] md:table-cell md:px-4 md:py-2.5 md:before:content-none";
-export default async function TeamOverviewPage({ searchParams }: { searchParams: Promise<{ days?: string; stale?: string; ws?: string }> }) {
+export default async function TeamOverviewPage({ searchParams }: { searchParams: Promise<{ days?: string; ws?: string }> }) {
   await followTeamLink((await searchParams).ws, "/team");
   const me = await requirePageUser("/team");
   const { user, workspace, role } = me;
@@ -38,7 +38,8 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
   if (alone && !TEAM_PLANS.includes(workspace.plan)) redirect("/settings/team");
   const q = await searchParams;
   const days = PERIODS.find((p) => String(p) === q.days) ?? 30;
-  const staleDays = Math.min(365, Math.max(1, Number.parseInt(q.stale ?? "", 10) || 14));
+  // One time control: a client is quiet with no video in the same period the numbers cover.
+  const staleDays = days;
 
   const [members, clients, videos, notices, stats] = await Promise.all([
     db.membership.findMany({ where: { workspaceId: workspace.id }, include: { user: true }, orderBy: { id: "asc" } }),
@@ -61,10 +62,11 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
   const now = new Date();
   const rows: { id: string; r: StaffStats }[] = [
     ...stats.staff.map((r) => ({ id: r.userId!, r })),
-    ...(stats.shared.staleClients || stats.shared.unanswered || stats.shared.overdueTodos ? [{ id: "shared", r: stats.shared }] : []),
+    // "Unassigned clients" only means something once there's someone to assign them to.
+    ...(!alone && (stats.shared.staleClients || stats.shared.unanswered || stats.shared.overdueTodos) ? [{ id: "shared", r: stats.shared }] : []),
     { id: "all", r: stats.overall },
   ];
-  const q2 = (o: { days?: number; stale?: number }) => `/team?days=${o.days ?? days}&stale=${o.stale ?? staleDays}#monitoring`;
+  const q2 = (o: { days?: number }) => `/team?days=${o.days ?? days}#monitoring`;
 
   return (
     <>
@@ -74,8 +76,12 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
         <p className="mt-1 text-sm text-dim">
           Who looks after which clients, what each staff member can do, and how the business is keeping up. Only owners and admins see this page.{" "}
           <Link href="/settings/team" className="font-medium text-accent hover:underline">Invite or remove staff</Link>
-          {" · "}
-          <a href="#remind" className="font-medium text-accent hover:underline">Remind staff</a>
+          {!alone && (
+            <>
+              {" · "}
+              <a href="#remind" className="font-medium text-accent hover:underline">Remind staff</a>
+            </>
+          )}
           {" · "}
           <Link href="/settings/account#emails" className="font-medium text-accent hover:underline">Emails to you</Link>
         </p>
@@ -88,9 +94,10 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
 
         <section id="monitoring" className="mt-8">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <h2 className="text-lg font-semibold text-ink">How the team is doing</h2>
+            <h2 className="text-lg font-semibold text-ink">{alone ? "How your clients are doing" : "How the team is doing"}</h2>
             <div className="flex flex-wrap items-center gap-3 text-sm">
-              <nav aria-label="Period" className="flex gap-1 rounded-lg bg-surface-2 p-1">
+              <span className="text-muted" id="period-label">Last</span>
+              <nav aria-labelledby="period-label" className="flex gap-1 rounded-lg bg-surface-2 p-1" data-testid="period">
                 {PERIODS.map((p) => (
                   <Link key={p} href={q2({ days: p })} aria-current={p === days ? "page" : undefined}
                     className={`rounded-md px-3 py-1 ${p === days ? "bg-surface font-medium text-ink shadow-sm" : "text-muted hover:text-ink"}`}>
@@ -98,16 +105,12 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
                   </Link>
                 ))}
               </nav>
-              <form action="/team" className="flex items-center gap-1.5">
-                <input type="hidden" name="days" value={days} />
-                <label className="text-muted" htmlFor="stale">No video in</label>
-                <input id="stale" name="stale" type="number" min={1} max={365} defaultValue={staleDays} className="w-16 rounded-lg border border-line-strong px-2 py-1" />
-                <span className="text-muted">days</span>
-                <button className="rounded-lg border border-line-strong px-2 py-1 hover:bg-hover">Update</button>
-              </form>
             </div>
           </div>
-          {/* A table from tablets up; on phones each person is a small card with the column names beside the numbers. */}
+          {/* A table from tablets up; on phones each person is a small card with the column names beside the numbers.
+              On your own, a table of one person against "whole business" says nothing the lists below don't. */}
+          {!alone && (
+          <>
           <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-surface md:overflow-x-auto">
             <table className="block w-full text-sm md:table md:min-w-[40rem]" data-testid="team-stats">
               <thead className="hidden text-left text-xs uppercase tracking-wide text-dim md:table-header-group">
@@ -136,8 +139,10 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
           </div>
           <p className="mt-2 text-xs text-dim">
             Last {days} days. Videos sent counts videos sent to clients, by who recorded them (a former team member&apos;s count only towards the whole business). Reply time runs from a client&apos;s reply to the team&apos;s next reply in that conversation.
-            Worked out from dates only; nothing encrypted is read.
+            Clients added in that time who haven&apos;t had a video yet are listed under No video yet, not counted as quiet. Worked out from dates only; nothing encrypted is read.
           </p>
+          </>
+          )}
 
           <div className="mt-5 grid gap-5 lg:grid-cols-2">
             <div className="rounded-2xl border border-line bg-surface p-5">
@@ -160,7 +165,9 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
             <div className="rounded-2xl border border-line bg-surface p-5">
               <h3 className="font-semibold text-ink">Overdue and quiet</h3>
               {stats.overdue.length === 0 && stats.stale.length === 0 ? (
-                <p className="mt-2 text-sm text-dim">Nothing overdue, and every client had a video in the last {staleDays} days.</p>
+                <p className="mt-2 text-sm text-dim">
+                  Nothing overdue, and every client had a video in the last {staleDays} days{stats.noVideoYet.length ? " (apart from new clients, below)" : ""}.
+                </p>
               ) : (
                 <ul className="mt-2 divide-y divide-line text-sm" data-testid="overdue">
                   {stats.overdue.slice(0, 30).map((t) => (
@@ -174,22 +181,45 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
                   {stats.stale.slice(0, 30).map((s) => (
                     <li key={s.clientId}>
                       <Link href={`/clients/${s.clientId}`} className="flex flex-col gap-0.5 py-2 hover:text-accent sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                        <span><span className="font-medium">{s.clientName}</span> · {s.lastVideoAt ? `no video for ${duration(now.getTime() - s.lastVideoAt.getTime())}` : "no video yet"}</span>
+                        <span>
+                          <span className="font-medium">{s.clientName}</span> ·{" "}
+                          {s.lastVideoAt ? `no video for ${duration(now.getTime() - s.lastVideoAt.getTime())}` : `no video since they were added ${duration(now.getTime() - s.addedAt.getTime())} ago`}
+                        </span>
                         <span className="text-xs text-dim sm:shrink-0">{nameOf(s.staffId)}</span>
                       </Link>
                     </li>
                   ))}
                 </ul>
               )}
+              {stats.noVideoYet.length > 0 && (
+                <>
+                  <h4 className="mt-4 text-sm font-semibold text-ink">No video yet</h4>
+                  <p className="text-xs text-dim">Added in the last {staleDays} days.</p>
+                  <ul className="mt-1 divide-y divide-line text-sm" data-testid="no-video-yet">
+                    {stats.noVideoYet.slice(0, 30).map((s) => (
+                      <li key={s.clientId}>
+                        <Link href={`/clients/${s.clientId}`} className="flex flex-col gap-0.5 py-2 hover:text-accent sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                          <span><span className="font-medium">{s.clientName}</span> · added {dates.shortDay(s.addedAt)}</span>
+                          {!alone && <span className="text-xs text-dim sm:shrink-0">{nameOf(s.staffId)}</span>}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
           </div>
         </section>
 
+        {/* On your own there's nobody to remind: only reminders sent before are kept here. */}
+        {(!alone || notices.length > 0) && (
         <section id="remind" className="mt-10 scroll-mt-6">
-          <h2 className="text-lg font-semibold text-ink">Remind staff</h2>
+          {!alone && <h2 className="text-lg font-semibold text-ink">Remind staff</h2>}
+          {!alone && (
           <div className="mt-3">
             <StaffReminderForm meId={user.id} staff={staff} clients={clients} videos={videos} />
           </div>
+          )}
           {notices.length > 0 && (
             <div className="mt-4 rounded-2xl border border-line bg-surface p-5">
               <h3 className="font-semibold text-ink">Sent reminders</h3>
@@ -207,6 +237,7 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
             </div>
           )}
         </section>
+        )}
 
         <section className="mt-10">
           <h2 className="text-lg font-semibold text-ink">Staff and clients</h2>

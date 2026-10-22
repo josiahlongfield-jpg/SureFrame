@@ -25,7 +25,7 @@ export const metadata: Metadata = { title: "Account" };
 export default async function AccountSettings({ searchParams }: { searchParams: Promise<{ error?: string; saved?: string }> }) {
   const { error, saved } = await searchParams;
   // Before agreeing to the current terms (lib/terms.ts), only the data download and account deletion are here.
-  const { user, workspace, role, membership, paused, agreed } = await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: true });
+  const { user, workspace, role, membership, paused, agreed } = await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: "existing" });
   const limited = paused || !agreed;
   const onTeam = role === "MEMBER" || (await db.membership.count({ where: { workspaceId: workspace.id } })) > 1;
   // Owners and admins choose here which client replies and staff activity they're emailed about.
@@ -48,7 +48,7 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
   // Turned on or off here while signed in, the same as ticking the box at sign-in, from now.
   async function keepDevice(form: FormData) {
     "use server";
-    await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: true });
+    await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: "existing" });
     const on = form.get("keep") === "1";
     const jar = await cookies();
     jar.set(ACTIVITY_COOKIE, String(Date.now()), activityCookie(undefined, on));
@@ -69,7 +69,7 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
 
   async function remove(form: FormData) {
     "use server";
-    const { user } = await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: true });
+    const { user } = await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: "existing" });
     const typed = String(form.get("confirm") ?? "").trim().toLowerCase();
     if (typed !== user.email.toLowerCase()) redirect("/settings/account?error=confirm");
     let refused: "team" | "failed" | null = null;

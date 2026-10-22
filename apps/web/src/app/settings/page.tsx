@@ -7,17 +7,18 @@ import { PLANS } from "@/lib/plans";
 import { requirePageUser } from "@/lib/session";
 import { settingsPages } from "@/lib/settingsMenu";
 import { isSupportAgent } from "@/lib/support/tickets";
+import { switchableBusinesses } from "@/lib/team";
 
 export const metadata: Metadata = { title: "Settings" };
 
 /** /settings itself: the settings pages this person can use, each with a line on what it's for. */
 export default async function Settings() {
-  const me = await requirePageUser("/settings", { allowPaused: true, allowTermsPending: true });
+  const me = await requirePageUser("/settings", { allowPaused: true, allowTermsPending: "existing" });
   // Paused staff, and anyone yet to agree to the current terms, can only use their Account page.
   if (me.paused || !me.agreed) redirect("/settings/account");
   const manager = me.role !== "MEMBER";
   const teamSize = manager ? await db.membership.count({ where: { workspaceId: me.workspace.id } }) : 1;
-  const pages = settingsPages({ manager, teamSize, plan: me.workspace.plan, workspaces: me.user.memberships.length, supportAgent: isSupportAgent(me.user.email) });
+  const pages = settingsPages({ manager, teamSize, plan: me.workspace.plan, workspaces: switchableBusinesses(me.user.memberships, me.workspace.id).length, supportAgent: isSupportAgent(me.user.email) });
   return (
     <>
       <AppHeader email={me.user.email} plan={PLANS[me.workspace.plan].name} />

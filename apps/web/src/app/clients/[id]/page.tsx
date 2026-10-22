@@ -11,6 +11,7 @@ import { followTeamLink, requirePageUser } from "@/lib/session";
 import { reminderDefaultsFor } from "@/lib/reminders";
 import ClientEmail from "@/components/ClientEmail";
 import ClientName from "@/components/ClientName";
+import ClientAssignee from "@/components/ClientAssignee";
 import { accessOf, canSeeClient } from "@/lib/permissions";
 import { zoned } from "@/lib/dates";
 import { activeMember } from "@/lib/team";
@@ -64,6 +65,17 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
           <div className="min-w-0">
             <ClientName clientId={client.id} initial={client.name} />
             <ClientEmail clientId={client.id} firstName={client.name.split(" ")[0]} initial={client.email} optedOut={client.remindersOff} />
+            {/* On a team: who looks after them, and (owners and admins) the same control as on the Clients list. */}
+            {team.length > 1 && (
+              <ClientAssignee
+                clientId={client.id}
+                clientName={client.name}
+                initial={assigned ? client.assignedToId : null}
+                staff={team.map((m) => ({ id: m.userId, name: m.user.name ?? m.user.email.split("@")[0] }))}
+                meId={user.id}
+                canAssign={me.role !== "MEMBER"}
+              />
+            )}
           </div>
           {!client.linkDisabledAt && client.linkOpenedAt && <CopyClientLink {...linkProps} />}
         </div>
