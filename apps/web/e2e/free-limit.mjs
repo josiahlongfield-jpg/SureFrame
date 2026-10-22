@@ -219,12 +219,13 @@ ok("home: headline and sub-line", home.includes("One take is") && home.includes(
 for (const t of ["Saved as you record", "End-to-end encrypted", "No account or expense for clients", "Paid add-ons: AI and backup", "Ready when you are", "Free bonus for Claude users"]) ok(`home: point "${t}"`, home.includes(t));
 ok("home: the device copy is only until the upload finishes", home.includes("with a copy on your device until the upload finishes") && !home.includes("backed up on your device"));
 ok("home: eight feature tabs", (await visitor.locator("[role=tab]").count()) === 8);
-ok("home: removed staff can't open anything through SureFrame", home.includes("your team's keys and every client link are reset, so they can't open anything through SureFrame again."));
+ok("home: removed staff can't open anything through SureFrame, and clients are emailed a new link (V9)", home.includes("we reset your team's keys and every client's link, so they can't open anything through SureFrame again.") && home.includes("Clients who've opened their link are emailed a new one"));
 await visitor.goto(BASE + "/pricing");
 const pricing = await visitor.textContent("main");
 ok("pricing: Studio badge says Best for teams", pricing.includes("Best for teams") && !pricing.includes("Most popular"));
 ok("pricing: Free lists 25 videos in total", pricing.includes("25 videos in total"));
-ok("pricing: footnote says deleting doesn't give a place back", pricing.includes("Free includes 25 videos in total, not per month") && pricing.includes("give its place back"));
+// Said once, in The Free plan in full (V20).
+ok("pricing: Free plan in full says in total, not per month, and deleting doesn't give a place back", pricing.includes("25 videos in total for the life of the workspace, not per month") && pricing.includes("give its place back"));
 // The first screen fits narrow phones without sideways scrolling.
 for (const width of [320, 360, 375]) {
   const phone = await (await browser.newContext({ viewport: { width, height: 740 } })).newPage();

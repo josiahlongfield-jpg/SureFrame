@@ -296,7 +296,10 @@ await visitor.goto(BASE + "/signup");
 ok("/signup: worded for a new account", norm(await visitor.textContent("[data-testid=login-heading]")) === "Create your free account");
 ok("/signup: the email box is ready to type in (V62)", await visitor.evaluate(() => document.activeElement?.getAttribute("name") === "email"));
 await visitor.goto(`${BASE}/login?next=${encodeURIComponent("/pricing?plan=STUDIO&interval=year")}`);
-ok("sign-in after Get Studio says it comes back to that plan (V18)", norm(await visitor.textContent("main")).includes("Sign in or create your account; we'll bring you back to Studio (yearly).") && (await visitor.evaluate(() => document.activeElement?.getAttribute("name") === "email")));
+await seen(visitor, "[data-testid=login-heading]");
+const backTo = norm(await visitor.textContent("main"));
+const focusedBox = await visitor.evaluate(() => document.activeElement?.getAttribute("name"));
+ok("sign-in after Get Studio says it comes back to that plan (V18)", backTo.includes("Sign in or create your account; we'll bring you back to Studio (yearly).") && focusedBox === "email", `${focusedBox} | ${backTo.slice(0, 200)}`);
 await visitor.goto(BASE + "/signup");
 const order = await visitor.evaluate(() => {
   const keep = document.querySelector("[data-testid=keep-signed-in]");
