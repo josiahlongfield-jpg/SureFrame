@@ -6,6 +6,8 @@ import { teamEmail } from "@/lib/teamEmail";
 import { appUrl } from "@/lib/stripe";
 import { teamPath } from "@/lib/teamLink";
 import { activeMember } from "@/lib/team";
+import { zoned } from "@/lib/dates";
+import { videoLabel } from "@/lib/videoTitle";
 
 /**
  * Team emails about client replies and videos sent by staff. Each event is
@@ -129,11 +131,17 @@ export async function flushGroup(userId: string, kind: TeamNotificationKind, gro
   if (kind === "CLIENT_REPLY") {
     const name = clientName(pending[0].clientId);
     const n = pending.length;
+    // Which video: its title (titles aren't encrypted), or when it was recorded while it has none (O72).
+    const video = await db.video.findUnique({ where: { id: groupKey }, select: { title: true, createdAt: true, source: { select: { title: true, createdAt: true } } } });
+    const which = video ? videoLabel(video.source?.title ?? video.title, video.source?.createdAt ?? video.createdAt, zoned(ws.timezone).day) : null;
+    const titled = !!which && !which.startsWith("the video");
     mail = teamEmail({
       business: ws.name,
       // Owners and admins following along get these too, so not "your video".
-      subject: n === 1 ? `${name} replied` : `${name} sent ${n} replies`,
-      lead: n === 1 ? `${name} replied to a video from ${ws.name}.` : `${name} sent ${n} replies to a video from ${ws.name}.`,
+      subject: `${n === 1 ? `${name} replied` : `${name} sent ${n} replies`}${titled ? ` to ${which}` : ""}`,
+      lead: which
+        ? `${name} ${n === 1 ? "replied" : `sent ${n} replies`} to ${which}${titled ? `, a video from ${ws.name}` : ` from ${ws.name}`}.`
+        : n === 1 ? `${name} replied to a video from ${ws.name}.` : `${name} sent ${n} replies to a video from ${ws.name}.`,
       button: { label: "Open the conversation", link: appUrl(`/v/${groupKey}?team=1`) },
       footer: "For privacy, replies are only shown in the app. Choose which emails you get under Settings > Account, Emails to you.",
       logoUrl: brand.logoUrl,

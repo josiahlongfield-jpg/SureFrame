@@ -156,8 +156,10 @@ export async function requirePageUser(next = "/library", { allowPaused = false, 
   // Not agreed to the current Terms and Privacy Policy yet (lib/terms.ts): only /agree, their account
   // page (to download their data or delete it) and the support console.
   if (!me.agreed && !allowTermsPending) redirect(agreePath(next));
-  // Just signed up: the business name clients will see, and their own (app/welcome).
-  if (me.agreed && needsWelcome(me) && !allowWelcome && !allowTermsPending) redirect(welcomePath(next));
+  // Just signed up: the business name clients will see, and their own (app/welcome). Every app page waits for it,
+  // Settings > Account and Billing too, so none shows the "<email>'s workspace" placeholder as a business (O4, O11).
+  // The support console (allowSuspended) is left alone.
+  if (me.agreed && needsWelcome(me) && !allowWelcome && !allowSuspended) redirect(welcomePath(next));
   return me;
 }
 

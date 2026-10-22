@@ -15,7 +15,9 @@ import AiNotice from "./AiNotice";
 import LostKey from "./LostKey";
 import RecoverUploads from "./RecoverUploads";
 import SureFramePromo from "./SureFramePromo";
+import Link from "next/link";
 import SendPanel from "./SendPanel";
+import { useTitleSaver } from "./useTitleSaver";
 import ConfirmDialog from "./ConfirmDialog";
 import { readyIn, recoverInterrupted } from "@/lib/recorder/uploader";
 import { useVideoFrame } from "@/lib/videoFrame";
@@ -111,6 +113,12 @@ type Props = {
   sourceId?: string | null;
   /** Members only: the library already has a still of this recording (lib/thumb.ts). */
   hasThumb?: boolean;
+  /** Members only: this page was opened by Stop, straight after recording (/v/<id>?new=1). */
+  justRecorded?: boolean;
+  /** Members only, just recorded: the client the person's last video went to, chosen already in the Send box. */
+  lastClientId?: string | null;
+  /** Members only, without the AI add-on: where transcripts and summaries would be, and how to get them. */
+  aiPlaceholder?: "free" | "owner" | "staff";
 };
 
 /**
@@ -217,6 +225,9 @@ function WatchBody({
   promo,
   hasThumb = true,
   sourceId = null,
+  justRecorded = false,
+  lastClientId = null,
+  aiPlaceholder,
   rootKey,
   teamKey,
 }: Props & { canEdit: boolean; rootKey: CryptoKey; teamKey?: CryptoKey }) {
@@ -573,7 +584,6 @@ function WatchBody({
     composer.current?.focus();
   }
 
-  const [titleSaved, setTitleSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const titleBox = useRef<HTMLTextAreaElement>(null);
   // The title box grows with its text, so a long title wraps instead of being cut off.
@@ -592,21 +602,13 @@ function WatchBody({
     void document.fonts?.ready.then(fit);
     return () => watch.disconnect();
   }, [title]);
-  const lastTitle = useRef(video.title);
-  async function saveTitle() {
-    const next = title.replace(/\s+/g, " ").trim();
-    if (!next) return setTitle(lastTitle.current);
-    if (next === lastTitle.current) return;
-    const res = await fetch(`/api/videos/${video.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: next }),
-    }).catch(() => null);
-    if (!res?.ok) return alert((await res?.json().catch(() => ({})))?.error ?? "Couldn't save the new title. Check your connection and try again.");
-    lastTitle.current = next;
-    setTitle(next);
-    setTitleSaved(true);
-    setTimeout(() => setTitleSaved(false), 2500);
+  // Saved as it's typed and whenever the page is left, so a typed title is never lost (O52, O64).
+  const titles = useTitleSaver(video.id, video.title);
+  function leaveTitle() {
+    // An emptied box goes back to the saved title; anything else is tidied and saved now.
+    if (!title.trim()) return setTitle(titles.saved.current);
+    setTitle(title.replace(/\s+/g, " ").trim());
+    void titles.flush();
   }
 
   // Asked in the page (not the browser's own confirm box), like every other delete.
@@ -710,6 +712,12 @@ function WatchBody({
           </div>
         )}
 
+        {/* Straight after Stop: say it's safe, and what's next (O28). */}
+        {canEdit && justRecorded && !sentToId && (
+          <p role="status" className="mt-4 rounded-xl border border-ok-line bg-ok-bg px-3 py-2 text-sm text-ok-fg" data-testid="just-saved">
+            Saved. Give it a title and choose who it&apos;s for below.
+          </p>
+        )}
         <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="min-w-0 sm:flex-1">
             {canEdit ? (
@@ -720,9 +728,13 @@ function WatchBody({
                     value={title}
                     rows={1}
                     maxLength={200}
-                    onChange={(e) => setTitle(e.target.value.replace(/\n/g, " "))}
+                    onChange={(e) => {
+                      const t = e.target.value.replace(/\n/g, " ");
+                      setTitle(t);
+                      titles.change(t);
+                    }}
                     onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), e.currentTarget.blur())}
-                    onBlur={saveTitle}
+                    onBlur={leaveTitle}
                     aria-label="Video title"
                     className="min-w-0 flex-1 resize-none overflow-hidden rounded-lg border border-line bg-transparent px-2 py-1 text-2xl font-semibold leading-snug text-ink [overflow-wrap:break-word] hover:border-line-strong focus:border-primary focus:outline-none"
                   />
@@ -737,7 +749,13 @@ function WatchBody({
                   </button>
                 </div>
                 <p className="mt-1 px-1 text-xs text-dim">
-                  {titleSaved ? <span className="font-medium text-ok-fg" role="status" data-testid="title-saved">Saved. </span> : null}
+                  {titles.state === "saving" ? (
+                    <span className="font-medium text-dim" role="status" data-testid="title-saving">Saving… </span>
+                  ) : titles.state === "saved" ? (
+                    <span className="font-medium text-ok-fg" role="status" data-testid="title-saved">Saved. </span>
+                  ) : titles.error ? (
+                    <span className="font-medium text-danger-fg" role="alert" data-testid="title-error">{titles.error} </span>
+                  ) : null}
                   Titles aren&apos;t encrypted, so keep private details in the video or your message.
                 </p>
               </>
@@ -847,6 +865,19 @@ function WatchBody({
 
         {/* The team's AI summary near the top, straight above the message to the client (only with the add-on). */}
         {canEdit && aiBox}
+        {/* Without the add-on, one quiet line where it would be, so an owner knows where it shows up (O67, O87). Not an offer box. */}
+        {canEdit && !aiBox && aiPlaceholder && !expired && (
+          <p className="mt-5 text-xs text-dim" data-testid="ai-placeholder">
+            AI transcripts and summaries show here when the AI add-on is on.{" "}
+            {aiPlaceholder === "owner" ? (
+              <Link href="/settings/billing" className="font-medium text-accent hover:underline">Add it in Settings &gt; Billing</Link>
+            ) : aiPlaceholder === "free" ? (
+              <>It&apos;s for paid plans. <Link href="/pricing" className="font-medium text-accent hover:underline">See plans</Link></>
+            ) : (
+              "The owner can add it."
+            )}
+          </p>
+        )}
         {canEdit && <MessageEditor videoId={video.id} rootKey={rootKey} sealed={sealedMessage} to={recipient?.name ?? null} />}
 
         {canEdit && recipient?.removed && (
@@ -871,7 +902,8 @@ function WatchBody({
             hasReplies={replies.length > 0}
             rootKey={rootKey}
             teamKey={teamKey}
-            onTitle={(t) => ((lastTitle.current = t), setTitle(t))}
+            onTitle={(t) => (titles.adopt(t), setTitle(t))}
+            preselect={justRecorded ? lastClientId : null}
           />
         )}
 

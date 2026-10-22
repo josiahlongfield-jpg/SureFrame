@@ -302,7 +302,7 @@ ok("Library marks videos of a removed client", badges.length === 3 && badges.eve
 await owner2.goto(`${BASE}/clients`);
 const removedList = norm(await owner2.textContent("[data-testid=removed-clients]", { timeout: 30000 }).catch(() => ""));
 ok("Removed clients: says recordings without cloud backup leave on their own dates", removedList.includes("Recordings without cloud backup still leave our servers on their usual dates before then"), removedList);
-ok("Removed clients: each with its deletion date", removedList.includes(`Xan ${stamp}`) && removedList.includes(`Wes ${stamp}`) && removedList.includes("deleted for good after") && !removedList.includes(`Bea ${stamp}`), removedList);
+ok("Removed clients: each with its deletion date", removedList.includes(`Xan ${stamp}`) && removedList.includes(`Wes ${stamp}`) && removedList.includes("deleted for good on") && !/GMT|[AP]M/.test(removedList.split("deleted for good on")[1] ?? "") && !removedList.includes(`Bea ${stamp}`), removedList);
 
 // ---- Members ----
 const member = await signIn(memberEmail, "/clients");

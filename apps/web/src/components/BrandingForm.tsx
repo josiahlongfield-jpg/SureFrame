@@ -178,10 +178,11 @@ export default function BrandingForm(props: { workspaceId: string; name: string;
             disabled={busy || !!problem || !dirty || !trimmed}
             className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60"
           >
-            {busy ? "Saving…" : "Save branding"}
+            {/* Just saved and unchanged since: the button says so too, as well as the line beside it (O102). */}
+            {busy ? "Saving…" : msg?.ok && !dirty ? "Saved ✓" : "Save branding"}
           </button>
-          {msg ? (
-            <p role="status" className={`text-sm ${msg.ok ? "text-ok-fg" : "text-danger-fg"}`}>{msg.text}</p>
+          {msg && (msg.ok ? !dirty : true) ? (
+            <p role="status" className={`text-sm font-medium ${msg.ok ? "text-ok-fg" : "text-danger-fg"}`} data-testid="branding-saved">{msg.text}</p>
           ) : dirty ? (
             <p className="text-sm text-warn-fg" data-testid="unsaved">Not saved yet. The preview shows your changes; clients still see the saved version.</p>
           ) : null}

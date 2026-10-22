@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import Logo from "@/components/Logo";
 import { checkAuthorize, errorRedirect, issueCode } from "@/lib/connector/oauth";
 import { LEGAL } from "@/lib/legal";
@@ -22,7 +23,16 @@ export default async function Authorize({ searchParams }: { searchParams: Promis
   const q = pick(await searchParams);
   const checked = await checkAuthorize(q);
   if ("back" in checked) redirect(checked.back);
-  if ("page" in checked) return <Shell><p className="mt-6 text-muted" data-testid="authorize-invalid">{checked.page}</p></Shell>;
+  if ("page" in checked)
+    return (
+      <Shell>
+        <p className="mt-6 text-muted" data-testid="authorize-invalid">{checked.page}</p>
+        {/* Not a dead end (O97): back to where connections are set up. */}
+        <Link href="/settings/connections" className="mt-4 inline-block text-sm font-medium text-accent underline" data-testid="authorize-back">
+          Go to Settings &gt; Connections
+        </Link>
+      </Shell>
+    );
   const me = await requirePageUser(here(q));
   const request = checked.ok;
   const host = new URL(request.redirectUri).host;
@@ -41,13 +51,13 @@ export default async function Authorize({ searchParams }: { searchParams: Promis
 
   return (
     <Shell>
-      <h1 className="mt-10 text-2xl font-semibold tracking-tight text-ink" data-testid="authorize-heading">
+      <h1 className="mt-6 text-xl font-semibold tracking-tight text-ink" data-testid="authorize-heading">
         Let {request.client.name} read your {LEGAL.product} activity?
       </h1>
       <p className="mt-3 text-muted">
         Signed in as <span className="font-medium text-ink">{me.user.email}</span> for <span className="font-medium text-ink">{me.workspace.name}</span>.
       </p>
-      <div className="mt-6 grid gap-2 rounded-xl border border-line bg-surface p-4 text-sm text-muted">
+      <div className="mt-6 grid gap-2 rounded-xl border border-line bg-surface-2 p-4 text-sm text-muted">
         <p className="font-medium text-ink">It will be able to see, for the clients you can see:</p>
         <ul className="grid list-disc gap-1 pl-5">
           <li>client names and who looks after them</li>
@@ -80,7 +90,7 @@ export default async function Authorize({ searchParams }: { searchParams: Promis
         >
           Allow
         </button>
-        <button name="decision" value="cancel" className="rounded-xl border border-line px-5 py-3 font-medium text-ink hover:bg-surface-2">
+        <button name="decision" value="cancel" className="rounded-xl border border-line-strong px-5 py-3 font-medium text-ink hover:bg-surface-2">
           Cancel
         </button>
       </form>
@@ -88,11 +98,18 @@ export default async function Authorize({ searchParams }: { searchParams: Promis
   );
 }
 
+/** The same navy frame as the sign-in step before it, so the hand-off from Claude reads as one flow (D9). */
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main data-theme="fresh" className="text-ink mx-auto max-w-lg px-4 py-12 sm:px-6 sm:py-16">
-      <Logo href="/library" />
-      {children}
+    <main data-theme="navy" className="fit-screen navy-glow text-ink px-4 py-4 short:py-2">
+      <div className="w-full max-w-lg rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8 short:p-4">
+        <Logo tone="dark" />
+        {children}
+        <p className="mt-6 border-t border-line pt-4 text-xs text-dim">
+          <Link href="/settings/connections" className="font-medium text-accent hover:underline">Settings &gt; Connections</Link> lists every connection, and
+          disconnects any.
+        </p>
+      </div>
     </main>
   );
 }

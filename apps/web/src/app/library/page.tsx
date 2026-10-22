@@ -56,6 +56,10 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // "Deleting soon": server copies deleted within a week (no cloud backup), soonest first.
   const soonWhere: Prisma.VideoWhereInput = { ...scope, AND: [{ purgeAt: { not: null, lte: new Date(Date.now() + 7 * 86_400_000) } }, { status: { notIn: ["EXPIRED", "RECORDING"] } }] };
   const soon = filter === "soon";
+  // "With replies" (D12): videos a client has replied to, newest reply first, so replies are found without opening each video.
+  const clientReply = { authorUserId: null, ...visibleReplies };
+  const repliesWhere: Prisma.VideoWhereInput = { AND: [scope, { OR: [{ replies: { some: clientReply } }, { copies: { some: { replies: { some: clientReply } } } }] }] };
+  const replied = filter === "replies" && !soon;
   const clients = await db.client.findMany({ where: { ...clientScopeWhere(access), removedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } });
   const clientId = clients.some((c) => c.id === rawClient) ? rawClient! : "";
   const searching = !!q || !!clientId;
@@ -65,10 +69,10 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     ...(q ? [{ OR: [{ title: contains }, { client: { name: contains } }, { copies: { some: { client: { name: contains } } } }] }] : []),
     ...(clientId ? [{ OR: [{ clientId }, { copies: { some: { clientId } } }] }] : []),
   ];
-  const [videos, soonCount, allowance] = await Promise.all([
+  const [found, soonCount, allowance, repliedCount] = await Promise.all([
     // Copies sent to other clients count their views and replies towards the original, and name who it went to.
     db.video.findMany({
-      where: { AND: [soon ? soonWhere : scope, ...search] },
+      where: { AND: [soon ? soonWhere : replied ? repliesWhere : scope, ...search] },
       orderBy: soon ? { purgeAt: "asc" } : { createdAt: "desc" },
       include: {
         copies: { select: { id: true, viewCount: true, client: { select: { id: true, name: true, assignedToId: true, removedAt: true } } } },
@@ -79,7 +83,9 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     }),
     db.video.count({ where: soonWhere }),
     plan.maxVideos !== null ? videosUsed(workspace.id) : null,
+    db.video.count({ where: repliesWhere }),
   ]);
+  let videos = found;
   // The client's replies in each conversation (the team's own aren't news), newest first, with when they came,
   // so each device can tell which it hasn't seen (components/LibraryTools.tsx). Held and uploading replies don't count yet.
   const convIds = videos.flatMap((v) => [v.id, ...v.copies.map((c) => c.id)]);
@@ -90,6 +96,9 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   for (const r of clientReplies) fromClients.set(r.videoId, [...(fromClients.get(r.videoId) ?? []), r.createdAt.toISOString()]);
   const convsOf = (v: { id: string; copies: { id: string }[] }): Conv[] =>
     [v.id, ...v.copies.map((c) => c.id)].map((id) => ({ id, fromClient: fromClients.get(id) ?? [] }));
+  // With replies: the video with the newest client reply first.
+  const lastReply = (v: { id: string; copies: { id: string }[] }) => convsOf(v).reduce((at, c) => (c.fromClient[0] && c.fromClient[0] > at ? c.fromClient[0] : at), "");
+  if (replied) videos = [...videos].sort((a, b) => lastReply(b).localeCompare(lastReply(a)));
   // A new owner's first steps (components/FirstSteps.tsx) include the clients step; staff get "Start here" below.
   const steps = await firstStepsFor(me);
   // A new business starts on its clients: once they're in, sending a video is picking them from a list.
@@ -105,12 +114,13 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   };
   const showParam = (m: boolean) => (isManager(access) ? (m ? "mine" : undefined) : m ? undefined : "all");
   const tabs = [
-    { href: withParams({ show: showParam(false), filter: soon ? "soon" : undefined }), label: "All", active: !mine },
-    { href: withParams({ show: showParam(true), filter: soon ? "soon" : undefined }), label: "Mine", active: mine },
+    { href: withParams({ show: showParam(false), filter: soon ? "soon" : replied ? "replies" : undefined }), label: "All", active: !mine },
+    { href: withParams({ show: showParam(true), filter: soon ? "soon" : replied ? "replies" : undefined }), label: "Mine", active: mine },
   ];
   const filters = [
-    { href: withParams({ show: team ? showParam(mine) : undefined }), label: "All videos", active: !soon },
-    { href: withParams({ show: team ? showParam(mine) : undefined, filter: "soon" }), label: `Deleting soon${soonCount ? ` (${soonCount})` : ""}`, active: soon },
+    { href: withParams({ show: team ? showParam(mine) : undefined }), label: "All videos", active: !soon && !replied },
+    ...(repliedCount || replied ? [{ href: withParams({ show: team ? showParam(mine) : undefined, filter: "replies" }), label: `With replies (${repliedCount})`, active: replied }] : []),
+    ...(!workspace.cloudBackup || soonCount > 0 || soon ? [{ href: withParams({ show: team ? showParam(mine) : undefined, filter: "soon" }), label: `Deleting soon${soonCount ? ` (${soonCount})` : ""}`, active: soon }] : []),
   ];
   const dates = zoned(workspace.timezone);
   const now = new Date();
@@ -146,7 +156,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
       <video src={`/api/videos/${v.id}/stream#t=0.5`} preload="metadata" muted className="h-full w-full object-cover" />
     ) : null;
   // Under a card or a line: who kept it, new replies, and anything about its server copy or its client.
-  const extras = (v: Item, inDay: boolean) => (
+  const extras = (v: Item, grouped: boolean) => (
     <>
       {/* Kept by the business after its recorder left: not shown as the owner's (lib/team.ts). */}
       {v.formerStaffAt && <p className="truncate text-xs text-dim" data-testid="video-former">{senderName({ ...v, owner: { name: null } }, workspace.name, "team")}</p>}
@@ -156,8 +166,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
       {soon || v.status === "EXPIRED" || nearDeletion(v) ? (
         <StorageStatus status={v.status} purgeAt={v.purgeAt?.toISOString() ?? null} cloudBackup={workspace.cloudBackup} />
       ) : (
-        // Search results have no day row to carry the date.
-        !inDay && !workspace.cloudBackup && v.purgeAt && v.status !== "RECORDING" && <p className="text-xs text-dim" data-testid="card-deletes">Deletes from our servers {dates.shortDay(v.purgeAt)}</p>
+        // Search results have no folder row to carry the date; inside a folder, its row says it once (O63).
+        !grouped && !workspace.cloudBackup && v.purgeAt && v.status !== "RECORDING" && <p className="text-xs text-dim" data-testid="card-deletes">Deletes from our servers {dates.shortDay(v.purgeAt)}</p>
       )}
       {v.client?.removedAt && (
         <p className="text-xs text-warn-fg" data-testid="client-removed-badge">
@@ -167,7 +177,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     </>
   );
   // Inside a day's folder the time says when; elsewhere the date does.
-  const grid = (items: Item[], inDay: boolean) => (
+  const grid = (items: Item[], inDay: boolean, grouped: boolean) => (
     // Two across on phones too, so the tiles layout fits more on a screen than one big picture each.
     <ul className="grid grid-cols-2 gap-x-3 gap-y-5 sm:gap-6 lg:grid-cols-3">
       {items.map((v) => (
@@ -190,14 +200,14 @@ export default async function Library({ searchParams }: { searchParams: Promise<
               <span data-testid="video-time">{when(v, inDay)}</span> · {views(v)} {views(v) === 1 ? "view" : "views"}
             </p>
             <p className="truncate text-xs text-muted" data-testid="video-recipients" title={sentTo(v).join(", ") || undefined}>{recipients(v)}</p>
-            {extras(v, inDay)}
+            {extras(v, grouped)}
           </Link>
         </li>
       ))}
     </ul>
   );
   // The compact layout: one line per video, a small still beside it.
-  const list = (items: Item[], inDay: boolean) => (
+  const list = (items: Item[], inDay: boolean, grouped: boolean) => (
     <ul className="-my-2 divide-y divide-line" data-testid="video-list">
       {items.map((v) => (
         <li key={v.id}>
@@ -214,14 +224,15 @@ export default async function Library({ searchParams }: { searchParams: Promise<
                 <span data-testid="video-time">{when(v, inDay)}</span> · <span data-testid="video-recipients" title={sentTo(v).join(", ") || undefined}>{recipients(v)}</span>
               </span>
               {v.status === "RECORDING" && <span className="block text-xs text-dim">Incomplete upload</span>}
-              {extras(v, inDay)}
+              {extras(v, grouped)}
             </span>
           </Link>
         </li>
       ))}
     </ul>
   );
-  const cards = (items: Item[], inDay: boolean) => (layout === "list" ? list(items, inDay) : grid(items, inDay));
+  // `grouped`: inside a folder whose row gives the deletion date, so the cards don't repeat it.
+  const cards = (items: Item[], inDay: boolean, grouped = inDay) => (layout === "list" ? list(items, inDay, grouped) : grid(items, inDay, grouped));
   // When a folder's recordings leave our servers: said once on the folder's row rather than on every card.
   const dayDeletes = (items: Item[]) => {
     if (workspace.cloudBackup) return null;
@@ -249,8 +260,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // The tiles layout: folders are squares in a grid, like photo albums, until opened.
   const tiles = layout !== "list";
   const folderList = (gap: string) => (tiles ? "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" : gap);
-  const tileCard = (kind: string, label: string, items: Item[], opts: { note?: string; convs?: Conv[] } = {}) => {
-    const deletes = dayDeletes(items);
+  const tileCard = (kind: string, label: string, items: Item[], opts: { note?: string; convs?: Conv[]; noDeletes?: boolean } = {}) => {
+    const deletes = opts.noDeletes ? null : dayDeletes(items);
     return (
       <span className="block min-w-0">
         <span className="relative mr-2 mt-2 block aspect-video">
@@ -270,8 +281,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
       </span>
     );
   };
-  const summary = (kind: string, label: string, items: Item[], depth: number, opts: { strip?: boolean; note?: string; convs?: Conv[] } = {}) => {
-    const deletes = dayDeletes(items);
+  const summary = (kind: string, label: string, items: Item[], depth: number, opts: { strip?: boolean; note?: string; convs?: Conv[]; noDeletes?: boolean } = {}) => {
+    const deletes = opts.noDeletes ? null : dayDeletes(items);
     return (
       <>
         {cover(items, depth, !!opts.strip)}
@@ -293,11 +304,12 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // By date: the last week a folder a day, then weeks, then months (lib/libraryGroups.ts). The first folder starts
   // open, so the latest videos are on screen straight away.
   const folder = (g: Group<Item>, depth: 0 | 1 | 2, open: boolean) => (
-    <DayFolder key={g.key} day={g.key} kind={g.kind} depth={depth} compact={layout === "list"} defaultOpen={open} summary={summary(g.kind, g.label, g.items, depth, { strip: !!g.children })} tile={tiles ? tileCard(g.kind, g.label, g.items) : undefined}>
+    // One deletion date per group (O63): a folder of folders leaves it to the folders inside, which hold the videos.
+    <DayFolder key={g.key} day={g.key} kind={g.kind} depth={depth} compact={layout === "list"} defaultOpen={open} summary={summary(g.kind, g.label, g.items, depth, { strip: !!g.children, noDeletes: !!g.children })} tile={tiles ? tileCard(g.kind, g.label, g.items, { noDeletes: !!g.children }) : undefined}>
       {g.children ? (
         <div className={folderList("space-y-2")}>{g.children.map((c) => folder(c, (depth + 1) as 1 | 2, false))}</div>
       ) : (
-        cards(g.items, g.kind === "day")
+        cards(g.items, g.kind === "day", true)
       )}
     </DayFolder>
   );
@@ -305,7 +317,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // By client: a folder per client, the one with the newest video first, then videos not sent to anyone.
   // A video sent to several clients is in each of their folders. Staff who only see their own clients
   // aren't shown folders for the others.
-  const byClient = pickedView === "client" && !soon && !searching && clients.length > 0;
+  const byClient = pickedView === "client" && !soon && !replied && !searching && clients.length > 0;
   const clientFolders = () => {
     const map = new Map<string, { id: string; name: string; removed: boolean; items: Item[]; convs: Conv[] }>();
     const unsent: Item[] = [];
@@ -329,12 +341,13 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // Inside a client's folder: a long run of videos is split by month.
   const clientContents = (key: string, items: Item[]) => {
     const months = items.length > 12 ? groupByMonth(items, dates.zone, key) : [];
-    if (months.length < 2) return cards(items, false);
+    // The client's folder row gives the deletion date once; its cards (and month folders) don't repeat it (O63).
+    if (months.length < 2) return cards(items, false, true);
     return (
       <div className={folderList("space-y-2")}>
         {months.map((m) => (
-          <DayFolder key={m.key} day={m.key} kind="month" depth={1} compact={layout === "list"} summary={summary("month", m.label, m.items, 1)} tile={tiles ? tileCard("month", m.label, m.items) : undefined}>
-            {cards(m.items, false)}
+          <DayFolder key={m.key} day={m.key} kind="month" depth={1} compact={layout === "list"} summary={summary("month", m.label, m.items, 1, { noDeletes: true })} tile={tiles ? tileCard("month", m.label, m.items, { noDeletes: true }) : undefined}>
+            {cards(m.items, false, true)}
           </DayFolder>
         ))}
       </div>
@@ -387,7 +400,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-ink">{team ? "Team videos" : "Your videos"}</h1>
             <p className="mt-1 text-sm text-dim">
-              {soon ? `${videos.length} deleting from our servers within 7 days` : (
+              {soon ? `${videos.length} deleting from our servers within 7 days` : replied ? `${videos.length} ${videos.length === 1 ? "video" : "videos"} with replies from clients` : (
                 <>
                   {videos.length} {videos.length === 1 ? "video" : "videos"}
                   {allowance && plan.maxVideos !== null && (
@@ -422,7 +435,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            {(!workspace.cloudBackup || soonCount > 0 || soon) && (
+            {filters.length > 1 && (
               <nav aria-label="Filter videos" className="flex gap-1 rounded-lg bg-surface-2 p-1 text-sm">
                 {filters.map(({ href, label, active }) => (
                   <Link key={href} href={href} aria-current={active ? "page" : undefined} className={pill(active)}>{label}</Link>
@@ -444,12 +457,17 @@ export default async function Library({ searchParams }: { searchParams: Promise<
         {(videos.length > 0 || searching) && !startHere && (
           <LibrarySearch q={q} client={clientId} clients={clients} keep={{ show, filter }} />
         )}
-        {videos.length > 0 && !startHere && !staffStart && <LibraryViewSwitch view={byClient ? "client" : "date"} layout={layout} canGroupByClient={!soon && !searching && clients.length > 0} />}
+        {videos.length > 0 && !startHere && !staffStart && <LibraryViewSwitch view={byClient ? "client" : "date"} layout={layout} canGroupByClient={!soon && !replied && !searching && clients.length > 0} />}
         {searching && (
           <p className="-mt-3 mb-4 text-sm text-muted" data-testid="search-summary">
             {videos.length} {videos.length === 1 ? "video" : "videos"}
             {q && <> matching &ldquo;{q}&rdquo;</>}
             {clientId && <> sent to {clients.find((c) => c.id === clientId)?.name}</>}
+          </p>
+        )}
+        {replied && (
+          <p className="-mt-4 mb-6 max-w-2xl text-sm text-muted" data-testid="replies-filter-note">
+            Videos your clients have replied to, the newest reply first. &ldquo;New&rdquo; marks replies you haven&apos;t opened on this device yet.
           </p>
         )}
         {soon && (
@@ -463,6 +481,11 @@ export default async function Library({ searchParams }: { searchParams: Promise<
           <div className="rounded-2xl border border-dashed border-line-strong p-10 text-center sm:p-16">
             <h2 className="font-semibold text-ink">No videos match</h2>
             <p className="mt-1 text-sm text-dim">Try another word, or clear the search to see everything.</p>
+          </div>
+        ) : videos.length === 0 && replied ? (
+          <div className="rounded-2xl border border-dashed border-line-strong p-16 text-center">
+            <h2 className="font-semibold text-ink">No replies yet</h2>
+            <p className="mt-1 text-sm text-dim">When a client replies to a video, it shows here.</p>
           </div>
         ) : videos.length === 0 && soon ? (
           <div className="rounded-2xl border border-dashed border-line-strong p-16 text-center">
@@ -505,7 +528,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             <Link href="/record" className="mt-6 inline-block rounded-xl bg-primary px-5 py-2.5 font-semibold text-on-primary hover:bg-primary-hover">Record a video</Link>
           </div>
         ) : (
-          soon || searching ? (
+          soon || searching || replied ? (
             cards(videos, false)
           ) : byClient ? (
             clientView()

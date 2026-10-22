@@ -18,12 +18,19 @@ import { LEGAL } from "@/lib/legal";
 import { PLANS } from "@/lib/plans";
 import { HttpError, requirePageUser } from "@/lib/session";
 import { cookies } from "next/headers";
+import { appUrl } from "@/lib/appUrl";
+import { EMAIL_BLOCKED, isEmailBlocked } from "@/lib/blockedEmail";
+import { plainEmail } from "@/lib/emailAddress";
+import { EMAIL_CHANGE_HOURS, emailChangeConfirmEmail, emailChangeNoticeEmail, emailChangeToken } from "@/lib/emailChange";
+import { sendMail } from "@/lib/mail";
+import { rateLimit } from "@/lib/rateLimit";
 import { ACTIVITY_COOKIE, KEEP_COOKIE, KEEP_DAYS, activityCookie, keepCookie } from "@/lib/activity";
 
 export const metadata: Metadata = { title: "Account" };
 
-export default async function AccountSettings({ searchParams }: { searchParams: Promise<{ error?: string; saved?: string }> }) {
-  const { error, saved } = await searchParams;
+export default async function AccountSettings({ searchParams }: { searchParams: Promise<{ error?: string; saved?: string; to?: string }> }) {
+  const { error, saved, to: sentTo } = await searchParams;
+  const to = sentTo ? plainEmail(sentTo) : null;
   // Before agreeing to the current terms (lib/terms.ts), only the data download and account deletion are here.
   const { user, workspace, role, membership, paused, agreed } = await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: true });
   const limited = paused || !agreed;
@@ -67,6 +74,30 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
     redirect("/settings/account?saved=name#name");
   }
 
+  // A new sign-in email (O104): a link to the new address makes the change (app/account/email), and the old one is told.
+  async function changeEmail(form: FormData) {
+    "use server";
+    const { user } = await requirePageUser("/settings/account", { allowPaused: true });
+    const to = plainEmail(String(form.get("email") ?? ""));
+    if (!to) redirect("/settings/account?error=email-bad#email");
+    if (to === user.email.toLowerCase()) redirect("/settings/account?error=email-same#email");
+    if (await isEmailBlocked(to)) redirect("/settings/account?error=email-blocked#email");
+    if (await db.user.findUnique({ where: { email: to }, select: { id: true } })) redirect("/settings/account?error=email-taken#email");
+    try {
+      await rateLimit(`email-change:${user.id}`, 5, 3600);
+    } catch {
+      redirect("/settings/account?error=email-rate#email");
+    }
+    const link = appUrl(`/account/email?t=${encodeURIComponent(emailChangeToken(user.id, user.email, to))}`);
+    try {
+      await sendMail({ to, ...emailChangeConfirmEmail(link, user.email, to) });
+    } catch {
+      redirect("/settings/account?error=email-send#email");
+    }
+    await sendMail({ to: user.email, ...emailChangeNoticeEmail("asked", user.email, to) }).catch(() => {});
+    redirect(`/settings/account?saved=email-sent&to=${encodeURIComponent(to)}#email`);
+  }
+
   async function remove(form: FormData) {
     "use server";
     const { user } = await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: true });
@@ -97,6 +128,43 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Account</h1>
         <p className="mt-1 text-sm text-dim">Signed in as {user.email}</p>
+
+        <section id="email" className="mt-6 rounded-2xl border border-line bg-surface p-6" data-testid="sign-in-email">
+          <h2 className="font-semibold text-ink">Sign-in email</h2>
+          <p className="mt-1 text-sm text-muted">
+            You sign in with <span className="font-medium text-ink">{user.email}</span>. Changed your email? Enter the new one: we email it a link, and the change
+            happens when you open that link. Your videos, clients and settings stay as they are.
+          </p>
+          {saved === "email-sent" ? (
+            <p role="status" className="mt-3 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="email-change-sent">
+              Check {to ? <span className="font-medium">{to}</span> : "your new address"} for the link. It works for {EMAIL_CHANGE_HOURS} hours. Until you open it, you keep signing in with {user.email}.
+            </p>
+          ) : saved === "email" ? (
+            <p role="status" className="mt-3 text-sm text-ok-fg" data-testid="email-changed">Done. You now sign in with {user.email}.</p>
+          ) : null}
+          <form action={changeEmail} className="mt-4 flex flex-wrap gap-2">
+            <input name="email" type="email" required autoComplete="email" aria-label="New sign-in email" placeholder="New email address"
+              className="min-w-0 flex-1 rounded-xl border border-line-strong px-3 py-2 text-sm" data-testid="new-email" />
+            <button className="rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:bg-hover" data-testid="change-email">Email me a link</button>
+          </form>
+          {error?.startsWith("email-") && (
+            <p role="alert" className="mt-2 text-sm text-danger-fg" data-testid="email-change-error">
+              {error === "email-bad"
+                ? "That email address doesn't look right. Check it and try again."
+                : error === "email-same"
+                  ? "That's the email you sign in with already."
+                  : error === "email-taken"
+                    ? "That email already has its own SureFrame account, so it can't be used for this one. Sign in with it to use or delete that account first."
+                    : error === "email-blocked"
+                      ? EMAIL_BLOCKED
+                      : error === "email-rate"
+                        ? "Too many links asked for in the last hour. Check that inbox (and its spam folder), or try again later."
+                        : error === "email-link"
+                          ? "That link has ended or was already used. Enter the new address again for a fresh one."
+                          : "We couldn't send the email just now. Please try again in a few minutes."}
+            </p>
+          )}
+        </section>
 
         {agreed && <section id="name" className="mt-6 rounded-2xl border border-line bg-surface p-6">
           <h2 className="font-semibold text-ink">Your name</h2>

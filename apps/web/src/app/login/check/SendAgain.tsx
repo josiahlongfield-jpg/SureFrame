@@ -5,9 +5,10 @@ import { useFormStatus } from "react-dom";
 
 const WAIT = 30;
 
-/** "Send again", once a short wait is over, so a slow email isn't chased with several more. */
-export default function SendAgain() {
-  const [left, setLeft] = useState(WAIT);
+/** "Send again", once a short wait after sending is over, so a slow email isn't chased with several more. */
+export default function SendAgain({ since = 0 }: { since?: number }) {
+  // Counted from when the email was sent, so reloading the page doesn't start the wait again (O97).
+  const [left, setLeft] = useState(Math.max(0, WAIT - since));
   const { pending } = useFormStatus();
   useEffect(() => {
     if (left <= 0) return;

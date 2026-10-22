@@ -8,6 +8,7 @@ import { shareLink, useCanShare, writeClipboard } from "@/lib/clipboard";
 import { isDefaultTitle } from "@/lib/videoTitle";
 import { LinkBadge, markLinkSent, personalLink } from "./ClientsManager";
 import FirstLinkSender from "./FirstLinkSender";
+import { useTitleSaver } from "./useTitleSaver";
 import type { ClientOption, SendMany } from "./WatchView";
 
 /** A client this recording went to, and their conversation about it (this video, or their own copy); `opened` once they've watched it. */
@@ -54,6 +55,7 @@ export default function SendPanel({
   rootKey,
   teamKey,
   onTitle,
+  preselect,
 }: {
   video: { id: string; title: string; status: string; encrypted: boolean; sourceId: string | null; viewCount?: number };
   clients: ClientOption[];
@@ -69,6 +71,8 @@ export default function SendPanel({
   teamKey: CryptoKey;
   /** A title given in the Send box, so the page heading shows it too. */
   onTitle?: (title: string) => void;
+  /** Just recorded: the client to have chosen already (the one the last video went to). */
+  preselect?: string | null;
 }) {
   const router = useRouter();
   // Clients added from this box, until the page's own list has them.
@@ -94,7 +98,12 @@ export default function SendPanel({
     ...(sendMany?.copies ?? []).map((c) => ({ clientId: c.clientId, convId: c.id, opened: c.opened })),
   ]);
   const [rows, setRows] = useState<Record<string, RowState>>({});
-  const [picked, setPicked] = useState<string[]>([]);
+  // What was just done for a client, said under their own row.
+  const [rowNotes, setRowNotes] = useState<Record<string, string>>({});
+  // Just recorded: the client the last video went to is chosen already (D12), when they can be.
+  const [picked, setPicked] = useState<string[]>(() =>
+    preselect && !sentToId && !video.sourceId && given.some((c) => c.id === preselect && c.link && c.teamKeyWrap && !c.removed && !c.paused && !c.linkOff) ? [preselect] : [],
+  );
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -330,18 +339,23 @@ export default function SendPanel({
     return link;
   }
 
-  /** After a first video's link went out by any of the ways in FirstLinkSender. */
+  /**
+   * After a first video's link went out by any of the ways in FirstLinkSender. What happened is said under that
+   * client's own row (S14), not at the foot of the box, where it sat under the next client's buttons.
+   */
   function firstSent(c: ClientOption, how: "link" | "message" | "share" | "email") {
     void markLinkSent(c.id);
     setRows((cur) => ({ ...cur, [c.id]: how === "share" ? "shared" : how === "email" ? "own-email" : "copied" }));
-    setNote({
-      text:
+    setNote(undefined);
+    setRowNotes((cur) => ({
+      ...cur,
+      [c.id]:
         how === "email"
           ? `Your email app should open with ${c.name}'s link and a short message, ready to send. Nothing opened? Use Copy link and paste it into an email.`
           : how === "share"
             ? `Shared ${c.name}'s link with a short message. Once they open it, Send by email works for them too.`
             : `${c.name}'s link is copied${how === "message" ? " with a short message" : ""}. Paste it into a text, chat or email to them. It only opens for ${c.name}.`,
-    });
+    }));
   }
 
   /** An email saved from this box: Send by email works for them straight away once they've opened a video. */
@@ -456,11 +470,10 @@ export default function SendPanel({
   const soloFirst = chosen.length === 1 && chosenFirst.length === 1;
   const linkBox = soloFirst ? (
     <div className="mt-3" data-testid="first-time">
-      <FirstWhy>
-        <p>This video still goes to {chosenFirst[0].name}.</p>
+      <FirstWhy one={chosenFirst[0].name}>
         <p>
           Alongside the video is their personal link, so for privacy reasons SureFrame is unable to automate it the first time around. Send it from your email or copy the link to be sent however you choose.{" "}
-          <span className="font-medium text-ink">Once they open it, everything beyond that point is delivered on your behalf to the device the client link is held on, if you select the Send by email function.</span>
+          Once they open it, everything beyond that point is delivered on your behalf to the device the client link is held on, if you select the Send by email function.
         </p>
       </FirstWhy>
       {!chosenFirst[0].email && (
@@ -477,11 +490,10 @@ export default function SendPanel({
     </div>
   ) : (
     <div className="mt-3 rounded-xl bg-surface-2 p-3 text-sm text-ink" data-testid="first-time">
-      <FirstWhy>
-        <p>These videos still go to them.</p>
+      <FirstWhy many={chosenFirst.map((c) => c.name)}>
         <p>
           Alongside each video is that client&apos;s personal link, so for privacy reasons SureFrame is unable to automate it the first time around. Send each from your email or copy the link to be sent however you choose.{" "}
-          <span className="font-medium text-ink">Once they open it, everything beyond that point is delivered on your behalf to the device the client link is held on, if you select the Send by email function.</span>
+          Once they open it, everything beyond that point is delivered on your behalf to the device the client link is held on, if you select the Send by email function.
         </p>
       </FirstWhy>
       <ul className="mt-2 grid gap-2" data-testid="first-links">
@@ -496,7 +508,8 @@ export default function SendPanel({
                 </span>
               )}
             </span>
-            <FirstLinkSender compact short video name={c.name} email={c.email} business={business} disabled={!!busy} getLink={() => deliverFirst(c)} onSent={(how) => firstSent(c, how)} />
+            {/* The same three ways as for one client, Copy link + message included (S15). */}
+            <FirstLinkSender compact video name={c.name} email={c.email} business={business} disabled={!!busy} getLink={() => deliverFirst(c)} onSent={(how) => firstSent(c, how)} />
           </li>
         ))}
       </ul>
@@ -517,7 +530,8 @@ export default function SendPanel({
             )}{" "}
             {state && (
               <span className="ml-2 text-xs text-ok-fg">
-                {state === "emailed" ? "Emailed" : state === "when-ready" ? "Emailed when the upload finishes" : state === "shared" ? "Shared" : state === "own-email" ? "Sent from your email" : "Link copied"}
+                {/* Copying a link or opening the email app isn't sending it: say only what happened here (O33, O41). */}
+                {state === "emailed" ? "Emailed" : state === "when-ready" ? "Emailed when the upload finishes" : state === "shared" ? "Shared" : state === "own-email" ? "Email app opened" : "Link copied"}
               </span>
             )}
             {!blocked && (
@@ -567,6 +581,11 @@ export default function SendPanel({
             {!c.emailsOff && <AddEmail client={c} onSaved={emailAdded} />}
           </div>
         ) : null}
+        {rowNotes[r.clientId] && (
+          <p role="status" className="mt-1 text-xs text-ok-fg" data-testid="row-note">
+            {rowNotes[r.clientId]}
+          </p>
+        )}
         {stopping === r.convId && stopBox(r)}
       </li>
     );
@@ -699,13 +718,14 @@ export default function SendPanel({
                   </div>
                 </div>
               )}
-              <div className="mt-3 flex flex-wrap gap-2">
+              {/* Nothing chosen yet: no greyed Send/Copy pair under the picker (O35). */}
+              {picked.length > 0 && <div className="mt-3 flex flex-wrap gap-2">
                 {mixed && (
                   <button onClick={sendAll} disabled={!!busy} data-testid="send-all" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
                     {busy === "all" ? "Sending…" : `Send to all ${chosen.length}`}
                   </button>
                 )}
-                {(picked.length === 0 || chosenEmail.length > 0) && (
+                {chosenEmail.length > 0 && (
                   <button
                     onClick={sendByEmail}
                     disabled={!chosenEmail.length || !!busy}
@@ -725,7 +745,7 @@ export default function SendPanel({
                     {busy === "link" ? "Copying…" : picked.length > 1 ? `Copy all ${picked.length} links` : "Copy link"}
                   </button>
                 )}
-              </div>
+              </div>}
               {mixed && (
                 <p className="mt-2 text-sm text-muted" data-testid="send-all-explained">
                   Send to all {chosen.length} emails {chosenEmail.length === 1 ? chosenEmail[0].name : `${chosenEmail.length} of them`}, and copies the {chosen.length - chosenEmail.length === 1 ? "link" : "links"} for{" "}
@@ -754,7 +774,8 @@ export default function SendPanel({
 
       {sentRows.length > 0 && (
         <div className={canPick || isCopy ? "mt-4 border-t border-line pt-4" : ""}>
-          <h3 className="text-sm font-medium text-ink">Sent to {sentRows.length} {sentRows.length === 1 ? "client" : "clients"}</h3>
+          {/* Not "Sent to": a first video's link may only have been copied so far, and each row says what happened (O33). */}
+          <h3 className="text-sm font-medium text-ink" data-testid="sent-heading">Shared with {sentRows.length} {sentRows.length === 1 ? "client" : "clients"}</h3>
           <ul className="mt-2 grid gap-2" data-testid="sent-list">
             {sentRows.map((r) => row(r))}
           </ul>
@@ -767,32 +788,30 @@ export default function SendPanel({
 /** Copied links differ per client (and from this page's address): each opens that client's own encrypted copy. */
 const OWN_LINKS = "Each link is different because each client gets their own private copy and conversation.";
 
-const HIDE_FIRST_WHY = "sureframe:hide-first-why";
-
-/** Why a new client's first video goes from the business, with a tick box to stop showing it (remembered in this browser). */
-function FirstWhy({ children }: { children: React.ReactNode }) {
-  const [hidden, setHidden] = useState(false);
-  const [ticked, setTicked] = useState(false);
-  useEffect(() => {
-    try {
-      setHidden(localStorage.getItem(HIDE_FIRST_WHY) === "1");
-    } catch {}
-  }, []);
-  if (hidden) return null;
-  function toggle(on: boolean) {
-    setTicked(on);
-    try {
-      if (on) localStorage.setItem(HIDE_FIRST_WHY, "1");
-      else localStorage.removeItem(HIDE_FIRST_WHY);
-    } catch {}
-  }
+/**
+ * A new client's first video: one line on what to do, the same as the Clients page's steps ("Send their first video
+ * yourself … After that, we email them"), with the longer why behind "Why does the first video come from me?" (O32, S13).
+ */
+function FirstWhy({ one, many, children }: { one?: string; many?: string[]; children: React.ReactNode }) {
+  const who = one ?? (many && many.length === 1 ? many[0] : null);
   return (
-    <div className="grid gap-1 text-xs text-dim" data-testid="first-why">
-      {children}
-      <label className="inline-flex w-fit cursor-pointer items-center gap-1.5 text-dim">
-        <input type="checkbox" checked={ticked} onChange={(e) => toggle(e.target.checked)} className="h-3.5 w-3.5 accent-primary" data-testid="first-why-hide" />
-        Don&apos;t show this again
-      </label>
+    <div className="grid gap-1 text-sm text-ink" data-testid="first-why">
+      <p data-testid="first-why-line">
+        {who ? (
+          <>
+            <span className="font-medium">First video for {who}:</span> send it yourself, from your email or by copying the link. They just open it and watch.
+          </>
+        ) : (
+          <>
+            <span className="font-medium">First videos for {many?.length ?? 0} clients:</span> send each one yourself, from your email or by copying the link. They just open it and watch.
+          </>
+        )}{" "}
+        After that, we email them: press Send by email for every video after the first.
+      </p>
+      <details className="text-xs text-muted">
+        <summary className="cursor-pointer font-medium text-accent" data-testid="first-why-more">Why does the first video come from me?</summary>
+        <div className="mt-1 grid gap-1">{children}</div>
+      </details>
     </div>
   );
 }
@@ -885,44 +904,40 @@ function QuickAddClient({ teamKey, onAdded, onCancel }: { teamKey: CryptoKey; on
   );
 }
 
-/** The date-made title says nothing to a client: offer to name the video before it's sent. */
+/**
+ * The date-made title says nothing to a client: offer to name the video before it's sent. Saved as it's typed
+ * and when the page is left, like the title box above it, so a typed title isn't lost (O52); Save title saves now.
+ */
 function TitlePrompt({ videoId, onTitle }: { videoId: string; onTitle?: (title: string) => void }) {
   const [title, setTitle] = useState("");
-  const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
-  const [error, setError] = useState<string>();
-  if (state === "saved") return <p className="mt-2 text-xs text-ok-fg" data-testid="title-saved">Title saved.</p>;
+  const saver = useTitleSaver(videoId, "", onTitle);
   return (
     <form
       data-testid="title-prompt"
       className="mt-2 flex flex-wrap items-center gap-2"
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
-        const t = title.trim();
-        if (!t) return;
-        setState("saving");
-        setError(undefined);
-        const res = await fetch(`/api/videos/${videoId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: t }) }).catch(() => null);
-        if (!res?.ok) {
-          setState("idle");
-          return setError((await res?.json().catch(() => ({})))?.error ?? "Couldn't save the title. Try again.");
-        }
-        setState("saved");
-        onTitle?.(t);
+        if (title.trim()) void saver.flush();
       }}
     >
       <input
         id="send-title"
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={(e) => {
+          setTitle(e.target.value);
+          saver.change(e.target.value);
+        }}
+        onBlur={() => void saver.flush()}
         maxLength={200}
         aria-label="Title (clients see it)"
         placeholder="Title (optional, clients see it)"
         className="min-w-0 flex-1 basis-40 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm"
       />
-      <button disabled={!title.trim() || state === "saving"} className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50">
-        {state === "saving" ? "Saving…" : "Save title"}
+      <button disabled={!title.trim() || saver.state === "saving"} className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50">
+        {saver.state === "saving" ? "Saving…" : "Save title"}
       </button>
-      {error && <p role="alert" className="w-full text-xs text-danger-fg">{error}</p>}
+      {saver.state === "saved" && <p className="w-full text-xs text-ok-fg" role="status" data-testid="title-saved">Title saved.</p>}
+      {saver.error && <p role="alert" className="w-full text-xs text-danger-fg">{saver.error}</p>}
     </form>
   );
 }

@@ -3,13 +3,17 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import AppHeader from "@/components/AppHeader";
-import { CopyConnectorUrl, DesktopConnectionCode } from "@/components/ConnectorSetup";
+import { CopyConnectorUrl, DesktopConnectionCode, DisconnectConnection } from "@/components/ConnectorSetup";
+import { appUrl } from "@/lib/appUrl";
+import { sendMail } from "@/lib/mail";
+import { teamEmail } from "@/lib/teamEmail";
+import { teamPath } from "@/lib/teamLink";
 import { mcpResource } from "@/lib/connector/oauth";
 import { USE_KEEP_DAYS } from "@/lib/connector/grants";
 import { zoned } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { PLANS } from "@/lib/plans";
-import { requirePageUser } from "@/lib/session";
+import { followTeamLink, requirePageUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Connections" };
 
@@ -33,7 +37,10 @@ const TOOL_NAMES: Record<string, string> = {
  * Settings > Connections: connect your own Claude to SureFrame (lib/connector), see what each connection has
  * read and when, and disconnect it. Owners and admins also see, and can disconnect, their staff's connections.
  */
-export default async function Connections() {
+export default async function Connections({ searchParams }: { searchParams: Promise<{ disconnected?: string; ws?: string }> }) {
+  const { disconnected, ws } = await searchParams;
+  // The email telling a member their connection was disconnected names the team (?ws=).
+  await followTeamLink(ws, "/settings/connections");
   const me = await requirePageUser("/settings/connections");
   const manager = me.role !== "MEMBER";
   const when = zoned(me.workspace.timezone);
@@ -50,13 +57,33 @@ export default async function Connections() {
     const now = await requirePageUser("/settings/connections");
     const id = String(form.get("id") ?? "");
     // Your own, or anyone's on your team if you're an owner or admin.
-    await db.connectorGrant.updateMany({
+    const grant = await db.connectorGrant.findFirst({
       where: { id, workspaceId: now.workspace.id, revokedAt: null, ...(now.role === "MEMBER" ? { userId: now.user.id } : {}) },
-      data: { revokedAt: new Date() },
+      include: { user: { select: { name: true, email: true } } },
     });
+    if (!grant) redirect("/settings/connections#yours");
+    const done = await db.connectorGrant.updateMany({ where: { id: grant.id, revokedAt: null }, data: { revokedAt: new Date() } });
+    const what = KIND[grant.kind as keyof typeof KIND] ?? grant.name;
+    const theirs = grant.userId !== now.user.id;
+    // Someone else's: they're told, so a Claude that stops working has an explanation (S75).
+    if (done.count && theirs) {
+      const by = now.user.name?.trim() || now.user.email;
+      await sendMail({
+        to: grant.user.email,
+        ...teamEmail({
+          business: now.workspace.name,
+          subject: `Your ${what} connection to ${now.workspace.name} was disconnected`,
+          lead: `${by} disconnected your ${what} connection to ${now.workspace.name} on SureFrame. Claude can't read SureFrame there any more.`,
+          button: { label: "Open Settings > Connections", link: appUrl(teamPath("/settings/connections", now.workspace.id)) },
+          footer: "To connect again, follow the steps there. Ask your team's owner or an admin if you're not sure why it was disconnected.",
+        }),
+      }).catch((err) => console.error("[connections] disconnect email not sent", String(err)));
+    }
     revalidatePath("/settings/connections");
-    redirect("/settings/connections#yours");
+    const label = theirs ? `${grant.user.name ?? grant.user.email}'s ${what}` : `your ${what}`;
+    redirect(`/settings/connections?disconnected=${encodeURIComponent(`${label}${theirs ? "|emailed" : ""}`)}#yours`);
   }
+  const [gone, emailed] = (disconnected ?? "").split("|");
 
   const list = (rows: typeof grants, showWho: boolean) => (
     <ul className="mt-3 grid gap-3">
@@ -68,9 +95,11 @@ export default async function Connections() {
                 {KIND[g.kind as keyof typeof KIND] ?? g.name}
                 {showWho && <span className="font-normal text-muted"> · {g.user.name ?? g.user.email}</span>}
               </p>
-              <p className="mt-1 text-muted">
-                Connected {when.day(g.createdAt)}
-                {g.lastUsedAt ? `, last used ${when.shortDayTime(g.lastUsedAt)}` : ", not used yet"}
+              <p className="mt-1 text-muted" data-testid="connection-status">
+                {/* A desktop code is only a code until Claude Desktop first uses it (S73, O95). */}
+                {g.kind === "desktop" && !g.lastUsedAt
+                  ? `Code made ${when.day(g.createdAt)}, waiting for Claude Desktop`
+                  : `Connected ${when.day(g.createdAt)}${g.lastUsedAt ? `, last used ${when.shortDayTime(g.lastUsedAt)}` : ", not used yet"}`}
               </p>
               {g.uses.length > 0 && (
                 <p className="mt-1 text-xs text-dim" data-testid="connection-uses">
@@ -79,12 +108,7 @@ export default async function Connections() {
                 </p>
               )}
             </div>
-            <form action={disconnect}>
-              <input type="hidden" name="id" value={g.id} />
-              <button className="rounded-lg border border-line-strong px-3 py-1.5 text-sm font-medium text-ink hover:bg-hover" data-testid="disconnect">
-                Disconnect
-              </button>
-            </form>
+            <DisconnectConnection id={g.id} what={KIND[g.kind as keyof typeof KIND] ?? g.name} who={showWho ? (g.user.name ?? g.user.email) : undefined} action={disconnect} />
           </div>
         </li>
       ))}
@@ -150,6 +174,11 @@ export default async function Connections() {
         </section>
 
         <section id="yours" className="mt-8">
+          {gone && (
+            <p role="status" className="mb-4 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="disconnected-note">
+              Disconnected: {gone}. It can&apos;t read SureFrame any more.{emailed ? " We've emailed them to say so." : ""}
+            </p>
+          )}
           <h2 className="text-lg font-semibold text-ink">Your connections</h2>
           {mine.length ? list(mine, false) : <p className="mt-2 text-sm text-muted" data-testid="no-connections">You haven&apos;t connected Claude yet.</p>}
         </section>

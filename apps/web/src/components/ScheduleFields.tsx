@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PRESET_REMINDERS, ruleLabel, sameRule, type ReminderRule, type Repeat } from "@/lib/schedule";
 
 export type Schedule = {
@@ -65,10 +65,12 @@ export default function ScheduleFields({
           </button>
         )}
       </label>
-      {/* Shown before a date is picked too (greyed), so repeats and reminders can be set while adding, not only in Edit. */}
-      <fieldset disabled={!value.due} className={`grid gap-3 ${value.due ? "" : "opacity-60"}`} data-testid="schedule-extras">
-        {!value.due && <p className="text-xs text-dim">Pick a due date to make it repeat or to get reminders.</p>}
-        <RepeatPicker due={value.due || toLocalInput(new Date().toISOString())} value={value.repeat} onChange={(repeat) => set({ repeat })} />
+      {/* The browser's date box may show another country's order (mm/dd): the date in words, in this device's own style (O14). */}
+      {value.due && <DueInWords due={value.due} />}
+      {/* Repeat and reminders appear once there's a date to hang them on, rather than greyed with one looking chosen (O13, O74). */}
+      {!value.due && <p className="text-xs text-dim" data-testid="schedule-extras-hint">Pick a due date to make it repeat or to get reminders.</p>}
+      {value.due && <fieldset className="grid gap-3" data-testid="schedule-extras">
+        <RepeatPicker due={value.due} value={value.repeat} onChange={(repeat) => set({ repeat })} />
         <div className="flex flex-wrap items-start gap-2 text-muted">
           <span className="w-20 shrink-0 pt-1">Remind</span>
           <div className="min-w-0 flex-1">
@@ -97,8 +99,28 @@ export default function ScheduleFields({
             )}
           </div>
         </div>
-      </fieldset>
+      </fieldset>}
     </div>
+  );
+}
+
+/** "Thu, 29 Oct 2026, 10:00 am" (or "Thu, Oct 29, 2026, 10:00 AM"), as this device writes dates. */
+function DueInWords({ due }: { due: string }) {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    const d = new Date(due);
+    if (Number.isNaN(d.getTime())) return setText("");
+    try {
+      setText(new Intl.DateTimeFormat(navigator.languages?.length ? [...navigator.languages] : undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }).format(d));
+    } catch {
+      setText(d.toString());
+    }
+  }, [due]);
+  if (!text) return null;
+  return (
+    <p className="-mt-2 text-xs text-dim sm:pl-[5.5rem]" data-testid="due-words">
+      Due {text}
+    </p>
   );
 }
 

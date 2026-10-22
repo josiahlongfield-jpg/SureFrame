@@ -45,7 +45,10 @@ export default function TimeZonePicker({ value, onChange, className }: { value: 
 
   return (
     <div className="grid gap-2">
+      {/* Said in words, so the search box isn't mistaken for the list itself (O76, O99). */}
+      <label htmlFor="tz-search" className="text-xs text-dim">Type a city to find your time zone, or use your device&apos;s.</label>
       <input
+        id="tz-search"
         type="search"
         value={query}
         onChange={(e) => {

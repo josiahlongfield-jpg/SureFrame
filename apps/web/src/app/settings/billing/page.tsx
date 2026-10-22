@@ -358,12 +358,8 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
               planName={plan.name}
               periodEnd={workspace.currentPeriodEnd ? day(workspace.currentPeriodEnd, workspace.timezone) : null}
               cancelsOn={workspace.cancelsAt ? day(workspace.cancelsAt, workspace.timezone) : null}
-              whatHappens={
-                <>
-                  <p>{afterCancel}</p>
-                  {!workspace.complimentaryPlan && <FreeLosses workspace={workspace} />}
-                </>
-              }
+              // The paragraph about moving to Free is already on the page (cancel-note), so the dialog lists only what this workspace would lose (O92).
+              whatHappens={workspace.complimentaryPlan ? <p>{afterCancel}</p> : <FreeLosses workspace={workspace} />}
             />
           )}
           {!agreed && (
