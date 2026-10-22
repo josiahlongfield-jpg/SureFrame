@@ -34,10 +34,13 @@ import {
   setFreeVideosUsed,
   unblockEmailAndTell,
 } from "@/lib/support/console";
-import { createOffer, endOffer, stopAutomaticOffer, MAX_OFFER_MONTHS } from "@/lib/support/offers";
+import { createOffer, endOffer, stopAutomaticOffer, MAX_OFFER_MONTHS, OWN_BUSINESS } from "@/lib/support/offers";
 
-/** What a support console form shows after it's sent: only errors (success goes to the page's "Done" banner). */
-export type PowerResult = { ok: false; message: string } | null;
+/**
+ * What a support console form shows after it's sent: only errors (success goes to the page's "Done" banner). `own`:
+ * refused because it's aimed at the admin's own business; the form then offers a box to go ahead anyway (P30).
+ */
+export type PowerResult = { ok: false; message: string; own?: boolean } | null;
 
 const id = z.string().min(1).max(64);
 const reason = z
@@ -94,6 +97,7 @@ const Power = z.discriminatedUnion("power", [
     scope: z.enum(["plan", "seats", "all"], { error: "Choose what it comes off." }),
     lastDay: z.preprocess((v) => (v === "" ? undefined : v), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose the last day it can be used.").optional()),
     reason,
+    own: box,
   }),
   z.object({ power: z.literal("endOffer"), promotionCodeId: id, reason }),
   z.object({ power: z.literal("autoOfferOff"), promotionCodeId: id, reason }),
@@ -196,7 +200,7 @@ export async function runPower(_prev: PowerResult, form: FormData): Promise<Powe
   try {
     done = await dispatch(admin, parsed.data);
   } catch (err) {
-    if (err instanceof HttpError) return { ok: false, message: err.message };
+    if (err instanceof HttpError) return { ok: false, message: err.message, ...(err.code === OWN_BUSINESS ? { own: true } : {}) };
     console.error(
       JSON.stringify({ level: "error", message: "[support-console] power failed", power: parsed.data.power, error: String((err as Error)?.message ?? err).slice(0, 1000) }),
     );

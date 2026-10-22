@@ -42,7 +42,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   if (givenTo) {
     const me = await currentUser();
     if (!me) return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(`/offer/${code}`)}`, req.url), 303);
-    if (!offerIsFor({ customer: givenTo }, me.workspace.stripeCustomerId)) return to(`?ended=${encodeURIComponent(code)}`);
+    // Said as it is: the code works, just not for this business (P33).
+    if (!offerIsFor({ customer: givenTo }, me.workspace.stripeCustomerId)) return to(`?other=${encodeURIComponent(code)}`);
   }
   const res = to();
   res.cookies.set(OFFER_COOKIE, offerCookieValue(lookup.offer.code), OFFER_COOKIE_OPTIONS);

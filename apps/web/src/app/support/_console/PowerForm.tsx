@@ -111,6 +111,7 @@ export default function PowerForm({ power, hidden, title, intro, submit, danger 
         >
           {pending ? "Working…" : submit}
         </button>
+        {state?.own && <Check name="own" label="Yes, my own business" />}
         {state && !state.ok && (
           <p role="alert" className="rounded-xl bg-danger-bg p-3 text-sm text-danger-fg">
             {state.message}

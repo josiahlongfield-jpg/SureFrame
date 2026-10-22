@@ -44,6 +44,7 @@ const qldDay = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", mont
 function Offers({
   founding,
   ended,
+  forOther = false,
   busy,
   linked,
   auto,
@@ -51,6 +52,8 @@ function Offers({
 }: {
   founding: string | null;
   ended: string | null;
+  /** The code is live but was given to another business (P33). */
+  forOther?: boolean;
   busy: boolean;
   linked: Offer | null;
   auto: Offer | null;
@@ -70,7 +73,8 @@ function Offers({
       )}
       {ended && (
         <p className={`${box} border-line bg-canvas text-muted`} data-testid="offer-ended">
-          The code {ended} has ended or isn&rsquo;t valid. You can still subscribe at the prices below.
+          {forOther ? `The code ${ended} was given to another business, so it can't be used here.` : <>The code {ended} has ended or isn&rsquo;t valid.</>} You can
+          still subscribe at the prices below.
         </p>
       )}
       {busy && (
@@ -191,7 +195,7 @@ function FreePlanInFull() {
   );
 }
 
-export default async function Pricing({ searchParams }: { searchParams: Promise<{ ended?: string; code?: string; plan?: string; interval?: string }> }) {
+export default async function Pricing({ searchParams }: { searchParams: Promise<{ ended?: string; other?: string; code?: string; plan?: string; interval?: string }> }) {
   const query = await searchParams;
   // The plan being looked at by someone signed in, so its card is marked and its button doesn't offer it again.
   const signedIn = !!(await auth())?.user;
@@ -219,7 +223,10 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
   const referral = referred?.offer ?? null;
   // A share link to a code Stripe doesn't know (/offer/CODE sends ?ended=CODE), else the remembered code if it has since ended.
   const endedLink = typeof query.ended === "string" && isCodeShaped(query.ended) ? query.ended.toUpperCase() : null;
-  const ended = endedLink ?? (code && ((lookup && (!lookup.offer || !mine)) || (referred && !referred.offer)) ? code : null);
+  // A share link to a code given to another business (/offer/CODE sends ?other=CODE), or a remembered one that is.
+  const otherLink = typeof query.other === "string" && isCodeShaped(query.other) ? query.other.toUpperCase() : null;
+  const ended = endedLink ?? otherLink ?? (code && ((lookup && (!lookup.offer || !mine)) || (referred && !referred.offer)) ? code : null);
+  const forOther = !endedLink && (!!otherLink || (!!code && !!lookup?.offer && !mine));
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
       {/* Signed in, the app's own header, so the Settings menu and plan stay in reach (O37). */}
@@ -229,7 +236,7 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
           <p className="kicker">Pricing</p>
           <h1 className="display mt-3 text-4xl   text-ink">Simple pricing. Clients always free.</h1>
         </div>
-        <Offers founding={foundingOpen() ? foundingLastDay() : null} ended={ended} busy={query.code === "busy"} linked={linked} auto={auto} referral={referral} />
+        <Offers founding={foundingOpen() ? foundingLastDay() : null} ended={ended} forOther={forOther} busy={query.code === "busy"} linked={linked} auto={auto} referral={referral} />
         <PricingTable current={current} signedIn={signedIn} retentionDays={RETENTION_DAYS} start={start} />
         <p className="mt-10 text-center text-sm text-dim">
           More than 100 clients? Add extra clients for US${EXTRA_SEAT_PRICE.toFixed(2)} a month each, or US${EXTRA_SEAT_PRICE_YEARLY} a year on yearly billing.
