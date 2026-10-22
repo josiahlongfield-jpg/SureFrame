@@ -49,7 +49,9 @@ if (emailLinks) {
         const { sendMail } = await import("@/lib/mail");
         const { signInEmail } = await import("@/lib/signInEmail");
         const { confirmLink } = await import("@/lib/signInLink");
-        await sendMail({ to: identifier, ...signInEmail(confirmLink(url), new URL(url).host) });
+        const { makeSignInCode } = await import("@/lib/signInCode");
+        const code = await makeSignInCode(identifier, url);
+        await sendMail({ to: identifier, ...signInEmail(confirmLink(url), new URL(url).host, code) });
       },
     }),
   );

@@ -16,10 +16,11 @@ import { purgeHeldReplies } from "@/lib/replies";
 import { salvageAbandoned } from "@/lib/pieces";
 import { pruneClientQuestions, sendClientQuestionDigest } from "@/lib/support/clientQuestions";
 import { pruneConnectors } from "@/lib/connector/grants";
+import { pruneSignInCodes } from "@/lib/signInCode";
 
 export const maxDuration = 300;
 
-const JOBS = ["purged", "rateLimits", "supportUse", "staleUploads", "teamNotifications", "leftovers", "expiryWarnings", "clientsPurged", "clientWarnings", "accountWarnings", "accountsPurged", "adminActionsPruned", "agreementsPruned", "termsNotices", "unsentReplies", "clientQuestionDigest", "clientQuestionsPruned", "connectorsPruned"] as const;
+const JOBS = ["purged", "rateLimits", "supportUse", "staleUploads", "teamNotifications", "leftovers", "expiryWarnings", "clientsPurged", "clientWarnings", "accountWarnings", "accountsPurged", "adminActionsPruned", "agreementsPruned", "termsNotices", "unsentReplies", "clientQuestionDigest", "clientQuestionsPruned", "connectorsPruned", "signInCodesPruned"] as const;
 
 /** Run daily (e.g. Vercel Cron) with Authorization: Bearer $CRON_SECRET. */
 export async function GET(req: Request) {
@@ -59,6 +60,8 @@ export async function GET(req: Request) {
     pruneClientQuestions(),
     // Claude connections: the list of what each read, after 90 days; disconnected or long-unused ones; spent sign-in codes.
     pruneConnectors(),
+    // Sign-in codes past their time (lib/signInCode.ts).
+    pruneSignInCodes(),
   ]);
   const out: Partial<Record<(typeof JOBS)[number], unknown>> = {};
   results.forEach((r, i) => {

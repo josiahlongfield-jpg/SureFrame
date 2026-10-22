@@ -84,6 +84,21 @@ model VerificationToken {
   @@id([identifier, token])
 }
 
+/// The 6-digit code in a sign-in email (lib/signInCode.ts): typed on the Check your email page instead of opening the
+/// link, so people finish signing in in the window they started in. Holds the email's sign-in link, encrypted.
+model SignInCode {
+  id        String   @id @default(cuid())
+  email     String
+  codeHash  String
+  link      String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+}
+
 // ---------- Workspaces & billing ----------
 
 enum Plan {

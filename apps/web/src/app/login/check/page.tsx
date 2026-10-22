@@ -33,9 +33,34 @@ export default async function CheckEmail({ searchParams }: { searchParams: Promi
               </span>
             </>
           ) : null}
-          . Open it on this device, in the browser you use for SureFrame, to continue. It works once and expires in 24 hours.
+          . Open it on this device, in the browser you use for SureFrame, or type the code from the email here.
         </p>
-        {error && <p role="alert" className="mt-3 text-sm text-danger-fg">{errorText(error)}</p>}
+        {error && <p role="alert" className="mt-3 text-sm text-danger-fg" data-testid="check-error">{errorText(error)}</p>}
+        {email && (
+          // A plain form, so the browser follows the sign-in redirect itself (login/code/route.ts).
+          <form method="post" action="/login/code" className="mt-4" data-testid="code-form">
+            <label htmlFor="code" className="text-sm font-medium text-ink">6-digit code</label>
+            <input type="hidden" name="next" value={redirectTo} />
+            {signup === "1" && <input type="hidden" name="signup" value="1" />}
+            <div className="mt-1 flex gap-2">
+              <input
+                id="code"
+                name="code"
+                required
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9 ]{6,7}"
+                maxLength={7}
+                placeholder="123 456"
+                className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-3 py-2 text-center font-mono text-base tracking-widest text-ink"
+                data-testid="code-input"
+              />
+              <button className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover" data-testid="code-submit">
+                Sign in
+              </button>
+            </div>
+          </form>
+        )}
         <p className="mt-4 text-sm text-dim">Nothing there? Check your spam or junk folder.</p>
         {email && (
           <form action={emailLink} className="mt-3">
