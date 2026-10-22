@@ -5,6 +5,7 @@ import { agreed } from "./agree.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 let failed = 0;
+const norm = (t) => (t ?? "").replace(/\s+/g, " ").trim();
 const ok = (name, pass, detail = "") => {
   console.log(`${pass ? "PASS" : "FAIL"} ${name}${pass ? "" : ` ${detail}`}`);
   if (!pass) failed++;
@@ -66,6 +67,8 @@ ok("after Stop: a review step plays it back before sending", (await page.locator
 await page.click("button:has-text('Send video reply')");
 await page.waitForSelector("aside ul [data-testid=reply-video-still]", { timeout: 30000 });
 ok("video reply still sends", true);
+// Said in words beside the name, not only by the still or player (O70).
+ok("the sent reply is labelled Video reply", norm(await page.textContent("aside ul li:has([data-testid=reply-video-still]) [data-testid=reply-kind]")) === "Video reply");
 ok("says it's sent, and stays on the Video tab", (await page.isVisible("[data-testid=reply-sent]")) && (await page.getAttribute("role=tab[name='Video']", "aria-selected")) === "true");
 
 await page.click("role=tab[name='Text']");

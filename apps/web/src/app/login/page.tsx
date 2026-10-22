@@ -35,6 +35,8 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   const picked = planPicked(redirectTo);
   // Connecting Claude: the email carries a 6-digit code, not a link (lib/signInLink.ts), so the page says so (D4).
   const claude = forClaude(redirectTo);
+  // Sent here from a page that needs an account (/settings, a video): say what signing in opens (V59).
+  const opens = next || callbackUrl ? destination(redirectTo) : null;
   // Checked against the database: a sign-in left over from a deleted account must not bounce back and forth.
   const userId = (await auth())?.user?.id;
   const signedInAs = userId ? await db.user.findUnique({ where: { id: userId }, select: { deleteAt: true } }) : null;
@@ -72,7 +74,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
               ? `Sign in to ${BRAND.name} so Claude can read your activity. We'll email you a code to type in this window.`
               : creating
                 ? "Already have one? The same email signs you in."
-                : `New to ${BRAND.name}? Entering your email creates your free account.`}
+                : `${opens && !joining ? `Sign in to see ${opens}. ` : ""}New to ${BRAND.name}? Entering your email creates your free account.`}
         </p>
         {deleted && (
           <p role="status" className="mt-3 rounded-lg bg-ok-bg px-3 py-2 text-sm text-ok-fg" data-testid="deleted-note">
@@ -165,6 +167,21 @@ function planPicked(next: string) {
   const key = q.get("plan") as keyof typeof PLANS | null;
   if (!key || key === "FREE" || !(key in PLANS)) return null;
   return `${PLANS[key].name} (${q.get("interval") === "year" ? "yearly" : "monthly"})`;
+}
+
+/** What a page sent here for sign-in shows, in a few words ("your settings"), or null for anywhere else. */
+function destination(next: string) {
+  const path = next.split(/[?#]/)[0];
+  const pages: [RegExp, string][] = [
+    [/^\/settings(\/|$)/, "your settings"],
+    [/^\/library(\/|$)/, "your videos"],
+    [/^\/v\//, "this video"],
+    [/^\/clients(\/|$)/, "your clients"],
+    [/^\/todos(\/|$)/, "your to-dos"],
+    [/^\/reminders(\/|$)/, "your reminders"],
+    [/^\/team(\/|$)/, "your team"],
+  ];
+  return pages.find(([re]) => re.test(path))?.[1] ?? null;
 }
 
 /** A callbackUrl may be a whole address on this site; only its path and query are used. */

@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-/** The client's email, used for reminders. Editable in place. */
-export default function ClientEmail({ clientId, firstName, initial, optedOut }: { clientId: string; firstName: string; initial: string | null; optedOut: boolean }) {
+/** The client's email, used for reminders. Editable in place. Names the client in full (O36: "Client B2", not "Client"). */
+export default function ClientEmail({ clientId, name, initial, optedOut }: { clientId: string; name: string; initial: string | null; optedOut: boolean }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [email, setEmail] = useState(initial ?? "");
@@ -32,11 +32,11 @@ export default function ClientEmail({ clientId, firstName, initial, optedOut }: 
   }
   return (
     <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-dim">
-      {initial ? initial : <span>No email yet, so {firstName} can&apos;t get reminders.</span>}
+      {initial ? initial : <span>No email yet, so {name} can&apos;t get reminders.</span>}
       <button onClick={() => setEditing(true)} className="font-medium text-accent hover:underline">
         {initial ? "Change" : "Add email"}
       </button>
-      {initial && optedOut && <span className="rounded bg-warn-bg px-1.5 py-0.5 text-xs text-warn-fg">{firstName} turned reminder emails off</span>}
+      {initial && optedOut && <span className="rounded bg-warn-bg px-1.5 py-0.5 text-xs text-warn-fg">{name} turned reminder emails off</span>}
     </p>
   );
 }

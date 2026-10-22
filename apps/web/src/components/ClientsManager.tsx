@@ -217,6 +217,7 @@ function Manager({
       (filter === "all" || (filter === "first" && !c.reached && !c.linkOff) || (filter === "no-email" && !c.email) || (filter === "paused" && (c.paused || c.linkOff))),
   );
   const waiting = clients.filter((c) => !c.reached && !c.linkOff).length;
+  const withoutEmail = clients.filter((c) => !c.email).length;
   const staffName = (id: string | null) => staff.find((p) => p.id === id)?.name;
   // What Solo would cost after this purchase, against Studio's flat price.
   const soloAfter = studioHint ? studioHint.soloBase + (extraSeats + buyQty) * seatPrice : 0;
@@ -253,6 +254,7 @@ function Manager({
   const parsed = bulk ? parseClientList(bulk) : null;
   const fresh = parsed ? parsed.clients.filter((c, i, all) => !c.email || (!known.has(c.email) && all.findIndex((x) => x.email === c.email) === i)) : [];
   const dupes = parsed ? parsed.clients.length - fresh.length : 0;
+  const noEmail = fresh.filter((c) => !c.email);
   const fits = fresh.slice(0, left);
   // The seat-buying row: when seats are nearly used, or a pasted list doesn't fit (its "Add seats" link goes there).
   const showBuy = nearlyFull || fresh.length > left || unfit.length > 0;
@@ -400,82 +402,6 @@ function Manager({
 
   return (
     <div className="mt-8 grid gap-6">
-      {/* Seats are the business's to manage: staff aren't shown how many clients the business has. */}
-      {canManage && (
-      <section id="buy-seats" className="scroll-mt-6 rounded-2xl border border-line bg-surface p-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-dim">Client seats</p>
-            <p className="mt-1 text-3xl font-semibold text-ink">
-              {seats.used} <span className="text-lg font-normal text-dim">of {seats.limit} used</span>
-            </p>
-            <p className="mt-1 text-xs text-dim">
-              {includedSeats} included with your plan{extraSeats > 0 && ` + ${extraSeats} extra`}
-            </p>
-          </div>
-          <div
-            role="progressbar"
-            aria-label="Client seats used"
-            aria-valuemin={0}
-            aria-valuenow={seats.used}
-            aria-valuemax={seats.limit}
-            className="h-2 w-full overflow-hidden rounded-full bg-surface-2 sm:w-64"
-          >
-            <div className={`h-full ${full ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${Math.min(100, (seats.used / Math.max(1, seats.limit)) * 100)}%` }} />
-          </div>
-        </div>
-        {!isOwner || (!showBuy && !extraSeats && !seatsAdded) ? null : canBuySeats ? (
-          <div className="mt-5 grid gap-3 border-t border-line pt-5 text-sm" data-testid="seat-buying">
-            {showBuy && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-muted">Need more?</span>
-              <select value={buyQty} onChange={(e) => setBuyQty(Number(e.target.value))} aria-label="Extra clients" className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
-                {/* Small steps too, so a business needing two more isn't made to buy five (O89). */}
-                {[1, 2, 3, 5, 10, 25, 50].map((n) => <option key={n} value={n}>{plural(n, "client", "clients")}</option>)}
-              </select>
-              <button onClick={() => setBuying("ask")} disabled={!!buying} data-testid="buy-seats" className="rounded-lg bg-solid px-3 py-1.5 font-medium text-white hover:bg-solid-hover disabled:opacity-60">
-                Add {plural(buyQty, "client", "clients")} for {money(buyQty * seatPrice)}/{per}
-              </button>
-            </div>
-            )}
-            {buying && (
-              <div role="dialog" aria-label="Add client seats" data-testid="buy-seats-confirm" className="rounded-xl border border-line-strong bg-surface-2 p-4 text-muted">
-                <p className="font-medium text-ink">Add {plural(buyQty, "extra client seat", "extra client seats")} for {money(buyQty * seatPrice)} a {per}, plus any tax?</p>
-                <p className="mt-1">You&apos;re charged today for the rest of this billing period, then it renews with your plan.</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button onClick={buySeats} disabled={buying === "busy"} className="rounded-lg bg-solid px-3 py-1.5 font-medium text-white hover:bg-solid-hover disabled:opacity-60">
-                    {buying === "busy" ? "Adding…" : `Add ${plural(buyQty, "seat", "seats")}`}
-                  </button>
-                  <button onClick={() => setBuying(null)} disabled={buying === "busy"} className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 hover:bg-hover">Cancel</button>
-                </div>
-              </div>
-            )}
-            {!!seatsAdded && !buying && (
-              <p role="status" data-testid="seats-added" className="rounded-lg border border-ok-line bg-ok-bg px-3 py-2 text-ok-fg">
-                Added {plural(seatsAdded, "client seat", "client seats")}. You can add {plural(left, "more client", "more clients")} now. Your receipt comes by email from Link, Stripe&apos;s payment service, and Settings &gt; Billing shows what you pay.
-              </p>
-            )}
-            {/* Lowering bought seats is billing, on its own row away from removing a client. */}
-            <RemoveExtras extra={extraSeats} spare={seats.limit - seats.used} noun={{ one: "client seat", many: "client seats", holder: "clients" }} endpoint="/api/billing/seats" field="extraSeats" onError={setError} />
-            {showBuy && suggestStudio && (
-              <p data-testid="studio-hint" className="rounded-lg bg-primary-soft px-3 py-2 text-ink">
-                That would bring Solo to {money(soloAfter)}/month. Studio is {money(studioHint.studioPrice)}/month with {studioHint.studioClients} clients and 3 staff logins (yours included).{" "}
-                <Link href="/pricing" className="font-medium underline">See plans</Link>
-              </p>
-            )}
-          </div>
-        ) : !showBuy ? null : complimentary ? (
-          <p className="mt-5 border-t border-line pt-5 text-sm text-muted" data-testid="comp-seats-note">
-            Extra clients can be added once you start a paid subscription. <Link href="/pricing" className="font-medium text-accent hover:underline">Choose a paid plan</Link>
-          </p>
-        ) : (
-          <p className="mt-5 border-t border-line pt-5 text-sm text-muted">
-            <Link href="/pricing" className="font-medium text-accent hover:underline">Upgrade</Link> for 10 or more clients, with extra clients at {money(seatPrice)} each per month.
-          </p>
-        )}
-      </section>
-      )}
-
       {canAdd && (
       <section className="rounded-2xl border border-line bg-surface p-6">
         <h2 className="font-semibold text-ink">{canManage ? "Add a client" : "Add a client of your own"}</h2>
@@ -583,6 +509,19 @@ function Manager({
                 {dupes > 0 && `, ${dupes} already on your list`}.
               </p>
             )}
+            {/* A line with no email is added as a name on its own (O18): show those names, so a sentence or a name and email
+                without a comma isn't added by mistake. */}
+            {noEmail.length > 0 && (
+              <div className="text-sm text-muted" data-testid="bulk-no-email">
+                <p>
+                  {noEmail.length === 1 ? "1 line has no email, so it's added as a name only" : `${noEmail.length} lines have no email, so they're added as names only`} (you can add an email later). Check {noEmail.length === 1 ? "it's a name" : "they're names"}:
+                </p>
+                <ul className="mt-1 list-disc pl-5 text-xs">
+                  {noEmail.slice(0, 5).map((c, i) => <li key={i} className="break-words">{c.name}</li>)}
+                  {noEmail.length > 5 && <li>and {noEmail.length - 5} more</li>}
+                </ul>
+              </div>
+            )}
             {parsed && parsed.bad.length > 0 && (
               <div className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-sm text-warn-fg" data-testid="bulk-bad">
                 <p>
@@ -626,11 +565,88 @@ function Manager({
             {!isOwner
               ? "Ask the owner to add seats, or remove a client to add someone new."
               : canBuySeats
-                ? "Add seats above, or remove a client to add someone new."
+                ? "Add seats below, or remove a client to add someone new."
                 : "Upgrade your plan, or remove a client to add someone new."}
           </p>
         )}
         {error && <p role="alert" className="mt-2 text-sm text-danger-fg">{error}</p>}
+      </section>
+      )}
+
+      {/* Seats are the business's to manage: staff aren't shown how many clients the business has. Under the Add form, so the
+          keyboard reaches the name box before the seat-buying controls (S96, V97). */}
+      {canManage && (
+      <section id="buy-seats" className="scroll-mt-6 rounded-2xl border border-line bg-surface p-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-dim">Client seats</p>
+            <p className="mt-1 text-3xl font-semibold text-ink">
+              {seats.used} <span className="text-lg font-normal text-dim">of {seats.limit} used</span>
+            </p>
+            <p className="mt-1 text-xs text-dim">
+              {includedSeats} included with your plan{extraSeats > 0 && ` + ${extraSeats} extra`}
+            </p>
+          </div>
+          <div
+            role="progressbar"
+            aria-label="Client seats used"
+            aria-valuemin={0}
+            aria-valuenow={seats.used}
+            aria-valuemax={seats.limit}
+            className="h-2 w-full overflow-hidden rounded-full bg-surface-2 sm:w-64"
+          >
+            <div className={`h-full ${full ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${Math.min(100, (seats.used / Math.max(1, seats.limit)) * 100)}%` }} />
+          </div>
+        </div>
+        {!isOwner || (!showBuy && !extraSeats && !seatsAdded) ? null : canBuySeats ? (
+          <div className="mt-5 grid gap-3 border-t border-line pt-5 text-sm" data-testid="seat-buying">
+            {showBuy && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-muted">Need more?</span>
+              <select value={buyQty} onChange={(e) => setBuyQty(Number(e.target.value))} aria-label="Extra clients" className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
+                {/* Small steps too, so a business needing two more isn't made to buy five (O89). */}
+                {[1, 2, 3, 5, 10, 25, 50].map((n) => <option key={n} value={n}>{plural(n, "client", "clients")}</option>)}
+              </select>
+              <button onClick={() => setBuying("ask")} disabled={!!buying} data-testid="buy-seats" className="rounded-lg bg-solid px-3 py-1.5 font-medium text-white hover:bg-solid-hover disabled:opacity-60">
+                Add {plural(buyQty, "client", "clients")} for {money(buyQty * seatPrice)}/{per}
+              </button>
+            </div>
+            )}
+            {buying && (
+              <div role="dialog" aria-label="Add client seats" data-testid="buy-seats-confirm" className="rounded-xl border border-line-strong bg-surface-2 p-4 text-muted">
+                <p className="font-medium text-ink">Add {plural(buyQty, "extra client seat", "extra client seats")} for {money(buyQty * seatPrice)} a {per}, plus any tax?</p>
+                <p className="mt-1">You&apos;re charged today for the rest of this billing period, then it renews with your plan.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button onClick={buySeats} disabled={buying === "busy"} className="rounded-lg bg-solid px-3 py-1.5 font-medium text-white hover:bg-solid-hover disabled:opacity-60">
+                    {buying === "busy" ? "Adding…" : `Add ${plural(buyQty, "seat", "seats")}`}
+                  </button>
+                  <button onClick={() => setBuying(null)} disabled={buying === "busy"} className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 hover:bg-hover">Cancel</button>
+                </div>
+              </div>
+            )}
+            {!!seatsAdded && !buying && (
+              <p role="status" data-testid="seats-added" className="rounded-lg border border-ok-line bg-ok-bg px-3 py-2 text-ok-fg">
+                Added {plural(seatsAdded, "client seat", "client seats")}. You can add {plural(left, "more client", "more clients")} now. Your receipt comes by email from Link, Stripe&apos;s payment service, and Settings &gt; Billing shows what you pay.
+              </p>
+            )}
+            {/* Lowering bought seats is billing, on its own row away from removing a client. */}
+            <RemoveExtras extra={extraSeats} spare={seats.limit - seats.used} noun={{ one: "client seat", many: "client seats", holder: "clients" }} endpoint="/api/billing/seats" field="extraSeats" onError={setError} />
+            {showBuy && suggestStudio && (
+              <p data-testid="studio-hint" className="rounded-lg bg-primary-soft px-3 py-2 text-ink">
+                That would bring Solo to {money(soloAfter)}/month. Studio is {money(studioHint.studioPrice)}/month with {studioHint.studioClients} clients and 3 staff logins (yours included).{" "}
+                <Link href="/pricing" className="font-medium underline">See plans</Link>
+              </p>
+            )}
+          </div>
+        ) : !showBuy ? null : complimentary ? (
+          <p className="mt-5 border-t border-line pt-5 text-sm text-muted" data-testid="comp-seats-note">
+            Extra clients can be added once you start a paid subscription. <Link href="/pricing" className="font-medium text-accent hover:underline">Choose a paid plan</Link>
+          </p>
+        ) : (
+          <p className="mt-5 border-t border-line pt-5 text-sm text-muted">
+            <Link href="/pricing" className="font-medium text-accent hover:underline">Upgrade</Link> for 10 or more clients, with extra clients at {money(seatPrice)} each per month.
+          </p>
+        )}
       </section>
       )}
 
@@ -665,7 +681,7 @@ function Manager({
             <select value={filter} onChange={(e) => setFilter(e.target.value as Filter)} aria-label="Show" data-testid="clients-filter" className="min-w-0 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm">
               <option value="all">All</option>
               <option value="first">Not opened a video yet{waiting ? ` (${waiting})` : ""}</option>
-              <option value="no-email">No email</option>
+              <option value="no-email">No email{withoutEmail ? ` (${withoutEmail})` : ""}</option>
               {clients.some((c) => c.paused || c.linkOff) && <option value="paused">Paused or link off</option>}
             </select>
           </div>
@@ -728,6 +744,12 @@ function Manager({
                           {copied === c.id ? "Copied" : "Copy link"}
                         </button>
                         {canShare && <button onClick={() => share(c)} aria-label={`Share personal link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover">Share</button>}
+                        {/* Until they've opened a link, their page has every way to send it (from your email, with a message) (O22). */}
+                        {!c.reached && (
+                          <Link href={`/clients/${c.id}`} aria-label={`More ways to send ${c.name} their link`} data-testid="row-more-ways" className="rounded-lg px-2.5 py-1 font-medium text-accent hover:bg-hover">
+                            More ways to send
+                          </Link>
+                        )}
                       </>
                     )}
                     {canManage && (

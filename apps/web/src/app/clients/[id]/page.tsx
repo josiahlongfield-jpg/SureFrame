@@ -64,7 +64,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
         <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
             <ClientName clientId={client.id} initial={client.name} />
-            <ClientEmail clientId={client.id} firstName={client.name.split(" ")[0]} initial={client.email} optedOut={client.remindersOff} />
+            <ClientEmail clientId={client.id} name={client.name} initial={client.email} optedOut={client.remindersOff} />
             {/* On a team: who looks after them, and (owners and admins) the same control as on the Clients list. */}
             {team.length > 1 && (
               <ClientAssignee

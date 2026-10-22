@@ -139,6 +139,9 @@ export const LEGAL = {
    * and are listed on /legal/archive; the Claude Desktop connector also reads transcripts when the AI add-on is used; 6-digit
    * sign-in codes for connecting Claude; and why a closed account is deleted after 44 days. They describe what the app already
    * does, so they keep privacyVersion.
+   * 22 October 2026 (round 4): "The short version" says a few records are kept after an account is deleted, and why (V51);
+   * the cookie section says why two client cookies start with fc_ rather than sf_ (V50). Explanations only, so they keep
+   * privacyVersion.
    */
   privacyUpdated: "22 October 2026",
 };
@@ -185,6 +188,7 @@ export const WORDING_UPDATES: WordingUpdate[] = [
       "6-digit sign-in codes for connecting Claude.",
       "“Changes” explains which changes get a new version you agree to, and which only move the date and are listed here.",
       "Why an account we close is deleted after 44 days.",
+      "The short version says which records are kept after an account is deleted; the cookie section explains the two cookies whose names start with fc_.",
     ],
     dpa: [
       "The readable copy of your data, connecting your own AI assistant, 6-digit sign-in codes, emoji reactions among what we can read, and camera access for our browser extension.",

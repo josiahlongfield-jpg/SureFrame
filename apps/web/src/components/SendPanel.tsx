@@ -467,6 +467,17 @@ export default function SendPanel({
     );
   };
 
+  // Adding a client from the Send box: under the picker, and when everyone already has the video (O42).
+  const addControl = canAddClient ? (
+    adding ? (
+      <QuickAddClient teamKey={teamKey} onAdded={quickAdded} onCancel={() => setAdding(false)} />
+    ) : (
+      <button type="button" onClick={() => setAdding(true)} className="mt-2 text-sm font-medium text-accent hover:underline" data-testid="quick-add-open">
+        + Add a new client
+      </button>
+    )
+  ) : null;
+
   // New clients chosen: their first video goes from the business, so each gets the ways to send it.
   const showLinkBox = chosenFirst.length > 0;
   // Just one new client, nobody else: their buttons are the send buttons, under one line saying so.
@@ -634,6 +645,8 @@ export default function SendPanel({
           ) : available.length === 0 ? (
             <>
               <p className="mt-2 text-sm text-muted">Every client you can send to has this video.</p>
+              {/* Still a way to send it to someone new (O42). */}
+              {addControl}
               {showLinkBox && linkBox}
             </>
           ) : (
@@ -705,15 +718,7 @@ export default function SendPanel({
                 </p>
               )}
 
-              {canAddClient && (
-                adding ? (
-                  <QuickAddClient teamKey={teamKey} onAdded={quickAdded} onCancel={() => setAdding(false)} />
-                ) : (
-                  <button type="button" onClick={() => setAdding(true)} className="mt-2 text-sm font-medium text-accent hover:underline" data-testid="quick-add-open">
-                    + Add a new client
-                  </button>
-                )
-              )}
+              {addControl}
 
               {/* Under the picker, so who's chosen and who still needs their link read in order. */}
               {showLinkBox && linkBox}
@@ -946,7 +951,11 @@ function TitlePrompt({ videoId, onTitle }: { videoId: string; onTitle?: (title: 
       <button disabled={!title.trim() || saver.state === "saving"} className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50">
         {saver.state === "saving" ? "Saving…" : "Save title"}
       </button>
-      {saver.state === "saved" && <p className="w-full text-xs text-ok-fg" role="status" data-testid="title-saved">Title saved.</p>}
+      {saver.state === "saved" ? (
+        <p className="w-full text-xs text-ok-fg" role="status" data-testid="title-saved">Title saved.</p>
+      ) : (
+        !saver.error && <p className="w-full text-xs text-dim">Saved as you type, and it becomes this video&apos;s title above. Save title saves it now.</p>
+      )}
       {saver.error && <p role="alert" className="w-full text-xs text-danger-fg">{saver.error}</p>}
     </form>
   );

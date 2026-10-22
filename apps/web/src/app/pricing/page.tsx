@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import PlanGrid from "@/components/PlanGrid";
 import { cookies } from "next/headers";
 import AppHeader from "@/components/AppHeader";
 import SiteHeader from "@/components/SiteHeader";
@@ -245,6 +246,8 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
           More than 100 clients? Add extra clients for US${EXTRA_SEAT_PRICE.toFixed(2)} a month each, or US${EXTRA_SEAT_PRICE_YEARLY} a year on yearly billing.
         </p>
         <p className="mt-2 text-center text-sm text-dim" data-testid="currency-note">All prices are in US dollars (USD), plus any sales tax, VAT or GST that applies where you are. Checkout may offer to charge you in your own currency at Stripe&rsquo;s exchange rate; otherwise your bank converts it.</p>
+
+        <PlanGrid />
 
         <section className="mx-auto mt-16 max-w-3xl" aria-labelledby="add-ons">
           <h2 id="add-ons" className="text-center text-2xl font-semibold tracking-tight text-ink">Optional add-ons</h2>

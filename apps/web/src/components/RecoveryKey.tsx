@@ -89,7 +89,8 @@ const keyFile = (value: string, business: string) =>
 
 /** Copy, download as a .txt file, or print. */
 export function KeyActions({ value, business, tone = "plain" }: { value: string; business: string; tone?: "plain" | "warn" }) {
-  const [copied, setCopied] = useState(false);
+  // Said plainly beside the buttons as well as on Copy itself, which was easy to miss (O7); a refused copy says so.
+  const [copied, setCopied] = useState<"yes" | "failed" | false>(false);
   const btn = `rounded-lg border bg-surface px-3 py-1.5 text-sm font-medium ${tone === "warn" ? "border-warn-line text-warn-fg" : "border-line-strong text-ink"} hover:bg-hover`;
   function download() {
     const url = URL.createObjectURL(new Blob([keyFile(value, business)], { type: "text/plain" }));
@@ -120,16 +121,28 @@ export function KeyActions({ value, business, tone = "plain" }: { value: string;
       <button
         type="button"
         onClick={async () => {
-          await writeClipboard(value);
-          setCopied(true);
+          try {
+            await writeClipboard(value);
+          } catch {
+            return setCopied("failed");
+          }
+          setCopied("yes");
           markKept();
         }}
-        className={btn}
+        className={copied === "yes" ? "rounded-lg border border-ok-line bg-ok-bg px-3 py-1.5 text-sm font-medium text-ok-fg" : btn}
+        data-testid="key-copy"
       >
-        {copied ? "Copied" : "Copy"}
+        {copied === "yes" ? "✓ Copied" : "Copy"}
       </button>
       <button type="button" onClick={download} className={btn} data-testid="key-download">Download (.txt)</button>
       <button type="button" onClick={print} className={btn}>Print</button>
+      <span role="status" className="basis-full text-xs empty:hidden" data-testid="key-copied">
+        {copied === "yes" ? (
+          <span className="font-medium text-ok-fg">Recovery key copied. Paste it somewhere private, like a password manager.</span>
+        ) : copied === "failed" ? (
+          <span className="font-medium text-danger-fg">This browser didn&apos;t let us copy it. Select the key above and copy it yourself, or use Download.</span>
+        ) : null}
+      </span>
     </div>
   );
 }
@@ -247,6 +260,24 @@ export function RecoveryKeyStep({ workspaceId, fingerprint, business }: { worksp
   const router = useRouter();
   const { value } = useDeviceKey(workspaceId, fingerprint);
   const [saved, setSaved] = useState(false);
+  // "Remind me later" here too, as on the banner other pages show (O8): folded to one line for this browser session.
+  const [later, setLater] = useState(false);
+  useEffect(() => {
+    try {
+      setLater(sessionStorage.getItem(LATER) === workspaceId);
+    } catch {
+      /* storage blocked: shown in full */
+    }
+  }, [workspaceId]);
+  function remindLater(on: boolean) {
+    setLater(on);
+    try {
+      if (on) sessionStorage.setItem(LATER, workspaceId);
+      else sessionStorage.removeItem(LATER);
+    } catch {
+      /* storage blocked: folded until the next page */
+    }
+  }
   if (value === undefined) return null;
   if (saved) return <SavedNote />;
   // A brand-new business has no key yet: this device makes it here (TeamKeyGate), then shows it.
@@ -267,10 +298,29 @@ export function RecoveryKeyStep({ workspaceId, fingerprint, business }: { worksp
       </div>
     );
   }
-  return <RecoveryKeyBox value={value} business={business} onSaved={() => router.refresh()} titled={false} workspaceId={workspaceId} />;
+  if (later) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warn-line bg-warn-bg px-4 py-2.5 text-sm text-warn-fg" data-testid="recovery-key-folded">
+        <p>You haven&apos;t saved your recovery key yet. You need it to open your videos on another device.</p>
+        <button type="button" onClick={() => remindLater(false)} className="font-medium underline">Show recovery key</button>
+      </div>
+    );
+  }
+  return <RecoveryKeyBox value={value} business={business} onSaved={() => router.refresh()} onLater={() => remindLater(true)} titled={false} workspaceId={workspaceId} />;
 }
 
 const LATER = "sf-recovery-key-later";
+
+/**
+ * The banner lines up with the page under it (O8): Settings pages and the Team list are a narrower column than the Library,
+ * so a full-width banner above them looked like another page's content.
+ */
+function bannerWidth(pathname: string | null) {
+  const p = pathname ?? "";
+  if (p.startsWith("/settings") && !p.startsWith("/settings/branding")) return "max-w-3xl";
+  if (p === "/todos" || p === "/team" || p.startsWith("/clients/")) return "max-w-5xl";
+  return "max-w-6xl";
+}
 
 /**
  * Under the header until its person presses "I've saved it", on every page, in
@@ -295,7 +345,8 @@ export default function RecoveryKeyReminder({
   shared?: boolean;
 }) {
   const router = useRouter();
-  const hidden = usePathname() === hiddenOn;
+  const pathname = usePathname();
+  const hidden = pathname === hiddenOn;
   const { value } = useDeviceKey(workspaceId, fingerprint);
   const [later, setLater] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -322,7 +373,7 @@ export default function RecoveryKeyReminder({
   }, []);
   if (hidden || saved || !value) return null;
   return (
-    <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6" data-testid="recovery-key-reminder">
+    <div className={`mx-auto ${bannerWidth(pathname)} px-4 pt-4 sm:px-6`} data-testid="recovery-key-reminder">
       {!later ? (
         <>
           {note && <p className="mb-2 text-sm font-medium text-warn-fg">{note}</p>}
@@ -353,7 +404,7 @@ export function KeyNotKeptNote({ workspaceId }: { workspaceId: string }) {
   }, [workspaceId]);
   if (!show || pathname === "/settings/account") return null;
   return (
-    <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
+    <div className={`mx-auto ${bannerWidth(pathname)} px-4 pt-4 sm:px-6`}>
       <div role="status" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl border border-warn-line bg-warn-bg px-4 py-2.5 text-sm text-warn-fg" data-testid="key-not-kept">
         <p>You haven&apos;t copied or downloaded your recovery key yet. Without it, you can&apos;t open your videos on a new device.</p>
         <span className="flex flex-wrap gap-x-4">

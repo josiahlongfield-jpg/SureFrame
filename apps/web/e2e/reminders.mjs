@@ -151,7 +151,8 @@ sql(`update "Reminder" set "sendAt" = now() - interval '1 minute' where id = (se
 const run2 = await cron();
 ok("no email after opting out", run2.body?.sent === 0 && run2.body?.skipped === 1 && mailTo("riley@example.com").length === 1, JSON.stringify(run2.body));
 await pro.reload();
-await pro.waitForSelector("text=Riley turned reminder emails off");
+// The client is named in full, as on the no-email line (O36).
+await pro.waitForSelector("text=Riley Client turned reminder emails off");
 ok("business sees the opt-out", true);
 
 // 7. Edit a to-do's reminders, and remind the business itself

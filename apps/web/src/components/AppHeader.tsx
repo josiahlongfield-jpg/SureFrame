@@ -24,7 +24,8 @@ import TimeZoneSync from "./TimeZoneSync";
 
 type Links = (readonly [string, string])[];
 
-export default async function AppHeader({ email, plan }: { email: string; plan: string }) {
+/** `widget={false}` leaves out the floating help chat, for /help, which is the chat (V78). */
+export default async function AppHeader({ email, plan, widget = true }: { email: string; plan: string; widget?: boolean }) {
   const me = await currentUser();
   const manager = !!me && me.role !== "MEMBER";
   const owner = me?.role === "OWNER";
@@ -122,7 +123,7 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
       ) : null}
       {/* The business's zone is only set once they've agreed to the terms (the API refuses it before). */}
       {me && <TimeZoneSync shownZone={zoned(me.workspace.timezone).zone} setWorkspace={manager && !me.workspace.timezone && me.agreed} />}
-      <SupportWidget signedIn limits={limitsNote(supportTier(me?.workspace))} />
+      {widget && <SupportWidget signedIn limits={limitsNote(supportTier(me?.workspace))} />}
     </header>
   );
 }

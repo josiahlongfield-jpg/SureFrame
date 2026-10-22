@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { auth } from "@/auth";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
+import AppHeader from "@/components/AppHeader";
+import { PLANS } from "@/lib/plans";
 import { ChatBoundary, SupportChat } from "@/components/SupportChat";
 import Link from "next/link";
 import { BUSINESS_FAQ, CLIENT_FAQ } from "@/components/Faq";
@@ -24,10 +26,12 @@ const COMMON = ["storage", "free-plan", "first-email", "phone", "recovery-key", 
 export default async function Help({ searchParams }: { searchParams: Promise<{ from?: string }> }) {
   const { from } = await searchParams;
   const signedIn = !!(await auth())?.user;
-  const tier = supportTier(signedIn ? (await currentUser().catch(() => null))?.workspace : null);
+  const me = signedIn ? await currentUser().catch(() => null) : null;
+  const tier = supportTier(me?.workspace);
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
-      <SiteHeader navy />
+      {/* Signed in, the app's own header with its Clients, Library, To-dos and Settings, as on Pricing (V78). The page is the chat, so no floating one. */}
+      {me ? <AppHeader email={me.user.email} plan={PLANS[me.workspace.plan].name} widget={false} /> : <SiteHeader navy />}
       <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
         <p className="kicker">Help</p>
         <h1 className="display mt-3 text-3xl text-ink">How can we help?</h1>
@@ -60,7 +64,7 @@ export default async function Help({ searchParams }: { searchParams: Promise<{ f
         )}
         <div className="mt-8 flex h-[65vh] min-h-[26.25rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface">
           <ChatBoundary>
-            <SupportChat signedIn={signedIn} className="flex-1" />
+            <SupportChat signedIn={signedIn} className="flex-1" suggestions={COMMON.slice(0, 4).flatMap((id) => [...BUSINESS_FAQ, ...CLIENT_FAQ].find((x) => x.id === id)?.q ?? [])} />
           </ChatBoundary>
         </div>
         {/* The most-asked questions, linking into the FAQ page rather than repeating it, so Help (ask us) and FAQ (read the

@@ -249,6 +249,10 @@ ok(
   edges.height >= 480 && edges.bottom <= edges.screen && edges.section > edges.bottom,
   JSON.stringify(edges),
 );
+// The larger view is offered once the conversation has a message (O68).
+await owner.fill('textarea[aria-label="Reply"]', "A note for the larger view");
+await owner.press('textarea[aria-label="Reply"]', "Enter");
+await owner.waitForSelector("aside ul li[data-mine]:has-text('A note for the larger view')", { timeout: 15000 });
 await owner.click("button[aria-label='Open conversation in a larger view']");
 ok("conversation opens in a larger view", (await owner.getAttribute("[data-testid=conversation]", "data-expanded")) === "true");
 await owner.keyboard.press("Escape");

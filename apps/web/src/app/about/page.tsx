@@ -69,6 +69,19 @@ export default function About() {
             </p>
           </Section>
 
+          {/* What a business buyer asks of a one-person service (V31), from Terms section 9 and what the app does on its own. */}
+          <Section id="continuity" title={`If we're away, or if ${LEGAL.product} closes`}>
+            <p data-testid="about-continuity">
+              Recording, sending, replies, reminders and emails run on their own, so they keep working whether or not someone is at a desk. Our assistant in Help
+              answers at any time, and a person replies within 2 business days.
+            </p>
+            <p>
+              If we ever stop providing {LEGAL.product}, we&rsquo;ll give at least 30 days&rsquo; notice by email (unless the law requires us to act sooner) and refund
+              fees you&rsquo;ve prepaid for the time after your account closes (<Link href="/legal/terms#suspension">Terms, section 9</Link>). You can download your data
+              any time from Settings &gt; Account, and save any video to your device from its page.
+            </p>
+          </Section>
+
           <Section id="data" title="Where data is kept">
             <p>
               We run {LEGAL.product} from Australia. {DATA_LOCATIONS} Encrypted content stays encrypted wherever it&rsquo;s stored.
