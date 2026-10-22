@@ -18,11 +18,13 @@ import { withKeep } from "@/lib/activity";
 export async function emailLink(fd: FormData) {
   const email = plainEmail(String(fd.get("email") ?? ""));
   // "Keep me signed in" goes in the link too, for when it's opened in another browser (lib/activity.ts KEEP_PARAM).
+  // Only in the emailed link: the pages here keep the plain address (S4), and Send again on the check page knows
+  // the choice from this browser's KEEP_NEXT cookie.
   const asked = safeNext(String(fd.get("next") ?? ""));
   const redirectTo = fd.get("keep") === "1" ? withKeep(asked) : asked;
   const again = fd.get("again") === "1";
   const signup = fd.get("signup") === "1" ? "&signup=1" : "";
-  const back = (code: string) => redirect(`${again ? "/login/check" : "/login"}?error=${code}&next=${encodeURIComponent(redirectTo)}${signup}`);
+  const back = (code: string) => redirect(`${again ? "/login/check" : "/login"}?error=${code}&next=${encodeURIComponent(asked)}${signup}`);
   if (!email) back("email");
   // Refused again in src/auth.ts for any way in; checked here so the page says why.
   if (await isEmailBlocked(email)) back("blocked");
@@ -45,7 +47,7 @@ export async function emailLink(fd: FormData) {
     if (failed) back("send");
     (await cookies()).set(SENT_TO_COOKIE, email!, { httpOnly: true, sameSite: "lax", path: "/login", maxAge: 3600 });
     (await cookies()).set(SENT_AT_COOKIE, String(Date.now()), { httpOnly: true, sameSite: "lax", path: "/login", maxAge: 3600 });
-    redirect(`/login/check?next=${encodeURIComponent(redirectTo)}${again ? "&again=1" : ""}${signup}`);
+    redirect(`/login/check?next=${encodeURIComponent(asked)}${again ? "&again=1" : ""}${signup}`);
   }
   try {
     // With redirect off, Auth.js reports a failed send as an error URL instead of throwing.
@@ -60,5 +62,5 @@ export async function emailLink(fd: FormData) {
   }
   (await cookies()).set(SENT_TO_COOKIE, email!, { httpOnly: true, sameSite: "lax", path: "/login", maxAge: 3600 });
   (await cookies()).set(SENT_AT_COOKIE, String(Date.now()), { httpOnly: true, sameSite: "lax", path: "/login", maxAge: 3600 });
-  redirect(`/login/check?next=${encodeURIComponent(redirectTo)}${again ? "&again=1" : ""}${signup}`);
+  redirect(`/login/check?next=${encodeURIComponent(asked)}${again ? "&again=1" : ""}${signup}`);
 }
