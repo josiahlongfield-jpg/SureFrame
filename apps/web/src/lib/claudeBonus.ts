@@ -8,7 +8,7 @@ export const CLAUDE_BONUS = {
   kicker: "Free bonus for Claude users",
   title: "Let Claude work through your SureFrame for you.",
   blurb:
-    "Already use Claude? Connect it to SureFrame free of charge and ask it for reports, summaries, to-do lists and more to help streamline your service. It only reads, and only sees what you can see.",
+    "Already use Claude? Connect it to SureFrame free of charge and ask it for reports, follow-up lists, to-do lists and more to help streamline your service. It only reads, and only sees what you can see.",
   privacy:
     "Your messages and notes stay end-to-end encrypted: the online connector can't read them, and the Claude Desktop connector unlocks them on your own computer.",
   /** Needs their own Claude account; Claude's plans decide which connectors they can add. */
