@@ -70,7 +70,7 @@ export default function Page() {
           when staff send videos, and can send staff reminders. You&rsquo;re responsible for telling your staff about this and for following any workplace and
           privacy laws that apply to you.
         </li>
-        <li>When a team member has set their name, clients see it on the videos that person sends, as &ldquo;Name from Business&rdquo;.</li>
+        <li>When a team member has set their name, clients see it on the videos that person sends, as &ldquo;Name from Business&rdquo; (just once when their name is the business name).</li>
         <li>
           When someone leaves your team (you remove them, or they close or delete their account), the videos and replies they made stay with your business and
           are shown as &ldquo;Former team member&rdquo;.

@@ -319,7 +319,7 @@ export default function Page() {
           scheduled jobs need a secret to run.
         </li>
         <li>
-          <strong>Data minimisation:</strong> notification emails don&rsquo;t include video titles, replies or to-do text. Copies of recordings are deleted from our servers
+          <strong>Data minimisation:</strong> notification emails don&rsquo;t include replies, messages or to-do text (they can name a video by its title). Copies of recordings are deleted from our servers
           automatically (see section 10). Recordings left unfinished are completed from their encrypted copy once untouched for at least 6 hours, leftover
           pieces are deleted after about a day, and uploads that can&rsquo;t be completed are removed after a week. Expired sign-in links are deleted, and IP addresses counted for rate limits
           are deleted within about two days (the help chat&rsquo;s limits for visitors and Free plans keep only a one-way fingerprint, for 31 days).

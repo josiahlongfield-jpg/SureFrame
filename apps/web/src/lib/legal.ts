@@ -90,6 +90,7 @@ export const LEGAL = {
    * the 30-minute transcript limit (22); the help chat limits line (13); why a closed account is deleted after 44 days (9); the
    * liability cap not covering what the law won't let us limit (16); the Australian Consumer Law line (20); and 30 days' notice
    * before ending the Free plan (6). They describe what we already do or add to what customers get, so they keep termsVersion.
+   * Also 22 October 2026: section 2 notes a team member whose name is the business name is shown once (no new version).
    */
   termsUpdated: "22 October 2026",
   /**
@@ -104,7 +105,8 @@ export const LEGAL = {
    * 22 October 2026: the readable data download (10), connecting your own AI assistant (3), 6-digit sign-in codes for connecting
    * Claude, emoji reactions among what we can read, the browser extension's camera access, a 48-hour target for telling you about
    * a breach (11), and why a closed account is deleted after 44 days. They describe what we already do or add to what customers get,
-   * so they keep dpaVersion.
+   * so they keep dpaVersion. Also 22 October 2026: notification emails can name a video by its title (data minimisation),
+   * which describes what the emails already do, so it keeps dpaVersion.
    */
   dpaUpdated: "22 October 2026",
   /**
@@ -175,6 +177,7 @@ export const WORDING_UPDATES: WordingUpdate[] = [
       "Section 23 covers connecting your own Claude, and using your own AI assistant in your browser (with a pointer from section 9).",
       "Section 24 covers our browser extension and Claude Desktop connector.",
       "Section 17 mentions the readable copy of your data; section 22 the 30-minute limit for transcripts; section 13 where help chat limits are shown.",
+      "Section 2: a team member whose name is the business name is shown once.",
       "Why an account we close is deleted after 44 days; the liability cap doesn’t cover what the law won’t let us limit; the Australian Consumer Law line; 30 days’ notice before we end the Free plan.",
     ],
     privacy: [
@@ -187,6 +190,7 @@ export const WORDING_UPDATES: WordingUpdate[] = [
       "The readable copy of your data, connecting your own AI assistant, 6-digit sign-in codes, emoji reactions among what we can read, and camera access for our browser extension.",
       "We aim to tell you about a breach within 48 hours of becoming aware of it.",
       "Why an account we close is deleted after 44 days.",
+      "Notification emails can name a video by its title; they still never include replies, messages or to-do text.",
     ],
   },
   {
