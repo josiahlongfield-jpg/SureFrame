@@ -47,6 +47,9 @@ async function ask(page, text) {
 // 1. A visitor on the home page opens Help and asks a question
 const visitor = await page({ viewport: { width: 1280, height: 900 } });
 await visitor.goto(BASE + "/");
+// On the home page the floating Help button waits until the visitor scrolls (decision 20).
+await visitor.mouse.wheel(0, 400);
+await visitor.waitForSelector("[data-testid=help-button]:not([data-waiting])");
 await visitor.click("button:has-text('Help')");
 ok("help panel opens", await visitor.isVisible("role=dialog[name='SureFrame help']"));
 // The panel says a visitor's limits up front (O80, V40), and that the email is needed for a person (V38).
