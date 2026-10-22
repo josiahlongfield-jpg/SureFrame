@@ -393,9 +393,10 @@ await small.screenshot({ path: `${shots}/support-help-320.png` });
 await small.click("button[aria-label='Close help']");
 ok("320px: the page scrolls again once it's closed", (await small.evaluate(() => getComputedStyle(document.documentElement).overflow)) !== "hidden");
 ok("320px: closing goes back to the menu button", await small.evaluate(() => document.activeElement?.dataset.testid === "site-menu-button"));
-// 390px: Help sits in the top bar itself, beside Pricing, Sign in and Start free, without pushing the bar sideways.
+// 440px to 639px: Help sits in the top bar itself, beside Pricing, Sign in and Start free, without pushing the bar sideways;
+// from 375px to 439px it's in the small menu with Pricing (the bar keeps Sign in and Start free).
 const phone390 = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })).newPage();
-for (const [w, path] of [[390, "/"], [390, "/pricing"], [390, "/faq"], [390, "/legal/terms"], [375, "/"], [375, "/pricing"], [639, "/"]]) {
+for (const [w, path] of [[440, "/"], [440, "/pricing"], [440, "/faq"], [440, "/legal/terms"], [639, "/"]]) {
   await phone390.setViewportSize({ width: w, height: 844 });
   await phone390.goto(BASE + path);
   const bar = await phone390.evaluate(() => {
@@ -405,9 +406,20 @@ for (const [w, path] of [[390, "/"], [390, "/pricing"], [390, "/faq"], [390, "/l
   });
   ok(`${w}px ${path}: Help in the top bar, no floating button, no sideways scroll`, bar.help && bar.inside && bar.wide && !bar.floating, JSON.stringify(bar));
 }
-await phone390.setViewportSize({ width: 390, height: 844 });
+await phone390.setViewportSize({ width: 440, height: 844 });
 await phone390.tap("[data-testid=site-help]");
-ok("390px: the top bar's Help opens the help sheet", !!(await phone390.waitForSelector("role=dialog[name='SureFrame help']", { timeout: 5000 }).catch(() => null)));
+ok("440px: the top bar's Help opens the help sheet", !!(await phone390.waitForSelector("role=dialog[name='SureFrame help']", { timeout: 5000 }).catch(() => null)));
+await phone390.click("button[aria-label='Close help']");
+for (const w of [375, 390, 430]) {
+  await phone390.setViewportSize({ width: w, height: 844 });
+  await phone390.goto(BASE + "/");
+  const bar = await phone390.evaluate(() => ({ wide: document.documentElement.scrollWidth <= innerWidth, floating: (document.querySelector("[data-testid=help-button]")?.getClientRects().length ?? 0) > 0, inBar: (document.querySelector("[data-testid=site-help]")?.getClientRects().length ?? 0) > 0 }));
+  await phone390.tap("[data-testid=site-menu-button]");
+  const inMenu = await phone390.isVisible("[data-testid=site-menu-help]");
+  ok(`${w}px: Help in the small menu, no floating button, no sideways scroll`, bar.wide && !bar.floating && !bar.inBar && inMenu, JSON.stringify({ ...bar, inMenu }));
+}
+await phone390.tap("[data-testid=site-menu-help]");
+ok("430px: the menu's Help opens the help sheet", !!(await phone390.waitForSelector("role=dialog[name='SureFrame help']", { timeout: 5000 }).catch(() => null)));
 await phone390.close();
 // Computers: on the home page the Help button waits until the visitor scrolls (decision 20); elsewhere it's there at once.
 const desk = await page({ viewport: { width: 1280, height: 800 } });

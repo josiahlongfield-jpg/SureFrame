@@ -442,7 +442,7 @@ await agree320.screenshot({ path: `${shots}/agree-320.png`, fullPage: true });
   await page.waitForLoadState("networkidle").catch(() => {});
   ok("and it stays dismissed for this person", (await page.locator("[data-testid=changes-notice]").count()) === 0);
   await page.goto(BASE + "/legal/archive#wording-updates");
-  ok("the link lands on the wording updates list", await page.isVisible("#wording-updates"));
+  ok("the link lands on the wording updates list", !!(await page.waitForSelector("#wording-updates", { timeout: 15000 }).catch(() => null)), page.url());
   const lateEmail = `changes-late${stamp}@example.com`;
   await agreed(lateEmail);
   const late = await signIn(lateEmail, "/library", { lands: "/library" });

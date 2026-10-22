@@ -352,7 +352,13 @@ ok("320px header: the open menu fits the screen", !!menuBox && menuBox.x >= 0 &&
 await phone.keyboard.press("Escape");
 ok("320px header: Escape closes the menu, back on its button", !(await phone.isVisible("[data-testid=site-menu]")) && (await phone.evaluate(() => document.activeElement?.dataset.testid)) === "site-menu-button");
 await phone.setViewportSize({ width: 375, height: 700 });
-ok("375px header: Pricing shows in the bar, no menu", (await phone.isVisible("header > div > nav > a[href='/pricing']")) && !(await phone.isVisible("[data-testid=site-menu-button]")) && (await fits(phone)) <= 375);
+// From 375px Sign in is back in the bar; Pricing and Help stay in the small menu until 440px (decision 1: no floating Help).
+ok("375px header: Sign in shows in the bar, Pricing in the menu", (await phone.isVisible("header > div > nav > a[href='/login']")) && !(await phone.isVisible("header > div > nav > a[href='/pricing']")) && (await phone.isVisible("[data-testid=site-menu-button]")) && (await fits(phone)) <= 375);
+await phone.click("[data-testid=site-menu-button]");
+ok("375px header: the menu holds Pricing and Help, not Sign in again", (await phone.locator("[data-testid=site-menu] a[href='/pricing']").isVisible()) && (await phone.locator("[data-testid=site-menu-help]").isVisible()) && !(await phone.locator("[data-testid=site-menu] a[href='/login']").isVisible()));
+await phone.keyboard.press("Escape");
+await phone.setViewportSize({ width: 440, height: 700 });
+ok("440px header: Pricing, Sign in and Help all in the bar, no menu", (await phone.isVisible("header > div > nav > a[href='/pricing']")) && (await phone.isVisible("[data-testid=site-help]")) && !(await phone.isVisible("[data-testid=site-menu-button]")) && (await fits(phone)) <= 440);
 await phone.setViewportSize({ width: 320, height: 700 });
 // V14: the footer has a Contact link with the support email, and still fits 320px.
 ok("320px footer: Contact support@sureframe.app, as an email link", (await phone.getAttribute("footer [data-testid=footer-contact]", "href")) === "mailto:support@sureframe.app" && norm(await phone.textContent("footer [data-testid=footer-contact]")) === "Contact support@sureframe.app");
