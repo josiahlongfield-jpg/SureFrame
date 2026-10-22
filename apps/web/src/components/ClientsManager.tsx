@@ -254,6 +254,8 @@ function Manager({
   const fresh = parsed ? parsed.clients.filter((c, i, all) => !c.email || (!known.has(c.email) && all.findIndex((x) => x.email === c.email) === i)) : [];
   const dupes = parsed ? parsed.clients.length - fresh.length : 0;
   const fits = fresh.slice(0, left);
+  // The seat-buying row: when seats are nearly used, or a pasted list doesn't fit (its "Add seats" link goes there).
+  const showBuy = nearlyFull || fresh.length > left || unfit.length > 0;
   async function addMany() {
     if (!fits.length) return;
     setBusy(true);
@@ -422,9 +424,9 @@ function Manager({
             <div className={`h-full ${full ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${Math.min(100, (seats.used / Math.max(1, seats.limit)) * 100)}%` }} />
           </div>
         </div>
-        {!isOwner || (!nearlyFull && !extraSeats && !seatsAdded) ? null : canBuySeats ? (
+        {!isOwner || (!showBuy && !extraSeats && !seatsAdded) ? null : canBuySeats ? (
           <div className="mt-5 grid gap-3 border-t border-line pt-5 text-sm" data-testid="seat-buying">
-            {nearlyFull && (
+            {showBuy && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-muted">Need more?</span>
               <select value={buyQty} onChange={(e) => setBuyQty(Number(e.target.value))} aria-label="Extra clients" className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
@@ -454,14 +456,14 @@ function Manager({
             )}
             {/* Lowering bought seats is billing, on its own row away from removing a client. */}
             <RemoveExtras extra={extraSeats} spare={seats.limit - seats.used} noun={{ one: "client seat", many: "client seats", holder: "clients" }} endpoint="/api/billing/seats" field="extraSeats" onError={setError} />
-            {nearlyFull && suggestStudio && (
+            {showBuy && suggestStudio && (
               <p data-testid="studio-hint" className="rounded-lg bg-primary-soft px-3 py-2 text-ink">
                 That would bring Solo to {money(soloAfter)}/month. Studio is {money(studioHint.studioPrice)}/month with {studioHint.studioClients} clients and 3 staff logins (yours included).{" "}
                 <Link href="/pricing" className="font-medium underline">Compare plans</Link>
               </p>
             )}
           </div>
-        ) : !nearlyFull ? null : complimentary ? (
+        ) : !showBuy ? null : complimentary ? (
           <p className="mt-5 border-t border-line pt-5 text-sm text-muted" data-testid="comp-seats-note">
             Extra clients can be added once you start a paid subscription. <Link href="/pricing" className="font-medium text-accent hover:underline">Choose a paid plan</Link>
           </p>
