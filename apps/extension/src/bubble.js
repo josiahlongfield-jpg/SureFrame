@@ -102,10 +102,28 @@ function layout() {
   else if (!gesture) port?.postMessage({ box: shape });
 }
 
+/**
+ * The page script hands over a private channel once; only moves and sizes go through it. The web page around this
+ * frame can post here too, so the channel is taken only with the one-off code the page script wrote for this frame
+ * (named in its address) in the extension's own storage, which web pages can't read (B20).
+ */
+const slot = location.hash.slice(1);
 window.addEventListener("message", (e) => {
-  // The page script hands over a private channel once; only moves and sizes go through it.
   if (e.data?.sureframe !== "port" || !e.ports[0] || port) return;
-  port = e.ports[0];
+  const offered = e.ports[0];
+  const nonce = e.data.nonce;
+  void (async () => {
+    const key = `bubble:${slot}`;
+    const want = slot && typeof nonce === "string" && nonce ? (await chrome.storage.session.get(key).catch(() => ({})))[key] : null;
+    if (port || !want || want !== nonce) return offered.close();
+    // Used once: a code seen by anything else is no good afterwards.
+    void chrome.storage.session.remove(key).catch(() => {});
+    takePort(offered);
+  })();
+});
+
+function takePort(offered) {
+  port = offered;
   port.onmessage = (m) => {
     if (m.data?.view) {
       view = m.data.view;
@@ -131,7 +149,7 @@ window.addEventListener("message", (e) => {
     }
   };
   layout();
-});
+}
 
 // ---------- Recording state, from the SureFrame tab ----------
 

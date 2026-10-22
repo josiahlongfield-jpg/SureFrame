@@ -28,6 +28,8 @@
   /** While the bubble is dragged or resized its frame covers the page (see connect). */
   let full = false;
   let staleTimer = 0;
+  /** This frame's name in the extension's storage, where each connection's one-off code is kept (see connect). */
+  let slot = "";
 
   const ok = () => {
     // Cut off by an update or removal: take the bubble away and step aside.
@@ -87,7 +89,8 @@
       "all:initial;position:fixed;z-index:2147483647;border:0;margin:0;padding:0;width:0;height:0;display:block;" +
       "background:transparent;color-scheme:light;overflow:hidden;visibility:visible;opacity:1;pointer-events:auto";
     frame.addEventListener("load", connect);
-    frame.setAttribute("src", chrome.runtime.getURL("bubble.html"));
+    slot = crypto.randomUUID();
+    frame.setAttribute("src", `${chrome.runtime.getURL("bubble.html")}#${slot}`);
     document.documentElement.append(frame);
     clamp();
     clearInterval(staleTimer);
@@ -101,6 +104,8 @@
     port = null;
     frame?.remove();
     frame = null;
+    if (slot) void chrome.storage.session.remove(`bubble:${slot}`).catch(() => {});
+    slot = "";
   }
 
   async function check() {
@@ -116,7 +121,23 @@
     if (!fresh(rec)) unmount();
   }
 
-  function connect() {
+  /**
+   * Hands the bubble its private channel. The web page can post to the bubble's frame as well, so the bubble only
+   * takes a channel that comes with this one-off code, kept where web pages can't read it (B20).
+   */
+  async function connect() {
+    const target = frame;
+    const key = `bubble:${slot}`;
+    const nonce = crypto.randomUUID();
+    try {
+      await chrome.storage.session.set({ [key]: nonce });
+    } catch {
+      // Session storage needs the worker to have opened it to pages; waking it does that.
+      await chrome.runtime.sendMessage({ type: "whoami" }).catch(() => {});
+      if (!(await chrome.storage.session.set({ [key]: nonce }).then(() => true, () => false))) return;
+    }
+    // Taken away, or loaded again, meanwhile.
+    if (!target || target !== frame || !ok()) return;
     const channel = new MessageChannel();
     port?.close();
     port = channel.port1;
@@ -166,7 +187,7 @@
         settle(Number.isFinite(m.cx) && Number.isFinite(m.bottom) ? { cx: m.cx, bottom: m.bottom } : held);
       }
     };
-    frame.contentWindow?.postMessage({ sureframe: "port" }, "*", [channel.port2]);
+    frame.contentWindow?.postMessage({ sureframe: "port", nonce }, "*", [channel.port2]);
     told = "";
   }
 

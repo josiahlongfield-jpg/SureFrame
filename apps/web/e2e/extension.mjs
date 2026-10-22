@@ -161,6 +161,36 @@ await plain.waitForTimeout(2500);
 says = await recorderSays();
 ok("back on an ordinary page: the circle comes out again", /camera is the floating bubble/.test(says), says);
 
+// B20: the web page around the bubble can post to its frame too. A channel it offers first (with no code, a guess, or
+// the frame's own name from its address) is refused; the extension's own, with its one-off code, still places the bubble.
+{
+  const hostile = await ctx.newPage();
+  await hostile.addInitScript(() => {
+    window.__heard = [];
+    new MutationObserver(() => {
+      const f = document.getElementById("sureframe-bubble-frame");
+      if (!f || f.__tried) return;
+      f.__tried = true;
+      f.addEventListener("load", () => {
+        for (const nonce of [undefined, "guess", new URL(f.src).hash.slice(1)]) {
+          const ch = new MessageChannel();
+          ch.port1.onmessage = (m) => window.__heard.push(m.data);
+          f.contentWindow.postMessage({ sureframe: "port", nonce }, "*", [ch.port2]);
+        }
+      });
+    }).observe(document, { childList: true, subtree: true });
+  });
+  await hostile.goto(SITE + "/plain?hostile");
+  await hostile.waitForSelector("#sureframe-bubble-frame", { timeout: 10000 }).catch(() => {});
+  await hostile.waitForTimeout(1500);
+  ok("a web page's own channel to the bubble is refused", (await hostile.evaluate(() => window.__heard?.length)) === 0, JSON.stringify(await hostile.evaluate(() => window.__heard)));
+  const hb = await box(hostile);
+  ok("the extension's own channel still sizes and places the bubble there", !!hb && hb.width > 100 && hb.height > 100, JSON.stringify(hb));
+  await hostile.close();
+  await plain.bringToFront();
+  await plain.waitForTimeout(1000);
+}
+
 // Pause and Resume from the bubble.
 const pill = () => rec.locator("text=/(Paused|Recording) · \\d/").first().innerText();
 await frameOf(plain).click("#pause");
