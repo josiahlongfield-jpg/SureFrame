@@ -118,7 +118,8 @@ await pro.waitForTimeout(500);
 ok("clicking the label shares nothing", sql(`select shared from "Item" where id='${privateId}'`) === "f" && (await pro.locator("[data-testid=share-confirm]").count()) === 0);
 await pro.click("li:has-text('Prefers morning calls') >> button:has-text('Share…')");
 await pro.waitForSelector("[data-testid=share-confirm]");
-ok("Share asks first, naming the client and the item", (await pro.textContent("[data-testid=share-confirm]")).includes("Share this note with Riley Client?") && (await pro.textContent("[data-testid=share-confirm]")).includes("Prefers morning calls"));
+// The strip sits under the item it's about, so it names the item for screen readers rather than repeating it on screen (D12e).
+ok("Share asks first, naming the client and the item", (await pro.textContent("[data-testid=share-confirm]")).includes("Share this note with Riley Client?") && (await pro.getAttribute("[data-testid=share-confirm]", "aria-label")).includes("Prefers morning calls"));
 // D12e: an inline strip under the item (like Stop sharing), not a pop-up; it takes focus and Escape closes it.
 ok("Share asks in a strip under the item, not a pop-up", (await pro.locator("li:has-text('Prefers morning calls') [data-testid=share-confirm]").count()) === 1 && (await pro.locator("[role=dialog][aria-modal=true]").count()) === 0);
 ok("the strip takes focus", await pro.evaluate(() => !!document.activeElement?.closest("[data-testid=share-confirm]")));

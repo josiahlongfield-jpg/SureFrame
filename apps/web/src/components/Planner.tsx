@@ -231,7 +231,7 @@ export default function Planner({
       ref={stripRef}
       tabIndex={-1}
       role="group"
-      aria-label={`Share with ${who}`}
+      aria-label={`Share "${i.text}" with ${who}?`}
       data-testid="share-confirm"
       onKeyDown={(e) => {
         if (e.key === "Escape" && !busy) {
