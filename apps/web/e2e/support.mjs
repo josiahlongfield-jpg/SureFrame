@@ -172,7 +172,7 @@ await owner.click("[data-testid=talk-to-person]");
 const weekly = await owner.waitForSelector("form [role=alert]", { timeout: 15000 }).then((e) => e.textContent(), () => "");
 ok("Free plan: a second person in a week is refused, with when to ask again", weekly.includes("once a week") && /You can ask again from \d{1,2} [A-Z][a-z]{2,3} \d{4}/.test(weekly) && weekly.includes("Paid plans can talk to a person any time"), weekly);
 ok("Free plan: refused without a hand-over, the AI or losing the message", (await owner.locator("[data-testid=with-person]").count()) === 0 && requests.length === callsBeforeRefusal && (await owner.inputValue('textarea[aria-label="Your message"]')).includes(inv));
-ok("Free plan: Talk to a person is off until the allowance lifts", await owner.isDisabled("[data-testid=talk-to-person]"));
+ok("Free plan: Talk to a person is off until the allowance lifts", (await owner.locator("[data-testid=talk-to-person]").count()) === 1 && (await owner.isDisabled("[data-testid=talk-to-person]")));
 // Paying businesses can ask any time (a fresh page: the one above remembers the refusal until it lifts).
 await prisma.workspace.updateMany({ where: { members: { some: { user: { email: planEmail } } } }, data: { plan: "SOLO" } });
 await owner.reload();
@@ -210,7 +210,7 @@ await asker.click("[data-testid=talk-to-person]");
 const monthly = await asker.waitForSelector("form [role=alert]", { timeout: 15000 }).then((e) => e.textContent(), () => "");
 ok("visitor: a second person within 30 days is refused, with when to ask again", monthly.includes("once every 30 days") && monthly.includes("You can ask again from") && monthly.includes("you've already done that"), monthly);
 ok("visitor: the refusal leaves the message box empty", (await asker.inputValue('textarea[aria-label="Your message"]')) === "");
-ok("visitor: Talk to a person is off after the refusal, Send isn't blocked by it", (await asker.isDisabled("[data-testid=talk-to-person]")) && (await asker.fill('textarea[aria-label="Your message"]', "x").then(() => asker.isEnabled("form button:has-text('Send')"))));
+ok("visitor: Talk to a person is off after the refusal, Send isn't blocked by it", (await asker.locator("[data-testid=talk-to-person]").count()) === 1 && (await asker.isDisabled("[data-testid=talk-to-person]")) && (await asker.fill('textarea[aria-label="Your message"]', "x").then(() => asker.isEnabled("form button:has-text('Send')"))));
 await asker.fill('textarea[aria-label="Your message"]', "");
 const sameEmail = await fetch(BASE + "/api/support", { method: "POST", headers: { "Content-Type": "application/json", "x-real-ip": "10.7.1.2" }, body: JSON.stringify({ body: "hi", email: "Visitor2@example.com", person: true }) });
 ok("visitor: the same email from another network is refused too", sameEmail.status === 429 && ((await sameEmail.json()).error ?? "").includes("once every 30 days"));
