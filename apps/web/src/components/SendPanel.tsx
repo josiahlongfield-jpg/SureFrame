@@ -104,6 +104,8 @@ export default function SendPanel({
   const [picked, setPicked] = useState<string[]>(() =>
     preselect && !sentToId && !video.sourceId && given.some((c) => c.id === preselect && c.link && c.teamKeyWrap && !c.removed && !c.paused && !c.linkOff) ? [preselect] : [],
   );
+  // The client chosen for them, while it's still just that suggestion (said under the picker).
+  const [suggested] = useState(() => picked[0]);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -113,6 +115,7 @@ export default function SendPanel({
   const [titled, setTitled] = useState(false);
   const canShare = useCanShare();
   const byId = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients]);
+  const stillSuggested = !!suggested && picked.length === 1 && picked[0] === suggested && recipients.every((r) => r.clientId !== suggested);
   const has = new Set(recipients.map((r) => r.clientId));
   // Who can be chosen: active clients with a key, who don't have it yet.
   const available = clients.filter((c) => c.link && c.teamKeyWrap && !c.removed && !c.paused && !c.linkOff && !has.has(c.id));
@@ -642,6 +645,7 @@ export default function SendPanel({
                   aria-expanded={open}
                   aria-haspopup="listbox"
                   data-testid="client-picker"
+                  data-preselected={stillSuggested ? byId.get(suggested!)?.name : undefined}
                   className="flex w-full items-center justify-between gap-2 rounded-xl border border-line-strong bg-surface px-3 py-2.5 text-left text-sm hover:bg-hover"
                 >
                   <span className={picked.length ? "truncate text-ink" : "text-dim"}>{label}</span>
@@ -694,6 +698,12 @@ export default function SendPanel({
                   </div>
                 )}
               </div>
+
+              {stillSuggested && (
+                <p className="mt-1 text-xs text-dim" data-testid="preselected-note">
+                  {byId.get(suggested!)?.name} is chosen: your last video went to them. Change it above if this one is for someone else.
+                </p>
+              )}
 
               {canAddClient && (
                 adding ? (

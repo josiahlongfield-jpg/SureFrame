@@ -3,8 +3,12 @@
 /** Chooses clients by name in the Send box's dropdown. */
 export async function chooseClients(page, ...names) {
   await page.waitForSelector("[data-testid=client-picker]", { timeout: 20000 });
+  // Straight after Stop the client the last video went to is chosen for you (D12): start from exactly these names.
+  const suggested = await page.getAttribute("[data-testid=client-picker]", "data-preselected");
   await page.click("[data-testid=client-picker]");
-  for (const n of names) await page.click(`[role=listbox] label:has-text("${n}")`);
+  const multi = (await page.locator("[role=listbox] input[type=checkbox]").count()) > 0;
+  if (suggested && multi && !names.includes(suggested)) await page.click(`[role=listbox] label:has-text("${suggested}")`);
+  for (const n of names) if (n !== suggested) await page.click(`[role=listbox] label:has-text("${n}")`);
   if (await page.isVisible("[role=listbox]")) await page.click("[data-testid=send-panel] >> button:has-text('Done')");
 }
 

@@ -2,7 +2,7 @@
 // is deleted (in the viewer's time zone), "Saved to cloud backup" or "Deleted
 // from our servers", and a "Deleting soon" filter (within 7 days, soonest
 // first, only what this person may see). The reminders job emails each
-// recorder once, ~24 hours ahead, grouped into one email, never with titles,
+// recorder once, ~24 hours ahead, grouped into one email, naming each by its title,
 // and never for cloud-backup workspaces, replies or already-deleted copies.
 //
 // Run against a dev server with no RESEND_API_KEY (mail goes to .data/outbox)
@@ -139,7 +139,9 @@ ok("not the 3-day, 10-day, expired or reply videos", ![in3days, in10days, expire
 ok("exact deletion time in the business's time zone (from the owner's browser)", norm(m.text).includes(`${local(soon1.purgeAt)} ${new Intl.DateTimeFormat("en-US", { timeZone: TZ, timeZoneName: "short" }).formatToParts(soon1.purgeAt).find((p) => p.type === "timeZoneName").value}`) && m.text.includes(`time zone (${TZ})`), m.text);
 ok("advises saving to device", m.text.includes("Save to device") && m.text.includes("can no longer be watched from the link") && !m.text.includes("original stays on"));
 ok("owner on a paid plan is told about cloud backup", m.text.includes("/settings/billing"));
-ok("no titles in any email", !mails.some((x) => (x.text + x.html + x.subject).includes("Secret title")));
+// Fix-first 12: each recording is named by its title, not only the date it was recorded (titles aren't encrypted).
+ok("each recording is named by its title", m.text.includes(`\u201c${soon1.title}\u201d, recorded`) && m.text.includes(`\u201c${soon2.title}\u201d, recorded`) && m.html.includes(soon1.title), m.text);
+ok("titles stay out of the subject", !mails.some((x) => x.subject.includes("Secret title")));
 ok("staff recorder gets their own email (not the owner)", toStaff.length === 1 && toStaff[0].subject === "A recording is deleted from SureFrame in 24 hours" && toStaff[0].text.includes(`/v/${staffVid.id}`) && !toOwner.some((x) => x.text.includes(staffVid.id)));
 ok("staff aren't sent the billing link", toStaff[0] && !toStaff[0].text.includes("/settings/billing") && toStaff[0].text.includes("team owner"));
 ok("no email for the cloud backup workspace", !mails.some((x) => x.to === cloudEmail));

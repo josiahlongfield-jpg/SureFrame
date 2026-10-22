@@ -168,6 +168,19 @@ const runTeam = await cron();
 const teamMail = outbox().filter((m) => String(m.to).startsWith("trainer")).at(-1);
 ok("business gets its own reminder", runTeam.body?.sent === 1 && teamMail?.to.startsWith("trainer") && teamMail.subject.startsWith("Riley Client: a to-do is due"), teamMail?.subject);
 
+// 7b. A general to-do's reminder (no client) opens the To-dos page, where those live now (fix-first 12).
+{
+  const wsId = sql(`select "workspaceId" from "Item" where "seriesId"='${itemId}' limit 1`);
+  const general = `gen${Date.now().toString(36)}`;
+  sql(`insert into "Item" (id, kind, body, "dueAt", "remindTeam", "authorName", "updatedAt", "workspaceId") values ('${general}', 'TASK', 'x', now() + interval '1 hour', true, 'Pro', now(), '${wsId}')`);
+  sql(`insert into "Reminder" (id, "sendAt", "to", "itemId") values ('${general}r', now() - interval '1 minute', 'TEAM', '${general}')`);
+  const before = outbox().length;
+  await cron();
+  const generalMail = outbox().slice(before).find((m) => String(m.to).startsWith("trainer"));
+  ok("a general to-do's reminder links to the To-dos page, not the Library", !!generalMail && /\/todos(\?ws=|\b)/.test(generalMail.text) && !generalMail.text.includes("/library"), generalMail?.text);
+  sql(`delete from "Item" where id='${general}'`);
+}
+
 // 8. A missed repeating to-do still rolls forward
 sql(`update "Item" set "dueAt" = now() - interval '2 hours' where "seriesId"='${itemId}'`);
 const run3 = await cron();

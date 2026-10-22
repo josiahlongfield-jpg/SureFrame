@@ -126,12 +126,25 @@ ok("and nothing recorded", (await rows(newUser.id)).length === 0);
 
 await fresh.check("[data-testid=agree-checkbox]");
 ok("ticking turns Agree on", await fresh.isEnabled("[data-testid=agree-submit]"));
+// Fix-first 11 (O3, O4, O11, S4): Agree goes straight to the welcome step, not via a page that then redirects.
+const afterAgree = [];
+const onNav = (f) => f === fresh.mainFrame() && afterAgree.push(new URL(f.url()).pathname);
+fresh.on("framenavigated", onNav);
 await fresh.click("[data-testid=agree-submit]");
 await fresh.waitForURL((u) => u.pathname !== "/agree", { timeout: 30000 });
 // The page streams in, so the redirect to the welcome step can land just after.
 await fresh.waitForURL((u) => u.pathname === "/welcome", { timeout: 15000 }).catch(() => {});
 // A new owner then gives the business name, in one step (app/welcome), and carries on.
 ok("a new owner is asked for the business name next", path(fresh) === "/welcome" && new URL(fresh.url()).searchParams.get("next") === "/clients", fresh.url());
+fresh.off("framenavigated", onNav);
+ok("Agree goes straight to the welcome step, no stop on the way", afterAgree.filter((p) => p !== "/agree")[0] === "/welcome", afterAgree.join(" > "));
+ok("the welcome step shows straight away, not a blank spinner", await fresh.isVisible("[data-testid=welcome-business]"));
+// Before the business has a name, Settings > Account and Billing wait for it too (no "<email>'s workspace").
+for (const p of ["/settings/account", "/settings/billing"]) {
+  await visit(fresh, p, "/welcome");
+  ok(`${p} asks for the business name first`, path(fresh) === "/welcome" && new URL(fresh.url()).searchParams.get("next") === p, fresh.url());
+}
+await visit(fresh, "/welcome?next=/clients");
 await fresh.fill("[data-testid=welcome-business]", "Business A");
 await fresh.click("[data-testid=welcome-submit]");
 await fresh.waitForURL((u) => u.pathname !== "/welcome", { timeout: 30000 });

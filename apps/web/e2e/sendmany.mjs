@@ -123,7 +123,7 @@ ok("no waiting list", (await owner.locator("[data-testid=waiting-list]").count()
 ok("Ana: under Sent to, sent from you, with the first-video buttons", norm(await owner.textContent("[data-testid=sent-row]:has-text('Ana')")).includes("Not opened yet") && (await owner.locator("[data-testid=sent-row]:has-text('Ana') [data-testid=first-link-email]").count()) === 1);
 await chooseClients(owner, "Dee");
 await owner.waitForSelector("[data-testid=first-link-row]", { timeout: 10000 });
-ok("choosing Dee: her first video's buttons, Email and Copy link", (await owner.locator("[data-testid=first-link-row] [data-testid=first-link-copy]").count()) === 1 && norm(await owner.textContent("[data-testid=first-time]")).includes("This video still goes to Dee"));
+ok("choosing Dee: her first video's buttons, Email and Copy link", (await owner.locator("[data-testid=first-link-row] [data-testid=first-link-copy]").count()) === 1 && norm(await owner.textContent("[data-testid=first-why-line]")).includes("First video for Dee"));
 const top = async (sel) => (await owner.locator(sel).first().boundingBox()).y;
 ok("Choose clients sits above the first-video box", (await top("[data-testid=client-picker]")) < (await top("[data-testid=first-time]")));
 await owner.click("[data-testid=client-picker]");

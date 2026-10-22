@@ -195,6 +195,8 @@ await chooseClients(owner, "Client A", "Client B", "Client C");
 ok("Send box: new clients chosen, their first videos go from you", norm(await owner.textContent("[data-testid=first-time]")).includes("Alongside each video is that client's personal link, so for privacy reasons SureFrame is unable to automate it"));
 const firstBox = norm(await owner.textContent("[data-testid=first-links]"));
 ok("chosen first-timers: each named, with their own Copy link", (await owner.locator("[data-testid=first-link-row]:has-text('Client B') [data-testid=first-link-copy]").count()) === 1 && (await owner.locator("[data-testid=first-link-row]:has-text('Client C') [data-testid=first-link-copy]").count()) === 1, firstBox);
+ok("several first-timers: each row still has Copy link + message (S15)", (await owner.locator("[data-testid=first-link-row]:has-text('Client B') [data-testid=first-link-message]").count()) === 1 && (await owner.locator("[data-testid=first-link-row]:has-text('Client C') [data-testid=first-link-message]").count()) === 1);
+ok("several first-timers: one line for them all, the why folded away", norm(await owner.textContent("[data-testid=first-why-line]")).includes("First videos for 2 clients: send each one yourself") && !(await owner.isVisible("text=/Alongside each video is that client's personal link/")));
 ok("mixed choice: one Send to all, no second Copy all in the box", (await owner.textContent("[data-testid=send-all]")).trim() === "Send to all 3" && (await owner.locator("[data-testid=copy-all-first]").count()) === 0 && (await owner.locator("[data-testid=send-link]").count()) === 0);
 ok("it says who is emailed and whose links are copied", norm(await owner.textContent("[data-testid=send-all-explained]")).includes("emails Client A, and copies the links for Client B, Client C"));
 ok("emailing only the reached client is still offered", (await owner.textContent("[data-testid=send-email]")).trim() === "Email 1 of them");
@@ -207,6 +209,7 @@ const mail = await waitFor(() => mailTo(aEmail).find((m) => /sent you a video/.t
 ok("email subject has the title", mail?.subject.endsWith("sent you a video: Week 1 plan"), mail?.subject);
 ok("email is from 'Business A via SureFrame'", mail?.from.startsWith(`${business} via SureFrame <`), mail?.from);
 ok("email shows the business name and title", mail?.html.includes(business) && mail.html.includes("Week 1 plan"));
+ok("email body names the video and says how long it is (C39)", /\nWeek 1 plan\n\d+ seconds?\n/.test(mail?.text ?? ""), mail?.text);
 ok("email explains the device rule plainly", mail?.text.includes("The button opens it on any phone or computer where you've opened your personal link") && !mail.text.includes("use the personal link they gave you first"));
 await owner.waitForSelector("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-copy]");
 const both = await clip();

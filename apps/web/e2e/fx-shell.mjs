@@ -65,6 +65,11 @@ if (emailLinks) {
   await visitor.waitForURL((u) => u.pathname === "/login/check");
   ok("Check your email shows the address", (await visitor.textContent("[data-testid=sent-to]")).includes(addr));
   ok("Send again waits first", (await visitor.isDisabled("[data-testid=send-again]")) && /Send again in \d+s/.test(await visitor.textContent("[data-testid=send-again]")));
+  // O97: a reload carries on the wait instead of starting it again.
+  await visitor.waitForTimeout(4000);
+  await visitor.reload();
+  const leftAfter = Number((await visitor.textContent("[data-testid=send-again]")).match(/in (\d+)s/)?.[1] ?? 99);
+  ok("a reload carries on the Send again wait, not back to the start", leftAfter <= 27, String(leftAfter));
   const mail = await waitFor(() => outbox().find((m) => m.to === addr && /sign-in link/.test(m.subject)));
   ok("the sign-in email fits a phone (a viewport tag, not a zoomed-out page)", !!mail && mail.html.includes('name="viewport" content="width=device-width'));
   const link = mail?.text.match(/https?:\/\/\S+/)?.[0] ?? "";
@@ -337,6 +342,35 @@ await staff.goto(`${BASE}/library`);
 await staff.waitForURL((u) => u.pathname === "/welcome", { timeout: 15000 }).catch(() => {});
 ok("removed staff are told plainly", !!(await staff.waitForSelector("[data-testid=removed-from-team]", { timeout: 15000 }).catch(() => null)) && (await staff.textContent("[data-testid=removed-from-team]")).includes("Business A"));
 await staff.screenshot({ path: `${shots}/fx-shell-removed-320.png`, fullPage: true });
+
+// ---- Changing the sign-in email (O104): a link to the new address, asked before it changes ------------------
+{
+  const newEmail = `fx-new${stamp}@example.com`;
+  const emailOf = async () => (await prisma.user.findUnique({ where: { id: ownerUser.id } })).email;
+  await owner.goto(`${BASE}/settings/account#email`);
+  await owner.fill("[data-testid=new-email]", newEmail);
+  await owner.click("[data-testid=change-email]");
+  await owner.waitForURL((u) => u.searchParams.get("saved") === "email-sent", { timeout: 30000 });
+  ok("change email: says a link went to the new address", (await owner.textContent("[data-testid=email-change-sent]")).includes(newEmail));
+  ok("change email: nothing changes until it's confirmed", (await emailOf()) === ownerEmail);
+  const confirmMail = await waitFor(() => outbox().find((m) => m.to === newEmail && /Confirm your new/.test(m.subject)));
+  ok("change email: the old address is told it was asked for", !!outbox().find((m) => m.to === ownerEmail && /sign-in email was asked for/.test(m.subject)));
+  const confirmLink = (confirmMail?.text.match(/https?:\/\/\S+\/account\/email\?t=\S+/)?.[0] ?? "").replace(/^https?:\/\/[^/]+/, BASE);
+  ok("change email: the link goes to the new address", !!confirmMail && confirmLink.includes("/account/email?t="), confirmMail?.text);
+  await owner.goto(confirmLink);
+  ok("change email: the link asks first", (await owner.textContent("[data-testid=email-change-heading]")).includes(newEmail) && (await emailOf()) === ownerEmail);
+  await owner.click("[data-testid=email-change-confirm]");
+  await owner.waitForURL((u) => u.pathname === "/settings/account" && u.searchParams.get("saved") === "email", { timeout: 30000 });
+  ok("change email: confirmed, the account signs in with the new address", (await emailOf()) === newEmail && (await owner.textContent("[data-testid=email-changed]")).includes(newEmail));
+  ok("change email: the old address is told it's done", !!(await waitFor(() => outbox().find((m) => m.to === ownerEmail && /sign-in email was changed/.test(m.subject)), 10000)));
+  await owner.goto(confirmLink);
+  ok("change email: the link only works once", (await owner.textContent("[data-testid=email-change-heading]")).includes("doesn't work any more"));
+  await owner.goto(`${BASE}/settings/account#email`);
+  await owner.fill("[data-testid=new-email]", `fx-staff${stamp}@example.com`);
+  await owner.click("[data-testid=change-email]");
+  await owner.waitForURL((u) => u.searchParams.get("error") === "email-taken", { timeout: 30000 }).catch(() => {});
+  ok("change email: an address another account uses is refused", new URL(owner.url()).searchParams.get("error") === "email-taken", owner.url());
+}
 
 await browser.close();
 await prisma.$disconnect();

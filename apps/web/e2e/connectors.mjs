@@ -5,6 +5,7 @@
 import { chromium } from "@playwright/test";
 import { createHash, randomBytes, webcrypto } from "node:crypto";
 import { spawn } from "node:child_process";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import { agreed } from "./agree.mjs";
 import { makeServer } from "../../connector/src/server/index.js";
@@ -123,6 +124,7 @@ await owner.goto(authorizeUrl);
 ok("consent page names the assistant", (await owner.textContent("[data-testid=authorize-heading]"))?.includes("Claude Code"));
 ok("consent page shows where it goes back to (loopback, any port)", (await owner.textContent("[data-testid=authorize-host]"))?.includes("127.0.0.1:51999"));
 await owner.screenshot({ path: `${shots}/connector-consent.png`, fullPage: true });
+ok("consent page fits the app's sign-in look: a card with the logo and a way to Settings > Connections (D9)", await owner.isVisible("main a[href='/settings/connections']"));
 await owner.click("button:has-text('Allow')");
 await owner.waitForURL("http://127.0.0.1:51999/**");
 const back = new URL(landed);
@@ -137,6 +139,10 @@ const again = await token({ grant_type: "authorization_code", code, code_verifie
 ok("a code works once", again.status === 400);
 const stored = await prisma.connectorGrant.findFirst({ where: { userId: me.id, kind: "online" } });
 ok("only token fingerprints are stored", stored && stored.accessHash === sha256hex(t1.access_token) && !JSON.stringify(stored).includes(t1.access_token));
+
+// A broken request: says so, with a way back (O97, D9).
+await owner.goto(`${BASE}/oauth/authorize?response_type=code&client_id=nobody`);
+ok("a broken Allow page says so and offers a way back", (await owner.isVisible("[data-testid=authorize-invalid]")) && (await owner.getAttribute("[data-testid=authorize-back]", "href")) === "/settings/connections");
 
 // Cancelling goes back with access_denied.
 await owner.goto(authorizeUrl.replace(`state=${state}`, "state=cancel1"));
@@ -200,6 +206,11 @@ await owner.goto(BASE + "/settings/connections");
 await owner.click("[data-testid=make-connection-code]");
 const connectionCode = await owner.inputValue("[data-testid=connection-code-text]");
 ok("connection code made in the browser", connectionCode.startsWith("sfc1_"));
+ok("Copy code is the main button by the code (S76)", await owner.isVisible("[data-testid=copy-connection-code]"));
+const lifetime = (await owner.textContent("[data-testid=code-lifetime]")) ?? "";
+ok("says a lost code means making another, and only Disconnect ends one (O95, B12)", lifetime.includes("Lost a code? Make another") && lifetime.includes("Resetting your team's key doesn't end a code; only Disconnect does"), lifetime);
+await owner.reload();
+ok("an unused code shows as waiting for Claude Desktop (S73)", (await owner.locator("#yours [data-testid=connection-status]", { hasText: "waiting for Claude Desktop" }).count()) === 1);
 const desktopGrant = await prisma.connectorGrant.findFirst({ where: { userId: me.id, kind: "desktop" } });
 ok("the server never saw the key", !!desktopGrant && !JSON.stringify(desktopGrant).includes(recoveryKey.replace(/\s+/g, "")));
 const desk = makeServer(connectionCode);
@@ -292,12 +303,21 @@ ok("your connections list both", (await owner.locator("#yours [data-testid=conne
 ok("recent uses are shown", (await owner.locator("#yours [data-testid=connection-uses]").first().textContent())?.includes("Recently read"));
 ok("owner sees staff connections", (await owner.locator("[data-testid=staff-connections] [data-testid=connection-row]").count()) === 1);
 await owner.locator("[data-testid=staff-connections] [data-testid=disconnect]").click();
+// Disconnect asks first, and says the staff member is told (S75).
+const confirmBox = (await owner.textContent("[data-testid=staff-connections] [data-testid=disconnect-confirm-box]")) ?? "";
+ok("disconnect asks first and says they're emailed", confirmBox.includes("It stops reading SureFrame straight away") && confirmBox.includes("We email"), confirmBox);
+ok("nothing disconnected while asking", (await rpc(staffToken, "tools/list", {})).status === 200);
+await owner.click("[data-testid=staff-connections] [data-testid=disconnect-confirm]");
 await owner.waitForSelector("[data-testid=staff-connections]", { state: "detached" });
 ok("owner disconnects a staff connection", (await mcp(staffToken, { jsonrpc: "2.0", id: 1, method: "tools/list" })).status === 401);
+ok("the page says it's done and that they were emailed", ((await owner.textContent("[data-testid=disconnected-note]")) ?? "").includes("email"));
+const staffMail = existsSync(".data/outbox") ? readdirSync(".data/outbox").map((f) => JSON.parse(readFileSync(`.data/outbox/${f}`, "utf8"))).filter((m) => m.to === staffEmail) : [];
+ok("the staff member is emailed that their connection was disconnected", staffMail.some((m) => /disconnect/i.test(m.subject + m.text)), staffMail.map((m) => m.subject).join(" | "));
 // Disconnect everything of the owner's.
 while ((await owner.locator("#yours [data-testid=disconnect]").count()) > 0) {
   const before = await owner.locator("#yours [data-testid=disconnect]").count();
   await owner.locator("#yours [data-testid=disconnect]").first().click();
+  await owner.click("#yours [data-testid=disconnect-confirm]");
   await owner.waitForFunction((n) => document.querySelectorAll("#yours [data-testid=disconnect]").length < n, before);
 }
 ok("disconnected online connection stops", (await mcp(t2.access_token, { jsonrpc: "2.0", id: 1, method: "tools/list" })).status === 401);
