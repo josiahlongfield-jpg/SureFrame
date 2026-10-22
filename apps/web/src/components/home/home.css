@@ -10,8 +10,6 @@
 /* Every tab always shows: they wrap onto a second row rather than scroll out of sight. */
 .ff-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.25rem; border-radius: 0.75rem; background: var(--color-tile); border: 1px solid var(--color-line); }
 .ff-tab { position: relative; flex: 1 0 auto; font: 500 0.8125rem/1 var(--font-sans); color: var(--color-muted); background: none; border: 0; padding: 0.625rem 0.625rem; border-radius: 0.5625rem; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem; overflow: hidden; }
-/* A long label may take two lines rather than be cut off. */
-.ff-tab .ff-wrap { white-space: normal; text-align: center; line-height: 1.15; }
 .ff-tab svg { width: 0.9375rem; height: 0.9375rem; flex: none; }
 .ff-tab:hover { color: var(--color-ink); }
 .ff-tab[aria-selected="true"] { color: var(--color-ink); background: rgb(255 111 97 / 0.2); }
@@ -183,10 +181,11 @@
 .f-sw i { width: 1.25rem; height: 1.25rem; border-radius: 50%; }
 .f-sw i.on { outline: 0.125rem solid #fff; outline-offset: 0.125rem; }
 
-/* Too narrow for all eight in one row (beside the hero text on a laptop, or a tablet): four to a row, so the second
-   row is as full as the first rather than "Team" alone (V3). */
+/* Too narrow for eight side by side (beside the hero text on a laptop, or a tablet): still one row, with each icon over
+   its label, so the tabs read as one strip above the window rather than two toolbars (V6). Phones go four to a row below. */
 @container (max-width: 48rem) {
-  .ff-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ff-tabs { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .ff-tab { flex-direction: column; gap: 0.25rem; padding: 0.5rem 0.125rem 0.625rem; font-size: 0.75rem; white-space: normal; text-align: center; line-height: 1.15; }
   .f-hide-md { display: none !important; }
 }
 

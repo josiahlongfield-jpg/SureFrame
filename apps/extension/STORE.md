@@ -19,7 +19,7 @@ While you record your screen at sureframe.app, the SureFrame extension shows:
 - your camera in a round bubble over the web pages you visit, which you can drag anywhere and make bigger or smaller with its size dial;
 - a small bar with the time, Pause and Stop, so you can run your recording without going back to the SureFrame tab.
 
-Your camera bubble is what your viewers see in the video. Whenever the bubble can't be on screen, for example when another app is in front, SureFrame puts your camera into the video in a corner circle instead, so you still appear in it.
+Your camera bubble appears in the video wherever you place it. Whenever the bubble can't be on screen, for example when another app is in front, SureFrame puts your camera into the video in a corner circle instead, so you still appear in it.
 
 The extension itself doesn't record, save or send anything, and doesn't read or collect the pages you visit. Your screen recording is made by the SureFrame tab and shows only what you choose to share, encrypted on your device before it's uploaded, exactly as without the extension.
 

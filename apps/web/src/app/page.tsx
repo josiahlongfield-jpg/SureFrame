@@ -24,9 +24,14 @@ const PRIVACY = [
   ],
 ];
 
-const STEPS = [
+// The Send step answers its own "why is the first one different?" with a link to the FAQ (V5).
+const STEPS: [string, string, { href: string; text: string }?][] = [
   ["Record", "Pick screen, camera, or both. Press start."],
-  ["Send", "Pick a client, or several. Send a new client's first video from your own email or texts. After that, Send by email does it for you."],
+  [
+    "Send",
+    "Pick a client, or several. Send a new client's first video from your own email or texts. After that, Send by email does it for you.",
+    { href: "/faq#first-email", text: "Why the first one comes from you" },
+  ],
   ["Reply", "Clients answer with their own video, a voice note or a message. No account needed."],
 ];
 
@@ -76,14 +81,30 @@ export default async function Home() {
             <p className="kicker text-center">How it works</p>
             <h2 className="display mt-3 text-center text-3xl sm:text-4xl">Three steps. That&apos;s it.</h2>
             <ol className="mt-12 grid gap-4 sm:grid-cols-3">
-              {STEPS.map(([t, b], i) => (
+              {STEPS.map(([t, b, more], i) => (
                 <li key={t} className="rounded-2xl border border-line border-t-[0.1875rem] border-t-primary bg-surface p-6">
                   <span className="font-mono text-sm font-medium text-highlight">0{i + 1}</span>
                   <h3 className="mt-2 text-lg font-semibold tracking-tight">{t}</h3>
-                  <p className="mt-1 text-sm text-muted">{b}</p>
+                  <p className="mt-1 text-sm text-muted">
+                    {b}
+                    {more && (
+                      <>
+                        {" "}
+                        <Link href={more.href} className="font-medium text-accent hover:underline" data-testid="home-step-why">
+                          {more.text}
+                        </Link>
+                      </>
+                    )}
+                  </p>
                 </li>
               ))}
             </ol>
+            {/* A sample of the client's side, rather than only the mock-up in the demo frame (V11). */}
+            <p className="mt-6 text-center text-sm">
+              <Link href="/example" className="font-semibold text-accent hover:underline" data-testid="home-example">
+                See what your client sees
+              </Link>
+            </p>
             {/* Said up front as well as by the plans (V6): it's the limit a visitor most needs to know. */}
             <p className="mx-auto mt-10 max-w-2xl text-center text-sm text-muted" data-testid="home-storage">
               Videos are kept on our servers for {RETENTION_DAYS} days after they&rsquo;re recorded, unless you add Cloud backup on a paid plan. Save any video to

@@ -34,7 +34,7 @@ const RETRY_MS = 60_000;
  * The support conversation: the AI assistant first, a person when needed. `limits` is the allowance in a line for
  * people who aren't paying (lib/support/allowance.ts limitsNote), shown in the panel before they reach it.
  */
-export function SupportChat({ signedIn, limits, className = "" }: { signedIn: boolean; limits?: string | null; className?: string }) {
+export function SupportChat({ signedIn, limits, className = "", suggestions = [] }: { signedIn: boolean; limits?: string | null; className?: string; suggestions?: string[] }) {
   const [token, setToken] = useState<string | null>(null);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [text, setText] = useState("");
@@ -172,6 +172,21 @@ export function SupportChat({ signedIn, limits, className = "" }: { signedIn: bo
             {limits}
           </p>
         )}
+        {/* Before anything is asked, a few common questions to start from, so the empty chat isn't just a blank box (V39). */}
+        {!ticket?.messages.length && !busy && suggestions.length > 0 && (
+          <div data-testid="help-suggestions">
+            <p className="text-xs text-dim">Or start with one of these:</p>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {suggestions.map((q) => (
+                <li key={q}>
+                  <button type="button" onClick={() => send(q)} disabled={aiBlocked} className="rounded-full border border-line-strong bg-surface px-3 py-1.5 text-left text-sm text-ink hover:bg-hover disabled:opacity-50">
+                    {q}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {ticket?.messages.map((m) => <Bubble key={m.id} author={m.author} body={m.body} />)}
         {busy && <p className="text-sm text-dim">Thinking…</p>}
         {withPerson && (replied || ticket.status === "ANSWERED") ? (
@@ -303,7 +318,14 @@ export class ChatBoundary extends Component<{ children: ReactNode }, { failed: b
 
 /** Opens the help panel from elsewhere on the page (the app's phone menu has a Help item). */
 export const OPEN_HELP_EVENT = "sf:open-help";
-export const openHelp = () => window.dispatchEvent(new Event(OPEN_HELP_EVENT));
+/** Opens the help chat; on /help, which has no floating chat, goes to the page's own question box instead. */
+export const openHelp = () => {
+  const own = location.pathname === "/help" ? document.querySelector<HTMLTextAreaElement>("main textarea") : null;
+  if (own) {
+    own.scrollIntoView({ block: "center" });
+    own.focus({ preventScroll: true });
+  } else window.dispatchEvent(new Event(OPEN_HELP_EVENT));
+};
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 

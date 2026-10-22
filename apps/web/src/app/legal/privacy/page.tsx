@@ -24,6 +24,11 @@ export default function Page() {
         </li>
         <li>We collect only what we need to run your account, bill you and help you.</li>
         <li>We don&rsquo;t sell personal information, show third-party ads or use advertising trackers. Clients of businesses on the Free plan see a short SureFrame introduction before videos.</li>
+        <li>
+          A few records are kept after an account is deleted, because the law or a possible dispute needs them: records of support actions and of agreeing to our
+          terms (for up to {Math.max(LEGAL.supportRecordYears, LEGAL.agreementRecordYears)} years) and billing records (as long as tax law requires). See{" "}
+          <a href="#how-long-we-keep-it">How long we keep it</a>.
+        </li>
       </ul>
 
       <h2 id="for-clients">For clients</h2>
@@ -440,6 +445,10 @@ export default function Page() {
           the business&rsquo;s account is closed or unavailable), so the page can say why. It holds that link&rsquo;s code and gives no access.
         </li>
       </ul>
+      <p>
+        Most of our cookies&rsquo; names start with sf_. Two client cookies, fc_key_&lt;client&gt; and fc_removed, start with fc_, from the working name {LEGAL.product}{" "}
+        had while it was being built. They work like the others, and we&rsquo;ve kept their names so that clients&rsquo; devices carry on working.
+      </p>
       <p>
         We also use your browser&rsquo;s storage to hold your encryption keys and recordings that haven&rsquo;t finished uploading, a link back to your help chat so
         you can return to it, a team invite you&rsquo;ve opened but not yet accepted, for businesses using AI transcripts a copy of the speech model so it
