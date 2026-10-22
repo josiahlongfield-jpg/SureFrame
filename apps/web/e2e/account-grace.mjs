@@ -317,8 +317,9 @@ ok("closed staff: the invite they joined with outlives the monthly clean-up whil
 await samJoin.goto(BASE + "/account/restore");
 ok("closed staff: the restore page says the team won't come back", norm(await samJoin.textContent("main")).includes(`Keeping it won't put you back on ${teamName}; ask them for a new invite.`));
 await samJoin.click("button:text-is('Keep my account')");
-await samJoin.waitForURL((u) => u.pathname === "/library", { timeout: 30000 });
-ok("staff kept: open again, on their own and not on the team", new URL(samJoin.url()).searchParams.get("restored") === "1" && !(await prisma.membership.findFirst({ where: { workspaceId: team, userId: sam.id } })) && !(await prisma.user.findUnique({ where: { id: sam.id } })).deleteAt);
+// On no team and with no business of their own (Decision 4: none is made for staff from an invite): Start says it's kept.
+await samJoin.waitForURL((u) => u.pathname === "/start", { timeout: 30000 });
+ok("staff kept: open again, on their own and not on the team", (await samJoin.isVisible("[data-testid=account-restored]")) && !(await prisma.membership.findFirst({ where: { workspaceId: team, userId: sam.id } })) && !(await prisma.user.findUnique({ where: { id: sam.id } })).deleteAt);
 
 // Leaving a team without closing the login (S40): the same steps as closing, but the account stays open.
 const leeEmail = `grace-lee${stamp}@example.com`;
@@ -329,8 +330,8 @@ const leePage = await signIn(leeEmail, "/settings/account");
 await leePage.click("[data-testid=leave-team-button]");
 ok("leave: asks once more first", (await leePage.textContent("[data-testid=leave-team-confirm]")).includes(`Leave ${teamName} now?`));
 await leePage.click("[data-testid=leave-team-yes]");
-// With no business of their own, they go on to the welcome step for one, which says they left (not that they were removed).
-await leePage.waitForURL((u) => u.pathname === "/welcome", { timeout: 30000 });
+// With no business of their own, they go on to Start (paid plans only, Decision 4), which says they left (not that they were removed).
+await leePage.waitForURL((u) => u.pathname === "/start", { timeout: 30000 });
 const leftNote = norm(await leePage.textContent("[data-testid=removed-from-team]").catch(() => ""));
 ok("leave: the next page says they've left the team, not that they were removed", leftNote.includes(`You've left ${teamName}'s team`) && leftNote.includes("Its owner and admins have been emailed") && !leftNote.includes("removed you"), leftNote);
 ok("leave: off the team, login still open", !(await prisma.membership.findFirst({ where: { workspaceId: team, userId: lee.id } })) && !(await prisma.user.findUnique({ where: { id: lee.id } })).deleteAt);

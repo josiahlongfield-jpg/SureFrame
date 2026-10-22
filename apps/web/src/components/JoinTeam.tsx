@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { fingerprint, importKey, unwrapKey } from "@/lib/e2e/crypto";
 import { saveKey, teamKeyName } from "@/lib/e2e/keystore";
+import { JOINING_COOKIE } from "@/lib/joining";
 
 /**
  * The invite link's #fragment holds the one-off key that unlocks the team
@@ -28,6 +29,9 @@ export default function JoinTeam({ token, signedIn, agreed, needsName = false, b
   const nameBox = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // This browser came to join a team: signing in here doesn't make a Free business of its own on the way (Decision 4,
+    // lib/session.ts mayStartFree), and /start can lead back here. A day is plenty to sign in and join.
+    document.cookie = `${JOINING_COOKIE}=${token}; path=/; max-age=86400; samesite=lax`;
     const fromLink = new URLSearchParams(window.location.hash.slice(1)).get("k");
     setFromLink(!!fromLink);
     try {
@@ -63,6 +67,7 @@ export default function JoinTeam({ token, signedIn, agreed, needsName = false, b
       try {
         localStorage.removeItem(stash(token));
       } catch {}
+      document.cookie = `${JOINING_COOKIE}=; path=/; max-age=0; samesite=lax`;
       // The library then shows the team's recovery key once, to save (components/RecoveryKey.tsx).
       window.location.assign("/library?joined=1");
     } catch (err) {

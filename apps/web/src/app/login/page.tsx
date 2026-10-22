@@ -8,7 +8,7 @@ import { safeNext } from "@/lib/secrets";
 import { forClaude } from "@/lib/signInLink";
 import { db } from "@/lib/db";
 import { DELETION_GRACE_DAYS } from "@/lib/accountDeletion";
-import { pendingDeletion } from "@/lib/session";
+import { pendingDeletion, withoutBusiness } from "@/lib/session";
 import { isEmailBlocked } from "@/lib/blockedEmail";
 import KeepSignedIn from "@/components/KeepSignedIn";
 import AuthLinks from "@/components/AuthLinks";
@@ -42,6 +42,10 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   // Checked against the database: a sign-in left over from a deleted account must not bounce back and forth.
   const userId = (await auth())?.user?.id;
   const signedInAs = userId ? await db.user.findUnique({ where: { id: userId }, select: { deleteAt: true } }) : null;
+  // Signed in with no business and no Free one to be made (Decision 4): app pages would only send them back here, so
+  // they go to /start (with the plan they picked, if any) unless they're on their way to join a team or agree.
+  if (signedInAs && !signedInAs.deleteAt && !/^\/(join\/|start|agree|help|legal)/.test(redirectTo) && (await withoutBusiness()))
+    redirect(picked ? `/start?plan=${new URL(redirectTo, "http://x").searchParams.get("plan") ?? ""}` : "/start");
   if (signedInAs && !signedInAs.deleteAt) redirect(redirectTo);
   // A closed account: a sign-in made since closing it is offered to keep it; an older one signs in again here.
   if (signedInAs?.deleteAt && (await pendingDeletion())?.fresh) redirect("/account/restore");

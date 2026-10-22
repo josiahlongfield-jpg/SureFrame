@@ -18,7 +18,7 @@ export default async function Settings() {
   if (me.paused || !me.agreed) redirect("/settings/account");
   const manager = me.role !== "MEMBER";
   const teamSize = manager ? await db.membership.count({ where: { workspaceId: me.workspace.id } }) : 1;
-  const pages = settingsPages({ manager, teamSize, plan: me.workspace.plan, workspaces: switchableBusinesses(me.user.memberships, me.workspace.id).length, supportAgent: isSupportAgent(me.user.email) });
+  const pages = settingsPages({ manager, teamSize, plan: me.workspace.plan, workspaces: switchableBusinesses(me.user.memberships, me.workspace.id).length, supportAgent: isSupportAgent(me.user.email), ownsBusiness: me.user.memberships.some((m) => m.role === "OWNER") });
   return (
     <>
       <AppHeader email={me.user.email} plan={PLANS[me.workspace.plan].name} />

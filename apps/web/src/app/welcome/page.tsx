@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Logo from "@/components/Logo";
@@ -73,10 +72,10 @@ export default async function Welcome({ searchParams }: { searchParams: Promise<
               ? "Its owner and admins have been emailed. To come back, you'd need a new invite link."
               : "An owner or admin removed you, so you can't open that team's videos or clients any more. If that's a mistake, ask them for a new invite link."}
           </p>
+          {/* Here only once they've paid for a business of their own (Decision 4: no Free one for staff from an invite). */}
           <p className="mt-2">
-            You can still use {BRAND.name} for your own business below, free. It&apos;s separate from {former.length === 1 ? `${former[0].name}'s team` : "those teams"}, with
-            its own clients and its own recovery key, which you&apos;re shown next. Not what you want?{" "}
-            <Link href="/settings/account" className="font-medium underline">Delete this account</Link>.
+            Your own business below is separate from {former.length === 1 ? `${former[0].name}'s team` : "those teams"}, with its own clients and its own recovery key,
+            which you&apos;re shown next.
           </p>
         </div>
       )}

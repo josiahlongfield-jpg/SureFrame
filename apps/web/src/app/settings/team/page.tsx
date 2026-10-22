@@ -38,6 +38,12 @@ export default async function TeamSettings({ searchParams }: { searchParams: Pro
             <>
               You&apos;re on the team of more than one business.{" "}
               <Link href="/team" className="font-medium text-accent hover:underline">Your team</Link> shows who you look after in {workspace.name} and what you can do there.
+              {!user.memberships.some((m) => m.role === "OWNER") && (
+                <>
+                  {" "}Want a business of your own?{" "}
+                  <Link href="/start" className="font-medium text-accent hover:underline" data-testid="switch-start-own">Start your own business</Link> on a paid plan.
+                </>
+              )}
             </>
           ) : (
             "You choose who looks after each client. Members see only the clients assigned to them, unless you let them see all clients. Clients see the name of the person who sent their video, never their email."

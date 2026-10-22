@@ -7,6 +7,7 @@ import { discountOf } from "@/lib/offers";
 import { rateLimit } from "@/lib/rateLimit";
 import { applyBackupSetting } from "@/lib/retention";
 import { enforceSeatLimits } from "@/lib/seatLimits";
+import { adoptNewBusiness } from "@/lib/newBusiness";
 import { HttpError } from "@/lib/session";
 import { stripe } from "@/lib/stripe";
 
@@ -118,6 +119,8 @@ function cancelDate(sub: Stripe.Subscription, planItem?: Stripe.SubscriptionItem
  * skips the owner's emails about paused clients or ended cloud backup.
  */
 export async function syncSubscription(sub: Stripe.Subscription, { notify = true } = {}) {
+  // Paid from /start by staff starting their own business: its workspace is made now (Decision 4, lib/newBusiness.ts).
+  sub = await adoptNewBusiness(sub);
   const workspaceId = sub.metadata.workspaceId;
   if (!workspaceId) return;
   const workspace = await db.workspace.findUnique({ where: { id: workspaceId } });

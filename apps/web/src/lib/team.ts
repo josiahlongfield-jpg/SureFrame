@@ -40,8 +40,9 @@ export async function staffUsage(
 export const isPlaceholderName = (name: string) => /'s workspace$/i.test(name.trim());
 
 /**
- * A business this person really works in, as opposed to the empty Free workspace every login is given on
- * first use (lib/session.ts currentUser), which someone who joined a team from an invite never set up: still
+ * A business this person really works in, as opposed to the empty Free workspace logins were given on first use
+ * before 23 October 2026 (lib/session.ts currentUser; since Decision 4, staff from an invite aren't given one), which
+ * someone who joined a team from an invite never set up: still
  * named after their email, on Free, with no subscription or complimentary plan. "Switch business" is only
  * offered between real ones (and the one open now).
  */

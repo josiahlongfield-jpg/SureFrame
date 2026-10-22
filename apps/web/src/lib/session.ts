@@ -6,6 +6,7 @@ import type { Membership, Role, User } from "@prisma/client";
 import { db, type Workspace } from "@/lib/db";
 import { agreementKind, hasAgreed, noticePeriod, TERMS_REQUIRED } from "@/lib/terms";
 import { setViewerZone, TZ_COOKIE } from "@/lib/dates";
+import { JOINING_COOKIE } from "@/lib/joining";
 
 /** Shown to staff the plan no longer covers (lib/seatLimits.ts). */
 export const STAFF_PAUSED = "Your access to this team is paused because its plan changed. Ask the owner to restore it.";
@@ -30,8 +31,38 @@ export class HttpError extends Error {
 }
 
 /**
- * The signed-in user and their active workspace. A personal workspace is
- * created on first use so every user can record immediately. Cached for the
+ * Whether a login with no business yet gets a Free one of its own on first use (Decision 4, Josiah, 22 October 2026:
+ * "we don't want staff members being able to make free owner accounts of their own, if they want their own business
+ * they need to pay for their own subscription separate to the one they are staffed in"). Someone who signed up on
+ * their own does, as before. Someone who joined a team from an invite (now, or ever: the accepted invite is kept after
+ * they leave or are removed) or whose browser is on its way to join one doesn't: they get app/start, where their own
+ * business starts on a paid plan (api/billing/start-business; the workspace is made once it's paid, lib/newBusiness.ts).
+ * Existing workspaces are never touched: this only decides whether a new one is made.
+ */
+export async function mayStartFree(userId: string) {
+  if ((await cookies()).get(JOINING_COOKIE)?.value) return false;
+  return !(await db.invite.count({ where: { acceptedById: userId } }));
+}
+
+/**
+ * A signed-in login that belongs to no business and isn't given a Free one (mayStartFree): currentUser() is null for
+ * it, and pages send it to /start rather than to the sign-in page. Null for everyone else.
+ */
+export const withoutBusiness = cache(async () => {
+  const userId = (await auth())?.user?.id;
+  if (!userId) return null;
+  const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true, deleteAt: true, _count: { select: { memberships: true } } } });
+  if (!user || user.deleteAt || user._count.memberships > 0) return null;
+  return (await mayStartFree(user.id)) ? null : user;
+});
+
+/** Where a login without a business goes (app/start). */
+export const NO_BUSINESS = "You're not part of a business on SureFrame yet. Join your team from its invite link, or start your own business on a paid plan.";
+
+/**
+ * The signed-in user and their active workspace. Someone who signed up on their own gets a personal workspace on
+ * first use, so they can record immediately; someone who joined a team from an invite doesn't (mayStartFree), and
+ * this is null for them until they're on a team or have paid for their own business (withoutBusiness). Cached for the
  * request, so a page and its metadata don't each look it up (or create one).
  * A closed account waiting to be deleted counts as signed out, on every
  * device (see pendingDeletion). A suspended login or workspace still gets
@@ -69,6 +100,8 @@ export const currentUser = cache(async () => {
     // Staff over the plan's limits (lib/seatLimits.ts) can't use the team until restored.
     return { user, workspace, role: membership.role, membership: m as Membership, paused: !!membership.pausedAt, suspended: suspensionOf(user, workspace), agreed, termsNotice };
   }
+  // Staff from an invite get no Free business of their own (Decision 4): app/start instead.
+  if (!(await mayStartFree(user.id))) return null;
   // One at a time per user, so two tabs opening at once can't make two personal workspaces.
   const made = await db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"personal:" + user.id}))`;
@@ -106,7 +139,7 @@ export const termsRequired = () => new HttpError(403, TERMS_REQUIRED, "TERMS_REQ
  */
 export async function requireUser({ allowSuspendedOwner = false, allowTermsPending = false } = {}) {
   const me = await currentUser();
-  if (!me) throw new HttpError(401, "Sign in required");
+  if (!me) throw (await withoutBusiness()) ? new HttpError(403, NO_BUSINESS, "NO_BUSINESS") : new HttpError(401, "Sign in required");
   if (me.suspended && !(allowSuspendedOwner && (me.suspended === "workspace" || (me.role === "OWNER" && !me.user.closedAt))))
     throw new HttpError(403, ACCOUNT_SUSPENDED, "ACCOUNT_SUSPENDED");
   if (me.paused) throw new HttpError(403, STAFF_PAUSED);
@@ -155,6 +188,8 @@ export async function requirePageUser(
   if (!me) {
     // A closed account just signed in again: offer to keep it.
     if ((await pendingDeletion())?.fresh) redirect("/account/restore");
+    // Signed in, but on no team and with no business of their own (Decision 4).
+    if (await withoutBusiness()) redirect("/start");
     redirect(`/login?next=${encodeURIComponent(next)}`);
   }
   // Suspended by support (lib/support/admin.ts): only the suspended page, help and the support console.

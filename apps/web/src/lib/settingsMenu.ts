@@ -17,13 +17,17 @@ export function settingsPages({
   plan,
   workspaces,
   supportAgent = false,
+  ownsBusiness = true,
 }: {
   manager: boolean;
   teamSize: number;
   plan: Plan;
   workspaces: number;
   supportAgent?: boolean;
+  /** False for staff who joined from an invite and own no business: they're offered one of their own, on a paid plan (app/start). */
+  ownsBusiness?: boolean;
 }): SettingsPage[] {
+  const own: SettingsPage[] = ownsBusiness ? [] : [{ href: "/start", label: "Start your own business", blurb: "A business of your own, separate from this team, on a paid plan." }];
   const support: SettingsPage[] = supportAgent ? [{ href: "/support", label: "Support", blurb: "The support console: help conversations, accounts and discount codes.", tag: `${BRAND.name} staff only` }] : [];
   // A team plan keeps its team pages while the owner is on their own; a business of one on another plan has none.
   const teamPages = teamSize > 1 || (manager && TEAM_PLANS.includes(plan));
@@ -36,6 +40,7 @@ export function settingsPages({
       { href: "/settings/billing", label: "Billing", blurb: "Your plan, what you pay, add-ons, discount codes, and where to find receipts and invoices." },
       { href: "/settings/account", label: "Account", blurb: "Your name, recovery key, emails you get, downloading your data and deleting your account." },
       { href: "/settings/connections", label: "Connections", blurb: CLAUDE_BONUS.settings },
+      ...own,
       ...support,
     ];
   }
@@ -43,6 +48,7 @@ export function settingsPages({
     { href: "/settings/account", label: "Account", blurb: "Your name, emails you get, downloading your data and deleting your account." },
     ...(workspaces > 1 ? [{ href: "/settings/team", label: "Switch business", blurb: "The businesses you're part of, and switching between them." }] : []),
     { href: "/settings/connections", label: "Connections", blurb: CLAUDE_BONUS.settings },
+    ...own,
     ...support,
   ];
 }

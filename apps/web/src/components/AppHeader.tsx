@@ -48,7 +48,7 @@ export default async function AppHeader({ email, plan, widget = true }: { email:
   // The plan pill opens what can be done about the plan: Billing for those who can change it, else the plans.
   const planHref = manager ? "/settings/billing" : "/pricing";
   // Everything else is under Settings (lib/settingsMenu.ts).
-  const settings: Links = me ? settingsPages({ manager, teamSize, plan: me.workspace.plan, workspaces: switchableBusinesses(me.user.memberships, me.workspace.id).length, supportAgent: isSupportAgent(me.user.email) }).map((p) => [p.href, p.label] as const) : [];
+  const settings: Links = me ? settingsPages({ manager, teamSize, plan: me.workspace.plan, workspaces: switchableBusinesses(me.user.memberships, me.workspace.id).length, supportAgent: isSupportAgent(me.user.email), ownsBusiness: me.user.memberships.some((m) => m.role === "OWNER") }).map((p) => [p.href, p.label] as const) : [];
   const signOutForm = (
     <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
       <button className="whitespace-nowrap text-dim hover:text-ink">Sign out</button>
