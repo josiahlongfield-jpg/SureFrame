@@ -28,7 +28,7 @@ export default function HelpClaude() {
         <p className="kicker">Help</p>
         <h1 className="display mt-3 text-3xl text-ink">Use {p} with Claude</h1>
         <p className="mt-3 text-muted">
-          Connect your own Claude to {p} and ask it for reports in plain words. It can only read, never send, change or delete anything, and it only
+          Connect your own Claude, Anthropic&apos;s AI assistant, to {p} and ask it in plain words for client reports, follow-up lists and more. It can only read, never send, change or delete anything, and it only
           sees what you can see in {p}. You choose to connect it, and you can disconnect it any time.
         </p>
 

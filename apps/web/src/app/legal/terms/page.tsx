@@ -385,7 +385,8 @@ export default function Page() {
         financial or other professional advice. You can ask for a person with Talk to a person, and the assistant can pass the conversation to a person when it
         needs one. The help chat on client pages is answered only by the AI assistant: nobody from our team answers it, and it can&rsquo;t pass the conversation
         to the business or to us. For anything it can&rsquo;t help with, clients contact the business that sent them their link. We keep the questions typed
-        there for {LEGAL.clientQuestionDays} days, without who asked, to find and fix problems (see our <Link href="/legal/privacy">privacy policy</Link>).
+        there for {LEGAL.clientQuestionDays} days, without who asked, and may read them to find and fix problems and improve the help chat; the weekly list of
+        them emailed to our support inbox is kept for up to {LEGAL.clientQuestionDigestMonths} months (see our <Link href="/legal/privacy">privacy policy</Link>).
       </p>
       <p id="help-limits">
         Businesses on a paid plan can ask for a person at any time. For visitors without an account and businesses on the Free plan, the help chat gives

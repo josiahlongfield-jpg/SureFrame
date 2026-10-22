@@ -7,6 +7,7 @@ import { alertFounder } from "@/lib/founderAlert";
 import { rateLimit } from "@/lib/rateLimit";
 import { DISCOUNT_EXPAND, forgetOffers } from "@/lib/offers";
 import { forgetSubscription, syncSubscription } from "@/lib/subscription";
+import { sendPlanConfirmation } from "@/lib/planConfirmation";
 
 const money = (cents: number, currency: string) => `${currency.toUpperCase()} ${(cents / 100).toFixed(2)}`;
 
@@ -41,6 +42,7 @@ async function syncWithFounding(id: string) {
   // Started with a referral code and paid: the code is used up and the sharer's reward booked (lib/referrals.ts).
   await recordReferral(sub);
   if (failed) throw failed;
+  return sub;
 }
 
 /** A customer deleted in the Stripe Dashboard: forget it, so a new one is made if they subscribe again. */
@@ -107,9 +109,12 @@ export async function POST(req: Request) {
 
   switch (event.type) {
     case "customer.subscription.created":
-    case "customer.subscription.updated":
-      await syncWithFounding(event.data.object.id);
+    case "customer.subscription.updated": {
+      const sub = await syncWithFounding(event.data.object.id);
+      // "You're on Solo, renews 21 Nov": a short email of our own when a paid plan starts or changes (decision 16).
+      await sendPlanConfirmation(event, sub);
       break;
+    }
     case "customer.subscription.deleted": {
       // Re-read so out-of-order deliveries always apply the latest state.
       const sub = await stripe().subscriptions.retrieve(event.data.object.id, { expand: DISCOUNT_EXPAND });

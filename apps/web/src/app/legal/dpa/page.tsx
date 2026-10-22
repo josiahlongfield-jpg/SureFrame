@@ -1,7 +1,7 @@
 import Link from "next/link";
 import LegalPage, { SubprocessorList } from "@/components/LegalPage";
 import { CODE_MINUTES, CODE_TRIES } from "@/lib/signInCodeRules";
-import { LEGAL, operatorLine, R2_LOCATION, SUBPROCESSORS_UPDATED } from "@/lib/legal";
+import { LEGAL, operatorLine, R2_KEPT, SUBPROCESSORS_UPDATED } from "@/lib/legal";
 
 export const metadata = { title: "Data Processing Agreement" };
 
@@ -133,7 +133,8 @@ export default function Page() {
       <p>
         You authorise the sub-processors in <a href="#subprocessors">Annex 3</a>. Each is bound by a written contract with data protection terms that protect
         Customer Personal Data at least as well as this DPA does, as far as they apply to its service. We remain responsible to you for their work. We&rsquo;ll
-        update Annex 3 and email the workspace owner at least 30 days before a new sub-processor starts processing Customer Personal Data. If you object on
+        update Annex 3 and email the workspace owner a notice headed &ldquo;New {LEGAL.product} sub-processor&rdquo;, saying who it is, what it does for us,
+        where it processes information and when it starts, at least 30 days before a new sub-processor starts processing Customer Personal Data. If you object on
         reasonable data protection grounds, email {mail} within that time and we&rsquo;ll work with you in good faith. If we can&rsquo;t resolve it, you may delete
         your account, and we&rsquo;ll refund any fees you&rsquo;ve prepaid for the period after that.
       </p>
@@ -208,7 +209,7 @@ export default function Page() {
       <h2>13. International transfers</h2>
       <p>
         We&rsquo;re in {LEGAL.country}.{" "}
-        {R2_LOCATION ? `Encrypted recordings are stored in the ${R2_LOCATION}, and our other sub-processors are` : "Our sub-processors are"} mainly in the United
+        {R2_KEPT ? `Encrypted recordings are ${R2_KEPT}, and our other sub-processors are` : "Our sub-processors are"} mainly in the United
         States (<a href="#subprocessors">Annex 3</a>).
       </p>
       <ul>
@@ -259,7 +260,8 @@ export default function Page() {
       <h2>16. Contact</h2>
       <p>
         {LEGAL.product}, {mail}
-        {LEGAL.postalAddress && <>, {LEGAL.postalAddress}</>}. We haven&rsquo;t appointed a data protection officer or a representative in the EU or UK.
+        {LEGAL.postalAddress && <>, {LEGAL.postalAddress}</>}. We haven&rsquo;t appointed a data protection officer, or a representative in the EU or UK
+        because the exemption in Article 27(2) of the GDPR and the UK GDPR applies (our <Link href="/legal/privacy">privacy policy</Link> explains why).
       </p>
 
       <h2 id="parties">Annex 1: Parties</h2>
@@ -272,6 +274,7 @@ export default function Page() {
           <strong>Data importer:</strong> {LEGAL.product}, the registered business name of a sole trader
           {LEGAL.abn && <>, ABN {LEGAL.abn}</>}
           {LEGAL.postalAddress && <>, {LEGAL.postalAddress}</>}, {mail}. Activities: providing {LEGAL.product} as described in section 3. Role: processor.
+          The sole trader&rsquo;s full legal name is given on request for a signed copy of this agreement: email {mail}.
         </li>
         <li>
           <strong>Signature and date:</strong> both parties agree to this DPA, including the SCCs and the UK Addendum where they apply, when the data exporter

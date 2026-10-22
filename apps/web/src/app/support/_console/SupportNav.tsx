@@ -9,7 +9,7 @@ type Links = readonly (readonly [string, string])[];
 /** Which section a support page belongs to: a conversation is in the inbox, a login or workspace page in Look up. */
 function section(path: string) {
   if (/^\/support\/(lookup|users|workspaces)(\/|$)/.test(path)) return "/support/lookup";
-  const m = path.match(/^\/support\/(log|accounts|offers)(\/|$)/);
+  const m = path.match(/^\/support\/(log|accounts|offers|notices)(\/|$)/);
   return m ? `/support/${m[1]}` : "/support";
 }
 

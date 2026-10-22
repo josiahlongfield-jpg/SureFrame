@@ -1,6 +1,6 @@
 import Link from "next/link";
 import LegalPage, { SubprocessorList } from "@/components/LegalPage";
-import { DATA_LOCATIONS, LEGAL, operatorLine, R2_LOCATION } from "@/lib/legal";
+import { DATA_LOCATIONS, LEGAL, operatorLine, R2_KEPT } from "@/lib/legal";
 import { CODE_MINUTES, CODE_TRIES } from "@/lib/signInCodeRules";
 
 export const metadata = { title: "Privacy Policy" };
@@ -60,8 +60,8 @@ export default function Page() {
           titles, messages, replies, to-dos or notes. Nobody from our team answers it, and it can&rsquo;t pass the conversation to the business or to us: for
           anything it can&rsquo;t help with, it gives you the business&rsquo;s name and, if the business set one, its reply-to email address. We keep the text of
           each question you type (up to 500 characters), with the business&rsquo;s name and the page you asked on, but not who asked, for{" "}
-          {LEGAL.clientQuestionDays} days. Once a week our team is emailed a list of these questions, grouped by business, so we can find and fix problems; that
-          email stays in our support inbox. The rest of the conversation stays in your browser tab. Please don&rsquo;t type personal details there that you
+          {LEGAL.clientQuestionDays} days. Once a week our team is emailed a list of these questions, grouped by business, so we can find and fix problems and improve
+          the help chat; we may read them for that, and that email is kept in our support inbox for up to {LEGAL.clientQuestionDigestMonths} months. The rest of the conversation stays in your browser tab. Please don&rsquo;t type personal details there that you
           don&rsquo;t want kept.
         </li>
         <li>
@@ -339,7 +339,7 @@ export default function Page() {
         </li>
         <li>
           Questions typed into the help chat on client pages are deleted {LEGAL.clientQuestionDays} days after they&rsquo;re asked, or sooner with the
-          business&rsquo;s account. The weekly list of these questions emailed to our team stays in our support inbox.
+          business&rsquo;s account. The weekly list of these questions emailed to our team is kept in our support inbox for up to {LEGAL.clientQuestionDigestMonths} months, then deleted.
         </li>
         <li>
           Records of team emails (who was told about which reply or video) are deleted about 30 days after the email is sent. Reminders sent to staff are kept
@@ -569,7 +569,7 @@ export default function Page() {
       <h3>International transfers</h3>
       <p>
         We&rsquo;re based in Australia.{" "}
-        {R2_LOCATION ? `Encrypted recordings are stored in the ${R2_LOCATION}, and our other providers` : "Our providers"} store and process information mainly
+        {R2_KEPT ? `Encrypted recordings are ${R2_KEPT}, and our other providers` : "Our providers"} store and process information mainly
         in the United States (see Overseas storage above). Where personal
         information is transferred to us or our providers from the EU or UK, and the destination doesn&rsquo;t have an adequacy decision, we rely on the European
         Commission&rsquo;s Standard Contractual Clauses and, for the UK, the UK International Data Transfer Addendum. For information we process for businesses,
@@ -593,7 +593,10 @@ export default function Page() {
 
       <h3>Contacting us</h3>
       <p>
-        We haven&rsquo;t appointed a representative in the EU or UK, or a data protection officer. Please contact us directly at {mail} about anything
+        We haven&rsquo;t appointed a representative in the EU or UK because the exemption in Article 27(2) of the GDPR and the UK GDPR applies to us: we
+        process information about people in the EU and UK only occasionally, not special categories of information (such as health details) or criminal
+        records on a large scale, and in a way that&rsquo;s unlikely to put their rights and freedoms at risk. We also haven&rsquo;t appointed a data protection
+        officer. Please contact us directly at {mail} about anything
         in this policy. We handle requests from the EU and UK the same way as any other.
       </p>
 

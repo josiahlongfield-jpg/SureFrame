@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AUD_NOTE } from "@/lib/aud";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import PlanGrid from "@/components/PlanGrid";
@@ -246,6 +247,7 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
           More than 100 clients? Add extra clients for US${EXTRA_SEAT_PRICE.toFixed(2)} a month each, or US${EXTRA_SEAT_PRICE_YEARLY} a year on yearly billing.
         </p>
         <p className="mt-2 text-center text-sm text-dim" data-testid="currency-note">All prices are in US dollars (USD), plus any sales tax, VAT or GST that applies where you are. Checkout may offer to charge you in your own currency at Stripe&rsquo;s exchange rate; otherwise your bank converts it.</p>
+        <p className="mt-2 text-center text-sm text-dim" data-testid="aud-note">{AUD_NOTE}</p>
 
         <PlanGrid />
 

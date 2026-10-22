@@ -22,7 +22,7 @@ export default async function SupportLayout({ children }: { children: React.Reac
   const admin = isSupportAdmin(me.email);
   const links = [
     ["/support", "Inbox"],
-    ...(admin ? ([["/support/lookup", "Look up"], ["/support/log", "Support log"]] as const) : []),
+    ...(admin ? ([["/support/lookup", "Look up"], ["/support/log", "Support log"], ["/support/notices", "Sub-processor notice"]] as const) : []),
     ["/support/accounts", "Free plans"],
     ...(isFounder(me.email) ? ([["/support/offers", "Discounts"]] as const) : []),
   ] as const;

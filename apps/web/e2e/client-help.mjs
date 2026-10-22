@@ -102,12 +102,16 @@ const panelBox = await phone.locator("[data-testid=client-help-panel]").bounding
 const mainBox = await phone.locator("main").boundingBox();
 ok("panel sits above the page, pushing it down (covers nothing)", !!panelBox && !!mainBox && panelBox.y + panelBox.height <= mainBox.y + 1, JSON.stringify({ panelBox, mainBox }));
 ok("open panel fits 320px", await fits(phone));
+// Decision 7: the panel says questions are kept 90 days without who asked and may be read, not that nobody reads it.
+const panelText = (await phone.textContent("[data-testid=client-help-panel]")).replace(/\s+/g, " ");
+ok("panel: questions kept 90 days, without who asked, and may be read to improve this help (decision 7)", panelText.includes("Questions are kept for 90 days, without who asked, and may be read to improve this help, so don't type anything private.") && !/nobody reads/i.test(panelText), panelText);
 
 const answer = await ask(phone, "How do I reply to this video?");
 ok("an answer comes back", answer.includes("reply box"), answer);
 const call = requests.at(-1).body;
 const sent = JSON.stringify(call);
 const system = [].concat(call.system).map((b) => b.text).join("");
+ok("the client guide no longer says nobody from SureFrame reads this chat (decision 7)", system.includes("may be read by SureFrame to improve this help") && !system.includes("Nobody from SureFrame reads"));
 ok("uses the client guide, cached, not the business guide", system.includes("<client_help_guide>") && !system.includes("<help_guide>") && [].concat(call.system)[0]?.cache_control?.type === "ephemeral" && !system.includes("Plans and prices"));
 ok("the AI is told the business and the page", call.messages.some((m) => m.role === "system" && m.content.includes(nameA) && m.content.includes("video page")));
 ok("the AI gets no title, no address and no client name", !sent.includes(TITLE) && !sent.includes("replies-a") && !sent.includes(clientA.email) && !sent.includes("Client A"));
@@ -206,6 +210,7 @@ const d = digests[0]?.text ?? "";
 ok("digest: unanswered questions grouped and counted, with the business", d.includes(`"Can you sort out my tax?" (${nameA}; couldn't answer)`) && d.includes(`"Can you sort out my tax?" (${nameB}; couldn't answer)`) && d.includes(`"explode please" (${nameA}; AI error)`), d);
 ok("digest: most asked, counted across businesses", /2 × "Can you sort out my tax\?" \(Business [AB] \d+, Business [AB] \d+\)/.test(d), d);
 ok("digest: no client names or addresses", !d.includes("Client A") && !d.includes("@example.com"));
+ok("digest: says to delete it after 12 months, as the Terms and Privacy Policy promise (decision 7)", d.includes("Delete this email 12 months after it arrived"));
 r = await cron();
 ok("not again the same week", r.clientQuestionDigest === "not-due" && outbox().slice(before).filter((m) => m.subject.startsWith("Client help chat")).length === 1, JSON.stringify(r.clientQuestionDigest));
 // A week on, the next one covers only what was asked since.

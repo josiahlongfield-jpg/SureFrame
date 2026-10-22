@@ -29,8 +29,9 @@ await page.click("text=Continue");
 await page.waitForURL((u) => u.pathname === "/settings/billing");
 
 const api = (path, data) => page.request.post(BASE + path, { data });
-async function webhook(type, sub, secret = "whsec_test") {
-  const payload = JSON.stringify({ id: `evt_${Date.now()}`, object: "event", type, data: { object: sub } });
+// `extra.id` resends an event Stripe already sent; `extra.previous` is the event's previous_attributes (what changed).
+async function webhook(type, sub, secret = "whsec_test", extra = {}) {
+  const payload = JSON.stringify({ id: extra.id ?? `evt_${Date.now()}`, object: "event", type, created: Math.floor(Date.now() / 1000), data: { object: sub, ...(extra.previous ? { previous_attributes: extra.previous } : {}) } });
   const header = sig.webhooks.generateTestHeaderString({ payload, secret });
   return page.request.post(BASE + "/api/webhooks/stripe", { headers: { "stripe-signature": header, "content-type": "application/json" }, data: payload });
 }
@@ -65,7 +66,15 @@ ok("prices are reused, not duplicated", state.prices.filter((p) => p.lookup_key 
 // 2) Stripe confirms the subscription.
 const sub = createSubscription(session.customer, workspaceId, "sureframe_solo_monthly");
 ok("bad webhook signature refused", (await webhook("customer.subscription.created", sub, "whsec_wrong")).status() === 400);
-ok("webhook accepted", (await webhook("customer.subscription.created", sub)).ok());
+const startedEvent = `evt_started_${Date.now()}`;
+ok("webhook accepted", (await webhook("customer.subscription.created", sub, undefined, { id: startedEvent })).ok());
+// Decision 16: a short "You're on Solo" email of our own, as well as Link's receipt, once per event.
+const planMails = () => outbox().filter((m) => m.to === email && m.subject.startsWith("You're on"));
+const startMail = planMails()[0];
+ok("plan started: one confirmation email to the owner", planMails().length === 1 && /^You're on Solo, renews \w+ \d+, \d{4}$/.test(startMail?.subject ?? ""), JSON.stringify(planMails().map((m) => m.subject)));
+ok("plan confirmation: plan, billing period, renewal date and where receipts come from, from SureFrame", !!startMail && startMail.text.includes("Thanks for subscribing.") && startMail.text.includes("Solo, billed monthly. It renews on") && startMail.text.includes("Receipts and invoices for your payments come by email from Link") && startMail.text.includes("Sent with SureFrame") && startMail.from.startsWith("SureFrame <"));
+await webhook("customer.subscription.created", sub, undefined, { id: startedEvent });
+ok("the same event again sends no second email", planMails().length === 1);
 ok("billing page shows Solo", /Solo plan/.test(await planText()) && /Renews/.test(await page.textContent("main")));
 
 // Cancelling in the portal: the plan stays until the period ends, and Billing says so instead of "Renews".
@@ -77,6 +86,7 @@ sub.cancel_at_period_end = false;
 await webhook("customer.subscription.updated", sub);
 await planText();
 ok("renewing again shows the renewal date", (await page.isVisible("[data-testid=renews-on]")) && !(await page.isVisible("[data-testid=cancels-on]")));
+ok("cancelling and renewing send no plan email", planMails().length === 1);
 
 // 3) Extra client seats and cloud backup ride on the same subscription.
 res = await api("/api/billing/seats", { extraSeats: 3 });
@@ -106,6 +116,8 @@ ok("what you pay: the plan", (await pay("pay-plan")) === "Solo plan US$15 a mont
 ok("what you pay: extra client seats", (await pay("pay-seats")) === "2 extra client seats (US$1.50 each) US$3 a month", await pay("pay-seats"));
 ok("what you pay: cloud backup", (await pay("pay-backup")) === "Cloud backup US$5 a month", await pay("pay-backup"));
 ok("what you pay: the monthly total", (await pay("pay-total")) === "Total US$23 a month", await pay("pay-total"));
+// A rough A$ figure for the total (decision 9): US$23 is about A$35, said to be an estimate at the bank's rate.
+ok("what you pay: about A$ a month, as an estimate", (await pay("pay-aud")).startsWith("About A$35 a month (an estimate") && (await pay("pay-aud")).includes("your bank's rate applies"), await pay("pay-aud"));
 ok("receipts: from Link, Stripe's payment service, with invoices under Manage subscription", /Receipts for your payments come by email from Link, Stripe.s payment service/.test(await pay("receipts-note")));
 ok("no raw HTML entities on Billing", !/&(apos|quot|amp|lt|gt);/.test(await page.textContent("main")));
 await page.goto(BASE + "/settings/billing?upgraded=1");
@@ -122,6 +134,9 @@ ok("discount box on a paid plan: an unknown code is refused", !!(await page.wait
 const sessionsBefore = state.sessions.length;
 const updateBefore = sub.lastUpdate;
 await page.route("https://billing.stripe.test/**", (r) => r.fulfill({ body: "portal" }));
+// What the subscription's items were before the switch, for the webhook's previous_attributes.
+const itemsBeforeStudio = JSON.parse(JSON.stringify(sub.items));
+const seatsOnly = planMails().length;
 await page.goto(BASE + "/pricing");
 await page.click("button:has-text('Switch to Studio')");
 const dialog = await page.waitForSelector("[data-testid=plan-confirm]");
@@ -154,8 +169,11 @@ ok("upgrade only applies once paid", sub.lastUpdate.payment_behavior === "error_
 ok("plan item switched to Studio", sub.items.data.some((i) => i.price.lookup_key === "sureframe_studio_monthly") && !sub.items.data.some((i) => i.price.lookup_key === "sureframe_solo_monthly"));
 // Studio includes 40 clients, so the 2 extra seats bought on Solo (no clients yet) come off with the move (lib/planChange.ts).
 ok("extra seats the bigger plan includes come off with the upgrade", !sub.items.data.some((i) => i.price.lookup_key?.startsWith("sureframe_client_seat")));
-await webhook("customer.subscription.updated", sub);
+await webhook("customer.subscription.updated", sub, undefined, { previous: { items: itemsBeforeStudio } });
 ok("billing page shows Studio", /Studio plan/.test(await planText()));
+const studioMail = planMails().at(-1);
+ok("moving to Studio: a confirmation of the new plan", planMails().length === seatsOnly + 1 && studioMail.subject.startsWith("You're on Studio, renews") && studioMail.text.includes("has moved to SureFrame Studio, billed monthly"), JSON.stringify(planMails().map((m) => m.subject)));
+ok("seats and cloud backup sent no plan email", seatsOnly === 1);
 await page.goto(BASE + "/pricing");
 ok("current plan isn't offered again", !!(await page.waitForSelector("[data-testid=plan-STUDIO] >> text=You’re on Studio", { timeout: 10000 }).catch(() => null)) && (await page.$$("[data-testid=plan-STUDIO] button")).length === 0);
 
@@ -233,7 +251,9 @@ ok("old subscription's events don't override the new one", /Solo plan/.test(awai
 
 // 6a) A second paid subscription for the same workspace: keep the first, and tell a person.
 const sub3 = createSubscription(session.customer, workspaceId, "sureframe_studio_monthly");
+const beforeSecond = planMails().length;
 await webhook("customer.subscription.created", sub3);
+ok("a second subscription that doesn't take over sends no plan email", planMails().length === beforeSecond);
 ok("a second subscription doesn't take over", /Solo plan/.test(await planText()));
 ok("the founder is told about the double subscription", alerts("two subscriptions").length === 1);
 sub3.status = "canceled";

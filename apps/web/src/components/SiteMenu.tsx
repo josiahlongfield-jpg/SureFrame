@@ -3,12 +3,35 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { openHelp } from "./SupportChat";
 
 /**
- * The public bar's links on the narrowest phones (under 375px), where Pricing and Sign in (or Library) don't fit
- * beside the logo and Start free: one small Menu button that drops them down (R2-V67). Wider screens show the links.
+ * Help in the public bar on phones 440px to 639px wide, where there's no floating Help button (decision 1): opens the
+ * help panel as a sheet, or goes to /help on a page without one. Narrower phones have it in the menu instead.
  */
-export default function SiteMenu({ links }: { links: readonly (readonly [string, string])[] }) {
+export function SiteHelp() {
+  return (
+    <a
+      href="/help"
+      onClick={(e) => {
+        e.preventDefault();
+        openHelp();
+      }}
+      className="hidden whitespace-nowrap rounded-lg px-2 py-2 text-muted hover:text-ink min-[440px]:max-sm:inline"
+      data-testid="site-help"
+    >
+      Help
+    </a>
+  );
+}
+
+/**
+ * The public bar's links on phones under 440px, where they don't all fit beside the logo and Start free: one small Menu
+ * button that drops them down (R2-V67), with Help after them, since phones have no floating Help button (decision 1).
+ * Pricing is in it under 440px; a link marked `narrow` (Sign in or Library) only under 375px, where it leaves the bar
+ * too. Wider screens show the links and Help in the bar.
+ */
+export default function SiteMenu({ links }: { links: readonly (readonly [href: string, label: string, narrow?: boolean])[] }) {
   const [open, setOpen] = useState(false);
   const path = usePathname();
   const box = useRef<HTMLDivElement>(null);
@@ -32,7 +55,7 @@ export default function SiteMenu({ links }: { links: readonly (readonly [string,
   }, [open]);
 
   return (
-    <div ref={box} className="relative min-[375px]:hidden">
+    <div ref={box} className="relative min-[440px]:hidden">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -58,11 +81,23 @@ export default function SiteMenu({ links }: { links: readonly (readonly [string,
           className="absolute right-0 top-full z-40 mt-2 flex w-44 flex-col rounded-xl border border-line bg-surface p-1.5 text-base shadow-lg"
           data-testid="site-menu"
         >
-          {links.map(([href, label]) => (
-            <Link key={href} href={href} className="rounded-lg px-3 py-2.5 text-ink hover:bg-hover">
+          {links.map(([href, label, narrow]) => (
+            <Link key={href} href={href} className={`rounded-lg px-3 py-2.5 text-ink hover:bg-hover ${narrow ? "min-[375px]:hidden" : ""}`}>
               {label}
             </Link>
           ))}
+          <a
+            href="/help"
+            onClick={(e) => {
+              e.preventDefault();
+              setOpen(false);
+              openHelp();
+            }}
+            className="rounded-lg px-3 py-2.5 text-ink hover:bg-hover"
+            data-testid="site-menu-help"
+          >
+            Help
+          </a>
         </nav>
       )}
     </div>

@@ -33,3 +33,9 @@ export const TERMS_RECORD_KEEP_YEARS = 7;
 export const TERMS_NOTICE_DAYS = 30;
 /** Questions clients type into the help chat on their pages are kept this long for the weekly digest (lib/support/clientQuestions.ts). */
 export const CLIENT_QUESTION_KEEP_DAYS = 90;
+/**
+ * The weekly digest of those questions emailed to the support inbox is kept this many months (Terms 13, Privacy Policy;
+ * decision 7, 22 October 2026). The digest records in the database go after a year (pruneClientQuestions); the emails
+ * themselves are deleted from the support inbox by hand or an inbox rule.
+ */
+export const CLIENT_QUESTION_DIGEST_KEEP_MONTHS = 12;

@@ -157,7 +157,7 @@ export default async function Home() {
             <p className="kicker">{CLAUDE_BONUS.kicker}</p>
             <h2 className="display mt-3 text-3xl sm:text-4xl">{CLAUDE_BONUS.title}</h2>
             <p className="mt-4 text-muted">
-              {CLAUDE_BONUS.intro} {CLAUDE_BONUS.blurb}
+              {CLAUDE_BONUS.blurb}
             </p>
             <p className="mt-3 font-medium text-ink" data-testid="home-claude-addon">{CLAUDE_BONUS.withAddOn}</p>
             <p className="mt-3 text-sm text-muted">{CLAUDE_BONUS.privacy}</p>

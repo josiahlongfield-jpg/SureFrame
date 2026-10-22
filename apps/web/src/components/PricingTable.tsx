@@ -1,5 +1,6 @@
 "use client";
 
+import { audFor } from "@/lib/aud";
 import Link from "next/link";
 import { useState, type KeyboardEvent } from "react";
 import UpgradeButton from "@/components/UpgradeButton";
@@ -89,6 +90,12 @@ export default function PricingTable({
                 <span className="text-4xl font-semibold text-ink"><span className="text-xl align-top">US</span>${price}</span>
                 {price > 0 && <span className="text-sm text-dim">/ {interval}</span>}
               </p>
+              {/* A rough Australian-dollar figure for Australian buyers (decision 9); the note under the plans says it's an estimate. */}
+              {price > 0 && (
+                <p className="mt-1 text-xs text-dim" data-testid="aud-estimate">
+                  About {audFor(price)} a {interval}
+                </p>
+              )}
               {interval === "year" && price > 0 && <p className="mt-1 text-xs text-dim">US${(price / 12).toFixed(2)} a month, billed yearly</p>}
               {price === 0 && <p className="mt-1 text-xs text-dim">No card needed</p>}
               {/* What it really costs with backup, the add-on most people want once they see the 30-day limit (V19). */}
