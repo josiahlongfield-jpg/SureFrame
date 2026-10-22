@@ -10,6 +10,7 @@ import { pathToFileURL } from "node:url";
 const VERSION = "1.0.0";
 const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 const subtle = globalThis.crypto.subtle;
+const KEY_CHECK_MS = 5 * 60_000;
 const log = (...a) => console.error("[sureframe]", ...a);
 
 // ---------- connection code ----------
@@ -102,13 +103,18 @@ export function makeConnector(code, { fetchImpl = fetch } = {}) {
     return data;
   }
 
+  let checkedAt = 0;
+  /** The current team key: checked against SureFrame every few minutes, so a key reset while Claude Desktop is open is followed. */
   async function key() {
-    if (teamKey) return teamKey;
+    if (teamKey && Date.now() - checkedAt < KEY_CHECK_MS) return teamKey;
     const chain = await call("/api/connector/sealed", { query: "keys" });
-    const start = await importKey(conn.key).catch(() => null);
-    const current = start && (await followRotations(start, chain).catch(() => null));
+    const start = teamKey ?? (await importKey(conn.key).catch(() => null));
+    let current = start && (await followRotations(start, chain).catch(() => null));
+    if (!current && teamKey) current = await followRotations(await importKey(conn.key), chain).catch(() => null);
     if (!current) throw new UserError("Your team's keys were reset since this connection code was made, so it can't unlock anything. Make a new connection code in SureFrame under Settings > Connections.");
+    if (current !== teamKey) wrapped.clear();
     teamKey = current;
+    checkedAt = Date.now();
     return teamKey;
   }
 

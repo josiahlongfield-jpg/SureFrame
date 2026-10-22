@@ -21,13 +21,13 @@ const HOSTED_CALLBACKS = ["https://claude.ai/api/mcp/auth_callback", "https://cl
 const LOOPBACK = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?(\/[^?#]*)?$/;
 
 /** A redirect address Claude uses: the hosted apps' callback, or a loopback one (Claude Code). */
-export const allowedRedirect = (uri: string) => HOSTED_CALLBACKS.includes(uri) || LOOPBACK.test(uri);
+export const allowedRedirect = (uri: string) => HOSTED_CALLBACKS.includes(uri) || (LOOPBACK.test(uri) && Number(LOOPBACK.exec(uri)![2]?.slice(1) ?? 80) <= 65535);
 
 /** The one registered for this client that `given` matches: exactly, or loopback with the port ignored (RFC 8252 7.3). */
 export function matchRedirect(registered: string[], given: string) {
   if (registered.includes(given)) return given;
   const g = LOOPBACK.exec(given);
-  if (!g) return null;
+  if (!g || !allowedRedirect(given)) return null;
   const hit = registered.some((r) => {
     const m = LOOPBACK.exec(r);
     return m && m[1] === g[1] && (m[3] ?? "/") === (g[3] ?? "/");
@@ -180,6 +180,7 @@ export async function exchange(form: URLSearchParams) {
   if (grantType === "refresh_token") {
     const old = form.get("refresh_token") ?? "";
     const grant = old ? await db.connectorGrant.findUnique({ where: { refreshHash: tokenHash(old) } }) : null;
+    if (!grant && old) await revokeOnReuse(tokenHash(old), now);
     if (!grant || grant.revokedAt || grant.kind !== "online" || !grant.refreshExpiresAt || grant.refreshExpiresAt <= now)
       throw new OAuthError("invalid_grant", "The refresh token is invalid or has expired");
     if (form.get("client_id") && grant.oauthClientId && form.get("client_id") !== grant.oauthClientId) throw new OAuthError("invalid_grant", "The refresh token was issued to another client");
@@ -191,6 +192,8 @@ export async function exchange(form: URLSearchParams) {
       data: {
         accessHash: tokenHash(access),
         accessExpiresAt: new Date(now.getTime() + ACCESS_TTL_MS),
+        previousRefreshHash: grant.refreshHash,
+        refreshedAt: now,
         refreshHash: tokenHash(refresh),
         refreshExpiresAt: new Date(now.getTime() + REFRESH_TTL_MS),
       },
@@ -199,6 +202,20 @@ export async function exchange(form: URLSearchParams) {
     return tokenResponse(access, refresh);
   }
   throw new OAuthError("unsupported_grant_type", "Only authorization_code and refresh_token are supported");
+}
+
+/** A grace for two refreshes sent at once with the same token (a retry): the second just fails. */
+const REUSE_GRACE_MS = 60_000;
+
+/**
+ * A refresh token that was already replaced, presented again, means two copies are in use: one may be stolen.
+ * The connection is disconnected, so neither works (OAuth 2.1 refresh token reuse detection).
+ */
+async function revokeOnReuse(hash: string, now: Date) {
+  await db.connectorGrant.updateMany({
+    where: { previousRefreshHash: hash, revokedAt: null, refreshedAt: { lt: new Date(now.getTime() - REUSE_GRACE_MS) } },
+    data: { revokedAt: now },
+  });
 }
 
 /** RFC 7009: the assistant disconnecting. Unknown tokens are fine (nothing to do). */

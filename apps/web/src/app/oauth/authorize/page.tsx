@@ -33,6 +33,8 @@ export default async function Authorize({ searchParams }: { searchParams: Promis
     const again = await checkAuthorize(pick(Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)]))));
     if (!("ok" in again)) redirect("back" in again ? again.back : "/settings/connections");
     const now = await requirePageUser("/settings/connections");
+    // The team shown when they chose: if they switched teams in another tab meanwhile, ask again.
+    if (form.get("ws") !== now.workspace.id) redirect(here(pick(Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)])))));
     if (form.get("decision") !== "allow") redirect(errorRedirect(again.ok.redirectUri, again.ok.state, "access_denied", "Cancelled"));
     redirect(await issueCode(again.ok, now.user.id, now.workspace.id));
   }
@@ -64,12 +66,13 @@ export default async function Authorize({ searchParams }: { searchParams: Promis
       </p>
       <p className="mt-2 text-xs text-dim" data-testid="authorize-host">
         You&rsquo;ll be sent back to <span className="font-medium text-ink">{host}</span>.
-        {local && " That's an app on this computer (such as Claude Code). Only allow it if you started connecting just now."}
+        {local ? " That's an app on this computer (such as Claude Code)." : ""} Only allow it if you started connecting {LEGAL.product} in Claude just now.
       </p>
       <form action={decide} className="mt-6 flex flex-wrap gap-3">
         {Object.entries(q).map(([k, v]) => (
           <input key={k} type="hidden" name={k} value={v} />
         ))}
+        <input type="hidden" name="ws" value={me.workspace.id} />
         <button
           name="decision"
           value="allow"

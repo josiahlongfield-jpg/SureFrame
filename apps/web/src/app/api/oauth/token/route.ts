@@ -1,15 +1,21 @@
 import { exchange, OAuthError, oauthFail, oauthJson } from "@/lib/connector/oauth";
-import { limitByIp } from "@/lib/rateLimit";
+import { tokenHash } from "@/lib/connector/grants";
+import { limitByIp, rateLimit } from "@/lib/rateLimit";
 import { HttpError } from "@/lib/session";
 
 /** The token endpoint (RFC 6749): form-encoded, as Claude sends it; JSON accepted too. */
 export async function POST(req: Request) {
   try {
-    await limitByIp("oauth-token", 120, 3600);
+    // Claude refreshes from Anthropic's servers, so every connected person shares a few addresses: the per-address
+    // ceiling is high, and the real limit is per sign-in code or refresh token.
+    await limitByIp("oauth-token", 20_000, 3600);
     const type = req.headers.get("content-type") ?? "";
+    const json = type.includes("application/json") ? await req.json().catch(() => null) : null;
     const form = type.includes("application/json")
-      ? new URLSearchParams(Object.entries((await req.json().catch(() => ({}))) as Record<string, string>).map(([k, v]) => [k, String(v)]))
+      ? new URLSearchParams(Object.entries(json && typeof json === "object" && !Array.isArray(json) ? (json as Record<string, unknown>) : {}).map(([k, v]) => [k, String(v)]))
       : new URLSearchParams(await req.text());
+    const presented = form.get("refresh_token") ?? form.get("code");
+    if (presented) await rateLimit(`oauth-token:${tokenHash(presented).slice(0, 32)}`, 30, 3600);
     return oauthJson(await exchange(form));
   } catch (err) {
     if (err instanceof OAuthError) return oauthFail(err);

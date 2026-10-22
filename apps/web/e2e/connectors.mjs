@@ -303,6 +303,23 @@ const afterRevoke = await desk({ jsonrpc: "2.0", id: 1, method: "tools/call", pa
 ok("disconnected desktop connection says so", afterRevoke.result.isError && /disconnected|connection code/i.test(afterRevoke.result.content[0].text), afterRevoke.result.content[0].text);
 ok("refresh after disconnect is refused", (await token({ grant_type: "refresh_token", refresh_token: t2.refresh_token })).status === 400);
 
+// A replaced refresh token used again (after the retry grace) disconnects the connection.
+{
+  await owner.goto(authorizeUrl.replace(`state=${state}`, "state=reuse1"));
+  await owner.click("button:has-text('Allow')");
+  await owner.waitForURL("http://127.0.0.1:51999/**");
+  const c = new URL(landed).searchParams.get("code");
+  const r1 = await (await token({ grant_type: "authorization_code", code: c, code_verifier: verifier, client_id: client.client_id })).json();
+  const r2 = await (await token({ grant_type: "refresh_token", refresh_token: r1.refresh_token })).json();
+  ok("refresh for the reuse check", !!r2.access_token);
+  await prisma.connectorGrant.updateMany({ where: { refreshHash: sha256hex(r2.refresh_token) }, data: { refreshedAt: new Date(Date.now() - 5 * 60_000) } });
+  await token({ grant_type: "refresh_token", refresh_token: r1.refresh_token });
+  ok("reusing a replaced refresh token disconnects", (await mcp(r2.access_token, { jsonrpc: "2.0", id: 1, method: "tools/list" })).status === 401);
+}
+ok("registration refuses impossible ports", (await reg(["http://localhost:99999/cb"])).status === 400);
+const nullBody = await fetch(asm.token_endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: "null" });
+ok("a null token request is a clean error", nullBody.status === 400, String(nullBody.status));
+
 // The help page and the desktop download are there.
 ok("help page", (await fetch(`${BASE}/help/claude`)).status === 200);
 const dl = await fetch(`${BASE}/connector/sureframe.mcpb`);

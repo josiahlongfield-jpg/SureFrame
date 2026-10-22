@@ -2,10 +2,13 @@ import { OAuthError, oauthFail, oauthJson, registerClient } from "@/lib/connecto
 import { limitByIp } from "@/lib/rateLimit";
 import { HttpError } from "@/lib/session";
 
-/** Dynamic client registration (RFC 7591), for Claude's connectors. */
+/**
+ * Dynamic client registration (RFC 7591), for Claude's connectors. Claude registers from Anthropic's servers, so the
+ * per-address limit is high; registrations no connection uses are cleared after a day (pruneConnectors).
+ */
 export async function POST(req: Request) {
   try {
-    await limitByIp("oauth-register", 30, 3600);
+    await limitByIp("oauth-register", 3000, 3600);
     const body = await req.json().catch(() => null);
     return oauthJson(await registerClient(body), 201);
   } catch (err) {

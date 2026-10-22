@@ -86,7 +86,8 @@ export async function pruneConnectors(now = new Date()) {
     where: { OR: [{ revokedAt: { lt: useCutoff } }, { kind: "online", refreshExpiresAt: { lt: useCutoff } }] },
   });
   await db.oAuthCode.deleteMany({ where: { expiresAt: { lt: now } } });
-  // Registrations nobody has a connection from any more (Claude registers afresh for each new connection).
+  // Registrations nobody has a connection from (Claude registers afresh for each new connection): a day is
+  // plenty to finish signing in.
   const used = await db.connectorGrant.findMany({ where: { oauthClientId: { not: null } }, select: { oauthClientId: true }, distinct: ["oauthClientId"] });
-  await db.oAuthClient.deleteMany({ where: { createdAt: { lt: useCutoff }, id: { notIn: used.map((g) => g.oauthClientId!) } } });
+  await db.oAuthClient.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 86_400_000) }, id: { notIn: used.map((g) => g.oauthClientId!) } } });
 }

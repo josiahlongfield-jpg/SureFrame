@@ -898,31 +898,35 @@ model ClientQuestionDigest {
 /// only read, only what that person can see in the workspace it was made for, and stops when they disconnect it
 /// or lose access. Nothing readable is stored here: only one-way fingerprints (sha256) of its tokens.
 model ConnectorGrant {
-  id               String         @id @default(cuid())
+  id                  String         @id @default(cuid())
   /// "online": the connector added in Claude by its web address and signed in with OAuth; it sees activity only.
   /// "desktop": the connector installed on the person's own computer; it also fetches encrypted content and
   /// unlocks it there with their recovery key, which never reaches us.
-  kind             String
+  kind                String
   /// Shown in Settings: the assistant's name as it registered (online), or "Claude desktop connector".
-  name             String
-  oauthClientId    String?
+  name                String
+  oauthClientId       String?
   /// Fingerprint of the current access token. Online ones expire; desktop ones last until disconnected.
-  accessHash       String         @unique
-  accessExpiresAt  DateTime?
+  accessHash          String         @unique
+  accessExpiresAt     DateTime?
   /// Fingerprint of the current refresh token (online only), replaced on every refresh.
-  refreshHash      String?        @unique
-  refreshExpiresAt DateTime?
-  createdAt        DateTime       @default(now())
-  lastUsedAt       DateTime?
-  revokedAt        DateTime?
-  userId           String
-  workspaceId      String
-  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace        Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  uses             ConnectorUse[]
+  refreshHash         String?        @unique
+  refreshExpiresAt    DateTime?
+  /// The refresh token replaced last, kept to spot it being used again (a copy in someone else's hands).
+  previousRefreshHash String?
+  refreshedAt         DateTime?
+  createdAt           DateTime       @default(now())
+  lastUsedAt          DateTime?
+  revokedAt           DateTime?
+  userId              String
+  workspaceId         String
+  user                User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace           Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  uses                ConnectorUse[]
 
   @@index([userId])
   @@index([workspaceId])
+  @@index([previousRefreshHash])
 }
 
 /// Each time a connector used one of its tools, shown in Settings and kept 90 days (lib/connector/grants.ts).

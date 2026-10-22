@@ -115,6 +115,8 @@ export async function leaveTeam(userId: string, w: Workspace, leaver: string, { 
   const left = await db.$transaction(async (tx) => {
     const gone = await tx.membership.deleteMany({ where: { workspaceId: w.id, userId, role: { not: "OWNER" } } });
     if (!gone.count) return false;
+    // Their Claude connections end with their place on the team (lib/connector/grants.ts).
+    await tx.connectorGrant.updateMany({ where: { workspaceId: w.id, userId, revokedAt: null }, data: { revokedAt: new Date() } });
     const owner = await tx.membership.findFirst({ where: { workspaceId: w.id, role: "OWNER" } });
     if (owner) {
       // Shown as a former team member's, not the owner's (lib/team.ts senderName).
