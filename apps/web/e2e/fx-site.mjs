@@ -104,10 +104,17 @@ ok("pricing: AI summary limits are per month on yearly billing too (V21)", norm(
 ok("pricing: the Cloud backup card says what it keeps and doesn't (V19)", (await visitor.$$("[data-testid=addon-backup] li")).length === 3 && norm(await visitor.textContent("[data-testid=addon-backup]")).includes("Unsent replies are still deleted after 7 days"));
 const bonus = norm(await visitor.textContent("[data-testid=bonus-claude]"));
 ok("pricing: one short Claude line, saying what Claude is and that the add-on is separate (V25)", bonus.includes("Anthropic's AI assistant") && bonus.includes("separate from the paid AI add-on") && !bonus.includes("Even better with our AI add-on") && bonus.includes("isn't made by or affiliated with Anthropic"), bonus);
+ok("pricing: the Claude line asks for follow-up lists too (decision 17)", bonus.includes("client reports, follow-up lists and more") && !bonus.includes("checklists"), bonus);
+// An Australian-dollar estimate beside the US prices (decision 9): on paid cards only, said to be an estimate.
+ok("pricing: Solo shows about A$ a month", norm(await visitor.textContent("[data-testid=plan-SOLO] [data-testid=aud-estimate]")) === "About A$23 a month");
+ok("pricing: Free has no A$ estimate", (await visitor.$$("[data-testid=plan-FREE] [data-testid=aud-estimate]")).length === 0);
+const audNote = norm(await visitor.textContent("[data-testid=aud-note]"));
+ok("pricing: the A$ note says it's an estimate and the bank's rate applies", audNote.includes("estimates") && audNote.includes("charged in US dollars") && audNote.includes("your bank's rate on the day applies"), audNote);
 ok("AI add-on says what happens to longer videos", norm(await visitor.textContent("[data-testid=addon-ai]")).includes("longer videos don't get a transcript or summary"));
 await visitor.click("[role=radio]:has-text('Yearly')");
 const freeYear = norm(await visitor.textContent("[data-testid=plan-FREE] p.mt-4"));
 ok("Yearly: Free is US$0 with no period", freeYear === "US$0", freeYear);
+ok("Yearly: Studio shows about A$ a year", norm(await visitor.textContent("[data-testid=plan-STUDIO] [data-testid=aud-estimate]")) === "About A$750 a year");
 const s0 = { STUDIO: norm(await visitor.textContent("[data-testid=plan-STUDIO]")), AGENCY: norm(await visitor.textContent("[data-testid=plan-AGENCY]")) };
 ok("pricing: add-ons come before Good to know, and no 'Pick a plan' line", await visitor.evaluate(() => {
   const a = document.getElementById("add-ons"), g = document.getElementById("good-to-know");
@@ -127,9 +134,10 @@ ok("home: one sentence on how long videos are kept, up by How it works", norm(aw
 ok("home: Record your first video opens sign-up", (await visitor.getAttribute("a:has-text('Record your first video, free')", "href")) === "/signup");
 const points = norm(await visitor.textContent("[data-testid=hero-points]"));
 // Phones being camera only moved to the FAQ when "Nothing to install" made way for the Claude bonus (22 October 2026).
+ok("home: the Claude point in Josiah's words (decision 17)", points.includes("Connect Claude, Anthropic's AI assistant, for client reports, follow-up lists and more, at no extra charge."), points);
 ok("home: the add-ons point says they're paid, and the Claude bonus is free", points.includes("Paid add-ons: AI and backup") && points.includes("Free bonus for Claude users"), points);
 const trust = norm(await visitor.textContent("[data-testid=home-trust]"));
-ok("home: who runs it and where data is kept, without naming anyone", trust.includes("run from Queensland, Australia (ABN 38 364 192 034)") && trust.includes("Oceania region (Australia, New Zealand and the Pacific)") && !/josiah|longfield/i.test(trust), trust);
+ok("home: who runs it and where data is kept, without naming anyone", trust.includes("run from Queensland, Australia (ABN 38 364 192 034)") && trust.includes("kept in Cloudflare's Oceania region (Australia, New Zealand and the Pacific), as far as Cloudflare allows us to choose") && !/josiah|longfield/i.test(trust), trust);
 ok("home demo: the recording limit says it's per video, by plan", norm(await visitor.textContent("#ff-panel-record")).includes("4 hours per video on paid plans, 5 minutes on Free"));
 const strip = await visitor.$eval(".ff-tabs", (s) => {
   const box = s.getBoundingClientRect();
@@ -150,7 +158,8 @@ const sendFrame = norm(await visitor.textContent("#ff-panel-send"));
 ok("home demo: a first-time client's link is sent by the business, not emailed", sendFrame.includes("New") && sendFrame.includes("Copy all 3 links"), sendFrame);
 // Round 3: Claude introduced and kept apart from the AI add-on (V3, V4); what clients see when staff leave (V9); one label (D12).
 const claudeSection = norm(await visitor.textContent("[data-testid=home-claude]"));
-ok("home: Claude is introduced as Anthropic's AI assistant (V3)", claudeSection.includes("Claude is an AI assistant made by Anthropic. Already use Claude?"));
+ok("home: Claude is introduced as Anthropic's AI assistant (V3), in Josiah's words (decision 17)", claudeSection.includes("Already use Claude, Anthropic's AI assistant? Connect it to SureFrame free of charge and ask it for things to help streamline your service such as client reports, follow-up lists and more.") && !claudeSection.includes("Claude is an AI assistant made by Anthropic"));
+ok("home: no 'checklists' left in the Claude bonus lines (decision 17)", !/checklists/i.test(claudeSection) && !(await visitor.textContent("main")).includes("checklists"));
 ok("home: one line keeps the free connector apart from the paid AI add-on (V4)", norm(await visitor.textContent("[data-testid=home-claude-separate]")).includes("separate from our paid AI add-on"));
 ok("home: what clients experience when staff leave (V9)", norm(await visitor.textContent("main")).includes("Clients who've opened their link are emailed a new one"));
 const homeLinks = await visitor.$$eval("main a[href^='/pricing']", (as) => as.map((a) => a.textContent.trim()));
@@ -187,7 +196,7 @@ ok("FAQ: Open all answers opens every answer (V29)", (await visitor.$$eval("deta
 await visitor.click("[data-testid=faq-expand-all]");
 ok("FAQ: Close all answers closes them again", (await visitor.$$eval("details[data-testid=faq-item]", (ds) => ds.every((d) => !d.open))) && norm(await visitor.textContent("[data-testid=faq-expand-all]")) === "Open all answers");
 ok("FAQ: refunds also where Link gives one (K6)", norm(await visitor.textContent("#cancel")).includes("or where Link, which sells our plans, gives one under its own terms"));
-ok("FAQ: where data is kept, in plain words", faq.includes("Oceania region (Australia, New Zealand and the Pacific)") && faq.includes("mainly in the United States"));
+ok("FAQ: where data is kept, in plain words", faq.includes("kept in Cloudflare's Oceania region (Australia, New Zealand and the Pacific), as far as Cloudflare allows us to choose") && faq.includes("mainly in the United States"));
 ok("FAQ: what happens on a smaller plan", faq.includes("What happens if I move to a smaller plan?"));
 await visitor.goto(BASE + "/faq#cancel");
 ok("a link to one answer opens it", await visitor.waitForFunction(() => document.getElementById("cancel")?.open === true, null, { timeout: 5000 }).then(() => true, () => false));
@@ -195,7 +204,7 @@ await visitor.goto(BASE + "/about");
 const about = norm(await visitor.textContent("main"));
 ok("About: who runs it, as a business name with its ABN", about.includes("Made in Queensland. SureFrame is a registered business name (ABN 38 364 192 034) of a sole trader who builds it, runs it and answers support."), about.slice(0, 300));
 ok("About: support email, data locations, encryption, recovery key", about.includes("support@sureframe.app") && about.includes("Cloudflare R2") && about.includes("Video titles") && about.includes("recovery key"));
-ok("About: recordings' location in plain words, the same as the FAQ", about.includes("Encrypted video and voice recordings are stored in the Oceania region (Australia, New Zealand and the Pacific)"));
+ok("About: recordings' location in plain words, the same as the FAQ", about.includes("Encrypted video and voice recordings are kept in Cloudflare's Oceania region (Australia, New Zealand and the Pacific), as far as Cloudflare allows us to choose") && !about.includes("stored in the Oceania"));
 ok("About and FAQ never name the owner", !/josiah|longfield/i.test(about + faq));
 const footer = await visitor.$$eval("footer a", (as) => as.map((a) => a.getAttribute("href")));
 ok("footer links FAQ and About", footer.includes("/faq") && footer.includes("/about"));
@@ -238,7 +247,10 @@ for (const bit of ["Keep me signed in", "the short SureFrame intro is shown once
   ok(`privacy says: ${bit}`, privacy.includes(bit));
 }
 ok("privacy: no Continue with Google (only email sign-in exists)", !privacy.includes("Google, if you") && !privacy.includes("Continue with Google"));
-ok("privacy: recordings' location in plain words", privacy.includes("Oceania region (Australia, New Zealand and the Pacific)"));
+// Josiah's decisions (22 October 2026): the client help chat's questions and digest (7), the EU/UK representative (21).
+ok("privacy: client help questions may be read, and the weekly list is kept up to 12 months (decision 7)", privacy.includes("we may read them for that, and that email is kept in our support inbox for up to 12 months") && privacy.includes("is kept in our support inbox for up to 12 months, then deleted") && !privacy.includes("stays in our support inbox"));
+ok("privacy: why there's no EU or UK representative (decision 21)", privacy.includes("because the exemption in Article 27(2) of the GDPR and the UK GDPR applies to us") && privacy.includes("only occasionally"));
+ok("privacy: recordings' location in plain words", privacy.includes("kept in Cloudflare's Oceania region (Australia, New Zealand and the Pacific), as far as Cloudflare allows us to choose") && !privacy.includes("stored in the Oceania"));
 await visitor.click("[data-testid=legal-toc] a[href='#for-clients']");
 ok("contents links jump to the section", await visitor.evaluate(() => location.hash === "#for-clients" && document.getElementById("for-clients").getBoundingClientRect().top < 200));
 await visitor.goto(BASE + "/legal/terms");
@@ -252,6 +264,10 @@ const dpaText = norm(await visitor.textContent("main"));
 for (const bit of ["making the information it can read available to it on your instruction", "view counts and emoji reactions", "our own site and our browser extension", "within 48 hours of becoming aware", "6-digit code instead", "as a readable copy unlocked in your browser", "plus two weeks for us to act on it"]) {
   ok(`DPA says: ${bit}`, dpaText.includes(bit));
 }
+ok("DPA: the sole trader's legal name on request (decision 11)", dpaText.includes("full legal name is given on request for a signed copy of this agreement: email support@sureframe.app"));
+ok("DPA: section 8 names the new sub-processor email (decision 22)", dpaText.includes("a notice headed “New SureFrame sub-processor”"));
+ok("DPA: recordings kept in Oceania as far as Cloudflare allows (decision 12)", dpaText.includes("kept in Cloudflare's Oceania region (Australia, New Zealand and the Pacific), as far as Cloudflare allows us to choose") && !dpaText.includes("stored in the Oceania"));
+ok("DPA: why there's no EU or UK representative (decision 21)", dpaText.includes("Article 27(2)"));
 ok("DPA: what changed on its last-updated date (V43)", norm(await visitor.textContent("[data-testid=legal-latest] summary")) === `What changed on ${updatedOf("dpaUpdated")}`);
 await visitor.goto(BASE + "/legal/terms");
 const terms = norm(await visitor.textContent("main"));
@@ -269,6 +285,8 @@ for (const bit of [
   "The Australian Consumer Law applies to consumers in Australia.",
   "at least 30 days’ notice by email before ending it",
   "plus two weeks for us to act on it",
+  "may read them to find and fix problems and improve the help chat",
+  "kept for up to 12 months",
 ]) {
   ok(`terms say: ${bit}`, terms.includes(bit));
 }

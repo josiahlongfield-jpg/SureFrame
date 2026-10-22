@@ -92,6 +92,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "offer.automatic": "Automatic offer changed",
   "support.delete": "Support conversation deleted",
   "support.delete_all": "Every support conversation deleted",
+  "subprocessor.notice": "New sub-processor notice emailed",
 };
 export const actionLabel = (action: string) => ACTION_LABELS[action] ?? action;
 
@@ -103,6 +104,7 @@ export const ACTION_GROUPS: [string, string[]][] = [
   ["Plans and billing", ["plan.complimentary", "plan.complimentary_ai", "billing.resync"]],
   ["Discount codes", ["offer.create", "offer.end", "offer.automatic"]],
   ["Support conversations", ["support.delete", "support.delete_all"]],
+  ["Notices to every business", ["subprocessor.notice"]],
 ];
 type Details = Record<string, unknown> & {
   status?: string;

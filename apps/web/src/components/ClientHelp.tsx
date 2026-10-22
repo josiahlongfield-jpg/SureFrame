@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { HelpPage } from "@/lib/support/clientHelp";
+import { CLIENT_QUESTION_KEEP_DAYS } from "@/lib/periods";
 
 /**
  * A business whose link this device (or this email link) has, and the proof the help chat checks. `limits` is how
@@ -240,7 +241,7 @@ export default function ClientHelp({ for: businesses, page, videoId }: { for: He
             </p>
           )}
           <p className="mt-2 text-xs leading-4 text-dim">
-            Answers come from an AI assistant and can be wrong. It can&apos;t see your videos or replies, and nobody reads this chat, so don&apos;t type anything private.{" "}
+            Answers come from an AI assistant and can be wrong. It can&apos;t see your videos or replies. Questions are kept for {CLIENT_QUESTION_KEEP_DAYS} days, without who asked, and may be read to improve this help, so don&apos;t type anything private.{" "}
             <a href="/legal/privacy#for-clients" className="underline hover:text-muted">Privacy</a>
           </p>
         </form>

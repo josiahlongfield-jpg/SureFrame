@@ -366,41 +366,21 @@ await kb.keyboard.press("Escape");
 const backOnHelp = await kb.waitForFunction(() => document.activeElement?.dataset.testid === "help-button", null, { timeout: 5000 }).then(() => true, () => false);
 ok("panel: Escape closes it and focus goes back to Help", (await kb.locator("role=dialog[name='SureFrame help']").count()) === 0 && backOnHelp);
 
-// 8f. Phones: the Help button floats in the corner without scrolling to the end, steps aside while scrolling down
-// or typing, and the page keeps room at its end; the panel leaves room for the conversation
+// 8f. Phones: no floating Help button (decision 1). Help is in the top bar (375px and wider) or its menu (narrower), and
+// opens the panel as a sheet over the page; the panel leaves room for the conversation
 const small = await (await browser.newContext({ viewport: { width: 320, height: 568 }, isMobile: true, hasTouch: true })).newPage();
 await small.goto(BASE + "/");
-await small.waitForSelector("[data-testid=help-button]");
-const place = await small.evaluate(() => {
-  const r = document.querySelector("[data-testid=help-button]").getBoundingClientRect();
-  return { position: getComputedStyle(document.querySelector("[data-testid=help-button]")).position, bottom: innerHeight - r.bottom, right: innerWidth - r.right, top: r.top };
-});
-ok("320px: Help floats in the bottom-right corner on the first screen", place.position === "fixed" && place.top < 568 && place.bottom >= 8 && place.bottom <= 24 && place.right >= 8 && place.right <= 24, JSON.stringify(place));
-const shown = () => small.evaluate(() => { const b = document.querySelector("[data-testid=help-button]"); return getComputedStyle(b).opacity === "1" && !b.dataset.tucked; });
-await small.mouse.wheel(0, 400);
-await small.evaluate(() => window.scrollBy(0, 300));
-ok("320px: it steps aside while the page is scrolled down", await small.waitForFunction(() => document.querySelector("[data-testid=help-button]").dataset.tucked === "true", null, { timeout: 3000 }).then(() => true, () => false));
-ok("320px: and comes back once scrolling stops", await small.waitForFunction(() => !document.querySelector("[data-testid=help-button]").dataset.tucked, null, { timeout: 4000 }).then(() => true, () => false));
+await small.waitForLoadState("networkidle").catch(() => {});
+ok("320px: no floating Help button", !(await small.isVisible("[data-testid=help-button]")));
+ok("320px: no top-bar Help (it's in the menu)", !(await small.isVisible("[data-testid=site-help]")));
+ok("320px: the top bar still fits", await small.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 await small.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-await small.waitForTimeout(1600);
-const end = await small.evaluate(() => {
-  const b = document.querySelector("[data-testid=help-button]").getBoundingClientRect();
-  // The last thing on the page (the footer's links) is clear of the button at the end of the page.
-  const links = [...document.querySelectorAll("footer a")].map((a) => a.getBoundingClientRect());
-  return { overlaps: links.filter((l) => l.right > b.left && l.left < b.right && l.bottom > b.top && l.top < b.bottom).length };
-});
-ok("320px: at the end of the page it covers none of the footer's links", end.overlaps === 0, JSON.stringify(end));
-ok("320px: it's showing at the end of the page", await shown());
-// Typing in a field (on-screen keyboard up) tucks it away too, and leaving the field brings it back.
-await small.evaluate(() => { const i = document.createElement("input"); i.id = "probe"; document.querySelector("main").prepend(i); });
-await small.focus("#probe");
-ok("320px: it steps aside while a field is being typed in", await small.waitForFunction(() => document.querySelector("[data-testid=help-button]").dataset.tucked === "true", null, { timeout: 3000 }).then(() => true, () => false));
-await small.evaluate(() => document.getElementById("probe").blur());
-ok("320px: and is back when the field is left", await small.waitForFunction(() => !document.querySelector("[data-testid=help-button]").dataset.tucked, null, { timeout: 3000 }).then(() => true, () => false));
-await small.evaluate(() => document.getElementById("probe").remove());
-await small.click("[data-testid=help-button]");
+await small.waitForTimeout(600);
+ok("320px: no Help button appears at the end of the page either", !(await small.isVisible("[data-testid=help-button]")));
+await small.evaluate(() => window.scrollTo(0, 0));
+await small.tap("[data-testid=site-menu-button]");
+await small.tap("[data-testid=site-menu-help]");
 await small.waitForSelector("role=dialog[name='SureFrame help']");
-const room = await small.evaluate(() => document.querySelector("[role=dialog] [aria-live=polite]").clientHeight);
 ok("320px: the conversation gets room in the panel", room >= 240, String(room));
 ok("320px: no sideways scroll with the panel open", await small.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 // The page behind the open sheet doesn't scroll (V87).
@@ -412,8 +392,41 @@ ok("320px: the page behind the help sheet doesn't scroll", (await small.evaluate
 await small.screenshot({ path: `${shots}/support-help-320.png` });
 await small.click("button[aria-label='Close help']");
 ok("320px: the page scrolls again once it's closed", (await small.evaluate(() => getComputedStyle(document.documentElement).overflow)) !== "hidden");
+ok("320px: closing goes back to the menu button", await small.evaluate(() => document.activeElement?.dataset.testid === "site-menu-button"));
+// 390px: Help sits in the top bar itself, beside Pricing, Sign in and Start free, without pushing the bar sideways.
+const phone390 = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })).newPage();
+for (const [w, path] of [[390, "/"], [390, "/pricing"], [390, "/faq"], [390, "/legal/terms"], [375, "/"], [375, "/pricing"], [639, "/"]]) {
+  await phone390.setViewportSize({ width: w, height: 844 });
+  await phone390.goto(BASE + path);
+  const bar = await phone390.evaluate(() => {
+    const h = document.querySelector("[data-testid=site-help]");
+    const r = h?.getBoundingClientRect();
+    return { help: !!r && r.width > 0 && !!h.closest("header"), inside: !!r && r.right <= innerWidth, wide: document.documentElement.scrollWidth <= innerWidth, floating: !!document.querySelector("[data-testid=help-button]")?.offsetParent };
+  });
+  ok(`${w}px ${path}: Help in the top bar, no floating button, no sideways scroll`, bar.help && bar.inside && bar.wide && !bar.floating, JSON.stringify(bar));
+}
+await phone390.setViewportSize({ width: 390, height: 844 });
+await phone390.tap("[data-testid=site-help]");
+ok("390px: the top bar's Help opens the help sheet", !!(await phone390.waitForSelector("role=dialog[name='SureFrame help']", { timeout: 5000 }).catch(() => null)));
+await phone390.close();
+// Computers: on the home page the Help button waits until the visitor scrolls (decision 20); elsewhere it's there at once.
+const desk = await page({ viewport: { width: 1280, height: 800 } });
+await desk.goto(BASE + "/");
+await desk.waitForSelector("[data-testid=help-button]", { state: "attached" });
+const deskHelp = () => desk.evaluate(() => { const b = document.querySelector("[data-testid=help-button]"); return { waiting: !!b.dataset.waiting, opacity: getComputedStyle(b).opacity, clicks: getComputedStyle(b).pointerEvents !== "none" }; });
+const atTop = await deskHelp();
+ok("computer home page: no Help button on the first screen", atTop.waiting && atTop.opacity === "0" && !atTop.clicks, JSON.stringify(atTop));
+await desk.mouse.wheel(0, 300);
+ok("computer home page: Help appears once the visitor scrolls", await desk.waitForFunction(() => { const b = document.querySelector("[data-testid=help-button]"); return !b.dataset.waiting && getComputedStyle(b).opacity === "1"; }, null, { timeout: 4000 }).then(() => true, () => false));
+await desk.evaluate(() => window.scrollTo(0, 0));
+await desk.waitForTimeout(400);
+ok("computer home page: and stays when scrolled back to the top", !(await deskHelp()).waiting);
+await desk.goto(BASE + "/faq");
+ok("computer, other pages: Help shows straight away", !(await deskHelp()).waiting && (await desk.isVisible("[data-testid=help-button]")));
+await desk.close();
 await owner.setViewportSize({ width: 390, height: 844 });
 await owner.goto(BASE + "/library");
+ok("phone app: no floating Help button", !(await owner.isVisible("[data-testid=help-button]")));
 await owner.click("[data-testid=menu-button]");
 await owner.click("[data-testid=menu-help]");
 ok("phone: Help in the app's menu opens the chat", await owner.isVisible("role=dialog[name='SureFrame help']"));

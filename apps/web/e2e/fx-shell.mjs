@@ -146,6 +146,8 @@ const ws = await prisma.workspace.findFirst({ where: { members: { some: { userId
 ok("business name and name saved", ws.name === "Business A" && (await prisma.user.findUnique({ where: { id: ownerUser.id } })).name === "Team member 1");
 const welcome = await waitFor(() => outbox().filter((m) => m.to === ownerEmail && m.subject === "Welcome to SureFrame"));
 ok("one welcome email, with first steps and where to get help", welcome.length === 1 && welcome[0].text.includes("Save your recovery key") && welcome[0].text.includes("support@sureframe.app") && welcome[0].text.includes("Business A"));
+ok("welcome email thanks them for trying SureFrame (decision 24)", welcome[0]?.text.includes("Thanks for trying SureFrame.") && welcome[0]?.html.includes("Thanks for trying SureFrame."));
+ok("welcome email: Help is in the menu on a phone (decision 1)", welcome[0]?.text.includes("in the menu on a phone"));
 await owner.goto(`${BASE}/welcome`);
 await owner.waitForURL((u) => u.pathname === "/library");
 ok("the welcome step doesn't come back", path(owner) === "/library");
@@ -328,9 +330,11 @@ await staff.goto(`${BASE}/team`);
 ok("staff get a proper Team page", !!(await staff.waitForSelector("[data-testid=staff-team]", { timeout: 15000 }).catch(() => null)));
 ok("staff Team page fits 320px", await noSideways(staff));
 await staff.screenshot({ path: `${shots}/fx-shell-staff-team-320.png`, fullPage: true });
-const help = await staff.locator("[data-testid=help-button]").boundingBox();
-ok("phone: the Help button is small", !!help && help.width <= 48 && help.height <= 48, JSON.stringify(help));
-ok("phone: the page has room under its last line for it", (await staff.evaluate(() => parseFloat(getComputedStyle(document.body).paddingBottom))) >= 64);
+// Phones have no floating Help button (decision 1): Help is in the Menu, so nothing sits over the page's buttons.
+ok("phone: no floating Help button over the page", !(await staff.isVisible("[data-testid=help-button]")));
+await staff.click("[data-testid=menu-button]");
+ok("phone: Help is in the Menu", await staff.isVisible("[data-testid=menu-help]"));
+await staff.keyboard.press("Escape");
 
 await owner.goto(`${BASE}/team`);
 await owner.waitForSelector("text=Reassign clients");

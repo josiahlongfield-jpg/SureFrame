@@ -281,23 +281,21 @@ ok("team on a phone: reply card shown, conversation tucked away", !(await owner.
 ok("team on a phone: card names the client", (await owner.textContent(card)).includes("Conversation with Pia Phone"));
 ok("team on a phone: AI bar collapsed", (await owner.getAttribute(toggle, "aria-expanded")) === "false");
 await owner.screenshot({ path: `${shots}/phone-390-team.png`, fullPage: true });
-// The team page has the Help button too (bottom-right): both fit and both open.
+// Phones have no floating Help button (decision 1), so nothing sits beside the bubble; Help is in the Menu and still opens.
 await scrollPastCard(owner);
 await owner.waitForSelector(bubble, { timeout: 5000 }).catch(() => null);
 const teamBoxes = await owner.evaluate(() => {
   const r = (el) => el && (({ left, right, top, bottom }) => ({ left, right, top, bottom }))(el.getBoundingClientRect());
-  const help = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Help");
-  return { bubble: r(document.querySelector("[data-testid=chat-bubble]")), help: r(help), card: r(document.querySelector("[data-testid=chat-inline]")), reactions: r(document.querySelector("[data-testid=reactions]")), scrollY, inner: innerHeight };
+  const help = document.querySelector("[data-testid=help-button]");
+  return { bubble: r(document.querySelector("[data-testid=chat-bubble]")), floatingHelp: !!help?.offsetParent, scrollY, inner: innerHeight };
 });
-ok("team at 390px: Help button shown", !!teamBoxes.help);
-ok(
-  "team at 390px: bubble and Help side by side, not overlapping",
-  !!teamBoxes.help && !!teamBoxes.bubble && teamBoxes.bubble.right <= teamBoxes.help.left,
-  JSON.stringify(teamBoxes),
-);
-await owner.click("button:has-text('Help')");
-ok("team at 390px: Help opens", await owner.isVisible("[role=dialog][aria-label='SureFrame help']"));
+ok("team at 390px: bubble shown, no floating Help button", !!teamBoxes.bubble && !teamBoxes.floatingHelp, JSON.stringify(teamBoxes));
+await owner.click("[data-testid=menu-button]");
+await owner.click("[data-testid=menu-help]");
+ok("team at 390px: Help in the Menu opens", await owner.isVisible("[role=dialog][aria-label='SureFrame help']"));
 await owner.click("button[aria-label='Close help']");
+await scrollPastCard(owner);
+await owner.waitForSelector(bubble, { timeout: 5000 }).catch(() => null);
 await owner.click("[data-testid=chat-bubble]");
 await owner.waitForSelector("[data-testid=conversation][data-sheet]");
 ok("team at 390px: their own messages on the right", await owner.evaluate(() => {

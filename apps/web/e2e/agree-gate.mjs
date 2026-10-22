@@ -10,7 +10,7 @@
 import { chromium } from "@playwright/test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
-import { PRIVACY_VERSION, TERMS_VERSION } from "./agree.mjs";
+import { agreed, PRIVACY_VERSION, TERMS_VERSION } from "./agree.mjs";
 import { start as startStripe, state as stripeState } from "./fake-stripe.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
@@ -423,6 +423,32 @@ await reader.screenshot({ path: `${shots}/legal-archive-320.png`, fullPage: true
 const agree320 = await signIn(`agree-320${stamp}@example.com`, "/library", { viewport: { width: 320, height: 640 } });
 ok("/agree fits 320px", path(agree320) === "/agree" && (await noSideways(agree320)));
 await agree320.screenshot({ path: `${shots}/agree-320.png`, fullPage: true });
+
+// Decision 6: owners and admins who agreed before this month's wording updates (22 October 2026) see a one-off note of
+// them, linking to the list on /legal/archive, until they dismiss it. Someone who agreed since doesn't.
+{
+  const earlyEmail = `changes-early${stamp}@example.com`;
+  const early = await agreed(earlyEmail);
+  await prisma.termsAcceptance.updateMany({ where: { userId: early.id }, data: { acceptedAt: new Date("2026-10-20T00:00:00Z") } });
+  const page = await signIn(earlyEmail, "/library", { lands: "/library", viewport: { width: 320, height: 700 } });
+  const note = await page.waitForSelector("[data-testid=changes-notice]", { timeout: 15000 }).catch(() => null);
+  ok("agreed before 22 October: this month's changes are noted", !!note && norm(await note.textContent()).includes("What we changed in October:") && norm(await note.textContent()).includes("nothing new to agree to"));
+  ok("the note links to Versions and changes' wording updates", (await page.getAttribute("[data-testid=changes-notice-link]", "href")) === "/legal/archive#wording-updates");
+  ok("the note fits 320px", await noSideways(page));
+  await page.screenshot({ path: `${shots}/changes-notice-320.png` });
+  await page.click("[data-testid=changes-notice-dismiss]");
+  ok("Dismiss hides it", (await page.locator("[data-testid=changes-notice]").count()) === 0);
+  await page.goto(BASE + "/clients");
+  await page.waitForLoadState("networkidle").catch(() => {});
+  ok("and it stays dismissed for this person", (await page.locator("[data-testid=changes-notice]").count()) === 0);
+  await page.goto(BASE + "/legal/archive#wording-updates");
+  ok("the link lands on the wording updates list", await page.isVisible("#wording-updates"));
+  const lateEmail = `changes-late${stamp}@example.com`;
+  await agreed(lateEmail);
+  const late = await signIn(lateEmail, "/library", { lands: "/library" });
+  await late.waitForLoadState("networkidle").catch(() => {});
+  ok("agreed since: no note", (await late.locator("[data-testid=changes-notice]").count()) === 0);
+}
 
 await browser.close();
 stripeServer.close();

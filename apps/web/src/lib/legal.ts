@@ -10,6 +10,7 @@ import {
   TERMS_NOTICE_DAYS,
   TERMS_RECORD_KEEP_YEARS,
   CLIENT_QUESTION_KEEP_DAYS,
+  CLIENT_QUESTION_DIGEST_KEEP_MONTHS,
 } from "@/lib/periods";
 import { RETENTION_DAYS } from "@/lib/retention";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
@@ -49,6 +50,8 @@ export const LEGAL = {
   supportRecordYears: ADMIN_ACTION_KEEP_YEARS,
   /** Questions typed into the help chat on client pages are kept this long. */
   clientQuestionDays: CLIENT_QUESTION_KEEP_DAYS,
+  /** The weekly email listing those questions is kept in our support inbox this many months. */
+  clientQuestionDigestMonths: CLIENT_QUESTION_DIGEST_KEEP_MONTHS,
   /** Records of agreeing to the Terms and Privacy Policy are kept this long. */
   agreementRecordYears: TERMS_RECORD_KEEP_YEARS,
   /** Time to ask us to review a suspension, closure or turned-off link. */
@@ -91,6 +94,9 @@ export const LEGAL = {
    * liability cap not covering what the law won't let us limit (16); the Australian Consumer Law line (20); and 30 days' notice
    * before ending the Free plan (6). They describe what we already do or add to what customers get, so they keep termsVersion.
    * Also 22 October 2026: section 2 notes a team member whose name is the business name is shown once (no new version).
+   * Also 22 October 2026 (Josiah's decisions): section 13 says client help chat questions may be read to improve the help chat,
+   * and that the weekly list of them emailed to our support inbox is kept for up to 12 months (decision 7). It describes what we
+   * already do and sets a limit where there was none, so it keeps termsVersion.
    */
   termsUpdated: "22 October 2026",
   /**
@@ -107,6 +113,10 @@ export const LEGAL = {
    * a breach (11), and why a closed account is deleted after 44 days. They describe what we already do or add to what customers get,
    * so they keep dpaVersion. Also 22 October 2026: notification emails can name a video by its title (data minimisation),
    * which describes what the emails already do, so it keeps dpaVersion.
+   * Also 22 October 2026 (Josiah's decisions): recordings are kept in Cloudflare's Oceania region "as far as Cloudflare allows us
+   * to choose" (decision 12, softer than before); Annex 1 says the sole trader's full legal name is given on request for a signed
+   * copy (decision 11); section 8 names the "New SureFrame sub-processor" email (decision 22); and section 16 says why no EU or UK
+   * representative is appointed (Article 27(2), decision 21). They describe what we already do or promise, so they keep dpaVersion.
    */
   dpaUpdated: "22 October 2026",
   /**
@@ -147,6 +157,11 @@ export const LEGAL = {
    * responsible for any parental consent the law requires (G8). They say plainly what already applies (the business was
    * already responsible for a parent's permission for clients under 18) and add no duty for customers, so they keep
    * privacyVersion. The Terms are unchanged.
+   * Also 22 October 2026 (Josiah's decisions): client help chat questions may be read to improve that help, and the weekly
+   * list of them is kept in our support inbox for up to 12 months (decision 7); recordings are kept in Cloudflare's Oceania
+   * region "as far as Cloudflare allows us to choose" (decision 12); and "Contacting us" says why no EU or UK representative is
+   * appointed: the Article 27(2) exemption (decision 21). They describe what we already do, set a limit where there was none,
+   * or say less firmly where data is kept, so they keep privacyVersion.
    */
   privacyUpdated: "22 October 2026",
 };
@@ -187,6 +202,7 @@ export const WORDING_UPDATES: WordingUpdate[] = [
       "Section 17 mentions the readable copy of your data; section 22 the 30-minute limit for transcripts; section 13 where help chat limits are shown.",
       "Section 2: a team member whose name is the business name is shown once.",
       "Why an account we close is deleted after 44 days; the liability cap doesn’t cover what the law won’t let us limit; the Australian Consumer Law line; 30 days’ notice before we end the Free plan.",
+      "Section 13: questions typed into the help chat on client pages may be read to improve it, and the weekly list of them is kept for up to 12 months.",
     ],
     privacy: [
       "Sections on our connectors for Claude, including that the Claude Desktop connector also reads transcripts when you use AI summaries.",
@@ -196,12 +212,18 @@ export const WORDING_UPDATES: WordingUpdate[] = [
       "The short version says which records are kept after an account is deleted; the cookie section explains the two cookies whose names start with fc_.",
       "We say we have chosen to follow the Australian Privacy Principles.",
       "“Age”: we don’t knowingly collect children’s information for our own purposes, and a business adding a client under 13 is responsible for any parental consent the law requires.",
+      "Questions typed into the help chat on client pages may be read to improve it, and the weekly list of them is kept in our support inbox for up to 12 months.",
+      "Recordings are kept in Cloudflare’s Oceania region as far as Cloudflare allows us to choose.",
+      "“Contacting us” explains why we haven’t appointed a representative in the EU or UK (the Article 27(2) exemption).",
     ],
     dpa: [
       "The readable copy of your data, connecting your own AI assistant, 6-digit sign-in codes, emoji reactions among what we can read, and camera access for our browser extension.",
       "We aim to tell you about a breach within 48 hours of becoming aware of it.",
       "Why an account we close is deleted after 44 days.",
       "Notification emails can name a video by its title; they still never include replies, messages or to-do text.",
+      "Recordings are kept in Cloudflare’s Oceania region as far as Cloudflare allows us to choose.",
+      "Annex 1: the sole trader’s full legal name is given on request for a signed copy of this agreement.",
+      "Section 8 names the “New SureFrame sub-processor” email we send before a new sub-processor starts; section 16 explains why we haven’t appointed a representative in the EU or UK.",
     ],
   },
   {
@@ -261,18 +283,34 @@ export const WORDING_UPDATES: WordingUpdate[] = [
   },
 ];
 
+/**
+ * The one-off "what we changed this month" note in the app (components/ChangesNotice.tsx, decision 6): owners and admins
+ * who agreed to our terms before `since` see it once, until `until`, linking to the Wording updates list on /legal/archive.
+ * An in-app note rather than an email to every owner. `since` is the start of 22 October 2026 in Queensland (UTC+10).
+ */
+export const MONTHLY_CHANGES = {
+  key: "2026-10",
+  month: "October",
+  since: new Date("2026-10-21T14:00:00Z"),
+  until: new Date("2026-11-30T14:00:00Z"),
+};
+
 export const operatorLine = () =>
   `${LEGAL.product}${LEGAL.abn ? ` (ABN ${LEGAL.abn})` : ""} is ${LEGAL.businessNameRegistered ? "a registered business name of" : "run by"} a sole trader based in ${LEGAL.state}, ${LEGAL.country}`;
 
 /**
  * Where Neon and the Cloudflare R2 bucket keep data. Null until confirmed: the pages then give no location. R2's is
  * Cloudflare's "Oceania" region; it's spelt out because the bare region name means little to most readers (V23).
+ * Cloudflare treats a bucket's region as a location hint it follows as far as it can, so the pages say "as far as
+ * Cloudflare allows us to choose" rather than promising the data never leaves it (Josiah, decision 12, 22 October 2026).
  */
 export const NEON_LOCATION: string | null = "United States";
-export const R2_LOCATION: string | null = "Oceania region (Australia, New Zealand and the Pacific)";
+export const R2_LOCATION: string | null = "Oceania region (Australia, New Zealand and the Pacific), as far as Cloudflare allows us to choose";
+/** The sentence part for recordings, e.g. "kept in Cloudflare's Oceania region (…), as far as Cloudflare allows us to choose". */
+export const R2_KEPT: string | null = R2_LOCATION ? `kept in Cloudflare's ${R2_LOCATION}` : null;
 
 /** Where data is kept, in the same words on the home page, FAQ, About page and Privacy Policy. */
-export const DATA_LOCATIONS = `${R2_LOCATION ? `Encrypted video and voice recordings are stored in the ${R2_LOCATION}. Our other providers` : "Our providers"} store and process information outside Australia, mainly in the United States.`;
+export const DATA_LOCATIONS = `${R2_KEPT ? `Encrypted video and voice recordings are ${R2_KEPT}. Our other providers` : "Our providers"} store and process information outside Australia, mainly in the United States.`;
 
 export type Subprocessor = {
   name: string;

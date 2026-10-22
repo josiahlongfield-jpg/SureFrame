@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/auth";
 import Logo from "./Logo";
-import SiteMenu from "./SiteMenu";
+import SiteMenu, { SiteHelp } from "./SiteMenu";
 
 /**
  * The navy top bar. `navy` is for marketing pages (wider); app-style pages leave it off. `away`: a signed-in person who
@@ -24,6 +24,8 @@ export default async function SiteHeader({ navy = false, away }: { navy?: boolea
           ) : (
             <Link href="/login" className={`${link} max-[375px]:hidden`}>Sign in</Link>
           )}
+          {/* Phones have no floating Help button: Help is here, or in the menu on the narrowest (decision 1). */}
+          <SiteHelp />
           {/* "Start free" (sign-up) is only for people without an account, and says the same on a phone (V66, V8). Signed in it's
               the app's own button, short on phones, so the bar fits a 360px screen. */}
           {signedIn && away ? null : signedIn ? (

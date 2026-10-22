@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { audFor } from "@/lib/aud";
 import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import ManageBillingButton from "@/components/ManageBillingButton";
@@ -134,6 +135,11 @@ function WhatYouPay({ workspace, discount }: { workspace: Workspace; discount: s
           </span>
         </li>
       </ul>
+      {total > 0 && (
+        <p className="mt-1 text-right text-xs text-dim" data-testid="pay-aud">
+          About {audFor(total / 100)} {per} (an estimate: you&apos;re charged in US dollars and your bank&apos;s rate applies)
+        </p>
+      )}
       <p className="mt-2 text-xs text-dim">
         Plus any tax{discount ? ", less your discount" : ""}. Extra client seats are added on the{" "}
         <Link href="/clients#buy-seats" className="font-medium text-accent hover:underline">Clients page</Link>
@@ -276,7 +282,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
           // Stripe's confirmation usually lands before the page does; until it has, say the plan is on its way.
           <p role="status" className="mt-4 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="upgraded">
             {workspace.stripeSubscriptionId && workspace.plan !== "FREE"
-              ? `Thanks for upgrading. You're on ${plan.name} now. Your receipt comes by email from Link, Stripe's payment service.`
+              ? `Thanks for upgrading. You're on ${plan.name} now. We'll email you a short confirmation, and your receipt comes by email from Link, Stripe's payment service.`
               : "Thanks for upgrading. Your plan updates as soon as payment is confirmed, usually within a minute. Reload this page to see it."}
           </p>
         )}

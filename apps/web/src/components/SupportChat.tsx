@@ -2,6 +2,7 @@
 
 import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { usePathname } from "next/navigation";
 import { reportClientError } from "@/lib/clientError";
 import { REPLY_WITHIN, TALK_TO_PERSON } from "@/lib/support/person";
 
@@ -327,23 +328,29 @@ export class ChatBoundary extends Component<{ children: ReactNode }, { failed: b
 
 /** Opens the help panel from elsewhere on the page (the app's phone menu has a Help item). */
 export const OPEN_HELP_EVENT = "sf:open-help";
-/** Opens the help chat; on /help, which has no floating chat, goes to the page's own question box instead. */
+/** Marks the page as having the help panel (SupportWidget), so Help elsewhere on the page opens it rather than going to /help. */
+const WIDGET_MARK = "sfHelpWidget";
+/**
+ * Opens the help chat; on /help, which has no floating chat, goes to the page's own question box instead, and on a page
+ * without the help panel (some pages leave it out), goes to /help. Returns false when it went nowhere on this page.
+ */
 export const openHelp = () => {
   const own = location.pathname === "/help" ? document.querySelector<HTMLTextAreaElement>("main textarea") : null;
   if (own) {
     own.scrollIntoView({ block: "center" });
     own.focus({ preventScroll: true });
-  } else window.dispatchEvent(new Event(OPEN_HELP_EVENT));
+  } else if (document.documentElement.dataset[WIDGET_MARK]) window.dispatchEvent(new Event(OPEN_HELP_EVENT));
+  else location.assign("/help");
 };
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * A Help button that opens the chat in a panel, fixed to the bottom-right corner so it's there without scrolling to
- * the end. On phones it's a small round button that steps out of the way while the page is
- * scrolled down or a field is being typed in, so it never sits over what someone is reading or filling in, and the
- * page keeps room at its end so the last line or button can always be scrolled clear of it (the app's phone menu has
- * a Help item too). The open panel holds the keyboard until Escape or ✕ closes it.
+ * The help chat in a panel. On computers and tablets (640px and wider) a Help button fixed to the bottom-right corner
+ * opens it, so it's there without scrolling to the end; on the home page that button waits until the visitor scrolls,
+ * so the first screen is left as it was designed (Josiah, decision 20). On phones there's no floating button at all
+ * (Josiah, decision 1): Help is in the top bar or its menu (SiteHeader, the app's MobileMenu), which open this panel as
+ * a sheet over the page, the same as client pages. The open panel holds the keyboard until Escape or ✕ closes it.
  */
 export default function SupportWidget({ signedIn, limits }: { signedIn: boolean; limits?: string | null }) {
   const [open, setOpen] = useState(false);
@@ -358,15 +365,26 @@ export default function SupportWidget({ signedIn, limits }: { signedIn: boolean;
   }, []);
   const close = useCallback(() => {
     setOpen(false);
-    // Back to what opened it; the phone menu's Help item has gone with the menu, so then the Help button (shown
-    // again by then).
-    requestAnimationFrame(() => (opener.current?.isConnected ? opener.current : button.current)?.focus({ preventScroll: true }));
+    // Back to what opened it. The phone menu's Help item has gone with the menu: then the Help button on wider screens,
+    // or on phones the menu button (or the top bar's Help) it came from.
+    requestAnimationFrame(() => {
+      const visible = (el: HTMLElement | null | undefined) => (el?.isConnected && el.offsetParent !== null ? el : null);
+      const back =
+        visible(opener.current) ??
+        visible(button.current) ??
+        [...document.querySelectorAll<HTMLElement>("[data-testid=menu-button], [data-testid=site-menu-button], [data-testid=site-help]")].find((el) => el.offsetParent !== null);
+      back?.focus({ preventScroll: true });
+    });
   }, []);
 
   useEffect(() => {
     setMounted(true);
+    document.documentElement.dataset[WIDGET_MARK] = "1";
     window.addEventListener(OPEN_HELP_EVENT, show);
-    return () => window.removeEventListener(OPEN_HELP_EVENT, show);
+    return () => {
+      delete document.documentElement.dataset[WIDGET_MARK];
+      window.removeEventListener(OPEN_HELP_EVENT, show);
+    };
   }, [show]);
 
   // Escape closes the chat.
@@ -396,40 +414,18 @@ export default function SupportWidget({ signedIn, limits }: { signedIn: boolean;
     return () => els.forEach((el, i) => (el.style.overflow = before[i]));
   }, [open]);
 
-  // On phones the page keeps room at its end, so the last of it can be scrolled clear of the button. Pages with the
-  // site footer keep that room inside the footer, so the page still ends at its navy edge (globals.css, sf-help-room).
+  // The home page's first screen is left clear on computers: the Help button appears once the visitor scrolls, and
+  // then stays (decision 20). Every other page shows it straight away.
+  const home = usePathname() === "/";
+  const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
-    document.body.classList.add("sf-help-room");
-    return () => document.body.classList.remove("sf-help-room");
-  }, []);
-
-  // On phones the button steps aside while the page is scrolled down (back on scrolling up, or once scrolling
-  // stops) and while a field has the on-screen keyboard up. Computers keep it in the corner all the time.
-  const [tucked, setTucked] = useState(false);
-  useEffect(() => {
-    const typing = () => matchMedia("(pointer: coarse)").matches && !!document.activeElement?.matches("input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable=true]");
-    let last = scrollY;
-    let timer: number | undefined;
-    const scrolled = () => {
-      const y = scrollY;
-      if (y > last + 4) setTucked(true);
-      else if (y < last - 4) setTucked(typing());
-      last = y;
-      clearTimeout(timer);
-      timer = window.setTimeout(() => setTucked(typing()), 1200);
-    };
-    // After focus has moved, so leaving one field for another doesn't flash the button.
-    const focusChanged = () => setTimeout(() => setTucked(typing()));
-    addEventListener("scroll", scrolled, { passive: true });
-    document.addEventListener("focusin", focusChanged);
-    document.addEventListener("focusout", focusChanged);
-    return () => {
-      clearTimeout(timer);
-      removeEventListener("scroll", scrolled);
-      document.removeEventListener("focusin", focusChanged);
-      document.removeEventListener("focusout", focusChanged);
-    };
-  }, []);
+    if (!home) return;
+    const check = () => scrollY > 40 && setScrolled(true);
+    check();
+    addEventListener("scroll", check, { passive: true });
+    return () => removeEventListener("scroll", check);
+  }, [home]);
+  const waiting = home && !scrolled;
 
   // Tab and Shift+Tab go round the panel's own controls.
   function trap(e: React.KeyboardEvent) {
@@ -471,7 +467,7 @@ export default function SupportWidget({ signedIn, limits }: { signedIn: boolean;
           </ChatBoundary>
         </div>
       )}
-      {/* A small round button on phones (the word on wider screens). Not shown while the panel is open: ✕ closes it. */}
+      {/* 640px and wider only: phones have Help in the top bar or its menu. Not shown while the panel is open: ✕ closes it. */}
       {mounted &&
         !open &&
         createPortal(
@@ -481,11 +477,11 @@ export default function SupportWidget({ signedIn, limits }: { signedIn: boolean;
             aria-expanded={open}
             aria-label="Help"
             data-testid="help-button"
-            data-tucked={tucked || undefined}
-            className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-line-strong bg-solid text-sm font-semibold text-on-solid shadow-lg transition duration-200 hover:bg-solid-hover sm:bottom-5 sm:right-6 sm:z-50 sm:h-auto sm:w-auto sm:gap-2 sm:px-4 sm:py-3 ${tucked ? "max-sm:pointer-events-none max-sm:translate-y-24 max-sm:opacity-0 max-sm:focus-visible:pointer-events-auto max-sm:focus-visible:translate-y-0 max-sm:focus-visible:opacity-100" : ""}`}
+            data-waiting={waiting || undefined}
+            className={`fixed bottom-5 right-6 z-50 hidden items-center gap-2 rounded-full border border-line-strong bg-solid px-4 py-3 text-sm font-semibold text-on-solid shadow-lg transition duration-200 hover:bg-solid-hover sm:flex ${waiting ? "pointer-events-none translate-y-4 opacity-0 focus-visible:pointer-events-auto focus-visible:translate-y-0 focus-visible:opacity-100" : ""}`}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
-            <span className="max-sm:sr-only">Help</span>
+            <span>Help</span>
           </button>,
           document.body,
         )}

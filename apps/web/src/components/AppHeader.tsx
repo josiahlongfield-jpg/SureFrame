@@ -9,8 +9,10 @@ import { currentUser } from "@/lib/session";
 import { formerTeams, switchableBusinesses } from "@/lib/team";
 import { TEAM_PLANS } from "@/lib/plans";
 import { limitsNote, supportTier } from "@/lib/support/allowance";
+import { MONTHLY_CHANGES } from "@/lib/legal";
 import { isSupportAgent } from "@/lib/support/tickets";
 import { settingsPages } from "@/lib/settingsMenu";
+import ChangesNotice from "./ChangesNotice";
 import NamePrompt from "./NamePrompt";
 import StaffNotices from "./StaffNotices";
 import Logo from "./Logo";
@@ -40,6 +42,11 @@ export default async function AppHeader({ email, plan, widget = true }: { email:
         dueTodos(accessOf(me)).then((d) => d.total),
       ])
     : [1, null, [], [], 0];
+  // This month's wording updates (decision 6): owners and admins who agreed before them, until the note's end date, and
+  // not while the banner asking them to agree to new versions is showing.
+  const changesNotice =
+    !!me && manager && me.agreed && !me.termsNotice && Date.now() < MONTHLY_CHANGES.until.getTime() &&
+    !!(await db.termsAcceptance.findFirst({ where: { userId: me.user.id, acceptedAt: { lt: MONTHLY_CHANGES.since } }, select: { id: true } }));
   // A team plan keeps its Team pages while the owner is on their own; a business of one on another plan has none.
   const teamPages = teamSize > 1 || (manager && TEAM_PLANS.includes(me.workspace.plan));
   // Clients come first: a business adds them before sending anything.
@@ -98,6 +105,7 @@ export default async function AppHeader({ email, plan, widget = true }: { email:
           </Link>
         </p>
       )}
+      {changesNotice && me && <ChangesNotice userId={me.user.id} month={MONTHLY_CHANGES.month} monthKey={MONTHLY_CHANGES.key} />}
       <StaffNotices
         initial={notices.map((n) => ({ id: n.id, from: n.from.name ?? n.from.email.split("@")[0], message: n.message, link: n.link, linkLabel: n.linkLabel, createdAt: n.createdAt.toISOString() }))}
       />

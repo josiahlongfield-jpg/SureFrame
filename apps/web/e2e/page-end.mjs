@@ -1,5 +1,5 @@
 // Pages with the navy site footer end at the footer's bottom edge: nothing is left to scroll below it, on phones
-// (where the floating Help button needs room at the end) and on computers. The footer keeps its usual size.
+// (which have no floating Help button: decision 1) and on computers. The footer keeps its usual size.
 import { chromium, devices } from "@playwright/test";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
@@ -24,7 +24,7 @@ for (const [name, opts] of sizes) {
   const page = await ctx.newPage();
   for (const path of pages) {
     await page.goto(BASE + path, { waitUntil: "load" });
-    // Wait for the Help button, which adds the room on phones.
+    // Wait for the footer.
     await page.waitForSelector("footer", { timeout: 20000 }).catch(() => null);
     await page.waitForTimeout(300);
     const m = await page.evaluate(() => {

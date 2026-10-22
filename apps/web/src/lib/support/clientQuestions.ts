@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { sendMail } from "@/lib/mail";
-import { CLIENT_QUESTION_KEEP_DAYS } from "@/lib/periods";
+import { CLIENT_QUESTION_DIGEST_KEEP_MONTHS, CLIENT_QUESTION_KEEP_DAYS } from "@/lib/periods";
 import { supportInbox } from "@/lib/support/tickets";
 
 export type ClientQuestionOutcome = "ANSWERED" | "CANT_HELP" | "FAILED" | "OFF";
@@ -69,7 +69,7 @@ export async function sendClientQuestionDigest(now = new Date()) {
     const unansweredLines = unanswered.map((g) => `${g.count} × ${quote(g.question)} (${g.business}; ${NOT_ANSWERED[g.outcome as keyof typeof NOT_ANSWERED] ?? g.outcome})`);
     const topLines = top.map((a) => `${a.count} × ${quote(a.question)} (${names(a.businesses)})`);
     const intro = `${rows.length} question${rows.length === 1 ? "" : "s"} from clients in the help chat on client pages since ${since.toISOString().slice(0, 10)}; ${missed} it couldn't answer.`;
-    const note = `Only the question text and the business are kept (never who asked), for ${CLIENT_QUESTION_KEEP_DAYS} days. The chat never hands clients to us: it points them to the business.`;
+    const note = `Only the question text and the business are kept (never who asked), for ${CLIENT_QUESTION_KEEP_DAYS} days. The chat never hands clients to us: it points them to the business. Delete this email ${CLIENT_QUESTION_DIGEST_KEEP_MONTHS} months after it arrived: the Terms and Privacy Policy say these emails are kept for up to ${CLIENT_QUESTION_DIGEST_KEEP_MONTHS} months.`;
     await sendMail({
       to,
       subject: `Client help chat this week: ${missed} unanswered of ${rows.length}`,

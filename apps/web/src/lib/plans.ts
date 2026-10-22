@@ -146,7 +146,8 @@ export function storageLine(plan: Plan, days: number, interval: Interval = "mont
 
 /**
  * Payment receipts and invoices come from Link, Stripe's merchant-of-record
- * service (Terms, Payments), not from SureFrame, which sends none of its own. Said in plan and billing
+ * service (Terms, Payments), not from SureFrame, which sends none of its own (only a short "You're on Solo" plan
+ * confirmation when a paid plan starts or changes: lib/planConfirmation.ts). Said in plan and billing
  * emails and on Settings > Billing.
  */
 export const RECEIPTS_NOTE =

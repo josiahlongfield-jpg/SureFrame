@@ -130,7 +130,7 @@ export default async function Connections({ searchParams }: { searchParams: Prom
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Connections</h1>
         <p className="mt-1 text-sm font-medium text-accent" data-testid="connections-free">Free bonus on every plan. Uses your own Claude account.</p>
         <p className="mt-2 text-muted">
-          Connect your own Claude so it can read your {me.workspace.name} activity and make reports for you. It only reads, and only what you can
+          Connect your own Claude, Anthropic&apos;s AI assistant, so it can read your {me.workspace.name} activity and make client reports, follow-up lists and more for you. It only reads, and only what you can
           see here. It can&apos;t send, change or delete anything. <Link href="/help/claude" className="font-medium text-ink underline">How it works</Link>
         </p>
 

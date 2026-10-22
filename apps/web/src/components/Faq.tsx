@@ -186,7 +186,8 @@ export const BUSINESS_FAQ: Qa[] = [
     a: (
       <>
         <p>
-          Yes, as a free bonus on every plan. If you already use Claude, connect it in Settings &gt; Connections and ask it for reports: who&rsquo;s waiting for
+          Yes, as a free bonus on every plan. If you already use Claude, Anthropic&rsquo;s AI assistant, connect it in Settings &gt; Connections and ask it for client
+          reports, follow-up lists and more: who&rsquo;s waiting for
           a reply, which videos haven&rsquo;t been opened, what&rsquo;s overdue. It only reads, and only what you can see.
         </p>
         <p>

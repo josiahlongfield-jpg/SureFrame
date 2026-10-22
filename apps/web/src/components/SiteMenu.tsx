@@ -3,10 +3,32 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { openHelp } from "./SupportChat";
+
+/**
+ * Help in the public bar on phones (375px to 639px wide), where there's no floating Help button (decision 1): opens the
+ * help panel as a sheet, or goes to /help on a page without one. The narrowest phones have it in the menu instead.
+ */
+export function SiteHelp() {
+  return (
+    <a
+      href="/help"
+      onClick={(e) => {
+        e.preventDefault();
+        openHelp();
+      }}
+      className="hidden whitespace-nowrap rounded-lg px-2 py-2 text-muted hover:text-ink min-[375px]:max-sm:inline"
+      data-testid="site-help"
+    >
+      Help
+    </a>
+  );
+}
 
 /**
  * The public bar's links on the narrowest phones (under 375px), where Pricing and Sign in (or Library) don't fit
- * beside the logo and Start free: one small Menu button that drops them down (R2-V67). Wider screens show the links.
+ * beside the logo and Start free: one small Menu button that drops them down (R2-V67), with Help after them, since
+ * phones have no floating Help button (decision 1). Wider screens show the links.
  */
 export default function SiteMenu({ links }: { links: readonly (readonly [string, string])[] }) {
   const [open, setOpen] = useState(false);
@@ -63,6 +85,18 @@ export default function SiteMenu({ links }: { links: readonly (readonly [string,
               {label}
             </Link>
           ))}
+          <a
+            href="/help"
+            onClick={(e) => {
+              e.preventDefault();
+              setOpen(false);
+              openHelp();
+            }}
+            className="rounded-lg px-3 py-2.5 text-ink hover:bg-hover"
+            data-testid="site-menu-help"
+          >
+            Help
+          </a>
         </nav>
       )}
     </div>

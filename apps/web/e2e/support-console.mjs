@@ -655,6 +655,68 @@ if (isAgent) {
   await prisma.user.update({ where: { id: agentUser.id }, data: { suspendedAt: null } });
 } else console.log("SKIP suspended support agent: start the server with SUPPORT_AGENTS=owner@test.dev,agent@test.dev");
 
+// Decision 22: a support admin emails every business owner about a new sub-processor, at least 30 days ahead, after
+// confirming how many it goes to; logged, sent once, and tested against the local outbox only (no RESEND_API_KEY here).
+{
+  const fresh = `notice-owner${stamp}@example.com`;
+  await (await signIn(fresh, "/library")).close();
+  const owners = new Set(
+    (await prisma.user.findMany({ where: { closedAt: null, deleteAt: null, memberships: { some: { role: "OWNER", workspace: { closedAt: null, deleteAt: null } } } }, select: { email: true } })).map((u) => u.email.toLowerCase()),
+  );
+  await open("/support/notices");
+  ok("notices: the page fits a phone", await admin.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1));
+  ok("notices: in the support links for admins", (await admin.locator("[data-testid=support-nav] a[href='/support/notices']").count()) === 1);
+  const earliest = await admin.getAttribute("[data-testid=notice-start]", "min");
+  const qldToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Brisbane" }).format(new Date());
+  ok("notices: the earliest start date is 30 days away", earliest === new Date(Date.parse(`${qldToday}T00:00:00Z`) + 30 * D).toISOString().slice(0, 10), earliest);
+  await admin.fill("[data-testid=notice-name]", `Provider A ${stamp}`);
+  await admin.fill("[data-testid=notice-purpose]", "Sending our emails");
+  await admin.fill("[data-testid=notice-location]", "United States");
+  // Too soon: the date box stops it, and the server refuses it too (the box's limit taken off here to try).
+  await admin.evaluate(() => document.querySelector("[data-testid=notice-start]").removeAttribute("min"));
+  const tooSoon = new Date(Date.parse(`${earliest}T00:00:00Z`) - D).toISOString().slice(0, 10);
+  await admin.fill("[data-testid=notice-start]", tooSoon);
+  const before = outbox().length;
+  await admin.click("[data-testid=notice-send]");
+  await admin.waitForSelector("[data-testid=notice-confirm]");
+  ok("notices: asks first, with how many owners it emails", norm(await admin.textContent("[data-testid=notice-confirm] h2")) === `Email ${owners.size} business owner${owners.size === 1 ? "" : "s"}?`, await admin.textContent("[data-testid=notice-confirm] h2"));
+  await admin.click("[data-testid=notice-confirm-yes]");
+  ok("notices: a start date under 30 days away is refused by the server", !!(await admin.waitForSelector("[data-testid=notice-confirm] [role=alert]:has-text('at least 30 days away')", { timeout: 15000 }).catch(() => null)) && outbox().length === before);
+  await admin.click("[data-testid=notice-confirm] button:has-text('Cancel')");
+  await admin.fill("[data-testid=notice-start]", earliest);
+  await admin.click("[data-testid=notice-send]");
+  await admin.waitForSelector("[data-testid=notice-confirm]");
+  await admin.click("[data-testid=notice-confirm-yes]");
+  const done = await admin.waitForSelector("[data-testid=notice-done]", { timeout: 60000 }).catch(() => null);
+  ok("notices: sent to every owner, and says so", !!done && norm(await done.textContent()).startsWith(`Sent to ${owners.size} of ${owners.size} business owner`), done ? await done.textContent() : "no confirmation");
+  const sent = outbox().slice(before).filter((m) => m.subject === `New SureFrame sub-processor: Provider A ${stamp}`);
+  ok("notices: one email per owner, none to anyone else", sent.length === owners.size && sent.every((m) => owners.has(m.to)) && new Set(sent.map((m) => m.to)).size === sent.length && sent.some((m) => m.to === fresh), `${sent.length} of ${owners.size}`);
+  const n = sent.find((m) => m.to === fresh);
+  ok("notices: the email says who, what, where and when, and how to object", !!n && n.text.includes(`Who: Provider A ${stamp}`) && n.text.includes("What it does for us: Sending our emails") && n.text.includes("Where it processes information: United States") && n.text.includes("Starts: ") && n.text.includes("email support@sureframe.app before") && n.text.includes("Sent with SureFrame") && n.from.startsWith("SureFrame <"));
+  const logged = await lastAction({ action: "subprocessor.notice" });
+  ok("notices: logged in the support log", logged?.actorEmail === ADMIN && logged.target === `Provider A ${stamp} from ${earliest}` && logged.details?.sent === owners.size && logged.details?.status === "sent", JSON.stringify(logged));
+  await admin.goto(BASE + "/support/log?action=subprocessor.notice");
+  ok("notices: shown in the support log under its own kind", norm(await admin.textContent("main")).includes(`Provider A ${stamp}`));
+  // The same notice again: refused, nothing sent.
+  await open("/support/notices");
+  await admin.fill("[data-testid=notice-name]", `Provider A ${stamp}`);
+  await admin.fill("[data-testid=notice-purpose]", "Sending our emails");
+  await admin.fill("[data-testid=notice-location]", "United States");
+  await admin.fill("[data-testid=notice-start]", earliest);
+  const again = outbox().length;
+  await admin.click("[data-testid=notice-send]");
+  await admin.click("[data-testid=notice-confirm-yes]");
+  ok("notices: the same notice can't go twice", !!(await admin.waitForSelector("[data-testid=notice-confirm] [role=alert]:has-text('already been sent')", { timeout: 15000 }).catch(() => null)) && outbox().length === again);
+  await admin.click("[data-testid=notice-confirm] button:has-text('Cancel')");
+  ok("notices: the earlier notice is listed", norm(await admin.textContent("[data-testid=notice-history]")).includes(`Provider A ${stamp}`));
+  // Not for anyone else: a business owner who isn't support is sent to Help.
+  const plain = await signIn(fresh, "/library");
+  await plain.goto(BASE + "/support/notices");
+  await plain.waitForURL((u) => u.pathname !== "/support/notices", { timeout: 15000 }).catch(() => {});
+  ok("notices: not for a business owner who isn't support", new URL(plain.url()).pathname === "/help", plain.url());
+  await plain.close();
+}
+
 await browser.close();
 server.close();
 await prisma.$disconnect();
