@@ -393,7 +393,11 @@ await setLook(plain, after);
     const f = await box(plain);
     await plain.mouse.move(clock.cx, clock.cy);
     await plain.mouse.down();
-    await plain.mouse.move(clock.cx + (x - bar.cx), clock.cy + (y - f.bottom), { steps: 12 });
+    // The pointer stays inside the window (let go outside it, the frame can't hear the let-go: see the O56 checks);
+    // pushed against a side, the bubble still goes as far as it can.
+    const px = Math.max(2, Math.min(W - 2, clock.cx + (x - bar.cx)));
+    const py = Math.max(2, Math.min(H - 2, clock.cy + (y - f.bottom)));
+    await plain.mouse.move(px, py, { steps: 12 });
     await plain.mouse.up();
     await plain.waitForTimeout(500);
   }
