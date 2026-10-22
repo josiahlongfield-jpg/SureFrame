@@ -287,7 +287,7 @@ await owner.waitForSelector(bubble, { timeout: 5000 }).catch(() => null);
 const teamBoxes = await owner.evaluate(() => {
   const r = (el) => el && (({ left, right, top, bottom }) => ({ left, right, top, bottom }))(el.getBoundingClientRect());
   const help = document.querySelector("[data-testid=help-button]");
-  return { bubble: r(document.querySelector("[data-testid=chat-bubble]")), floatingHelp: !!help?.offsetParent, scrollY, inner: innerHeight };
+  return { bubble: r(document.querySelector("[data-testid=chat-bubble]")), floatingHelp: (help?.getClientRects().length ?? 0) > 0, scrollY, inner: innerHeight };
 });
 ok("team at 390px: bubble shown, no floating Help button", !!teamBoxes.bubble && !teamBoxes.floatingHelp, JSON.stringify(teamBoxes));
 await owner.click("[data-testid=menu-button]");

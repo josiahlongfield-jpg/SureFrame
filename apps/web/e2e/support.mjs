@@ -401,7 +401,7 @@ for (const [w, path] of [[390, "/"], [390, "/pricing"], [390, "/faq"], [390, "/l
   const bar = await phone390.evaluate(() => {
     const h = document.querySelector("[data-testid=site-help]");
     const r = h?.getBoundingClientRect();
-    return { help: !!r && r.width > 0 && !!h.closest("header"), inside: !!r && r.right <= innerWidth, wide: document.documentElement.scrollWidth <= innerWidth, floating: !!document.querySelector("[data-testid=help-button]")?.offsetParent };
+    return { help: !!r && r.width > 0 && !!h.closest("header"), inside: !!r && r.right <= innerWidth, wide: document.documentElement.scrollWidth <= innerWidth, floating: (document.querySelector("[data-testid=help-button]")?.getClientRects().length ?? 0) > 0 };
   });
   ok(`${w}px ${path}: Help in the top bar, no floating button, no sideways scroll`, bar.help && bar.inside && bar.wide && !bar.floating, JSON.stringify(bar));
 }

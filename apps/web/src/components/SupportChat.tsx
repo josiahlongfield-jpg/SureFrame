@@ -368,11 +368,12 @@ export default function SupportWidget({ signedIn, limits }: { signedIn: boolean;
     // Back to what opened it. The phone menu's Help item has gone with the menu: then the Help button on wider screens,
     // or on phones the menu button (or the top bar's Help) it came from.
     requestAnimationFrame(() => {
-      const visible = (el: HTMLElement | null | undefined) => (el?.isConnected && el.offsetParent !== null ? el : null);
+      // Shown on screen (getClientRects, not offsetParent, which is null for the fixed Help button too).
+      const visible = (el: HTMLElement | null | undefined) => (el?.isConnected && el.getClientRects().length > 0 ? el : null);
       const back =
         visible(opener.current) ??
         visible(button.current) ??
-        [...document.querySelectorAll<HTMLElement>("[data-testid=menu-button], [data-testid=site-menu-button], [data-testid=site-help]")].find((el) => el.offsetParent !== null);
+        [...document.querySelectorAll<HTMLElement>("[data-testid=menu-button], [data-testid=site-menu-button], [data-testid=site-help]")].find((el) => visible(el));
       back?.focus({ preventScroll: true });
     });
   }, []);
