@@ -328,7 +328,7 @@ ok("nothing recorded for it", (await rows(suspUser.id)).length === 0);
 // The owner of a workspace support suspended, who hasn't agreed yet: /suspended's Manage subscription still works.
 const suspOwnerEmail = `agree-suspowner${stamp}@example.com`;
 const suspOwner = await prisma.user.create({ data: { onboardedAt: new Date("2026-01-15T00:00:00Z"), email: suspOwnerEmail, name: "Sue Owner" } });
-await prisma.workspace.create({ data: { name: `Agree susp ${stamp}`, suspendedAt: new Date(), stripeCustomerId: `cus_agreesusp${stamp}`, members: { create: { userId: suspOwner.id, role: "OWNER" } } } });
+await prisma.workspace.create({ data: { name: `Agree susp ${stamp}`, suspendedAt: new Date(), stripeCustomerId: `cus_agreesusp${stamp}`, stripeSubscriptionId: `sub_agreesusp${stamp}`, members: { create: { userId: suspOwner.id, role: "OWNER" } } } });
 const suspOwnerPage = await signIn(suspOwnerEmail, "/library", { lands: "/suspended" });
 ok("a suspended workspace's owner who hasn't agreed lands on /suspended", path(suspOwnerPage) === "/suspended", suspOwnerPage.url());
 ok("with Manage subscription offered", (await suspOwnerPage.locator("text=You can still manage or cancel your subscription.").count()) === 1);

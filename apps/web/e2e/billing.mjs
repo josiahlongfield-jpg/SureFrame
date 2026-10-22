@@ -179,10 +179,18 @@ ok("seats added later bill yearly too", res.ok() && sub.items.data.find((i) => i
 await webhook("customer.subscription.updated", sub);
 ok("yearly Studio still shows as Studio", /Studio plan/.test(await planText()));
 ok("billing says it's billed yearly", (await page.textContent("[data-testid=billing-interval]"))?.includes("yearly"));
+// Buying more only comes up when nearly full (S9): fill Studio's 40 plus the 4 bought ahead to 3 left.
+const fillCount = 44 - 3 - (await prisma.client.count({ where: { workspaceId } }));
+const fillers = await Promise.all(
+  Array.from({ length: fillCount }, (_, i) =>
+    prisma.client.create({ data: { name: `Filler ${i}`, token: `bill-fill-${Date.now()}-${i}-${"x".repeat(20)}`, workspaceId } }),
+  ),
+);
 await page.goto(BASE + "/clients");
-ok("yearly plans see yearly prices for extra clients", !!(await page.waitForSelector("button:has-text('Add 5 clients for US$75/year')", { timeout: 15000 }).catch(() => null)));
+ok("yearly plans see yearly prices for extra clients", !!(await page.waitForSelector("button:has-text('Add 1 client for US$15/year')", { timeout: 15000 }).catch(() => null)));
 await page.selectOption("select[aria-label='Extra clients']", "2");
 ok("extra clients come in small steps too, and the button says how many (O89)", !!(await page.waitForSelector("button:has-text('Add 2 clients for US$30/year')", { timeout: 5000 }).catch(() => null)));
+await prisma.client.deleteMany({ where: { id: { in: fillers.map((f) => f.id) } } });
 // Buying staff logins only comes up once every login is in use: invites waiting to join hold them.
 const owned = await prisma.user.findUnique({ where: { email } });
 const holders = await Promise.all(

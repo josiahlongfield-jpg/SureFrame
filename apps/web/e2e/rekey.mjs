@@ -266,7 +266,14 @@ ok("owner asked to reset after a self-deletion", !!(await owner.waitForSelector(
 const fp2 = (await prisma.workspace.findUnique({ where: { id: workspaceId } })).keyFingerprint;
 await owner.click("text=Reset keys now");
 await owner.waitForSelector("[data-testid=key-reset]", { timeout: 20000 });
-const ws3 = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+// The first reset's panel is kept in this browser until "I've saved it" (S79), so it may already be showing: wait for the
+// second reset itself to land.
+let ws3 = null;
+for (let i = 0; i < 40; i++) {
+  ws3 = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+  if (ws3.keyFingerprint !== fp2) break;
+  await new Promise((r) => setTimeout(r, 500));
+}
 ok("reset clears the prompt and changes the key", ws3.keyFingerprint !== fp2 && ws3.keyResetNeeded === null);
 await phone.goto(BASE + "/inbox");
 ok("client's old cookie stops working after the second reset", !(await phone.isVisible("text=Log your sleep")));
