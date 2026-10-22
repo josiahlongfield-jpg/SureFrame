@@ -14,6 +14,7 @@ import { signOut } from "@/auth";
 import { DELETION_GRACE_DAYS, deletionDate, requestAccountDeletion } from "@/lib/accountDeletion";
 import { leaveTeam, leaverName } from "@/lib/account";
 import LeaveTeamButton from "@/components/LeaveTeamButton";
+import SignOutEverywhereButton from "@/components/SignOutEverywhereButton";
 import { zoned } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { LEGAL } from "@/lib/legal";
@@ -65,6 +66,16 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
     if (on) jar.set(KEEP_COOKIE, "1", keepCookie());
     else jar.delete(KEEP_COOKIE);
     redirect("/settings/account?saved=device#device");
+  }
+
+  // "Sign out everywhere" (Decision 8): every sign-in made before now stops working (src/auth.ts), this one included,
+  // and the sign-in page says why. Support's user page tells it apart from support's own button (P50).
+  async function signOutEverywhere() {
+    "use server";
+    const { user } = await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: "existing" });
+    await db.user.update({ where: { id: user.id }, data: { sessionsValidAfter: new Date() } });
+    console.log("[account] signed out everywhere", JSON.stringify({ user: user.id }));
+    await signOut({ redirectTo: "/login?everywhere=1" });
   }
 
   async function rename(form: FormData) {
@@ -241,6 +252,13 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
             </button>
             {saved === "device" && <span className="ml-3 text-sm text-ok-fg" role="status">Saved.</span>}
           </form>
+          <div className="mt-5 border-t border-line pt-4" data-testid="sign-out-everywhere-block">
+            <h3 className="text-sm font-semibold text-ink">Lost a phone, or left a computer signed in?</h3>
+            <p className="mt-1 text-sm text-muted">Sign out on every device at once, this one included. Then sign in again here.</p>
+            <form action={signOutEverywhere} className="mt-3">
+              <SignOutEverywhereButton />
+            </form>
+          </div>
         </section>
 
         {!limited && (

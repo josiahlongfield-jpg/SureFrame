@@ -25,8 +25,10 @@ export const metadata: Metadata = { title: "Sign in" };
  * /login?next=%2Fpricing%3Fplan%3DSOLO comes back to /pricing?plan=SOLO,
  * through the email link, /agree and /welcome.
  */
-export default async function Login({ searchParams }: { searchParams: Promise<{ next?: string; callbackUrl?: string; error?: string; deleted?: string; closed?: string; signup?: string }> }) {
-  const { next, callbackUrl, error, deleted, closed, signup } = await searchParams;
+export default async function Login({ searchParams }: { searchParams: Promise<{ next?: string; callbackUrl?: string; error?: string; deleted?: string; closed?: string; signup?: string; everywhere?: string }> }) {
+  const { next, callbackUrl, error, deleted, closed, signup, everywhere: allOut } = await searchParams;
+  // After "Sign out everywhere" on Settings > Account (Decision 8): say why this browser was signed out too.
+  const everywhere = allOut === "1";
   const redirectTo = safeNext(next ?? (callbackUrl ? relative(callbackUrl) : undefined));
   // "Start free" (it opens /record) and a plan picked on the pricing page: say an account is being made.
   const creating = signup === "1" || /^\/(record|pricing)(\/|\?|$)/.test(redirectTo);
@@ -88,7 +90,12 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
             Your account stays closed and will be deleted on the date in our email. Changed your mind? Sign in before then to keep it.
           </p>
         )}
-        {signedOut && (
+        {everywhere && !deleted && (
+          <p role="status" className="mt-3 rounded-lg bg-ok-bg px-3 py-2 text-sm text-ok-fg" data-testid="everywhere-note">
+            You signed out everywhere, so every device signed in to your account is now signed out, this one included. Sign in again to carry on.
+          </p>
+        )}
+        {signedOut && !everywhere && (
           <p className="mt-3 rounded-lg bg-surface-2 px-3 py-2 text-sm text-muted" data-testid="signed-out-note">
             For your security you were signed out because the browser was closed or the page was left unused. Please sign in again.
           </p>
