@@ -6,8 +6,8 @@ import TeamManager from "@/components/TeamManager";
 import { db } from "@/lib/db";
 import { EXTRA_STAFF_PRICE, EXTRA_STAFF_PRICE_YEARLY, PLANS, TEAM_PLANS } from "@/lib/plans";
 import { followTeamLink, requirePageUser } from "@/lib/session";
-import { staffUsage } from "@/lib/team";
-import { permsOf } from "@/lib/permissions";
+import { staffUsage, switchableBusinesses } from "@/lib/team";
+import { DEFAULT_STAFF_PERMS, permsOf } from "@/lib/permissions";
 
 export const metadata: Metadata = { title: "Team and staff" };
 
@@ -20,7 +20,7 @@ export default async function TeamSettings({ searchParams }: { searchParams: Pro
     role === "MEMBER"
       ? []
       : db.invite.findMany({ where: { workspaceId: workspace.id, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: "asc" } }),
-    db.membership.findMany({ where: { userId: user.id }, include: { workspace: true }, orderBy: { id: "asc" } }),
+    db.membership.findMany({ where: { userId: user.id }, include: { workspace: true }, orderBy: { id: "asc" } }).then((list) => switchableBusinesses(list, workspace.id)),
     staffUsage(workspace),
   ]);
   const isTeamPlan = TEAM_PLANS.includes(workspace.plan);
@@ -82,6 +82,7 @@ export default async function TeamSettings({ searchParams }: { searchParams: Pro
           workspaces={mine.map((m) => ({ id: m.workspaceId, name: m.workspace.name, active: m.workspaceId === workspace.id }))}
           timezone={workspace.timezone}
           business={workspace.name}
+          defaultPerms={DEFAULT_STAFF_PERMS}
         />
       </main>
     </>

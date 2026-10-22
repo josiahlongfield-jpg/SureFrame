@@ -6,7 +6,7 @@ import { dueTodos } from "@/lib/dueTodos";
 import { firstStepsFor } from "@/lib/firstSteps";
 import { accessOf } from "@/lib/permissions";
 import { currentUser } from "@/lib/session";
-import { formerTeams } from "@/lib/team";
+import { formerTeams, switchableBusinesses } from "@/lib/team";
 import { TEAM_PLANS } from "@/lib/plans";
 import { isSupportAgent } from "@/lib/support/tickets";
 import { settingsPages } from "@/lib/settingsMenu";
@@ -46,7 +46,7 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
   // The plan pill opens what can be done about the plan: Billing for those who can change it, else the plans.
   const planHref = manager ? "/settings/billing" : "/pricing";
   // Everything else is under Settings (lib/settingsMenu.ts).
-  const settings: Links = me ? settingsPages({ manager, teamSize, plan: me.workspace.plan, workspaces: me.user.memberships.length, supportAgent: isSupportAgent(me.user.email) }).map((p) => [p.href, p.label] as const) : [];
+  const settings: Links = me ? settingsPages({ manager, teamSize, plan: me.workspace.plan, workspaces: switchableBusinesses(me.user.memberships, me.workspace.id).length, supportAgent: isSupportAgent(me.user.email) }).map((p) => [p.href, p.label] as const) : [];
   const signOutForm = (
     <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
       <button className="whitespace-nowrap text-dim hover:text-ink">Sign out</button>
@@ -114,9 +114,11 @@ export default async function AppHeader({ email, plan }: { email: string; plan: 
           business={me.workspace.name}
           hiddenOn={null}
           note={owner ? "Your team's keys were reset, so your recovery key changed. Save the new one: you need it to open your videos on another device." : undefined}
+          shared={!owner}
         />
       ) : null}
-      {me && <TimeZoneSync shownZone={zoned(me.workspace.timezone).zone} setWorkspace={manager && !me.workspace.timezone} />}
+      {/* The business's zone is only set once they've agreed to the terms (the API refuses it before). */}
+      {me && <TimeZoneSync shownZone={zoned(me.workspace.timezone).zone} setWorkspace={manager && !me.workspace.timezone && me.agreed} />}
       <SupportWidget signedIn />
     </header>
   );

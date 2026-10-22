@@ -25,7 +25,11 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
     db.client.findMany({
       where: { ...clientScopeWhere(access), removedAt: null },
       orderBy: { name: "asc" },
-      include: { _count: { select: { videos: true } } },
+      include: {
+        _count: { select: { videos: true } },
+        // A key reset in the last 30 days gave them a new link (lib/rekey.ts): said on their row.
+        replacedLinks: { where: { createdAt: { gt: new Date(Date.now() - 30 * 86_400_000) } }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true, emailed: true } },
+      },
     }),
     seatUsage(workspace),
     db.membership.findMany({ where: { workspaceId: workspace.id }, include: { user: true }, orderBy: { id: "asc" } }),
@@ -46,6 +50,10 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         )}
         <p className="mt-1 text-sm text-dim">
           Clients watch and reply to the videos you send them for free. They don&apos;t need an account, just the link to your video.
+        </p>
+        <p className="mt-1 text-sm text-dim" data-testid="links-explained">
+          Each client has one personal link (Copy personal link) that opens every video you send them, and the link to a single video from its Send box holds the same key: whichever
+          they open first sets up their phone or computer, and after that every video opens there.
         </p>
         {clients.some((c) => c.pausedAt) && (
           <p className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="paused-clients-note">
@@ -77,6 +85,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
             reached: !!c.linkOpenedAt,
             linkSent: !!c.linkSentAt,
             convs: convs.get(c.id) ?? [],
+            replaced: c.replacedLinks[0] ? { at: c.replacedLinks[0].createdAt.toISOString(), emailed: c.replacedLinks[0].emailed } : null,
           }))}
           initialRemoved={removedClients.map((c) => ({ id: c.id, name: c.name, email: c.email, removedAt: c.removedAt!.toISOString(), purgeAt: c.purgeAt?.toISOString() ?? null }))}
           keepDays={CLIENT_KEEP_DAYS}

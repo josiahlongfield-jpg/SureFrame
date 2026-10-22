@@ -20,7 +20,7 @@ export type StaffStats = {
 };
 
 export type Unanswered = { videoId: string; clientId: string; clientName: string; staffId: string | null; since: Date; title: string };
-export type StaleClient = { clientId: string; clientName: string; staffId: string | null; lastVideoAt: Date | null };
+export type StaleClient = { clientId: string; clientName: string; staffId: string | null; lastVideoAt: Date | null; addedAt: Date };
 export type OverdueTodo = { itemId: string; clientId: string; clientName: string; staffId: string | null; dueAt: Date };
 
 const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
@@ -34,7 +34,7 @@ export async function teamStats(workspaceId: string, o: { days: number; staleDay
   const recentReplies = { ...visibleReplies, createdAt: { gt: yearAgo } };
   const [members, clients, conversations, lastSent, todos] = await Promise.all([
     db.membership.findMany({ where: { workspaceId }, include: { user: { select: { name: true, email: true } } }, orderBy: { id: "asc" } }),
-    db.client.findMany({ where: { workspaceId, removedAt: null }, select: { id: true, name: true, assignedToId: true }, orderBy: { name: "asc" } }),
+    db.client.findMany({ where: { workspaceId, removedAt: null }, select: { id: true, name: true, assignedToId: true, createdAt: true }, orderBy: { name: "asc" } }),
     // Only conversations that matter here: sent in this period, or with a reply in the last year
     // (reply times and anyone still waiting). Older ones only count towards "last video".
     db.video.findMany({
@@ -94,10 +94,15 @@ export async function teamStats(workspaceId: string, o: { days: number; staleDay
   }
   unanswered.sort((a, b) => a.since.getTime() - b.since.getTime());
 
-  const stale: StaleClient[] = clients
+  // Quiet: no video for staleDays. A client added within that time who hasn't had one yet isn't quiet,
+  // just new ("No video yet"), so they're listed apart and not counted as neglected.
+  const quietOrNew = clients
     .filter((c) => !lastVideo.has(c.id) || lastVideo.get(c.id)! < staleBefore)
-    .map((c) => ({ clientId: c.id, clientName: c.name, staffId: staffOf(c.id), lastVideoAt: lastVideo.get(c.id) ?? null }))
+    .map((c) => ({ clientId: c.id, clientName: c.name, staffId: staffOf(c.id), lastVideoAt: lastVideo.get(c.id) ?? null, addedAt: c.createdAt }))
     .sort((a, b) => (a.lastVideoAt?.getTime() ?? 0) - (b.lastVideoAt?.getTime() ?? 0));
+  const isNew = (c: StaleClient) => !c.lastVideoAt && c.addedAt >= staleBefore;
+  const stale = quietOrNew.filter((c) => !isNew(c));
+  const noVideoYet = quietOrNew.filter(isNew);
 
   const overdue: OverdueTodo[] = todos
     .filter((t) => clientById.has(t.clientId!))
@@ -123,7 +128,7 @@ export async function teamStats(workspaceId: string, o: { days: number; staleDay
     avgReplyMs: avg(allReplyTimes),
     overdueTodos: overdue.length,
   };
-  return { since, staff, shared, overall, unanswered, stale, overdue };
+  return { since, staff, shared, overall, unanswered, stale, noVideoYet, overdue };
 }
 
 /** "3h", "2d", "45m". */

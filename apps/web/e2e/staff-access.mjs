@@ -193,8 +193,8 @@ const ownerVideos = (await (await owner.request.get(BASE + "/api/videos")).json(
 ok("owner sees every video", [vOwnerBen, vOwnerSha, vBob, vAmy, vAmyAna].every((v) => ownerVideos.includes(v)));
 ok("owner opens Bob's video", (await owner.request.get(`${BASE}/api/videos/${vBob}`)).ok());
 
-// ---- Toggles on the Team page ----
-await owner.goto(BASE + "/settings/team");
+// ---- Toggles on the Team page (the only place for them: Settings > Team links there) ----
+await owner.goto(BASE + "/team");
 const amyName = `sa-amy${stamp}`;
 await owner.click(`input[aria-label="See all clients for ${amyName}"]`);
 await waitFor(async () => (await prisma.membership.findUnique({ where: { id: amyM.id } })).seeAllClients);
@@ -300,13 +300,22 @@ await owner.waitForSelector("[data-testid=team-stats]");
 ok("owner has an Overview link", await owner.isVisible("nav >> a[href='/team']"));
 ok("videos sent in 30 days per staff member", (await cell(owner, ownerUser.id, "sent")) === "1" && (await cell(owner, bobUser.id, "sent")) === "1" && (await cell(owner, amyUser.id, "sent")) === "3" && (await cell(owner, "all", "sent")) === "5",
   [await cell(owner, ownerUser.id, "sent"), await cell(owner, bobUser.id, "sent"), await cell(owner, amyUser.id, "sent"), await cell(owner, "all", "sent")].join());
-ok("clients with no video in 14 days (Zed, Amy's)", (await cell(owner, amyUser.id, "stale")) === "1" && (await cell(owner, "all", "stale")) === "1");
+// Zed was added today and has had no video yet: listed under No video yet, not counted as neglected (S27).
+ok("a client added today isn't counted as quiet", (await cell(owner, amyUser.id, "stale")) === "0" && (await cell(owner, "all", "stale")) === "0");
+ok("but listed under No video yet", (await owner.locator(`[data-testid=no-video-yet] a[href='/clients/${added.client.id}']`).count()) === 1);
+ok("one time control: no separate no-video box (S28)", (await owner.locator("input#stale, input[name=stale]").count()) === 0 && (await owner.locator("[data-testid=team-stats] th", { hasText: "no video in 30d" }).count()) === 1);
 ok("unanswered replies per staff member", (await cell(owner, amyUser.id, "unanswered")) === "1" && (await cell(owner, ownerUser.id, "unanswered")) === "1" && (await cell(owner, bobUser.id, "unanswered")) === "0" && (await cell(owner, "all", "unanswered")) === "2");
 ok("average reply time only where someone answered", (await cell(owner, bobUser.id, "avg")) !== "–" && (await cell(owner, amyUser.id, "avg")) === "–" && (await cell(owner, "all", "avg")) !== "–");
 ok("overdue to-dos counted for the assigned staff member", (await cell(owner, bobUser.id, "overdue")) === "1" && (await cell(owner, "all", "overdue")) === "1");
 const waiting = await owner.textContent("[data-testid=unanswered]");
 ok("waiting list links to each conversation", (await owner.locator(`[data-testid=unanswered] a[href='/v/${vAmySha}']`).count()) === 1 && waiting.includes("Sha"));
-await owner.goto(BASE + "/team?days=90&stale=14");
+// Added 40 days ago and still no video: that is quiet (the period sets both).
+await prisma.client.update({ where: { id: added.client.id }, data: { createdAt: new Date(Date.now() - 40 * 86_400_000) } });
+await owner.goto(BASE + "/team?days=30");
+await owner.waitForSelector("[data-testid=team-stats]");
+ok("a client added 40 days ago with no video counts as quiet for Amy", (await cell(owner, amyUser.id, "stale")) === "1" && (await cell(owner, "all", "stale")) === "1");
+ok("and says since when", (await owner.textContent("[data-testid=overdue]")).includes("no video since they were added"));
+await owner.goto(BASE + "/team?days=90");
 await owner.waitForSelector("[data-testid=team-stats]");
 ok("a longer period counts the older video", (await cell(owner, ownerUser.id, "sent")) === "2" && (await cell(owner, "all", "sent")) === "6");
 await owner.screenshot({ path: `${shots}/team-overview.png`, fullPage: true });

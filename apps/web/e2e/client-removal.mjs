@@ -98,7 +98,8 @@ await owner.click(`li:has-text("Ana ${stamp}") >> button:text-is("Remove client"
 const panel = await owner.waitForSelector("[data-testid=remove-client-confirm]");
 const until = longDay(new Date(Date.now() + 30 * D), TZ);
 const ptext = norm(await panel.textContent());
-ok("box: link stops now, seat freed", ptext.includes(`Remove Ana ${stamp}? Their personal link stops working now and their seat is freed.`), ptext);
+// A dialog now (O110): the question is its heading, the consequence the first line under it.
+ok("box: link stops now, seat freed", norm(await owner.textContent("[data-testid=remove-client-confirm] h2")) === `Remove Ana ${stamp}?` && ptext.includes("Their personal link stops working now and their seat is freed."), ptext);
 ok("box: kept until the date, restorable from Removed clients", ptext.includes(`restore them from Removed clients on this page until ${until}`) && ptext.includes(`kept until ${until}, so you can restore them from Removed clients`), ptext);
 ok("box: the detail sits behind \"What happens to their data?\"", !(await owner.isVisible("[data-testid=remove-client-details] li >> nth=0")));
 ok("box: then deleted for good, replies included, shared recordings stay", ptext.includes("deleted for good, including your team's replies to them, even with cloud backup on") && ptext.includes("Recordings you also sent to other clients stay with those clients"), ptext);

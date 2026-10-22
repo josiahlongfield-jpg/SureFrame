@@ -31,6 +31,12 @@ await page.click("[data-testid=bulk-open]");
 await page.fill("#bulk-list", `Client A, client-a${stamp}@example.com\nClient B\nClient C, client-c${stamp}@example.com`);
 await page.click("[data-testid=bulk-add] >> button:has-text('Add 3 clients')");
 await page.waitForSelector("text=Added 3 clients");
+// After the paste: the box closes once everyone fitted, and "Done" is a real button that takes you to the list (O20).
+ok("after a paste that all fitted, the paste box closes", (await page.locator("[data-testid=bulk-add]").count()) === 0);
+const done = page.locator("[data-testid=added-done]");
+ok("Done is a proper button", (await done.count()) === 1 && /border/.test((await done.getAttribute("class")) ?? ""));
+await done.click();
+ok("Done clears the note", (await page.locator("[data-testid=added-note]").count()) === 0);
 const ws = (await prisma.membership.findFirst({ where: { user: { email } } })).workspaceId;
 await prisma.workspace.update({ where: { id: ws }, data: { plan: "STUDIO" } });
 // A second team member, so each row has the "who looks after them" choice.
@@ -77,12 +83,21 @@ const phone = await page.evaluate(() => ({ scroll: document.documentElement.scro
 ok("phone: nothing wider than the screen", phone.scroll <= phone.view, JSON.stringify(phone));
 await page.locator("[data-testid=client-row-actions]").first().locator("xpath=ancestor::ul").screenshot({ path: `${shots}/client-rows-phone.png` });
 
-// The removal box still spans the whole row.
+// Remove client asks in a dialog that behaves like Billing's (O110, S97): opened from the keyboard, focus moves
+// into it, Escape closes it without removing anyone, and focus goes back to the Remove client button.
 await page.setViewportSize({ width: 1280, height: 900 });
 await page.goto(`${BASE}/clients`);
-await page.click("button[aria-label='Remove client Client B']");
-const box = await page.$eval("[data-testid=remove-client-confirm]", (el) => [Math.round(el.getBoundingClientRect().width), Math.round(el.closest("li").getBoundingClientRect().width)]);
-ok("the Remove confirm box spans the row", box[0] >= box[1] - 80, box.join(","));
+const removeB = page.locator("button[aria-label='Remove client Client B']");
+await removeB.focus();
+await page.keyboard.press("Enter");
+await page.waitForSelector("[role=dialog][data-testid=remove-client-confirm]");
+ok("Remove client opens a dialog", (await page.getAttribute("[data-testid=remove-client-confirm]", "aria-modal")) === "true");
+ok("focus moves into it", await page.evaluate(() => !!document.activeElement?.closest("[data-testid=remove-client-confirm]")));
+await page.keyboard.press("Escape");
+await page.waitForSelector("[data-testid=remove-client-confirm]", { state: "detached", timeout: 5000 }).catch(() => {});
+ok("Escape closes it", (await page.locator("[data-testid=remove-client-confirm]").count()) === 0);
+ok("and nobody was removed", !!(await page.locator("a:text-is('Client B')").count()));
+ok("focus is back on Remove client", await page.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Remove client Client B"));
 
 await browser.close();
 await prisma.$disconnect();

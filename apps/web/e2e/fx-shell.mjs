@@ -283,10 +283,24 @@ ok("signing in to join says so", (await staff.textContent("[data-testid=login-he
 await staff.fill('input[name="email"]', `fx-staff${stamp}@example.com`);
 await staff.click("text=Continue");
 await staff.waitForURL((u) => u.pathname.startsWith("/join/"));
+const joinPath = new URL(staff.url()).pathname;
+// Before joining (and agreeing), Settings > Account and Billing go to /agree like every other page (S32).
+for (const p of ["/settings/account", "/settings/billing"]) {
+  await staff.goto(BASE + p);
+  await staff.waitForURL((u) => u.pathname === "/agree", { timeout: 15000 }).catch(() => {});
+  ok(`before joining, ${p} goes to /agree`, path(staff) === "/agree", staff.url());
+}
+// A login with no name yet (as with an emailed sign-in link) is asked for one on the join page.
+await prisma.user.update({ where: { email: `fx-staff${stamp}@example.com` }, data: { name: null } });
+await staff.goto(BASE + joinPath);
 await staff.waitForSelector("[data-testid=join-agree]");
 ok("joining: agree and join are one step", (await staff.isDisabled("[data-testid=join-team]")) && (await staff.textContent("[data-testid=join-team]")).trim() === "Agree and join");
 ok("join page fits 320px", await noSideways(staff));
 await staff.check("[data-testid=join-agree]");
+// Clients see the name on every video, so it's needed (S33).
+await staff.click("[data-testid=join-team]");
+ok("joining with no name: asked for it, not joined", !!(await staff.waitForSelector("text=Enter your name: clients see it", { timeout: 10000 }).catch(() => null)) && path(staff).startsWith("/join/"));
+await staff.fill("[data-testid=join-name]", "Team member 1");
 await staff.click("[data-testid=join-team]");
 await staff.waitForURL((u) => u.pathname === "/library", { timeout: 30000 });
 const staffUser = await prisma.user.findUnique({ where: { email: `fx-staff${stamp}@example.com` } });
@@ -296,7 +310,10 @@ await staff.click("[data-testid=menu-button]");
 const staffMenu = await staff.locator("[data-testid=app-menu] a").evaluateAll((els) => els.map((e) => e.getAttribute("href")));
 ok("staff menu: no Billing or Branding", !staffMenu.includes("/settings/billing") && !staffMenu.includes("/settings/branding") && staffMenu.includes("/settings/account"), staffMenu.join("|"));
 ok("staff menu has a Settings section", await staff.isVisible("[data-testid=menu-settings]"));
-// The menu drops from the bar itself, over the banner asking staff for their name.
+// The empty Free workspace the sign-in made for them isn't a business: no "Switch business" (S31).
+ok("no Switch business with only one real business", !staffMenu.includes("/settings/team"), staffMenu.join("|"));
+ok("the name given on joining is kept", (await prisma.user.findUnique({ where: { id: staffUser.id } })).name === "Team member 1");
+// The menu drops from the bar itself, over any banner.
 const bar = await staff.locator("header > div").first().boundingBox();
 const menuBox = await staff.locator("[data-testid=app-menu]").boundingBox();
 ok("phone menu opens right under the bar, over any banner", !!bar && !!menuBox && Math.abs(menuBox.y - (bar.y + bar.height)) < 2, JSON.stringify({ bar, menuBox }));

@@ -8,7 +8,8 @@ import { EMAIL_BLOCKED, isEmailBlocked } from "@/lib/blockedEmail";
 import { ACCOUNT_CLOSED_JOIN, hashToken, staffUsage, TEAM_CLOSED_JOIN, TEAM_UNAVAILABLE_JOIN } from "@/lib/team";
 
 /** `agree`: ticked on the invite page, so agreeing to the terms and joining are one step. */
-/** `name`: given on the invite page by someone without one, for the videos they send. */
+/** `name`: given on the invite page by someone without one, for the videos they send. Needed then. */
+const JOIN_NAME_NEEDED = "Enter your name: clients see it on the videos you send.";
 const Body = z.object({ token: z.string().min(20).max(100), agree: z.boolean().optional(), name: z.string().trim().min(1).max(80).optional() });
 
 /**
@@ -32,7 +33,7 @@ export const POST = handle(async (req: Request) => {
   // A login suspended by support joins nothing (lib/support/admin.ts).
   if (me.suspendedAt) throw new HttpError(403, ACCOUNT_SUSPENDED, "ACCOUNT_SUSPENDED");
   const body = Body.safeParse(await req.json());
-  if (!body.success) throw new HttpError(400, "This invite link is incomplete");
+  if (!body.success) throw new HttpError(400, body.error.issues.some((i) => i.path[0] === "name") ? JOIN_NAME_NEEDED : "This invite link is incomplete");
   // Agree to the current Terms and Privacy Policy first (lib/terms.ts): ticked on the invite page itself.
   if (!(await hasAgreed(userId))) {
     if (!body.data.agree) throw termsRequired();
@@ -58,6 +59,8 @@ export const POST = handle(async (req: Request) => {
   if (!again && !alreadyHere) {
     if (invite.acceptedAt) throw new HttpError(410, "This invite has already been used. Ask for a new one.");
     if (invite.expiresAt < new Date()) throw new HttpError(410, "This invite has expired. Ask for a new one.");
+    // Clients see who sent each video, so someone joining without a name on their login gives one here.
+    if (!body.data.name && !(await db.user.findUnique({ where: { id: userId }, select: { name: true } }))?.name) throw new HttpError(400, JOIN_NAME_NEEDED, "NAME_NEEDED");
     await db.$transaction(async (tx) => {
       // One join at a time per team, so two people can't both take the last seat.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"seats:" + invite.workspaceId}))`;

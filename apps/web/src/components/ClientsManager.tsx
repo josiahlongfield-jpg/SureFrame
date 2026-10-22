@@ -9,10 +9,12 @@ import TeamKeyGate from "./TeamKeyGate";
 import RemoveExtras from "./RemoveExtras";
 import { ReplyBadges, type Conv } from "./LibraryTools";
 import FirstLinkSender, { PersonalLinkSteps } from "./FirstLinkSender";
+import { DialogButtons, DialogShell, dangerButton, quietButton } from "./ConfirmDialog";
 
 type Seats = { used: number; limit: number };
 /** `reached`: the client has opened their personal link, so emailed videos open for them. `linkSent`: the team copied or shared it. */
-type Client = { id: string; name: string; email: string | null; link: string; teamKeyWrap: string | null; videoCount: number; assignedToId: string | null; paused?: boolean; linkOff?: boolean; reached?: boolean; linkSent?: boolean; convs?: Conv[] };
+/** `replaced`: the team's keys were reset recently and the client got a new personal link then (ISO date), and whether we emailed it. */
+type Client = { id: string; name: string; email: string | null; link: string; teamKeyWrap: string | null; videoCount: number; assignedToId: string | null; paused?: boolean; linkOff?: boolean; reached?: boolean; linkSent?: boolean; convs?: Conv[]; replaced?: { at: string; emailed: boolean } | null };
 type Staff = { id: string; name: string };
 /** A removed client the business can still restore. Dates are ISO strings. */
 type Removed = { id: string; name: string; email: string | null; removedAt: string; purgeAt: string | null };
@@ -155,7 +157,7 @@ function Manager({
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string>();
-  const [buyQty, setBuyQty] = useState(5);
+  const [buyQty, setBuyQty] = useState(1);
   const [buying, setBuying] = useState<"ask" | "busy" | null>(null);
   const [removed, setRemoved] = useState(initialRemoved);
   // The client being removed, and the date they'd be kept until.
@@ -181,6 +183,9 @@ function Manager({
   const canShare = useCanShare();
   const removedSection = useRef<HTMLElement>(null);
   const listTop = useRef<HTMLElement>(null);
+  // Each row's Remove client button, so focus goes back to it when its dialog closes.
+  const removeButtons = useRef(new Map<string, HTMLButtonElement>());
+  const noticeLine = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
     if (openRemoved) removedSection.current?.scrollIntoView({ block: "start" });
   }, [openRemoved]);
@@ -200,6 +205,8 @@ function Manager({
   // Staff start on their own clients; owners and admins on everyone.
   const [show, setShow] = useState<"all" | "mine">(canManage ? "all" : "mine");
   const full = seats.used >= seats.limit;
+  // Buying seats only comes up once they're nearly all used (or some bought ones could be given back).
+  const nearlyFull = left <= Math.max(2, Math.ceil(seats.limit * 0.1));
   // Tabs only make sense when there are other people's clients to see.
   const team = staff.length > 1 && seesAll;
   const q = query.trim().toLowerCase();
@@ -247,6 +254,8 @@ function Manager({
   const fresh = parsed ? parsed.clients.filter((c, i, all) => !c.email || (!known.has(c.email) && all.findIndex((x) => x.email === c.email) === i)) : [];
   const dupes = parsed ? parsed.clients.length - fresh.length : 0;
   const fits = fresh.slice(0, left);
+  // The seat-buying row: when seats are nearly used, or a pasted list doesn't fit (its "Add seats" link goes there).
+  const showBuy = nearlyFull || fresh.length > left || unfit.length > 0;
   async function addMany() {
     if (!fits.length) return;
     setBusy(true);
@@ -297,6 +306,15 @@ function Manager({
     setJustAdded((list) => list.filter((x) => x.id !== c.id));
     setConfirming(null);
     setNotice(`${c.name} removed. You can restore them until ${dates.longDay(until)}.`);
+    // Their row (and its button) is gone: the line saying what happened takes focus instead.
+    setTimeout(() => noticeLine.current?.focus(), 0);
+  }
+
+  /** Closes the Remove dialog without removing, back to the button that opened it. */
+  function cancelRemove() {
+    const id = confirming?.id;
+    setConfirming(null);
+    if (id) setTimeout(() => removeButtons.current.get(id)?.focus(), 0);
   }
 
   async function restore(r: Removed) {
@@ -406,8 +424,9 @@ function Manager({
             <div className={`h-full ${full ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${Math.min(100, (seats.used / Math.max(1, seats.limit)) * 100)}%` }} />
           </div>
         </div>
-        {!isOwner ? null : canBuySeats ? (
-          <div className="mt-5 grid gap-3 border-t border-line pt-5 text-sm">
+        {!isOwner || (!showBuy && !extraSeats && !seatsAdded) ? null : canBuySeats ? (
+          <div className="mt-5 grid gap-3 border-t border-line pt-5 text-sm" data-testid="seat-buying">
+            {showBuy && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-muted">Need more?</span>
               <select value={buyQty} onChange={(e) => setBuyQty(Number(e.target.value))} aria-label="Extra clients" className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
@@ -417,6 +436,7 @@ function Manager({
                 Add for {money(buyQty * seatPrice)}/{per}
               </button>
             </div>
+            )}
             {buying && (
               <div role="dialog" aria-label="Add client seats" data-testid="buy-seats-confirm" className="rounded-xl border border-line-strong bg-surface-2 p-4 text-muted">
                 <p className="font-medium text-ink">Add {plural(buyQty, "extra client seat", "extra client seats")} for {money(buyQty * seatPrice)} a {per}, plus any tax?</p>
@@ -436,14 +456,14 @@ function Manager({
             )}
             {/* Lowering bought seats is billing, on its own row away from removing a client. */}
             <RemoveExtras extra={extraSeats} spare={seats.limit - seats.used} noun={{ one: "client seat", many: "client seats", holder: "clients" }} endpoint="/api/billing/seats" field="extraSeats" onError={setError} />
-            {suggestStudio && (
+            {showBuy && suggestStudio && (
               <p data-testid="studio-hint" className="rounded-lg bg-primary-soft px-3 py-2 text-ink">
                 That would bring Solo to {money(soloAfter)}/month. Studio is {money(studioHint.studioPrice)}/month with {studioHint.studioClients} clients and 3 staff logins (yours included).{" "}
                 <Link href="/pricing" className="font-medium underline">Compare plans</Link>
               </p>
             )}
           </div>
-        ) : complimentary ? (
+        ) : !showBuy ? null : complimentary ? (
           <p className="mt-5 border-t border-line pt-5 text-sm text-muted" data-testid="comp-seats-note">
             Extra clients can be added once you start a paid subscription. <Link href="/pricing" className="font-medium text-accent hover:underline">Choose a paid plan</Link>
           </p>
@@ -522,7 +542,19 @@ function Manager({
                 </>
               )}
             </details>
-            <button onClick={() => { setJustAdded([]); setUnfit([]); setUnread([]); }} className="mt-3 block text-dim hover:text-ink">
+            <button
+              type="button"
+              onClick={() => {
+                const many = justAdded.length > 1;
+                setJustAdded([]);
+                setUnfit([]);
+                setUnread([]);
+                // After a pasted list, the new clients are in the list below: take the page there.
+                if (many) listTop.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+              }}
+              data-testid="added-done"
+              className="mt-3 rounded-lg border border-line-strong bg-surface px-4 py-1.5 font-medium text-ink hover:bg-hover"
+            >
               Done
             </button>
           </div>
@@ -587,7 +619,7 @@ function Manager({
             </button>
           </p>
         )}
-        {full && (
+        {full && !(bulk !== null && fresh.length > left) && (
           <p className="mt-2 text-sm text-warn-fg" data-testid="seats-full">
             All {seats.limit} client seats are in use.{" "}
             {!isOwner
@@ -601,8 +633,8 @@ function Manager({
       </section>
       )}
 
-      {(notice || listError) && (
-        <p role={listError ? "alert" : "status"} data-testid="clients-notice" className={`rounded-xl border p-3 text-sm ${listError ? "border-danger-line bg-danger-bg text-danger-fg" : "border-ok-line bg-ok-bg text-ok-fg"}`}>
+      {(notice || (listError && !confirming)) && (
+        <p ref={noticeLine} tabIndex={-1} role={listError ? "alert" : "status"} data-testid="clients-notice" className={`rounded-xl border p-3 text-sm ${listError ? "border-danger-line bg-danger-bg text-danger-fg" : "border-ok-line bg-ok-bg text-ok-fg"}`}>
           {listError ?? notice}
         </p>
       )}
@@ -664,6 +696,13 @@ function Manager({
                       {c.email && <><span className="break-all">{c.email}</span> · </>}{plural(c.videoCount, "video", "videos")}
                       {staff.length > 1 && seesAll && !canManage && ` · ${staffName(c.assignedToId) ?? "Unassigned"}`}
                     </p>
+                    {/* After a key reset an old link no longer opens: a reminder for anyone who saved it in a draft. */}
+                    {c.replaced && !c.linkOff && (
+                      <p className="text-xs text-warn-fg" data-testid="link-replaced">
+                        Link replaced on {dates.shortDay(new Date(c.replaced.at))}
+                        {c.replaced.emailed ? ": we emailed them the new one." : ": the old one no longer works, so send them the new one (Copy personal link)."}
+                      </p>
+                    )}
                     {/* Replies waiting, so they aren't only found on the library's cards. */}
                     {!!c.convs?.length && (
                       <Link href={`/clients/${c.id}`} className="mt-1 block w-fit empty:hidden" aria-label={`Replies from ${c.name}`}>
@@ -690,37 +729,60 @@ function Manager({
                         {canShare && <button onClick={() => share(c)} aria-label={`Share personal link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover">Share</button>}
                       </>
                     )}
-                    {canManage && <button onClick={() => askRemove(c)} aria-label={`Remove client ${c.name}`} className="rounded-lg px-2.5 py-1 font-medium text-dim hover:bg-hover hover:text-danger-fg">Remove client</button>}
+                    {canManage && (
+                      <button
+                        ref={(el) => {
+                          if (el) removeButtons.current.set(c.id, el);
+                          else removeButtons.current.delete(c.id);
+                        }}
+                        onClick={() => askRemove(c)}
+                        aria-label={`Remove client ${c.name}`}
+                        aria-haspopup="dialog"
+                        className="rounded-lg px-2.5 py-1 font-medium text-dim hover:bg-hover hover:text-danger-fg"
+                      >
+                        Remove client
+                      </button>
+                    )}
                   </div>
+                  {/* The same dialog as Billing's: focus moves in, Escape or the background closes it, focus goes back to Remove client. */}
                   {confirming?.id === c.id && (
-                    <div data-testid="remove-client-confirm" className="w-full rounded-xl sm:col-span-2 border border-danger-line bg-danger-bg p-4 text-sm text-muted">
-                      <p className="font-medium text-ink">Remove {c.name}? Their personal link stops working now and their seat is freed.</p>
-                      <p className="mt-1">You can restore them from Removed clients on this page until {dates.longDay(confirming.until)}.</p>
-                      {/* The detail is there for whoever wants it, not three paragraphs every time. */}
-                      <details className="mt-2" data-testid="remove-client-details">
-                        <summary className="cursor-pointer font-medium text-accent hover:underline">What happens to their data?</summary>
-                        <ul className="mt-2 list-disc space-y-1 pl-5">
-                          <li>Their videos, conversations, to-dos and notes are kept until {dates.longDay(confirming.until)}, so you can restore them from Removed clients.</li>
-                          {!cloudBackup && <li>Recordings without cloud backup still leave our servers on their usual dates, and restoring doesn&apos;t bring those back.</li>}
-                          <li>After that they&apos;re deleted for good, including your team&apos;s replies to them, even with cloud backup on.</li>
-                          <li>Recordings you also sent to other clients stay with those clients.</li>
-                        </ul>
-                      </details>
-                      {c.email && twin ? (
-                        <p className="mt-3" data-testid="remove-client-twin">{twin.name} also uses {c.email}, so nobody is emailed about this.</p>
-                      ) : c.email ? (
-                        <label className="mt-3 flex items-center gap-2">
-                          <input type="checkbox" checked={tellClient} onChange={(e) => setTellClient(e.target.checked)} data-testid="remove-client-email" />
-                          Email {c.name} that their access has ended
-                        </label>
-                      ) : null}
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <button onClick={() => remove(c)} disabled={working === c.id} className="rounded-lg bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700 disabled:opacity-60">
-                          Remove {c.name}
-                        </button>
-                        <button onClick={() => setConfirming(null)} className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 hover:bg-hover">Cancel</button>
+                    <DialogShell title={`Remove ${c.name}?`} onClose={working === c.id ? undefined : cancelRemove} testId="remove-client-confirm">
+                      <div className="mt-3 space-y-2 text-sm text-muted">
+                        <p>Their personal link stops working now and their seat is freed.</p>
+                        <p>You can restore them from Removed clients on this page until {dates.longDay(confirming.until)}.</p>
+                        {/* The detail is there for whoever wants it, not three paragraphs every time. */}
+                        <details data-testid="remove-client-details">
+                          <summary className="cursor-pointer font-medium text-accent hover:underline">What happens to their data?</summary>
+                          <ul className="mt-2 list-disc space-y-1 pl-5">
+                            <li>Their videos, conversations, to-dos and notes are kept until {dates.longDay(confirming.until)}, so you can restore them from Removed clients.</li>
+                            {!cloudBackup && <li>Recordings without cloud backup still leave our servers on their usual dates, and restoring doesn&apos;t bring those back.</li>}
+                            <li>After that they&apos;re deleted for good, including your team&apos;s replies to them, even with cloud backup on.</li>
+                            <li>Recordings you also sent to other clients stay with those clients.</li>
+                          </ul>
+                        </details>
+                        {c.email && twin ? (
+                          <p data-testid="remove-client-twin">{twin.name} also uses {c.email}, so nobody is emailed about this.</p>
+                        ) : c.email ? (
+                          <label className="flex items-center gap-2 text-ink">
+                            <input type="checkbox" checked={tellClient} onChange={(e) => setTellClient(e.target.checked)} data-testid="remove-client-email" />
+                            Email {c.name} that their access has ended
+                          </label>
+                        ) : null}
                       </div>
-                    </div>
+                      {listError && (
+                        <p role="alert" className="mt-3 rounded-xl border border-danger-line bg-danger-bg p-3 text-sm text-danger-fg">
+                          {listError}
+                        </p>
+                      )}
+                      <DialogButtons>
+                        <button onClick={() => remove(c)} disabled={working === c.id} className={dangerButton} data-testid="remove-client-yes">
+                          {working === c.id ? "Removing…" : `Remove ${c.name}`}
+                        </button>
+                        <button onClick={cancelRemove} disabled={working === c.id} className={quietButton}>
+                          Cancel
+                        </button>
+                      </DialogButtons>
+                    </DialogShell>
                   )}
                 </li>
               );

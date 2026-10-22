@@ -734,6 +734,7 @@ function WatchBody({
                     className="mt-1.5 shrink-0 rounded-lg p-1.5 text-dim hover:bg-hover hover:text-ink"
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
+                    <span className="sr-only">Edit title</span>
                   </button>
                 </div>
                 <p className="mt-1 px-1 text-xs text-dim">
@@ -978,6 +979,7 @@ function WatchBody({
             ) : (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>
             )}
+            <span className="sr-only">{expanded ? "Close larger view" : "Open conversation in a larger view"}</span>
           </button>
           )}
         </div>
