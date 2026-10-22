@@ -318,8 +318,13 @@ ok("the staff member is emailed that their connection was disconnected", staffMa
 while ((await owner.locator("#yours [data-testid=disconnect]").count()) > 0) {
   const before = await owner.locator("#yours [data-testid=disconnect]").count();
   await owner.locator("#yours [data-testid=disconnect]").first().click();
+  // Asked first: the row's Disconnect becomes a confirm box until it's pressed again.
+  const live = () => prisma.connectorGrant.count({ where: { userId: me.id, revokedAt: null } });
+  const liveBefore = await live();
   await owner.click("#yours [data-testid=disconnect-confirm]");
-  await owner.waitForFunction((n) => document.querySelectorAll("#yours [data-testid=disconnect]").length < n, before);
+  for (let i = 0; i < 120 && (await live()) >= liveBefore; i++) await owner.waitForTimeout(250);
+  await owner.waitForSelector("[data-testid=disconnected-note]", { timeout: 30000 });
+  await owner.waitForFunction((n) => document.querySelectorAll("#yours [data-testid=disconnect]").length < n && !document.querySelector("[data-testid=disconnect-confirm-box]"), before);
 }
 ok("disconnected online connection stops", (await mcp(t2.access_token, { jsonrpc: "2.0", id: 1, method: "tools/list" })).status === 401);
 const afterRevoke = await desk({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "read_notes", arguments: {} } });
