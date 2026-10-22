@@ -205,6 +205,52 @@ ok("client FAQ: where to get help", (await faq.locator("#client-help").count()) 
 await faq.goto(`${BASE}/legal/privacy`);
 ok("privacy: the client help chat and its 90 days", (await faq.textContent("#for-clients + p + ul")).includes("for 90 days"));
 
+// ---------- On a video page that opens: limits stated, "Reply to …" after a can't-answer, and a refusal says when (C17, C18, C20) ----------
+const keyC = globalThis.crypto.getRandomValues(new Uint8Array(32));
+const wrapWith = async (raw, wrapping) => {
+  const k = await globalThis.crypto.subtle.importKey("raw", wrapping, { name: "AES-GCM" }, false, ["encrypt"]);
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+  return Buffer.concat([iv, new Uint8Array(await globalThis.crypto.subtle.encrypt({ name: "AES-GCM", iv }, k, raw))]).toString("base64url");
+};
+// Sent by Team member 3, who looks after Client C: replies are to them, at the business (S52).
+const clientC = await prisma.client.create({ data: { name: "Client C", token: `ch-c-${stamp}-${"z".repeat(20)}`, workspaceId: wsA.id, assignedToId: staff.id } });
+const videoC = await prisma.video.create({
+  data: { id: `chc${stamp.toString(36)}`, mimeType: "video/webm", storageKey: `test/${stamp}/chc`, status: "UPLOADED", encrypted: true, teamKeyWrap: "t".repeat(60), clientKeyWrap: await wrapWith(globalThis.crypto.getRandomValues(new Uint8Array(32)), keyC), workspaceId: wsA.id, ownerId: staff.id, clientId: clientC.id, title: "For Client C" },
+});
+const cPhone = await (await browser.newContext({ viewport: { width: 320, height: 640 }, isMobile: true, hasTouch: true })).newPage();
+await cPhone.addLocatorHandler(cPhone.getByTestId("sureframe-promo"), async () => cPhone.click("text=/^Watch now$/", { timeout: 15000 }));
+await cPhone.goto(`${BASE}/c/${clientC.token}?v=${videoC.id}#k=${Buffer.from(keyC).toString("base64url")}`);
+await cPhone.waitForSelector("[data-testid=chat-inline]", { timeout: 20000 });
+ok("sent by the team member who looks after them: 'Reply to Team member 3 at Business A' (S52)", (await cPhone.textContent("[data-testid=chat-open]")) === `Reply to Team member 3 at ${nameA}`);
+ok("…and the conversation is with them, at the business", (await cPhone.textContent("[data-testid=conversation-title]")) === `Conversation with Team member 3 at ${nameA}`);
+await cPhone.tap("[data-testid=client-help-button]");
+await cPhone.waitForSelector("[data-testid=client-help-panel]");
+ok("the panel states the limits (Free business: a day)", (await cPhone.textContent("[data-testid=client-help-limits]")) === "You can ask up to 5 questions a day.");
+const cant = await ask(cPhone, "Can you sort out my tax?");
+ok("can't help: still names the business", cant.startsWith("I can't help with that one."), cant);
+const replyBtn = cPhone.locator("[data-testid=client-help-messages] [data-testid=client-help-reply]");
+ok("can't help: ends with a 'Reply to …' button", (await replyBtn.count()) === 1 && (await replyBtn.textContent()) === `Reply to Team member 3 at ${nameA}`, await replyBtn.textContent().catch(() => ""));
+ok("answered questions get no button", (await ask(cPhone, "How do I reply to this video?")).includes("reply box") && (await replyBtn.count()) === 1);
+await replyBtn.tap();
+ok("Reply to …: closes help and opens the reply box", !!(await cPhone.waitForSelector("[data-testid=conversation][data-sheet]", { timeout: 5000 }).catch(() => null)) && (await cPhone.locator("[data-testid=client-help-panel]").count()) === 0);
+await cPhone.tap("[data-testid=chat-close]");
+// A refusal (the limits are off in test runs, so the answer is stood in for): when to ask again, Ask off, and the button.
+await cPhone.route("**/api/client-help", (r) =>
+  r.fulfill({ status: 429, contentType: "application/json", body: JSON.stringify({ error: "You've reached the limit for the help chat.", limited: true, retryAt: new Date(Date.now() + 7 * 60_000).toISOString(), contact: `Please contact ${nameA} directly.` }) }),
+);
+await cPhone.tap("[data-testid=client-help-button]");
+await cPhone.fill("textarea[aria-label='Your question']", "One more question");
+await cPhone.keyboard.press("Enter");
+const refusedText = (await cPhone.textContent("[data-testid=client-help-error]", { timeout: 10000 }).catch(() => "")) ?? "";
+ok("limit reached: says when to ask again", /^You've reached the limit for the help chat\. You can ask again in [78] minutes\. Please contact /.test(refusedText), refusedText);
+ok("limit reached: Ask is off while refused", await cPhone.isDisabled("[data-testid=client-help-ask]"));
+ok("limit reached: the Reply button is there too", (await cPhone.locator("[data-testid=client-help-panel] form [data-testid=client-help-reply]").count()) === 1);
+ok("help panel with the limit fits 320px", await fits(cPhone));
+await cPhone.screenshot({ path: `${shots}/client-help-limit-320.png`, fullPage: true });
+await cPhone.context().close();
+await prisma.video.delete({ where: { id: videoC.id } });
+await prisma.client.delete({ where: { id: clientC.id } });
+
 await prisma.clientQuestion.deleteMany({ where: { workspaceId: { in: [wsA.id, wsB.id] } } });
 await browser.close();
 fake.close();

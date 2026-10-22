@@ -15,13 +15,16 @@ export type ClientVideo = {
   hasThumb: boolean;
   unwatched: boolean;
   replied: boolean;
+  /** They recorded a reply to it and haven't sent it yet. */
+  unsent?: boolean;
   /** "Sam from Business" (lib/team.ts), or null to say nothing. */
   from: string | null;
 };
 
 const length = (ms: number | null) => {
   if (!ms) return "";
-  const s = Math.round(ms / 1000);
+  // Whole seconds, as the player counts them.
+  const s = Math.floor(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
@@ -43,6 +46,7 @@ export default function ClientVideos({ clientId, videos, timezone, layout }: { c
     <>
       {v.unwatched && <span className="rounded-full bg-primary-soft px-2 py-0.5 font-medium text-accent" data-testid="inbox-new">New</span>}
       {v.replied && <span className="rounded-full bg-surface-2 px-2 py-0.5 font-medium text-muted" data-testid="inbox-replied">You replied</span>}
+      {v.unsent && <span className="rounded-full bg-warn-bg px-2 py-0.5 font-medium text-warn-fg" data-testid="inbox-unsent">Unsent reply</span>}
     </>
   );
   const when = (v: ClientVideo, inDay: boolean) => (inDay ? dates.time(v.createdAt) : dates.shortDayTime(v.createdAt));
@@ -57,7 +61,8 @@ export default function ClientVideos({ clientId, videos, timezone, layout }: { c
               {v.durationMs ? <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">{length(v.durationMs)}</span> : null}
             </div>
             <h3 className={`mt-3 line-clamp-2 text-ink [overflow-wrap:anywhere] group-hover:text-accent ${v.unwatched ? "font-semibold" : "font-medium"}`}>{v.title}</h3>
-            <p className="truncate text-xs text-dim">
+            {/* Wraps onto a second line rather than cutting the sender off mid-word (C12). */}
+            <p className="line-clamp-2 text-xs text-dim [overflow-wrap:anywhere]" data-testid="inbox-byline">
               {when(v, inDay)}
               {v.from && <> · {v.from}</>}
             </p>

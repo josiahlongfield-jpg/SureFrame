@@ -141,7 +141,11 @@ await phone.click("[data-testid=how-this-works] summary");
 const how = await phone.textContent("[data-testid=how-this-works]");
 ok("How this works: who sees replies, notifications, deleting, devices, views", ["Only you and Business A", "emailed that you replied", "tap Delete", "another device", "how many times you've opened"].every((t) => how.includes(t)), how);
 ok("How this works: there's no deadline to reply, and when replies go", how.includes("no deadline to reply") && how.includes("Written replies stay until Business A deletes this video"), how);
-ok("deletion note: says the client can still reply after the date", (await phone.textContent("[data-testid=purge-note]")).includes("You can still reply after that date."));
+const purgeNote = (await phone.textContent("[data-testid=purge-note]")).trim();
+ok("deletion note: one short line, the detail in How this works (C13)", /^End-to-end encrypted\. Deleted from SureFrame on \w+ \d+, \d{4}, so save a copy if you want to keep it\.$/.test(purgeNote), purgeNote);
+ok("How this works: keeping a copy, and replying after the date", how.includes("Can I keep a copy?") && how.includes("You can still reply after that date."), how);
+ok("How this works: no '#k=' for clients (C47)", !how.includes("#k=") && how.includes("the whole link from their message"), how);
+ok("client: the page says who it's for (S17)", (await phone.textContent("[data-testid=video-for]")) === "For Client A");
 ok("client: download names the business and title", (await phone.getAttribute("a:has-text('Save to device')", "download"))?.startsWith("Business A - Week 1 plan"));
 ok("no floating button over the video, title or reactions", !(await phone.isVisible("[data-testid=chat-bubble]")));
 ok("the reply card is in the page, right under the reactions", await phone.isVisible("[data-testid=chat-inline] >> text=Reply to Business A"));
@@ -158,7 +162,11 @@ const burstBg = await phone.waitForSelector("[data-testid=reaction-burst]", { ti
 await phone.waitForFunction((s) => document.querySelector(s)?.getAttribute("aria-pressed") === "true", thumbs);
 await waitFor(async () => (await prisma.reaction.count({ where: { videoId, byClient: true } })) === 1, 5000);
 ok("reaction highlighted and saved once", (await prisma.reaction.count({ where: { videoId, byClient: true } })) === 1);
-ok("reaction: says it was sent and who can see it", (await phone.textContent("[data-testid=reaction-note]", { timeout: 5000 })).startsWith("Sent. Business A can see your 👍"));
+ok("reaction: says which it is and who can see it (C9)", (await phone.textContent("[data-testid=reaction-note]", { timeout: 5000 })) === "Your reaction: 👍. Business A can see it. Tap it again to take it back.");
+await phone.reload();
+await phone.waitForSelector("[data-testid=reactions]", { timeout: 20000 });
+const lasting = await phone.textContent("[data-testid=reaction-note]");
+ok("reaction: the same lasting line on a later visit, never a stale 'Sent.' (C9)", lasting === "Your reaction: 👍. Business A can see it. Tap it again to take it back." && !lasting.includes("Sent"), lasting);
 await phone.tap("button[aria-label='React 🎉']");
 await phone.waitForFunction(() => document.querySelector("button[aria-label='React 🎉']")?.getAttribute("aria-pressed") === "true" && document.querySelector("button[aria-label='React 👍']")?.getAttribute("aria-pressed") === "false");
 await waitFor(async () => (await prisma.reaction.findMany({ where: { videoId, byClient: true } })).map((r) => r.emoji).join() === "🎉", 5000);
@@ -250,7 +258,10 @@ await phone.tap("[data-testid=reply-delete-yes]");
 await waitFor(async () => (await prisma.reply.count({ where: { videoId, kind: "VIDEO" } })) === 0, 10000);
 ok("video reply deleted, recording row and all", !(await prisma.video.findUnique({ where: { id: sentVideo.mediaId } })) && (await prisma.reply.count({ where: { videoId } })) === 0);
 ok("no browser pop-ups for deleting or discarding", popups === 0, String(popups));
-await phone.tap("[data-testid=chat-close]");
+// Escape closes the sheet and puts keyboard focus back on "Reply to …", not the top of the page (C66).
+await phone.keyboard.press("Escape");
+await phone.waitForSelector("[data-testid=conversation][data-sheet]", { state: "detached", timeout: 5000 });
+ok("Escape: focus back on Reply to Business A (C66)", (await waitFor(() => phone.evaluate(() => document.activeElement?.dataset.testid === "chat-open"), 3000)) === true, await phone.evaluate(() => document.activeElement?.outerHTML.slice(0, 80)));
 
 // A reply cut short by a closed browser is never sent by itself: the client is asked.
 await phone.tap("[data-testid=chat-open]");
@@ -266,6 +277,11 @@ await phone2.waitForSelector("[data-testid=held-reply]", { state: "attached", ti
 const heldRow = await prisma.reply.findFirst({ where: { videoId, kind: "VIDEO" } });
 ok("recovered reply: uploaded but held, not sent", !!heldRow?.heldAt);
 ok("the video page says an unsent reply is waiting", (await phone2.textContent("[data-testid=inline-unsent]", { timeout: 10000 }).catch(() => "")).includes("You have an unsent reply"));
+const inboxUnsent = await phoneCtx.newPage();
+await inboxUnsent.goto(`${BASE}/inbox`);
+await inboxUnsent.waitForSelector("[data-testid=inbox-video]", { timeout: 20000 });
+ok("inbox: the video's tile says there's an unsent reply (C33)", (await inboxUnsent.textContent(`a[href="/v/${videoId}"] [data-testid=inbox-unsent]`).catch(() => "")) === "Unsent reply");
+await inboxUnsent.close();
 await phone2.tap("[data-testid=chat-open]");
 ok("recovered reply: asks to send or delete, with a preview", (await phone2.textContent("[data-testid=held-reply]")).includes("Send or delete your unfinished reply?") && !!(await phone2.waitForSelector("[data-testid=held-reply] [data-testid=reply-video-still]", { timeout: 20000 }).catch(() => null)));
 await owner.reload();
@@ -312,6 +328,28 @@ await fresh.waitForSelector("[data-testid=chat-inline]", { timeout: 20000 });
 await fresh.waitForTimeout(800);
 ok("own messages never count as new", !(await fresh.isVisible("[data-testid=inline-unread]")));
 
+// A text reply written mid-video says where ("at 0:06"), and its web address is a link (C52, C24); a to-do the
+// business shared shows under the video (C61). Sealed with the client's key from the link, as the app does.
+const linkKey = await globalThis.crypto.subtle.importKey("raw", Buffer.from(link.split("#k=")[1], "base64url"), { name: "AES-GCM" }, false, ["encrypt"]);
+const sealFor = async (text) => {
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await globalThis.crypto.subtle.encrypt({ name: "AES-GCM", iv }, linkKey, new TextEncoder().encode(text)));
+  return Buffer.concat([iv, ct]).toString("base64url");
+};
+const momentReply = await prisma.reply.create({ data: { videoId, kind: "TEXT", body: "See https://example.com/plan.", encrypted: false, timestampMs: 6000, authorName: "Client A", byClient: true } });
+const sharedTodo = await prisma.item.create({ data: { kind: "TASK", body: await sealFor("Stretch every morning"), shared: true, authorName: "Owner", workspaceId: ws, clientId: clientRow.id } });
+await fresh.reload();
+await fresh.waitForSelector("[data-testid=reply-moment]", { state: "attached", timeout: 20000 });
+ok("a reply's moment is labelled 'at 0:06' (C52)", (await fresh.textContent("[data-testid=reply-moment]")).trim() === "at 0:06" && (await fresh.getAttribute("[data-testid=reply-moment]", "aria-label")).startsWith("Written at 0:06 in the video"));
+ok("a web address in a text reply is a link, without the full stop (C24)", (await fresh.getAttribute("[data-testid=reply-link]", "href")) === "https://example.com/plan" && (await fresh.getAttribute("[data-testid=reply-link]", "target")) === "_blank" && (await fresh.getAttribute("[data-testid=reply-link]", "rel")).includes("noopener"));
+ok("a shared to-do shows under the video (C61)", !!(await fresh.waitForSelector("[data-testid=planner] >> text=Stretch every morning", { timeout: 15000 }).catch(() => null)) && (await fresh.textContent("[data-testid=planner] h2")) === "Your to-dos & notes from Business A");
+await prisma.reply.delete({ where: { id: momentReply.id } });
+await prisma.item.delete({ where: { id: sharedTodo.id } });
+await fresh.reload();
+await fresh.waitForSelector("[data-testid=chat-inline]", { timeout: 20000 });
+await fresh.waitForTimeout(1500);
+ok("nothing shared: no to-do card under the video", (await fresh.locator("[data-testid=planner]").count()) === 0);
+
 // The business: their own messages on the right, the client's on the left, the view counted.
 await owner.reload();
 await owner.waitForSelector("aside ul >> text=One question", { timeout: 20000 });
@@ -352,6 +390,11 @@ await owner.waitForSelector("[data-testid=reply-review]", { timeout: 15000 });
 ok("Stop: focus moves to Send", (await waitFor(() => owner.evaluate(() => document.activeElement?.textContent === "Send voice reply"), 3000)) === true);
 await owner.click("[data-testid=reply-review] >> text=Discard");
 ok("Discard: focus moves to Keep it", (await waitFor(() => owner.evaluate(() => document.activeElement?.textContent === "Keep it"), 3000)) === true);
+// One question at a time (C31): asking to delete a sent message closes "Discard this reply?", and the other way round.
+await owner.click("aside ul li[data-mine]:has-text('Answer from Business A') >> [data-testid=reply-delete]");
+ok("one question at a time: Delete closes the Discard question", (await owner.locator("[data-testid=reply-delete-confirm]").count()) === 1 && (await owner.locator("[data-testid=discard-confirm]").count()) === 0);
+await owner.click("[data-testid=reply-review] >> text=Discard");
+ok("one question at a time: Discard closes the Delete question", (await owner.locator("[data-testid=discard-confirm]").count()) === 1 && (await owner.locator("[data-testid=reply-delete-confirm]").count()) === 0);
 await owner.click("[data-testid=discard-yes]");
 await owner.waitForSelector("text=Recording deleted. Nothing was sent.", { timeout: 10000 });
 ok("Discard: focus moves to the text box", (await waitFor(() => owner.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Reply"), 3000)) === true);
@@ -410,6 +453,8 @@ await stranger.screenshot({ path: `${shots}/bad-link-320.png`, fullPage: true })
 await stranger.goto(link.split("#")[0]);
 await stranger.waitForSelector("[data-testid=lost-key]", { timeout: 20000 });
 ok("no key on this device: says what to do", (await stranger.textContent("[data-testid=lost-key]")).includes("Open your personal link on this device once"));
+ok("no key: the same heading as the private page (C60)", (await stranger.textContent("[data-testid=lost-key] [data-testid=cant-open-title]")) === "This video is private");
+ok("no key: no '#k=', and a link cut short is explained (C47, C58)", !(await stranger.textContent("[data-testid=lost-key]")).includes("#k=") && (await stranger.textContent("[data-testid=lost-key]")).includes("it may have been cut short: open it again from the original message"));
 ok("no key: no intro over it", !(await shown(stranger, "[data-testid=sureframe-promo]", 2000)));
 ok("no key: the tab doesn't show the title", (await stranger.title()).startsWith("Private video"));
 await stranger.click("text=Ask for my link again");
@@ -420,13 +465,63 @@ await stranger.goto(BASE + "/inbox");
 await stranger.waitForSelector("[data-testid=inbox-keyless] [data-testid=lost-key]", { timeout: 15000 });
 const keylessInbox = await stranger.textContent("main");
 ok("no key: All my videos lists no titles, email or marks", !keylessInbox.includes("Week 1 plan") && !keylessInbox.includes("@example.com") && !keylessInbox.includes("•••") && (await stranger.locator("[data-testid=inbox-video], [data-testid=forget-device], [data-testid=inbox-emails]").count()) === 0, keylessInbox.slice(0, 200));
-ok("no key: All my videos shows only how to get the key, with Ask for my link again", keylessInbox.includes("This device needs your personal link") && (await stranger.isVisible("[data-testid=inbox-keyless] >> [data-testid=ask-link]")));
+ok("no key: All my videos shows only how to get the key, with Ask for my link again", keylessInbox.includes("Your videos are private") && (await stranger.isVisible("[data-testid=inbox-keyless] >> [data-testid=ask-link]")));
 ok("no key: the inbox fits 320px", await fits(stranger));
 await stranger.screenshot({ path: `${shots}/inbox-keyless-320.png`, fullPage: true });
 // Opening the personal link on that device then lists everything.
 await stranger.goto(link.replace(/\?v=[^#]*/, ""));
 await stranger.waitForSelector("[data-testid=inbox-video]", { timeout: 20000 }).catch(() => {});
 ok("with the key: the same device lists the videos", (await stranger.textContent("main")).includes("Week 1 plan"));
+
+// ---------- A link with a wrong key never wipes the key this device has (C57, C58) ----------
+// One character changed in the middle of the key (the last one can be padding), and one cut short.
+const goodKey = link.split("#k=")[1];
+const flip = (k, i) => k.slice(0, i) + (k[i] === "A" ? "B" : "A") + k.slice(i + 1);
+const misTyped = `${link.split("#k=")[0]}#k=${flip(goodKey, 10)}`;
+const cutShort = `${link.split("#k=")[0]}#k=${goodKey.slice(0, 30)}`;
+const savedKey = () => stranger.evaluate(() => Object.entries(localStorage).find(([k]) => k.startsWith("framecast.key.client:"))?.[1] ?? null);
+const keyBefore = await savedKey();
+await stranger.goto(misTyped);
+await stranger.waitForURL("**/v/**");
+await stranger.waitForSelector("[data-testid=bad-link-note]", { timeout: 20000 });
+ok("wrong key on a device with the right one: the video still opens", !!(await stranger.waitForSelector("main video", { timeout: 20000 }).catch(() => null)) && (await stranger.locator("[data-testid=lost-key], [data-testid=bad-link-key]").count()) === 0);
+ok("…says the link is incomplete or mistyped and the device kept its key", (await stranger.textContent("[data-testid=bad-link-note]")).includes("incomplete or mistyped, so this device kept the key it already had"));
+ok("…and the saved key is unchanged", (await savedKey()) === keyBefore && !!keyBefore);
+ok("…and the key part leaves the address bar", !(await stranger.evaluate(() => location.hash)));
+await stranger.goto(`${BASE}/v/${videoId}`);
+ok("afterwards the plain address still opens the video", !!(await stranger.waitForSelector("main video", { timeout: 20000 }).catch(() => null)) && (await stranger.locator("[data-testid=lost-key]").count()) === 0);
+await stranger.goto(`${BASE}/inbox`);
+ok("…and All my videos agrees", !!(await stranger.waitForSelector("[data-testid=inbox-video]", { timeout: 20000 }).catch(() => null)) && (await stranger.locator("[data-testid=inbox-keyless]").count()) === 0);
+await stranger.goto(cutShort.replace(/\?v=[^#]*/, ""));
+await stranger.waitForURL("**/inbox**");
+ok("a cut-short key opening the inbox: videos still listed, with the note", !!(await stranger.waitForSelector("[data-testid=bad-link-note]", { timeout: 20000 }).catch(() => null)) && (await stranger.locator("[data-testid=inbox-video]").count()) > 0 && (await savedKey()) === keyBefore);
+// A device that never had the key: the wrong link says so, instead of "needs your personal link".
+const newDevice = await (await browser.newContext({ viewport: { width: 320, height: 640 } })).newPage();
+await newDevice.goto(misTyped);
+await newDevice.waitForSelector("[data-testid=bad-link-key]", { timeout: 20000 });
+ok("wrong key on a new device: 'This link is incomplete or mistyped'", (await newDevice.textContent("[data-testid=bad-link-key] [data-testid=cant-open-title]")) === "This link is incomplete or mistyped" && (await newDevice.textContent("[data-testid=bad-link-key]")).includes("Open it again from the original message"));
+ok("…nothing was saved", (await newDevice.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("framecast.key.client:")))) === false);
+ok("…and All my videos agrees (nothing listed)", await newDevice.goto(`${BASE}/inbox`).then(() => newDevice.waitForSelector("[data-testid=inbox-keyless]", { timeout: 20000 })).then(() => true, () => false) && (await newDevice.locator("[data-testid=inbox-video]").count()) === 0);
+await newDevice.screenshot({ path: `${shots}/bad-key-320.png`, fullPage: true });
+await newDevice.goto(link);
+ok("the right link afterwards opens it on that device", !!(await newDevice.waitForSelector("main video", { timeout: 20000 }).catch(() => null)));
+await newDevice.context().close();
+
+// A sole trader working under their own name: "Business A", never "Business A from Business A" (D3), and the
+// message above the video reads "Message from Owner, Business" rather than "from … from" (O38).
+const ownerUser = await prisma.user.findUnique({ where: { email } });
+await prisma.user.update({ where: { id: ownerUser.id }, data: { name: "Owner A" } });
+await stranger.goto(`${BASE}/v/${videoId}`);
+await stranger.waitForSelector("[data-testid=business-message]", { timeout: 20000 });
+ok("message label: 'Owner A, Business A' (O38)", (await stranger.textContent("[data-testid=business-message] p")) === "Message from Owner A, Business A");
+ok("byline: 'Owner A from Business A'", (await stranger.textContent("[data-testid=video-meta]")).startsWith("Owner A from Business A ·"));
+await prisma.user.update({ where: { id: ownerUser.id }, data: { name: "business a" } });
+await stranger.reload();
+await stranger.waitForSelector("[data-testid=business-message]", { timeout: 20000 });
+const soleMeta = await stranger.textContent("[data-testid=video-meta]");
+ok("name = business: said once (D3)", soleMeta.startsWith("Business A ·") && !soleMeta.includes(" from "), soleMeta);
+ok("name = business: message label said once (D3)", (await stranger.textContent("[data-testid=business-message] p")) === "Message from Business A");
+await prisma.user.update({ where: { id: ownerUser.id }, data: { name: ownerUser.name } });
 
 // An unknown /v/ address: the client frame and a plain card, not the marketing site.
 const missing = await stranger.goto(`${BASE}/v/abc`);
@@ -464,7 +559,8 @@ await fresh.waitForSelector("[data-testid=inbox-video]");
 ok("inbox: replied marker", await fresh.isVisible("[data-testid=inbox-replied]"));
 ok("inbox: watched, so not marked new", !(await fresh.isVisible("[data-testid=inbox-new]")));
 const emails = await fresh.textContent("[data-testid=inbox-emails]");
-ok("inbox: email address not shown in full", emails.includes("c•••@example.com") && !emails.includes("clienta@"), emails);
+ok("inbox: email address not shown in full, but enough to recognise (C44)", emails.includes("cli•••@example.com") && !emails.includes("clienta@"), emails);
+ok("inbox: says who the videos are for (S17)", (await fresh.textContent("[data-testid=inbox-for]")) === "For Client A");
 ok("inbox fits 320px", await fits(fresh));
 await fresh.screenshot({ path: `${shots}/inbox-320.png`, fullPage: true });
 await prisma.client.update({ where: { id: clientRow.id }, data: { remindersOff: true } });

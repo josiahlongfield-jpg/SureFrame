@@ -53,6 +53,8 @@ export type ReplyComposerHandle = {
   discard: () => Promise<void>;
   /** Puts keyboard focus in the reply box (after a reply above it is sent or deleted). */
   focus: () => void;
+  /** Closes the "Discard this reply?" question, when another question opens elsewhere (one at a time, C31). */
+  cancelAsk: () => void;
 };
 
 /** Where keyboard focus goes after a button that disappears (Record, Stop, Send, Discard…), so it never drops to the page top. */
@@ -70,10 +72,12 @@ type Props = {
   offscreen?: boolean;
   /** What "Sent" means for this viewer: who sees it now, and whether anyone is told (true to what the server does). */
   sentNote: string;
+  /** Told when the "Discard this reply?" question opens, so any other question on the page closes. */
+  onAsk?: () => void;
 };
 
 const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyComposer(
-  { videoId, conversationKey, currentTimeMs, onReplied, onBusyChange, offscreen = false, sentNote },
+  { videoId, conversationKey, currentTimeMs, onReplied, onBusyChange, offscreen = false, sentNote, onAsk },
   ref,
 ) {
   const [mode, setMode] = useState<Mode>("TEXT");
@@ -450,6 +454,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
         const box = root.current?.querySelector<HTMLElement>("textarea, [data-focus-target]:not([disabled])");
         box?.focus();
       },
+      cancelAsk: () => setAskDiscard(false),
     }),
     [discard],
   );
@@ -606,6 +611,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
               <button
                 onClick={() => {
                   setAskDiscard(true);
+                  onAsk?.();
                   focusNext.current = "keep";
                 }}
                 disabled={phase === "sending"}
@@ -645,26 +651,11 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
               {phase === "recording" ? <RecBadge ms={elapsed} inline /> : "Tap record and start talking"}
             </div>
           )}
-          {(phase === "preview" || phase === "recording") && (
-            // Straight under the recording window, before and while recording, where they can't be missed.
-            <div className="mt-2 grid gap-1 text-xs text-muted" data-testid="reply-notes">
-              <p data-testid="reply-limit-note">Replies can be up to {Math.round(maxMs / 60_000)} minutes; recording stops by itself at the limit, and you can play it back before sending.</p>
-              <p data-testid="reply-crash-note">
-                Your reply is saved as you record. If this page closes, open the link again and it&rsquo;s ready to send within about 90 seconds.
-              </p>
-            </div>
-          )}
-          {liveStream && (phase === "preview" || phase === "recording") && (
-            <div className="mt-2">
-              <MicLevel stream={liveStream} />
-            </div>
-          )}
+          {/* Record (or Stop) straight under the recording window, where a phone shows it without scrolling (C27, C64). */}
           {phase === "recording" ? (
-            <>
-              <button onClick={stop} data-focus-target="stop" className="mt-2 w-full rounded-lg bg-red-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
-                Stop recording
-              </button>
-            </>
+            <button onClick={stop} data-focus-target="stop" className="mt-2 w-full rounded-lg bg-red-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
+              Stop recording
+            </button>
           ) : (
             <button
               onClick={start}
@@ -674,6 +665,20 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
             >
               {phase === "sending" ? "One moment…" : `Record ${noun} reply`}
             </button>
+          )}
+          {liveStream && (phase === "preview" || phase === "recording") && (
+            <div className="mt-2">
+              <MicLevel stream={liveStream} />
+            </div>
+          )}
+          {phase === "preview" && (
+            // Said once, before recording (not again while recording, C28).
+            <div className="mt-2 grid gap-1 text-xs text-muted" data-testid="reply-notes">
+              <p data-testid="reply-limit-note">Replies can be up to {Math.round(maxMs / 60_000)} minutes; recording stops by itself at the limit, and you can play it back before sending.</p>
+              <p data-testid="reply-crash-note">
+                Your reply is saved as you record. If this page closes, open the link again and it&rsquo;s ready to send within about 90 seconds.
+              </p>
+            </div>
           )}
         </div>
       )}

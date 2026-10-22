@@ -1,5 +1,6 @@
 import { EMAIL, emailButton, emailColors, emailLogo, emailShell, esc } from "@/lib/emailLook";
 import { isDefaultTitle } from "@/lib/videoTitle";
+import { nameWithBusiness } from "@/lib/senderLine";
 
 /**
  * Tells a client a video is waiting, under the business's logo (or, without
@@ -22,7 +23,8 @@ export function newVideoEmail(o: {
   noReply?: boolean;
 }) {
   const sender = o.sender?.trim() || null;
-  const from = sender ? `${sender} from ${o.business}` : o.business;
+  // Just the name once when it is the business's own ("Checker D", not "Checker D from Checker D", D3).
+  const from = sender ? nameWithBusiness(sender, o.business, "from") : o.business;
   const title = o.title?.trim() && !isDefaultTitle(o.title) ? o.title.trim() : null;
   // The email already comes from "Business A via SureFrame", so the subject names just the person (or the business without one).
   const subject = `${sender ?? o.business} sent you a video${title ? `: ${title}` : ""}`;

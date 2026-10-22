@@ -25,6 +25,8 @@ import { heldRepliesOf, replyDTO, replyViewer, visibleReplies } from "@/lib/repl
 import { accessOf, canDeleteVideo, canSeeVideo, clientScopeWhere, effectivePerms } from "@/lib/permissions";
 import { zoned } from "@/lib/dates";
 import { formerTeams, senderName } from "@/lib/team";
+import { nameWithBusiness } from "@/lib/senderLine";
+import { clientHelpLimitText } from "@/lib/support/clientHelp";
 import { replacedLinks } from "@/lib/replacedLinks";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ team?: string; asClient?: string }> };
@@ -85,7 +87,7 @@ export default async function Watch({ params, searchParams }: Props) {
   if (viewer.kind === "client" && (await keyless(viewer))) {
     const workspace = await db.workspace.findUniqueOrThrow({ where: { id: video.workspaceId }, select: brandFields });
     return (
-      <CantOpenShell brand={brandOf(workspace)} help={{ for: [{ clientId: viewer.client.id, business: workspace.name }], page: "cant-open", videoId: id }}>
+      <CantOpenShell brand={brandOf(workspace)} help={{ for: [{ clientId: viewer.client.id, business: workspace.name, limits: clientHelpLimitText(workspace.plan) }], page: "cant-open", videoId: id }}>
         <div className="mx-auto max-w-md">
           <ClientKeyGate clientId={viewer.client.id} business={workspace.name} signInNext={`/v/${id}`} />
         </div>
@@ -142,6 +144,13 @@ export default async function Watch({ params, searchParams }: Props) {
   const myReactions = (await db.reaction.findMany({ where: { videoId: id, ...reactionsBy(viewer.kind === "member" ? { kind: "member", userId: viewer.userId } : { kind: "client" }) }, orderBy: { createdAt: "asc" }, select: { emoji: true } })).map((r) => r.emoji);
   const who = replyViewer(viewer);
   const held = await db.reply.findMany({ where: { videoId: id, ...heldRepliesOf(who) }, orderBy: { createdAt: "asc" }, include: { media: true } });
+  // Who a client's reply is to (S52): the team member who sent this, when they're also the one looking after this
+  // client (their replies are emailed to them, lib/teamNotify.ts), as "Sam at Business"; otherwise the business.
+  const staffSender =
+    viewer.kind === "client" && !video.formerStaffAt && video.owner.name && viewer.client.assignedToId === video.ownerId
+      ? await db.membership.findUnique({ where: { userId_workspaceId: { userId: video.ownerId, workspaceId: video.workspaceId } }, select: { role: true } })
+      : null;
+  const replyTo = staffSender && staffSender.role !== "OWNER" && video.owner.name ? nameWithBusiness(video.owner.name, workspace.name, "at") : workspace.name;
 
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink" style={isMember ? undefined : brandStyle(brand?.color ?? null)}>
@@ -154,7 +163,23 @@ export default async function Watch({ params, searchParams }: Props) {
           width="max-w-6xl"
           allVideosLink
           fromVideo={id}
-          help={viewer.kind === "client" ? { for: [{ clientId: viewer.client.id, business: workspace.name }], page: expired ? "cant-open" : "video", videoId: id } : undefined}
+          help={
+            viewer.kind === "client"
+              ? {
+                  for: [
+                    {
+                      clientId: viewer.client.id,
+                      business: workspace.name,
+                      limits: clientHelpLimitText(workspace.plan),
+                      // The help chat's "Reply to …" opens this page's reply box (not on an expired link's page).
+                      reply: expired ? undefined : { videoId: id, to: replyTo },
+                    },
+                  ],
+                  page: expired ? "cant-open" : "video",
+                  videoId: id,
+                }
+              : undefined
+          }
         />
       )}
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
@@ -183,6 +208,11 @@ export default async function Watch({ params, searchParams }: Props) {
             video={{ ...publicVideo(video), viewCount: isMember ? video.viewCount + copyViews : 0 }}
             // Clients see "Team member 1 from Business A" (never an email); the team sees the name or email (lib/team.ts).
             ownerName={senderName(video, workspace.name, isMember ? "team" : "client")}
+            // Above the business's message: "Owner B, Business B", not "Message from Owner B from Business B" (O38).
+            messageFrom={video.owner.name && !video.formerStaffAt ? nameWithBusiness(video.owner.name, workspace.name, ",") : senderName(video, workspace.name, "client")}
+            replyTo={replyTo}
+            // The client is greeted by name, so they can tell the link is theirs (S17).
+            clientName={viewer.kind === "client" ? viewer.client.name : undefined}
             canDelete={!!access && canDeleteVideo(access, video)}
             // Only a finished original counts (a refused upload never got a duration).
             freeVideoLimit={isMember && !video.sourceId && !video.replyToId && video.status !== "RECORDING" && video.durationMs !== null ? PLANS[workspace.plan].maxVideos : null}
@@ -272,7 +302,7 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
               ? ["This link no longer opens your videos", `${name} has closed their SureFrame account. If you need anything, contact them directly.`, "video-closed"]
               : ["Your access is paused", `${name} changed its SureFrame plan, so your access is paused. Nothing has been deleted; contact them to have it restored.`, "video-paused"];
     return (
-      <CantOpenShell brand={brandOf(mine.workspace)} help={{ for: [{ clientId: mine.id, business: name }], page: "cant-open", videoId: video.id }}>
+      <CantOpenShell brand={brandOf(mine.workspace)} help={{ for: [{ clientId: mine.id, business: name, limits: clientHelpLimitText(mine.workspace.plan) }], page: "cant-open", videoId: video.id }}>
         <CantOpen title={title} testId={testId}>
           <p>{text}</p>
         </CantOpen>

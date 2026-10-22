@@ -5,7 +5,7 @@ import { loadClientKey } from "@/lib/e2e/keystore";
 import Planner from "./Planner";
 
 /** What a client sees: only the items shared with them, unlocked with the key from their personal link. */
-export default function ClientPlanner({ clientId, title }: { clientId: string; title?: string }) {
+export default function ClientPlanner({ clientId, title, hideWhenEmpty = false }: { clientId: string; title?: string; hideWhenEmpty?: boolean }) {
   const [key, setKey] = useState<CryptoKey | null | undefined>();
 
   useEffect(() => {
@@ -23,7 +23,7 @@ export default function ClientPlanner({ clientId, title }: { clientId: string; t
     };
   }, [clientId]);
 
-  if (key === undefined) return null;
+  if (key === undefined || (!key && hideWhenEmpty)) return null;
   if (!key) {
     return (
       <section className="rounded-2xl border border-line bg-surface p-5 text-sm text-muted">
@@ -31,5 +31,5 @@ export default function ClientPlanner({ clientId, title }: { clientId: string; t
       </section>
     );
   }
-  return <Planner role="client" clientId={clientId} privateKey={null} sharedKey={key} title={title} />;
+  return <Planner role="client" clientId={clientId} privateKey={null} sharedKey={key} title={title} hideWhenEmpty={hideWhenEmpty} />;
 }

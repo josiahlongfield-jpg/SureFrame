@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { REACTIONS } from "@/lib/reactions";
 import type { ReplyDTO } from "@/lib/replies";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
+import { isDefaultTitle } from "@/lib/videoTitle";
 import MediaPlayer, { fixDuration } from "./MediaPlayer";
 import PosterCover, { usePoster } from "./PosterCover";
 import ReplyComposer, { deleteReply, sendHeldReply, type ReplyComposerHandle } from "./ReplyComposer";
@@ -12,16 +13,19 @@ import SecureMedia, { useDecryptedUrl } from "./SecureMedia";
 import TeamKeyGate from "./TeamKeyGate";
 import AiInsight, { type SealedInsight } from "./AiInsight";
 import AiNotice from "./AiNotice";
-import LostKey from "./LostKey";
+import LostKey, { BadLinkKey, BadLinkNote } from "./LostKey";
 import RecoverUploads from "./RecoverUploads";
 import SureFramePromo from "./SureFramePromo";
 import SendPanel from "./SendPanel";
+import ClientPlanner from "./ClientPlanner";
+import { OPEN_REPLY_EVENT } from "./ClientHelp";
 import ConfirmDialog from "./ConfirmDialog";
 import { readyIn, recoverInterrupted } from "@/lib/recorder/uploader";
 import { useVideoFrame } from "@/lib/videoFrame";
 import { makeThumb } from "@/lib/thumb";
-import { decryptText, encryptText, importKey, unwrapKey } from "@/lib/e2e/crypto";
-import { clientKeyName, loadClientKey, saveKey } from "@/lib/e2e/keystore";
+import { decryptText, encryptText, unwrapKey } from "@/lib/e2e/crypto";
+import { loadClientKey } from "@/lib/e2e/keystore";
+import { takeLinkKey } from "@/lib/e2e/linkKey";
 
 type Video = {
   id: string;
@@ -82,6 +86,12 @@ type Props = {
   video: Video;
   viewer: WatchViewer;
   ownerName: string;
+  /** Clients: who the business's message above the video is from ("Owner B, Business B"). */
+  messageFrom?: string;
+  /** Clients: who their reply goes to ("Sam at Business" when Sam sent it and looks after them, else the business). */
+  replyTo?: string;
+  /** Clients: their own name, so the page says who it's for. */
+  clientName?: string;
   /** The business's name: who a client's conversation is with. */
   business: string;
   /** Members only: may delete this video (staff can be limited to their own recordings). */
@@ -143,36 +153,42 @@ function MemberUnlock({ teamKey, ...props }: Props & { teamKey: CryptoKey }) {
 
 function ClientUnlock({ clientId, ...props }: Props & { clientId: string }) {
   const [rootKey, setRootKey] = useState<CryptoKey | null>(null);
-  const [missing, setMissing] = useState(false);
+  const [missing, setMissing] = useState<"lost" | "wrong" | null>(null);
+  // The link just opened had a key that isn't theirs, but this device's own key still opens the video.
+  const [badLink, setBadLink] = useState(false);
   useEffect(() => {
     (async () => {
-      // Arriving from a personal link: keep the key on this device, then hide it from the address bar.
-      const fromLink = new URLSearchParams(window.location.hash.slice(1)).get("k");
-      if (fromLink) {
-        try {
-          await saveKey(clientKeyName(clientId), await importKey(fromLink));
-        } catch {
-          /* malformed link; fall through to the stored key */
-        }
-        history.replaceState(null, "", window.location.pathname + window.location.search);
-      }
+      // Arriving from a personal link: keep the key on this device if it really is theirs (it must unlock this
+      // video), then hide it from the address bar. A wrong one never replaces a key that works (C57).
+      const link = await takeLinkKey(clientId, props.video.clientKeyWrap).catch(() => "wrong" as const);
       const clientKey = await loadClientKey(clientId);
-      if (!clientKey || !props.video.clientKeyWrap) return setMissing(true);
+      const opened = clientKey && props.video.clientKeyWrap ? await unwrapKey(props.video.clientKeyWrap, clientKey).catch(() => null) : null;
+      if (!opened) return setMissing(link === "wrong" ? "wrong" : "lost");
       void markLinkOpened(clientId);
-      setRootKey(await unwrapKey(props.video.clientKeyWrap, clientKey));
-    })().catch(() => setMissing(true));
+      setBadLink(link === "wrong");
+      setRootKey(opened);
+    })().catch(() => setMissing("lost"));
   }, [clientId, props.video.clientKeyWrap]);
   if (missing) {
     return (
       <>
         {/* A reply interrupted here still finishes uploading (it's already sealed); it waits for them once the key's back. */}
         <RecoverUploads always />
-        <LostKey clientId={clientId} business={props.business} signInNext={`/v/${props.video.id}`} />
+        {missing === "wrong" ? (
+          <BadLinkKey clientId={clientId} business={props.business} signInNext={`/v/${props.video.id}`} />
+        ) : (
+          <LostKey clientId={clientId} business={props.business} signInNext={`/v/${props.video.id}`} />
+        )}
       </>
     );
   }
   if (!rootKey) return <Locked text="Unlocking…" />;
-  return <WatchBody {...props} canEdit={false} rootKey={rootKey} />;
+  return (
+    <>
+      <BadLinkNote clientId={clientId} now={badLink} />
+      <WatchBody {...props} canEdit={false} rootKey={rootKey} />
+    </>
+  );
 }
 
 /** Lets the business know this client has their personal link working (see api/clients/[id]/opened). */
@@ -199,7 +215,11 @@ const fileName = (...parts: string[]) => parts.map((p) => p.replace(/[^\w\- ]+/g
 
 function WatchBody({
   video,
+  viewer,
   ownerName,
+  messageFrom,
+  replyTo,
+  clientName,
   business,
   canEdit,
   canDelete,
@@ -235,7 +255,7 @@ function WatchBody({
   const [title, setTitle] = useState(video.title);
   const recipient = clients.find((c) => c.id === sentToId);
   // Who the conversation is with: the business, for a client; the client, for the team (none until it's sent).
-  const counterpart = canEdit ? recipient?.name ?? null : business;
+  const counterpart = canEdit ? recipient?.name ?? null : replyTo ?? business;
   const unsent = canEdit && !sentToId;
   const [replies, setReplies] = useState(initialReplies);
   const [held, setHeld] = useState(initialHeld);
@@ -332,7 +352,10 @@ function WatchBody({
     else setSheet(false);
   }
 
+  // What opened the sheet, so keyboard focus goes back there when it closes (C66), not to the top of the page.
+  const opener = useRef<HTMLElement | null>(null);
   function openSheet() {
+    opener.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
     setSheet(true);
     stick.current = true;
     // An entry in the browser history, so the phone's Back button closes the sheet rather than leaving the page.
@@ -345,6 +368,29 @@ function WatchBody({
     panel.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     panel.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus({ preventScroll: true });
   }
+  const openConversationRef = useRef(openConversation);
+  openConversationRef.current = openConversation;
+
+  // The help chat's "Reply to …" button opens the reply box: on this page by an event, from another page by #reply.
+  useEffect(() => {
+    const open = () => openConversationRef.current();
+    window.addEventListener(OPEN_REPLY_EVENT, open);
+    if (window.location.hash === "#reply") {
+      history.replaceState(history.state, "", window.location.pathname + window.location.search);
+      open();
+    }
+    return () => window.removeEventListener(OPEN_REPLY_EVENT, open);
+  }, []);
+
+  // Closing the sheet (Escape, Close, Back) puts focus back on what opened it, or on the "Reply to …" button.
+  const hadSheet = useRef(false);
+  useEffect(() => {
+    if (sheet) return void (hadSheet.current = true);
+    if (!hadSheet.current) return;
+    hadSheet.current = false;
+    const back = opener.current?.isConnected ? opener.current : inline.current?.querySelector<HTMLElement>("[data-testid=chat-open]");
+    back?.focus();
+  }, [sheet]);
 
   useEffect(() => {
     if (!sheet) return;
@@ -371,6 +417,10 @@ function WatchBody({
   useEffect(() => {
     if (!recording) setAskDiscard(false);
   }, [recording]);
+  // "Discard this recording and close?" is the only question while it's asked.
+  useEffect(() => {
+    if (askDiscard) setConfirming(null);
+  }, [askDiscard]);
 
   // Widening the window past the phone layout shows the conversation in place.
   useEffect(() => {
@@ -543,6 +593,9 @@ function WatchBody({
 
   function askDelete(r: ReplyDTO) {
     setReplyError(null);
+    // One question at a time (C31): a "Discard this reply?" below closes, so two Delete buttons are never on screen.
+    composer.current?.cancelAsk();
+    setAskDiscard(false);
     setConfirming(r.id);
     setRefocus(`keep:${r.id}`);
   }
@@ -665,7 +718,7 @@ function WatchBody({
             Finishing {canEdit ? "a recording" : "your reply"} that was interrupted. It&rsquo;ll be ready {readyIn(recovering)}.
           </p>
         )}
-        {sealedMessage && !canEdit && <BusinessMessage sealed={sealedMessage} rootKey={rootKey} from={ownerName} />}
+        {sealedMessage && !canEdit && <BusinessMessage sealed={sealedMessage} rootKey={rootKey} from={messageFrom ?? ownerName} />}
         <div style={showPlayer ? frame.style : undefined} className="relative mx-auto overflow-hidden rounded-2xl bg-black shadow-sm">
           {video.status === "RECORDING" ? (
             <div className="grid aspect-video place-items-center text-dim">This recording is still uploading. If its page was closed, it&rsquo;s finished within about 90 seconds. Refresh in a moment.</div>
@@ -705,7 +758,7 @@ function WatchBody({
           <div data-testid="end-prompt" className="mt-4 flex flex-col gap-3 rounded-2xl border border-primary-line bg-primary-soft p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-ink">Finished watching? Let {business} know what you think, with a message, a voice note or a video.</p>
             <button onClick={openConversation} className="shrink-0 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">
-              Reply to {business}
+              Reply to {counterpart}
             </button>
           </div>
         )}
@@ -742,10 +795,20 @@ function WatchBody({
                 </p>
               </>
             ) : (
-              <h1 className="text-2xl font-semibold leading-snug text-ink [overflow-wrap:break-word]">{title}</h1>
+              <>
+                {/* Says who it's for, so a client can tell this link is theirs and wasn't meant for someone else (S17). */}
+                {clientName && (
+                  <p className="mb-1 text-sm font-medium text-muted" data-testid="video-for">
+                    For {clientName}
+                  </p>
+                )}
+                <h1 className="text-2xl font-semibold leading-snug text-ink [overflow-wrap:break-word]">{title}</h1>
+              </>
             )}
             <p className="mt-1 px-1 text-sm text-dim" data-testid="video-meta">
-              {ownerName} · {day(video.createdAt)}
+              {ownerName}
+              {/* A title that's just the date it was made already says the date (C4). */}
+              {(canEdit || !isDefaultTitle(title)) && ` · ${day(video.createdAt)}`}
               {/* Only the team sees how often the client opened it. */}
               {canEdit && ` · ${video.viewCount} ${video.viewCount === 1 ? "view" : "views"}`}
             </p>
@@ -800,12 +863,14 @@ function WatchBody({
         {video.purgeAt && !expired && (
           <p className="mt-3 flex items-start gap-2 px-1 text-xs text-dim" data-testid="purge-note">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-px shrink-0" aria-hidden><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
-            <span>
-              End-to-end encrypted. This video will be deleted from SureFrame on {day(video.purgeAt)}. Save it to your device if you want to keep a copy.
-              {/* Clients ask how long they have to reply: there's no deadline (How this works says how long replies are kept). */}
-              {!canEdit && " You can still reply after that date."}
-              {isWebm && playable && " It saves as a .webm file, which some iPhones can't play; a computer can."}
-            </span>
+            {canEdit ? (
+              <span>End-to-end encrypted. This video will be deleted from SureFrame on {day(video.purgeAt)}. Save it to your device if you want to keep a copy.</span>
+            ) : (
+              // One line for clients (C13); replying after that date and the .webm detail are in How this works.
+              <span>
+                End-to-end encrypted. Deleted from SureFrame on {day(video.purgeAt)}, so save a copy if you want to keep it.
+              </span>
+            )}
           </p>
         )}
 
@@ -832,13 +897,14 @@ function WatchBody({
                 );
               })}
             </div>
+            {/* The reaction's lasting state, not a "Sent." that reads like an old notification on every later visit (C9). */}
             <p role="status" className="px-1 pt-1.5 text-xs text-muted" data-testid="reaction-note">
               {reactNote === "failed"
                 ? "That didn't go through. Check your connection and try again."
-                : reactNote === "removed"
-                  ? "Reaction taken back."
-                  : reactNote === "sent" && mine
-                    ? `Sent. ${business} can see your ${mine}. Tap it again to take it back.`
+                : mine
+                  ? `Your reaction: ${mine}. ${business} can see it. Tap it again to take it back.`
+                  : reactNote === "removed"
+                    ? "Reaction taken back."
                     : ""}
             </p>
           </div>
@@ -899,13 +965,19 @@ function WatchBody({
             {unread > 0 && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" aria-hidden data-testid="inline-unread" />}
           </div>
           <button onClick={openSheet} data-testid="chat-open" className="mt-3 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover">
-            {canEdit ? "Open conversation" : `Reply to ${business}`}
+            {canEdit ? "Open conversation" : `Reply to ${counterpart}`}
           </button>
         </div>
 
         {!canEdit && aiBox}
         {ai?.notice && !canEdit && <AiNotice className="mt-4" />}
-        {!canEdit && <HowThisWorks business={business} purgeAt={video.purgeAt} expired={expired} />}
+        {/* To-dos and notes the business shared, under their videos as well as in All my videos (C61). Hidden when there are none. */}
+        {!canEdit && viewer.kind === "client" && (
+          <div className="mt-5">
+            <ClientPlanner clientId={viewer.clientId} title={`Your to-dos & notes from ${business}`} hideWhenEmpty />
+          </div>
+        )}
+        {!canEdit && <HowThisWorks business={business} purgeAt={video.purgeAt} expired={expired} webm={isWebm && !!playable} />}
       </section>
 
       {!sheet && bubbleShown && (
@@ -994,11 +1066,15 @@ function WatchBody({
                 {r.kind === "TEXT" ? (
                   <div className={`max-w-[90%] rounded-2xl px-3 py-2 ${r.mine ? "rounded-tr-sm bg-primary text-on-primary" : "rounded-tl-sm bg-surface-2 text-ink"}`}>
                     {r.timestampMs !== null && (
+                      // Where in the video it was written, said as such (a bare "0:06" read like a voice note's length, C52).
                       <button
                         onClick={() => seek(r.timestampMs)}
+                        aria-label={`Written at ${fmt(r.timestampMs)} in the video. Play from there`}
+                        title={`Written at ${fmt(r.timestampMs)} in the video. Tap to play from there.`}
+                        data-testid="reply-moment"
                         className={`mr-1.5 rounded px-1.5 text-xs font-medium ${r.mine ? "bg-white/20 text-white" : "bg-surface text-accent"}`}
                       >
-                        {fmt(r.timestampMs)}
+                        at {fmt(r.timestampMs)}
                       </button>
                     )}
                     <ReplyText reply={r} conversationKey={rootKey} />
@@ -1090,6 +1166,7 @@ function WatchBody({
           onBusyChange={onRecording}
           offscreen={!wide && !sheet}
           sentNote={sentNote}
+          onAsk={() => setConfirming(null)}
         />
       </aside>
     </div>
@@ -1123,7 +1200,29 @@ function ReplyText({ reply, conversationKey }: { reply: ReplyDTO; conversationKe
     if (!reply.encrypted || !reply.body) return;
     decryptText(reply.body, conversationKey).then(setText, () => setText("[Couldn't unlock this message]"));
   }, [reply.body, reply.encrypted, conversationKey]);
-  return <span className="whitespace-pre-wrap [overflow-wrap:anywhere]">{text ?? "…"}</span>;
+  return <span className="whitespace-pre-wrap [overflow-wrap:anywhere]">{text === null ? "…" : <Linked text={text} />}</span>;
+}
+
+/** Web addresses in a text reply as links that open in a new tab (C24). Only http(s), and never sent anywhere else. */
+function Linked({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/[^\s<>"]+)/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (i % 2 === 0) return part;
+        // A full stop or bracket closing the sentence isn't part of the address.
+        const url = part.replace(/[.,!?;:)\]'"]+$/, "");
+        return (
+          <span key={i}>
+            <a href={url} target="_blank" rel="noopener noreferrer nofollow ugc" className="underline underline-offset-2" data-testid="reply-link">
+              {url}
+            </a>
+            {part.slice(url.length)}
+          </span>
+        );
+      })}
+    </>
+  );
 }
 
 function ReplyMedia({ reply, conversationKey }: { reply: ReplyDTO; conversationKey: CryptoKey }) {
@@ -1139,6 +1238,28 @@ function ReplyMedia({ reply, conversationKey }: { reply: ReplyDTO; conversationK
   return <VideoReplyChip reply={reply} mediaKey={key} />;
 }
 
+/** A recording's length from the file itself (WebM recordings don't say until asked: see fixDuration). */
+function useMediaLength(src: string | null | undefined) {
+  const [ms, setMs] = useState<number | null>(null);
+  useEffect(() => {
+    if (!src) return;
+    const el = document.createElement("video");
+    el.preload = "metadata";
+    el.muted = true;
+    const undo = fixDuration(el);
+    const read = () => Number.isFinite(el.duration) && el.duration > 0 && setMs(Math.round(el.duration * 1000));
+    el.addEventListener("durationchange", read);
+    el.src = src;
+    return () => {
+      undo();
+      el.removeEventListener("durationchange", read);
+      el.removeAttribute("src");
+      el.load();
+    };
+  }, [src]);
+  return ms;
+}
+
 const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
 
 /**
@@ -1152,7 +1273,8 @@ function VideoReplyChip({ reply, mediaKey }: { reply: ReplyDTO; mediaKey: Crypto
   const player = useRef<HTMLMediaElement | null>(null);
   const poster = usePoster(src);
   const [open, setOpen] = useState(false);
-  const length = media.durationMs;
+  // The recording's own length once it's unlocked, so the still says what the player says (C35); until then, the timed one.
+  const length = useMediaLength(src) ?? media.durationMs;
   // Opened by a tap, so it may start playing straight away.
   useEffect(() => {
     if (open) player.current?.play().catch(() => {});
@@ -1322,7 +1444,7 @@ function MessageEditor({ videoId, rootKey, sealed, to }: { videoId: string; root
 }
 
 /** For clients: plain answers to what clients ask, each one true to how SureFrame works. */
-function HowThisWorks({ business, purgeAt, expired }: { business: string; purgeAt: string | null; expired: boolean }) {
+function HowThisWorks({ business, purgeAt, expired, webm = false }: { business: string; purgeAt: string | null; expired: boolean; webm?: boolean }) {
   const qa: [string, string][] = [
     [
       "Who can see my replies?",
@@ -1343,8 +1465,16 @@ function HowThisWorks({ business, purgeAt, expired }: { business: string; purgeA
     ],
     [
       "Watching on another device?",
-      `Open the personal link ${business} gave you on that device once (the full link, including the part after #k=). After that, their videos and email links open there too. The address in your browser bar (ending in /v/…) doesn't unlock anything on its own.`,
+      `Open the personal link ${business} gave you on that device once: the whole link from their message (it's long, so make sure you use all of it). After that, their videos and email links open there too. The address in your browser bar (ending in /v/…) doesn't unlock anything on its own.`,
     ],
+    ...(!expired
+      ? ([
+          [
+            "Can I keep a copy?",
+            `Yes: Save to device saves this video on your phone or computer.${webm ? " It saves as a .webm file, which some iPhones can't play; a computer can." : ""}${purgeAt ? ` Save it before ${day(purgeAt)}, when it's deleted from SureFrame. You can still reply after that date.` : ""}`,
+          ],
+        ] as [string, string][])
+      : []),
     ["Can anyone see that I watched?", `${business} can see how many times you've opened this video, and the reaction you pick. Other clients can't.`],
   ];
   return (

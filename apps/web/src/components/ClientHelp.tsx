@@ -4,8 +4,15 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { HelpPage } from "@/lib/support/clientHelp";
 
-/** A business whose link this device (or this email link) has, and the proof the help chat checks. */
-export type HelpFor = { clientId: string; business: string; s?: string };
+/**
+ * A business whose link this device (or this email link) has, and the proof the help chat checks. `limits` is how
+ * many questions the panel says can be asked (lib/support/clientHelp.ts); `reply` is the video whose reply box the
+ * "Reply to …" button opens, and who it's to, where the client can reply from here.
+ */
+export type HelpFor = { clientId: string; business: string; s?: string; limits?: string; reply?: { videoId: string; to: string } };
+
+/** WatchView listens for this and opens its reply box (the sheet on a phone), as its own "Reply to …" button does. */
+export const OPEN_REPLY_EVENT = "sureframe:open-reply";
 type Turn = { role: "client" | "assistant"; text: string; answered?: boolean };
 
 /** Where the panel opens: a slot ClientHeader renders under its top bar, so it pushes the page down rather than covering it. */
@@ -35,12 +42,20 @@ export default function ClientHelp({ for: businesses, page, videoId }: { for: He
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  // Refused for a while (a limit): when each business's chat can be used again. Ask stays off until then.
+  const [blocked, setBlocked] = useState<Record<string, number>>({});
+  const [, setTick] = useState(0);
   const button = useRef<HTMLButtonElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
   const panelId = useId();
 
   useEffect(() => setSlot(document.getElementById(SLOT)), []);
+  // This page's reply box is there (not a "can't open" card in its place), so the "Reply to …" button can open it.
+  const [replyHere, setReplyHere] = useState(false);
+  useEffect(() => {
+    if (open) setReplyHere(!!document.querySelector("[data-testid=reply-composer]"));
+  }, [open]);
   useEffect(() => setTurns(stored(key)), [key]);
 
   // Escape closes it and puts focus back on the Help button; opening puts the cursor in the question box.
@@ -61,10 +76,40 @@ export default function ClientHelp({ for: businesses, page, videoId }: { for: He
     if (open) end.current?.scrollIntoView({ block: "nearest" });
   }, [open, turns.length, busy]);
 
+  const until = about ? blocked[about.clientId] : undefined;
+  const refused = !!until && until > Date.now();
+  // Ask comes back on its own once the limit resets.
+  useEffect(() => {
+    if (!until) return;
+    const wait = until - Date.now();
+    if (wait <= 0) return;
+    const t = setTimeout(() => (setTick((n) => n + 1), setError(undefined)), Math.min(wait + 500, 2 ** 31 - 1));
+    return () => clearTimeout(t);
+  }, [until]);
+
   if (!about) return null;
 
+  /** Closes help and opens the reply box: on this video's page straight away, otherwise on the video's page. */
+  function replyToBusiness() {
+    const target = about.reply;
+    if (!target) return;
+    setOpen(false);
+    if (target.videoId === videoId) window.dispatchEvent(new Event(OPEN_REPLY_EVENT));
+    else window.location.assign(`/v/${target.videoId}#reply`);
+  }
+  const replyButton = about.reply && (about.reply.videoId !== videoId || replyHere) && (
+    <button
+      type="button"
+      onClick={replyToBusiness}
+      data-testid="client-help-reply"
+      className="mt-1.5 rounded-lg border border-primary bg-surface px-3 py-1.5 text-sm font-semibold text-ink hover:bg-primary-soft"
+    >
+      Reply to {about.reply.to}
+    </button>
+  );
+
   async function ask(question: string) {
-    if (!question.trim() || busy) return;
+    if (!question.trim() || busy || refused) return;
     const before = turns;
     const asked = [...before, { role: "client" as const, text: question.trim() }];
     setTurns(asked);
@@ -85,6 +130,11 @@ export default function ClientHelp({ for: businesses, page, videoId }: { for: He
         }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 429 && data.retryAt) {
+        const at = new Date(data.retryAt).getTime();
+        setBlocked((b) => ({ ...b, [about.clientId]: at }));
+        throw new Error([data.error, againAt(at), data.contact].filter(Boolean).join(" "));
+      }
       if (!res.ok) throw new Error(data.error ?? "That didn't go through. Please try again.");
       const next = [...asked, { role: "assistant" as const, text: String(data.reply), answered: !!data.answered }];
       setTurns(next);
@@ -130,7 +180,11 @@ export default function ClientHelp({ for: businesses, page, videoId }: { for: He
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite" data-testid="client-help-messages">
           <Bubble mine={false} text={`Hi! Ask me how to watch, reply or use these pages. For anything about ${about.business} itself, I'll tell you how to reach them.`} />
           {turns.map((t, i) => (
-            <Bubble key={i} mine={t.role === "client"} text={t.text} />
+            <div key={i}>
+              <Bubble mine={t.role === "client"} text={t.text} />
+              {/* An answer it couldn't give (or an error) ends with the way to reach the business: their reply box. */}
+              {t.role === "assistant" && !t.answered && replyButton}
+            </div>
           ))}
           {busy && <p className="text-sm text-dim">Thinking…</p>}
           <div ref={end} />
@@ -160,13 +214,21 @@ export default function ClientHelp({ for: businesses, page, videoId }: { for: He
               aria-label="Your question"
               className="min-h-[2.75rem] min-w-0 flex-1 resize-none rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
             />
-            <button disabled={busy || !text.trim()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
+            <button disabled={busy || refused || !text.trim()} data-testid="client-help-ask" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
               Ask
             </button>
           </div>
           {error && (
-            <p role="alert" className="mt-2 text-sm text-danger-fg">
-              {error}
+            <div className="mt-2">
+              <p role="alert" className="text-sm text-danger-fg" data-testid="client-help-error">
+                {error}
+              </p>
+              {replyButton}
+            </div>
+          )}
+          {about.limits && (
+            <p className="mt-2 text-xs text-dim" data-testid="client-help-limits">
+              {about.limits}
             </p>
           )}
           <p className="mt-2 text-[0.6875rem] leading-4 text-dim">
@@ -198,6 +260,13 @@ export default function ClientHelp({ for: businesses, page, videoId }: { for: He
       {open && slot && createPortal(panel, slot)}
     </>
   );
+}
+
+/** When a refused question can be asked again, in the reader's own clock: "in 7 minutes", or "from Oct 23, 3:24 PM". */
+function againAt(at: number) {
+  const mins = Math.max(1, Math.ceil((at - Date.now()) / 60_000));
+  if (mins <= 60) return `You can ask again in ${mins} ${mins === 1 ? "minute" : "minutes"}.`;
+  return `You can ask again from ${new Date(at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`;
 }
 
 function Bubble({ mine, text }: { mine: boolean; text: string }) {

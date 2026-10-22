@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import CantOpen from "./CantOpen";
-import { importKey } from "@/lib/e2e/crypto";
 import { keyHeldCookie, markKeyHeld } from "@/lib/e2e/keyHeld";
-import { clientKeyName, loadKey, saveKey } from "@/lib/e2e/keystore";
+import { clientKeyName, loadKey } from "@/lib/e2e/keystore";
+import { takeLinkKey } from "@/lib/e2e/linkKey";
 
 /**
  * "Ask for my link again": emails the business to send the client's personal link (lib/askForLink.ts),
@@ -42,16 +42,26 @@ export function AskForLink({ business, url, action, unlocks = "this video" }: { 
 
 /**
  * A client this browser recognises (it has opened one of their links) but without the key that unlocks
- * their videos: an email link opened on a new device, a link missing its #k= part, or a browser that
+ * their videos: an email link opened on a new device, a link cut short before its key, or a browser that
  * cleared its storage (Safari does after a week or so without a visit). Only the business can send the
- * personal link again, so this asks them to.
+ * personal link again, so this asks them to. Its heading is the same "private" one a plain /v/ address
+ * gets (app/v/[id]/page.tsx), as it's the same situation for the client.
  */
 export default function LostKey({ clientId, business, signInNext, unlocks = "this video" }: { clientId: string; business: string; signInNext?: string; unlocks?: string }) {
   return (
-    <CantOpen title="This device needs your personal link" testId="lost-key" signInNext={signInNext} action={<AskForLink business={business} url={`/api/clients/${clientId}/lost-key`} unlocks={unlocks} />}>
+    <CantOpen
+      title={unlocks === "this video" ? "This video is private" : "Your videos are private"}
+      testId="lost-key"
+      signInNext={signInNext}
+      action={<AskForLink business={business} url={`/api/clients/${clientId}/lost-key`} unlocks={unlocks} />}
+    >
       <p>
-        Videos from {business} unlock with the personal link they gave you: the full link, including the part after <span className="whitespace-nowrap">#k=</span>. This
-        device hasn&rsquo;t opened that link yet, or this browser has since cleared it.
+        Videos from {business} unlock with the personal link they sent you. Use the whole link from their message: it&rsquo;s long, and its end is the part that
+        unlocks them.
+      </p>
+      <p>
+        This device hasn&rsquo;t opened that link yet, or this browser has since cleared it. If you just opened a link from a text or chat and still see this, it may
+        have been cut short: open it again from the original message.
       </p>
       <p>Open your personal link on this device once, and {unlocks === "this video" ? "this video and future" : "your videos and"} email links from {business} will open here.</p>
     </CantOpen>
@@ -59,30 +69,73 @@ export default function LostKey({ clientId, business, signInNext, unlocks = "thi
 }
 
 /**
+ * A link whose key isn't this client's (a character changed, or cut short) on a device that has no working key of
+ * its own. The key wasn't saved (lib/e2e/linkKey.ts), so opening the right link fixes it.
+ */
+export function BadLinkKey({ clientId, business, signInNext, unlocks = "this video" }: { clientId: string; business: string; signInNext?: string; unlocks?: string }) {
+  return (
+    <CantOpen title="This link is incomplete or mistyped" testId="bad-link-key" signInNext={signInNext} action={<AskForLink business={business} url={`/api/clients/${clientId}/lost-key`} unlocks={unlocks} />}>
+      <p>Open it again from the original message, making sure you use the whole link: it&rsquo;s long, and its end is the part that unlocks {unlocks}.</p>
+      <p>Still not opening? Ask {business} to send your personal link again.</p>
+    </CantOpen>
+  );
+}
+
+const BAD_LINK_NOTE = "sureframe.badlink.";
+
+/** Remembers, for the page after a reload, that the link just opened had a wrong key and this device kept its own. */
+export function noteBadLink(clientId: string) {
+  try {
+    sessionStorage.setItem(BAD_LINK_NOTE + clientId, "1");
+  } catch {
+    /* storage blocked: no note, the videos still open */
+  }
+}
+
+/**
+ * Said above the videos when the link just opened had a wrong key but this device already had the right one: nothing
+ * changed here, and the person knows the link they have (or forwarded) is the faulty one. `now` shows it straight
+ * away; otherwise it's shown once if noteBadLink left word before a reload.
+ */
+export function BadLinkNote({ clientId, now = false }: { clientId: string; now?: boolean }) {
+  const [shown, setShown] = useState(now);
+  useEffect(() => {
+    if (now) return setShown(true);
+    try {
+      if (sessionStorage.getItem(BAD_LINK_NOTE + clientId)) {
+        sessionStorage.removeItem(BAD_LINK_NOTE + clientId);
+        setShown(true);
+      }
+    } catch {
+      /* storage blocked */
+    }
+  }, [clientId, now]);
+  if (!shown) return null;
+  return (
+    <p role="status" data-testid="bad-link-note" className="mb-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg">
+      The link you just opened is incomplete or mistyped, so this device kept the key it already had and your videos still open. If you forward that link, send
+      it again from the original message.
+    </p>
+  );
+}
+
+/**
  * Stands in for a client's videos (inbox section, video page) until this browser is known to hold their key
  * (lib/e2e/keyHeld.ts). If the key is here after all (arriving from the personal link, or saved before the
  * server was told), it tells the server and reloads into the videos (once per device); otherwise it explains
- * how to get it.
+ * how to get it. A link whose key isn't theirs is never saved over a key this device has (lib/e2e/linkKey.ts).
  */
 export function ClientKeyGate({ clientId, business, signInNext, unlocks }: { clientId: string; business: string; signInNext?: string; unlocks?: string }) {
-  const [state, setState] = useState<"checking" | "opening" | "missing">("checking");
+  const [state, setState] = useState<"checking" | "opening" | "missing" | "wrong">("checking");
   const tried = useRef(false);
   useEffect(() => {
     if (tried.current) return;
     tried.current = true;
     (async () => {
-      // Arriving from the personal link: keep the key on this device, then hide it from the address bar.
-      const fromLink = new URLSearchParams(window.location.hash.slice(1)).get("k");
-      if (fromLink) {
-        try {
-          await saveKey(clientKeyName(clientId), await importKey(fromLink));
-          void fetch(`/api/clients/${clientId}/opened`, { method: "POST" }).catch(() => {});
-        } catch {
-          /* malformed link: fall through to a key saved before */
-        }
-        history.replaceState(null, "", window.location.pathname + window.location.search);
-      }
-      if (!(await loadKey(clientKeyName(clientId)))) return setState("missing");
+      // Arriving from the personal link: keep the key on this device (only if it's really theirs), then hide it from the address bar.
+      const link = await takeLinkKey(clientId).catch(() => "wrong" as const);
+      if (!(await loadKey(clientKeyName(clientId)))) return setState(link === "wrong" ? "wrong" : "missing");
+      if (link === "wrong") noteBadLink(clientId);
       markKeyHeld(clientId, true);
       // A browser that won't keep the note (cookies blocked) would come straight back here: say what's in the way instead.
       if (!document.cookie.split("; ").includes(`${keyHeldCookie(clientId)}=1`)) return setState("missing");
@@ -91,6 +144,7 @@ export function ClientKeyGate({ clientId, business, signInNext, unlocks }: { cli
       window.location.reload();
     })().catch(() => setState("missing"));
   }, [clientId]);
+  if (state === "wrong") return <BadLinkKey clientId={clientId} business={business} signInNext={signInNext} unlocks={unlocks} />;
   if (state === "missing") return <LostKey clientId={clientId} business={business} signInNext={signInNext} unlocks={unlocks} />;
   return (
     <p className="rounded-2xl border border-line bg-surface p-10 text-center text-sm text-muted" role="status" data-testid="key-checking">
