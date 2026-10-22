@@ -3,7 +3,8 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import * as store from "@/lib/recorder/store";
 import { ChunkedUploader, FatalUploadError, lockName, mayRecover, type UploadState } from "@/lib/recorder/uploader";
-import { bitrateFor, pickMimeType, stopAll } from "@/lib/recorder/media";
+import { bitrateFor, getCameraAndMic, getMic, pickMimeType, stopAll, type CameraPick, type Facing } from "@/lib/recorder/media";
+import { cameraSides, hasFrontAndBack } from "@/lib/recorder/cameras";
 import { encryptFrame, encryptText, generateKey, wrapKey } from "@/lib/e2e/crypto";
 import type { ReplyDTO } from "@/lib/replies";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
@@ -88,9 +89,15 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   const [text, setText] = useState("");
   const [textBusy, setTextBusy] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
-  const [facing, setFacing] = useState<"user" | "environment">("user");
-  // Flip camera only where there's another camera to flip to (phones, mostly).
-  const [cameras, setCameras] = useState(0);
+  // Which camera and microphone (Decision 14), as the recorder picks them (lib/recorder/cameras.ts): a phone or tablet
+  // flips between its front and rear camera; a computer chooses from its cameras and microphones.
+  const [frontBack, setFrontBack] = useState(false);
+  useEffect(() => setFrontBack(hasFrontAndBack()), []);
+  const [facing, setFacing] = useState<Facing>("user");
+  const [cams, setCams] = useState<MediaDeviceInfo[]>([]);
+  const [mics, setMics] = useState<MediaDeviceInfo[]>([]);
+  const [camId, setCamId] = useState<string>();
+  const [micId, setMicId] = useState<string>();
   const [elapsed, setElapsed] = useState(0);
   const [upload, setUpload] = useState<UploadState>();
   const [error, setError] = useState<string>();
@@ -168,10 +175,8 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
       stream.current = null;
       // The closed camera's last picture goes too: the frame stays empty until the new one fills it.
       setPreviewKey((k) => k + 1);
-      return navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-        video: mode === "VIDEO" ? { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } } : false,
-      });
+      const cam: CameraPick = frontBack ? { facing } : camId ? { deviceId: camId } : undefined;
+      return mode === "VIDEO" ? getCameraAndMic(cam, micId, 1080) : getMic(micId);
     });
     cameraAsk.current = asked.catch(() => {});
     asked
@@ -183,16 +188,30 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
         setLiveStream(s);
         setPreviewKey((k) => k + 1);
         setPhase("preview");
-        // The list of cameras is only complete once access is allowed.
-        if (mode === "VIDEO") {
-          navigator.mediaDevices.enumerateDevices().then((d) => setCameras(d.filter((x) => x.kind === "videoinput").length), () => {});
-        }
+        // The lists of cameras and microphones are only complete (with names) once access is allowed.
+        navigator.mediaDevices.enumerateDevices().then(
+          (d) => {
+            if (cancelled) return;
+            setCams(d.filter((x) => x.kind === "videoinput" && x.deviceId));
+            setMics(d.filter((x) => x.kind === "audioinput" && x.deviceId));
+          },
+          () => {},
+        );
       })
-      .catch(() => !cancelled && setError(`Allow ${mode === "VIDEO" ? "camera and microphone" : "microphone"} access in your browser to record a reply.`));
+      .catch(() => {
+        if (cancelled) return;
+        // A chosen camera or microphone that's gone (unplugged): back to the browser's own choice.
+        if (camId || micId) {
+          setCamId(undefined);
+          setMicId(undefined);
+          return;
+        }
+        setError(`Allow ${mode === "VIDEO" ? "camera and microphone" : "microphone"} access in your browser to record a reply.`);
+      });
     return () => {
       cancelled = true;
     };
-  }, [mode, facing, session]);
+  }, [mode, facing, camId, micId, frontBack, session]);
 
   const releaseCamera = useCallback(() => {
     stopAll(stream.current);
@@ -635,15 +654,21 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
                 autoPlay
                 muted
                 playsInline
-                className={`absolute inset-0 h-full w-full object-cover ${facing === "user" ? "-scale-x-100" : ""} ${frame.ready ? "" : "opacity-0"}`}
+                className={`absolute inset-0 h-full w-full object-cover ${frontBack && facing === "environment" ? "" : "-scale-x-100"} ${frame.ready ? "" : "opacity-0"}`}
               />
               {!frame.ready && (
                 <p className="absolute inset-0 grid place-items-center text-xs text-dim" data-testid="camera-starting">
                   Starting camera…
                 </p>
               )}
-              {phase === "preview" && cameras > 1 && (
-                <button onClick={() => setFacing((f) => (f === "user" ? "environment" : "user"))} className="absolute right-2 top-2 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white">
+              {/* Phones and tablets: front or rear, on the picture itself (C26). */}
+              {phase === "preview" && frontBack && cameraSides(cams).length > 1 && (
+                <button
+                  onClick={() => setFacing((f) => (f === "user" ? "environment" : "user"))}
+                  aria-label={facing === "user" ? "Flip camera: use the rear camera" : "Flip camera: use the front camera"}
+                  data-testid="reply-flip-camera"
+                  className="absolute right-2 top-2 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white"
+                >
                   Flip camera
                 </button>
               )}
@@ -672,6 +697,39 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
           {liveStream && (phase === "preview" || phase === "recording") && (
             <div className="mt-2">
               <MicLevel stream={liveStream} />
+            </div>
+          )}
+          {/* Computers: which camera and microphone, under Record so it stays right below the picture (C54). */}
+          {phase === "preview" && !frontBack && ((mode === "VIDEO" && cams.length > 1) || mics.length > 1) && (
+            <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2" data-testid="reply-devices">
+              {mode === "VIDEO" && cams.length > 1 && (
+                <label className="grid min-w-0 gap-1">
+                  <span className="font-medium text-muted">Camera</span>
+                  <select
+                    value={camId ?? ""}
+                    onChange={(e) => setCamId(e.target.value || undefined)}
+                    className="w-full min-w-0 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm"
+                    data-testid="reply-camera-select"
+                  >
+                    <option value="">Default camera</option>
+                    {cams.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || "Camera"}</option>)}
+                  </select>
+                </label>
+              )}
+              {mics.length > 1 && (
+                <label className="grid min-w-0 gap-1">
+                  <span className="font-medium text-muted">Microphone</span>
+                  <select
+                    value={micId ?? ""}
+                    onChange={(e) => setMicId(e.target.value || undefined)}
+                    className="w-full min-w-0 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm"
+                    data-testid="reply-mic-select"
+                  >
+                    <option value="">Default microphone</option>
+                    {mics.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || "Microphone"}</option>)}
+                  </select>
+                </label>
+              )}
             </div>
           )}
           {phase === "preview" && (

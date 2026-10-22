@@ -65,6 +65,8 @@ for (const [name, device] of [["iPhone SE", devices["iPhone SE"]], ["iPhone 13",
   await page.click("[data-testid=chat-open]", { timeout: 20000 });
   await page.click("role=tab[name='Video']");
   await page.waitForSelector("button:has-text('Flip camera')", { timeout: 15000 });
+  // Decision 14: a phone flips between front and rear; the computer's camera and microphone menus aren't shown.
+  ok(`${name}: Flip camera on the picture, no camera list`, (await page.getAttribute("[data-testid=reply-flip-camera]", "aria-label")) === "Flip camera: use the rear camera" && (await page.locator("[data-testid=reply-camera-select]").count()) === 0);
   const vh = page.viewportSize().height;
   const rec = await page.locator("button:has-text('Record video reply')").boundingBox();
   ok(`${name}: Record button on screen with the camera open`, !!rec && rec.y >= 0 && rec.y + rec.height <= vh, JSON.stringify({ rec, vh }));
@@ -124,6 +126,47 @@ for (const [name, device] of [["iPhone SE", devices["iPhone SE"]], ["iPhone 13",
   await page.waitForTimeout(300);
   ok(`${name}: Escape closes it too`, (await page.locator("[data-testid=reply-video-dialog][open]").count()) === 0);
   ok(`${name}: Escape leaves the conversation open`, await page.isVisible("[data-testid=reply-sent]"));
+  await ctx.close();
+}
+
+// A computer (Decision 14, C54): Camera and Microphone menus, no Flip camera, and Record right under the picture.
+{
+  const ctx = await browser.newContext({ storageState: state, permissions: ["camera", "microphone"], viewport: { width: 1360, height: 900 } });
+  const page = await ctx.newPage();
+  await page.goto(url);
+  await page.click("[data-testid=chat-open]", { timeout: 20000 });
+  await page.click("role=tab[name='Video']");
+  await page.waitForSelector("[data-testid=reply-camera-select]", { timeout: 15000 });
+  const cams = await page.$$eval("[data-testid=reply-camera-select] option", (os) => os.map((o) => o.value).filter(Boolean));
+  ok("computer: a Camera menu lists its cameras", cams.length === 2, JSON.stringify(cams));
+  ok("computer: a Microphone menu too", (await page.locator("[data-testid=reply-mic-select]").count()) === 1);
+  ok("computer: no Flip camera", (await page.locator("[data-testid=reply-flip-camera]").count()) === 0);
+  const picture = await page.locator("[data-testid=reply-composer] video").evaluate((v) => v.parentElement.getBoundingClientRect().bottom);
+  const rec = await page.locator("button:has-text('Record video reply')").boundingBox();
+  ok("computer: Record is right under the picture", !!rec && rec.y >= picture && rec.y - picture <= 16, JSON.stringify({ picture, rec }));
+  const menus = await page.locator("[data-testid=reply-devices]").boundingBox();
+  ok("computer: the menus are under Record, not between it and the picture", !!menus && !!rec && menus.y > rec.y);
+  await page.locator("[data-testid=reply-composer] video").evaluate((v) => (v.dataset.old = "1"));
+  await page.selectOption("[data-testid=reply-camera-select]", cams[1]);
+  const using = await page
+    .waitForFunction(
+      (id) => {
+        const v = document.querySelector("[data-testid=reply-composer] video");
+        return v && !v.dataset.old && v.srcObject && v.srcObject.getVideoTracks()[0]?.getSettings().deviceId === id;
+      },
+      cams[1],
+      { timeout: 15000 },
+    )
+    .then(() => true, () => false);
+  ok("computer: choosing a camera switches the picture to it", using);
+  await page.click("button:has-text('Record video reply')");
+  await page.waitForSelector("text=/Recording · \\d/", { timeout: 15000 });
+  ok("computer: the menus go while recording", (await page.locator("[data-testid=reply-devices]").count()) === 0);
+  await page.waitForTimeout(1200);
+  await page.click("button:has-text('Stop recording')");
+  await page.waitForSelector("[data-testid=reply-review] video", { timeout: 15000 });
+  ok("computer: recorded with the chosen camera", true);
+  await page.screenshot({ path: `${shots}/reply-devices-computer.png` });
   await ctx.close();
 }
 
