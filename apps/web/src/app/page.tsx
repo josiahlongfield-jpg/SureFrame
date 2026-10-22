@@ -6,6 +6,7 @@ import FeatureFrames from "@/components/home/FeatureFrames";
 import { Icon } from "@/components/home/icons";
 import { points } from "@/components/home/points";
 import { BRAND } from "@/lib/brand";
+import { CLAUDE_BONUS } from "@/lib/claudeBonus";
 import { MAX_TRANSCRIBE_MINUTES } from "@/lib/ai/limits";
 import { PLANS } from "@/lib/plans";
 import { DATA_LOCATIONS, LEGAL } from "@/lib/legal";
@@ -125,7 +126,22 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="py-20">
+        <section className="py-20" data-testid="home-claude">
+          <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
+            <p className="kicker">{CLAUDE_BONUS.kicker}</p>
+            <h2 className="display mt-3 text-3xl sm:text-4xl">{CLAUDE_BONUS.title}</h2>
+            <p className="mt-4 text-muted">{CLAUDE_BONUS.blurb}</p>
+            <p className="mt-3 text-sm text-muted">{CLAUDE_BONUS.privacy}</p>
+            <Link href="/help/claude" className="mt-6 inline-block text-sm font-semibold text-accent hover:underline">
+              How it works
+            </Link>
+            <p className="mt-6 text-xs text-dim">
+              {CLAUDE_BONUS.needs} {CLAUDE_BONUS.trademark}
+            </p>
+          </div>
+        </section>
+
+        <section className="bg-band py-20">
           <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
             <p className="kicker">Studio and Agency</p>
             <h2 className="display mt-3 text-3xl sm:text-4xl">Ready for your whole team</h2>

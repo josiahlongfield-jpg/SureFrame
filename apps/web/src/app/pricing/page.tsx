@@ -21,6 +21,7 @@ import {
   PLANS,
   type PaidPlan,
 } from "@/lib/plans";
+import { CLAUDE_BONUS } from "@/lib/claudeBonus";
 import { MAX_TRANSCRIBE_MINUTES } from "@/lib/ai/limits";
 import { foundingLastDay, foundingOpen } from "@/lib/founding";
 import { automaticOffer, cachedOfferForCode, codeFromCookie, isCodeShaped, OFFER_COOKIE, offerIsFor, quietly, type Offer } from "@/lib/offers";
@@ -266,6 +267,17 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
               <p className="mt-4 text-sm text-muted">US${CLOUD_BACKUP_PRICE}/month or US${CLOUD_BACKUP_PRICE_YEARLY}/year on any paid plan</p>
             </div>
           </div>
+        </section>
+
+        <section className="mx-auto mt-6 max-w-3xl rounded-2xl border border-line bg-surface p-6" data-testid="bonus-claude">
+          <p className="text-xs font-semibold uppercase tracking-wide text-accent">Free on every plan</p>
+          <h3 className="mt-1 font-semibold text-ink">{CLAUDE_BONUS.kicker}: SureFrame for Claude</h3>
+          <p className="mt-2 text-sm text-muted">{CLAUDE_BONUS.blurb}</p>
+          <p className="mt-2 text-sm text-muted">{CLAUDE_BONUS.privacy}</p>
+          <p className="mt-3 text-xs text-dim">
+            No extra charge from us. {CLAUDE_BONUS.needs} {CLAUDE_BONUS.trademark}{" "}
+            <Link href="/help/claude" className="font-medium text-accent hover:underline">How it works</Link>
+          </p>
         </section>
 
         <GoodToKnow />

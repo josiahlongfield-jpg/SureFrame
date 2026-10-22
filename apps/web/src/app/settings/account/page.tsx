@@ -158,6 +158,14 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
           </form>
         </section>
 
+        {!limited && (
+          <section className="mt-6 rounded-2xl border border-line bg-surface p-6" data-testid="account-claude">
+            <h2 className="font-semibold text-ink">Use {LEGAL.product} with Claude <span className="ml-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted">Free bonus</span></h2>
+            <p className="mt-1 text-sm text-muted">Already use Claude? Connect it to ask for reports on your clients, replies and to-dos. It only reads, and only what you can see.</p>
+            <Link href="/settings/connections" className="mt-3 inline-block text-sm font-semibold text-accent hover:underline">Set it up in Connections</Link>
+          </section>
+        )}
+
         {!limited && <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
           <h2 className="font-semibold text-ink" id="recovery-key">Recovery key</h2>
           <p className="mt-1 text-sm text-muted">

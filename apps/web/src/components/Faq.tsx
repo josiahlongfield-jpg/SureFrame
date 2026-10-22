@@ -180,6 +180,23 @@ export const BUSINESS_FAQ: Qa[] = [
       </p>
     ),
   },
+  {
+    id: "claude",
+    q: "Can I use SureFrame with Claude?",
+    a: (
+      <>
+        <p>
+          Yes, as a free bonus on every plan. If you already use Claude, connect it in Settings &gt; Connections and ask it for reports: who&rsquo;s waiting for
+          a reply, which videos haven&rsquo;t been opened, what&rsquo;s overdue. It only reads, and only what you can see.
+        </p>
+        <p>
+          The online connector sees activity only (names, dates and whether things were opened or answered), not your encrypted messages or notes. The Claude
+          Desktop connector also reads those, unlocking them on your own computer. What Claude reads goes to Anthropic under your own Claude account.{" "}
+          <Link href="/help/claude">How it works</Link>.
+        </p>
+      </>
+    ),
+  },
 ];
 
 export const CLIENT_FAQ: Qa[] = [
