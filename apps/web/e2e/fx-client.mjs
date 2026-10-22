@@ -163,9 +163,13 @@ await phone.waitForFunction((s) => document.querySelector(s)?.getAttribute("aria
 await waitFor(async () => (await prisma.reaction.count({ where: { videoId, byClient: true } })) === 1, 5000);
 ok("reaction highlighted and saved once", (await prisma.reaction.count({ where: { videoId, byClient: true } })) === 1);
 ok("reaction: says which it is and who can see it (C9)", (await phone.textContent("[data-testid=reaction-note]", { timeout: 5000 })) === "Your reaction: 👍. Business A can see it. Tap it again to take it back.");
-await phone.reload();
-await phone.waitForSelector("[data-testid=reactions]", { timeout: 20000 });
-const lasting = await phone.textContent("[data-testid=reaction-note]");
+// A later visit, in another tab (a second reload of this page loses the phone emulation in Playwright's Chromium).
+const later = await phoneCtx.newPage();
+await later.goto(`${BASE}/v/${videoId}`);
+await later.waitForSelector("[data-testid=reactions]", { timeout: 20000 });
+await later.waitForFunction(() => document.querySelector("[data-testid=reaction-note]")?.textContent, null, { timeout: 10000 }).catch(() => {});
+const lasting = await later.textContent("[data-testid=reaction-note]");
+await later.close();
 ok("reaction: the same lasting line on a later visit, never a stale 'Sent.' (C9)", lasting === "Your reaction: 👍. Business A can see it. Tap it again to take it back." && !lasting.includes("Sent"), lasting);
 await phone.tap("button[aria-label='React 🎉']");
 await phone.waitForFunction(() => document.querySelector("button[aria-label='React 🎉']")?.getAttribute("aria-pressed") === "true" && document.querySelector("button[aria-label='React 👍']")?.getAttribute("aria-pressed") === "false");
@@ -338,17 +342,19 @@ const sealFor = async (text) => {
 };
 const momentReply = await prisma.reply.create({ data: { videoId, kind: "TEXT", body: "See https://example.com/plan.", encrypted: false, timestampMs: 6000, authorName: "Client A", byClient: true } });
 const sharedTodo = await prisma.item.create({ data: { kind: "TASK", body: await sealFor("Stretch every morning"), shared: true, authorName: "Owner", workspaceId: ws, clientId: clientRow.id } });
-await fresh.reload();
-await fresh.waitForSelector("[data-testid=reply-moment]", { state: "attached", timeout: 20000 });
-ok("a reply's moment is labelled 'at 0:06' (C52)", (await fresh.textContent("[data-testid=reply-moment]")).trim() === "at 0:06" && (await fresh.getAttribute("[data-testid=reply-moment]", "aria-label")).startsWith("Written at 0:06 in the video"));
-ok("a web address in a text reply is a link, without the full stop (C24)", (await fresh.getAttribute("[data-testid=reply-link]", "href")) === "https://example.com/plan" && (await fresh.getAttribute("[data-testid=reply-link]", "target")) === "_blank" && (await fresh.getAttribute("[data-testid=reply-link]", "rel")).includes("noopener"));
-ok("a shared to-do shows under the video (C61)", !!(await fresh.waitForSelector("[data-testid=planner] >> text=Stretch every morning", { timeout: 15000 }).catch(() => null)) && (await fresh.textContent("[data-testid=planner] h2")) === "Your to-dos & notes from Business A");
+const mom = await phoneCtx.newPage();
+await mom.goto(`${BASE}/v/${videoId}`);
+await mom.waitForSelector("[data-testid=reply-moment]", { state: "attached", timeout: 20000 });
+ok("a reply's moment is labelled 'at 0:06' (C52)", (await mom.textContent("[data-testid=reply-moment]")).trim() === "at 0:06" && (await mom.getAttribute("[data-testid=reply-moment]", "aria-label")).startsWith("Written at 0:06 in the video"));
+ok("a web address in a text reply is a link, without the full stop (C24)", (await mom.getAttribute("[data-testid=reply-link]", "href")) === "https://example.com/plan" && (await mom.getAttribute("[data-testid=reply-link]", "target")) === "_blank" && (await mom.getAttribute("[data-testid=reply-link]", "rel")).includes("noopener"));
+ok("a shared to-do shows under the video (C61)", !!(await mom.waitForSelector("[data-testid=planner] >> text=Stretch every morning", { timeout: 15000 }).catch(() => null)) && (await mom.textContent("[data-testid=planner] h2")) === "Your to-dos & notes from Business A");
 await prisma.reply.delete({ where: { id: momentReply.id } });
 await prisma.item.delete({ where: { id: sharedTodo.id } });
-await fresh.reload();
-await fresh.waitForSelector("[data-testid=chat-inline]", { timeout: 20000 });
-await fresh.waitForTimeout(1500);
-ok("nothing shared: no to-do card under the video", (await fresh.locator("[data-testid=planner]").count()) === 0);
+await mom.reload();
+await mom.waitForSelector("[data-testid=chat-inline]", { timeout: 20000 });
+await mom.waitForTimeout(1500);
+ok("nothing shared: no to-do card under the video", (await mom.locator("[data-testid=planner]").count()) === 0);
+await mom.close();
 
 // The business: their own messages on the right, the client's on the left, the view counted.
 await owner.reload();
