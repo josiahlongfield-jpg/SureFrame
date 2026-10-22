@@ -197,7 +197,7 @@ export function SupportChat({ signedIn, limits, className = "" }: { signedIn: bo
         {needsEmail && (
           <label className="mb-2 grid gap-1">
             <span id="help-email-note" className={`text-xs ${askEmail ? "font-medium text-ink" : "text-dim"}`}>
-              {askEmail ? "Where should a person reply? Add your email, then press Talk to a person again." : "Your email: needed to talk to a person, and for a reply by email"}
+              {askEmail ? "Where should a person reply? Add your email, then press Talk to a person again." : "Your email, needed to talk to a person"}
             </span>
             <input
               ref={emailBox}
