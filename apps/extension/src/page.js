@@ -89,6 +89,8 @@
       "all:initial;position:fixed;z-index:2147483647;border:0;margin:0;padding:0;width:0;height:0;display:block;" +
       "background:transparent;color-scheme:light;overflow:hidden;visibility:visible;opacity:1;pointer-events:auto";
     frame.addEventListener("load", connect);
+    // A frame the page took away leaves its code behind: clear it before naming the new one.
+    if (slot) void chrome.storage.session.remove(`bubble:${slot}`).catch(() => {});
     slot = crypto.randomUUID();
     frame.setAttribute("src", `${chrome.runtime.getURL("bubble.html")}#${slot}`);
     document.documentElement.append(frame);
