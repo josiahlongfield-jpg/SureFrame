@@ -294,10 +294,12 @@ ok("archive: the 11 October changes read as changes from the unnumbered versions
 // Sign-in pages: the keep-me-signed-in tick comes before the button that signs in; links out to pricing and legal.
 await visitor.goto(BASE + "/signup");
 ok("/signup: worded for a new account", norm(await visitor.textContent("[data-testid=login-heading]")) === "Create your free account");
-ok("/signup: the email box is ready to type in (V62)", await visitor.evaluate(() => document.activeElement?.getAttribute("name") === "email"));
+// Focused once the page has hydrated.
+ok("/signup: the email box is ready to type in (V62)", await visitor.waitForFunction(() => document.activeElement?.getAttribute("name") === "email", null, { timeout: 10000 }).then(() => true, () => false));
 await visitor.goto(`${BASE}/login?next=${encodeURIComponent("/pricing?plan=STUDIO&interval=year")}`);
 await seen(visitor, "[data-testid=login-heading]");
 const backTo = norm(await visitor.textContent("main"));
+await visitor.waitForFunction(() => document.activeElement?.getAttribute("name") === "email", null, { timeout: 10000 }).catch(() => {});
 const focusedBox = await visitor.evaluate(() => document.activeElement?.getAttribute("name"));
 ok("sign-in after Get Studio says it comes back to that plan (V18)", backTo.includes("Sign in or create your account; we'll bring you back to Studio (yearly).") && focusedBox === "email", `${focusedBox} | ${backTo.slice(0, 200)}`);
 await visitor.goto(BASE + "/signup");
