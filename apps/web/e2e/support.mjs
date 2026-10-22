@@ -438,6 +438,7 @@ await desk.evaluate(() => window.scrollTo(0, 0));
 await desk.waitForTimeout(400);
 ok("computer home page: and stays when scrolled back to the top", !(await deskHelp()).waiting);
 await desk.goto(BASE + "/faq");
+await desk.waitForSelector("[data-testid=help-button]", { state: "attached" });
 ok("computer, other pages: Help shows straight away", !(await deskHelp()).waiting && (await desk.isVisible("[data-testid=help-button]")));
 await desk.close();
 await owner.setViewportSize({ width: 390, height: 844 });

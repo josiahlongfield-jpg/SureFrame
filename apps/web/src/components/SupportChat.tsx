@@ -360,7 +360,9 @@ export default function SupportWidget({ signedIn, limits }: { signedIn: boolean;
   const opener = useRef<HTMLElement | null>(null);
 
   const show = useCallback(() => {
-    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // A tap that doesn't move focus leaves it on the page itself: that's no opener to go back to.
+    const active = document.activeElement;
+    opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
     setOpen(true);
   }, []);
   const close = useCallback(() => {
