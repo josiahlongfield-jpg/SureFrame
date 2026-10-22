@@ -85,7 +85,8 @@ ok("inbox told about the new message", outbox().slice(mailsBefore).some((m) => m
 
 // 4. Not an agent: the inbox is hidden
 const other = await (await browser.newContext()).newPage();
-await other.goto(BASE + "/support");
+// Signed out, /support itself goes to /help (V60), so they sign in on the way to it.
+await other.goto(BASE + "/login?next=%2Fsupport");
 const otherEmail = `someone${Date.now()}@peak.com`;
 await agreed(otherEmail);
 await other.fill('input[name="email"]', otherEmail);
@@ -106,7 +107,7 @@ ok("nor does their Settings page", (await other.locator("main a[href='/support']
 // 5. The agent answers from the inbox
 const agentCtx = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
 const agent = await agentCtx.newPage();
-await agent.goto(BASE + "/support");
+await agent.goto(BASE + "/login?next=%2Fsupport");
 await agreed(AGENT);
 await agent.fill('input[name="email"]', AGENT);
 await agent.click("text=Continue");

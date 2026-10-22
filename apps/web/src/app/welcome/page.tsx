@@ -28,8 +28,8 @@ const clean = (v: FormDataEntryValue | null) => String(v ?? "").replace(/\s+/g, 
  * business name clients see on videos and emails, together, so a new owner
  * isn't met by several prompts. Finishing it sends the welcome email, once.
  */
-export default async function Welcome({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {
-  const { next, error } = await searchParams;
+export default async function Welcome({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; left?: string }> }) {
+  const { next, error, left } = await searchParams;
   const to = destination(next);
   const me = await requirePageUser(welcomePath(to), { allowWelcome: true });
   if (!needsWelcome(me)) redirect(to);
@@ -66,9 +66,12 @@ export default async function Welcome({ searchParams }: { searchParams: Promise<
       <Logo href="/welcome" />
       {former.length > 0 && (
         <div role="status" className="mt-8 rounded-2xl border border-warn-line bg-warn-bg p-5 text-sm text-warn-fg" data-testid="removed-from-team">
-          <p className="font-semibold">You&apos;re no longer on {former.map((t) => t.name).join(" or ")}&apos;s team</p>
+          <p className="font-semibold">{left ? "You've left" : "You're no longer on"} {former.map((t) => t.name).join(" or ")}&apos;s team</p>
+          {/* Left by their own choice on Settings > Account (S40), or taken off by an owner or admin. */}
           <p className="mt-1">
-            An owner or admin removed you, so you can&apos;t open that team&apos;s videos or clients any more. If that&apos;s a mistake, ask them for a new invite link.
+            {left
+              ? "Its owner and admins have been emailed. To come back, you'd need a new invite link."
+              : "An owner or admin removed you, so you can't open that team's videos or clients any more. If that's a mistake, ask them for a new invite link."}
           </p>
           <p className="mt-2">
             You can still use {BRAND.name} for your own business below, free. It&apos;s separate from {former.length === 1 ? `${former[0].name}'s team` : "those teams"}, with

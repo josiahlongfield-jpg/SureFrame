@@ -323,18 +323,21 @@ ok("staff kept: open again, on their own and not on the team", new URL(samJoin.u
 // Leaving a team without closing the login (S40): the same steps as closing, but the account stays open.
 const leeEmail = `grace-lee${stamp}@example.com`;
 const lee = await prisma.user.create({ data: { email: leeEmail, name: `Lee ${stamp}`, activeWorkspaceId: team, memberships: { create: { workspaceId: team, role: "MEMBER" } } } });
+await prisma.invite.create({ data: { workspaceId: team, tokenHash: sha(`gr-lee-in-${stamp}`), teamKeyWrap: "w".repeat(60), expiresAt: new Date(Date.now() - D), invitedById: teamOwnerUser.id, acceptedAt: new Date(), acceptedById: lee.id } });
 const leeVideo = await prisma.video.create({ data: { id: `grl${stamp.toString(36)}`, mimeType: "video/webm", storageKey: `test/${stamp}/lee`, status: "UPLOADED", workspaceId: team, ownerId: lee.id } });
 const leePage = await signIn(leeEmail, "/settings/account");
 await leePage.click("[data-testid=leave-team-button]");
 ok("leave: asks once more first", (await leePage.textContent("[data-testid=leave-team-confirm]")).includes(`Leave ${teamName} now?`));
 await leePage.click("[data-testid=leave-team-yes]");
-await leePage.waitForSelector("[data-testid=left-team]", { timeout: 30000 });
+// With no business of their own, they go on to the welcome step for one, which says they left (not that they were removed).
+await leePage.waitForURL((u) => u.pathname === "/welcome", { timeout: 30000 });
+const leftNote = norm(await leePage.textContent("[data-testid=removed-from-team]").catch(() => ""));
+ok("leave: the next page says they've left the team, not that they were removed", leftNote.includes(`You've left ${teamName}'s team`) && leftNote.includes("Its owner and admins have been emailed") && !leftNote.includes("removed you"), leftNote);
 ok("leave: off the team, login still open", !(await prisma.membership.findFirst({ where: { workspaceId: team, userId: lee.id } })) && !(await prisma.user.findUnique({ where: { id: lee.id } })).deleteAt);
 ok("leave: their recording stays with the team, under the owner", (await prisma.video.findUnique({ where: { id: leeVideo.id } })).ownerId === teamOwnerUser.id);
 ok("leave: the team is asked to reset its keys", (await prisma.workspace.findUnique({ where: { id: team } })).keyResetNeeded === `Lee ${stamp}`);
 const leeLeftMail = await waitMail(teamOwnerEmail, (m) => m.subject === `Lee ${stamp} left ${teamName} on SureFrame`);
 ok("leave: the owner is emailed that they left (not that they closed their account)", !!leeLeftMail && leeLeftMail.text.includes("left your team on SureFrame") && leeLeftMail.text.includes("reset the keys on Settings > Team and staff"), leeLeftMail?.text);
-ok("leave: no more Leave block once off the team", (await leePage.locator("[data-testid=leave-team]").count()) === 0);
 
 await browser.close();
 await prisma.$disconnect();

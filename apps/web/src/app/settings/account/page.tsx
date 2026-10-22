@@ -110,6 +110,8 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
     if (!m || m.role === "OWNER") redirect("/settings/account?error=leave#leave-result");
     await leaveTeam(user.id, m.workspace, leaverName(user), { chose: true });
     revalidatePath("/", "layout");
+    // With no business of their own yet, the next page is the welcome step for one, which says they've left.
+    if (!user.onboardedAt && !(await db.membership.count({ where: { userId: user.id } }))) redirect("/welcome?left=1");
     redirect("/settings/account?saved=left#leave-result");
   }
 
