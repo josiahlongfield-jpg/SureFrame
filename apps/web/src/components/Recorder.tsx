@@ -56,12 +56,15 @@ export default function Recorder({
   maxDurationMin,
   freeVideos,
   teamKey,
+  recordedBefore = false,
 }: {
   maxResolution: Quality;
   maxDurationMin: number;
   /** Free: how many of the plan's videos in total are left. */
   freeVideos: { left: number; limit: number } | null;
   teamKey: CryptoKey;
+  /** This person has recorded before: the camera position, camera, microphone and quality start folded away (D12). */
+  recordedBefore?: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("screen+camera");
@@ -713,6 +716,7 @@ export default function Recorder({
   }
 
   const recordingish = phase === "recording" || phase === "paused";
+  const micCheck = phase === "setup" ? (mode !== "camera" ? <MicLevel deviceId={micId} /> : previewMic ? <MicLevel key={previewKey} stream={previewMic} /> : null) : null;
   // Only Camera only shows the camera full size. Screen + camera shows it where the video will: a circle in its corner.
   const bigCamera = mode === "camera";
   // Shown like a mirror, except the rear camera, which shows what's in front of you the right way round.
@@ -778,6 +782,8 @@ export default function Recorder({
           )}
           {phase === "countdown" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-black/60 text-white">
+              {/* Nothing is recorded during the countdown: say so, so nobody starts talking early (O30). */}
+              <span className="text-sm font-medium" data-testid="countdown-note">Recording starts in</span>
               <span className="text-8xl font-semibold">{count}</span>
               <button onClick={() => (cancelled.current = true)} className="rounded-lg bg-white/15 px-4 py-2 text-sm font-medium hover:bg-white/25">Cancel</button>
             </div>
@@ -864,13 +870,14 @@ export default function Recorder({
               {mode !== "camera" && extensionBrowser && !extension && canShareScreen && (
                 <p className="text-xs text-dim" data-testid="get-extension">
                   Want your camera bubble in the video wherever you drag it, on any web page you show?{" "}
-                  <a href={extensionUrl()} target="_blank" rel="noopener" className="font-medium text-primary underline underline-offset-2">
+                  <a href={extensionUrl()} target="_blank" rel="noopener" className="font-medium text-accent underline underline-offset-2">
                     Add the free SureFrame extension
                   </a>
                   .
                 </p>
               )}
             </fieldset>
+            <SettingsFold folded={recordedBefore}>
             {mode === "screen+camera" && <CornerPicker corner={corner} onCorner={setCorner} />}
 
             <div className="grid gap-3 text-sm">
@@ -899,7 +906,7 @@ export default function Recorder({
                 </select>
               </label>
               {/* Camera only measures the mic already open with the camera: opening it twice mutes one on a phone. */}
-              {phase === "setup" && (mode !== "camera" ? <MicLevel deviceId={micId} /> : previewMic ? <MicLevel key={previewKey} stream={previewMic} /> : null)}
+              {!recordedBefore && micCheck}
               {allowedQualities.length > 1 ? (
                 <label className="grid gap-1">
                   <span className="font-medium text-muted">Quality</span>
@@ -914,6 +921,9 @@ export default function Recorder({
                 </p>
               )}
             </div>
+            </SettingsFold>
+            {/* Folded away, the sound check still shows: it's worth a glance before every recording. */}
+            {recordedBefore && <div className="text-sm">{micCheck}</div>}
 
             {extensionAsk ? (
               <ExtensionPrompt
@@ -1110,5 +1120,16 @@ function UploadBadge({ s }: { s: UploadState }) {
       {s.bufferedBytes > 0 && <span className="text-dim"> (+{(s.bufferedBytes / 1024 / 1024).toFixed(1)} MB on device)</span>}
       {s.uploadedBytes === 0 && <span className="block text-xs text-dim">It goes up every few seconds while you record, and is kept safe in this browser until it&rsquo;s up.</span>}
     </p>
+  );
+}
+
+/** After a first recording, the less-used settings fold away under one line, leaving the mode and Start (D12). */
+function SettingsFold({ folded, children }: { folded: boolean; children: ReactNode }) {
+  if (!folded) return <>{children}</>;
+  return (
+    <details className="group rounded-xl border border-line p-3 text-sm" data-testid="recorder-settings">
+      <summary className="cursor-pointer font-medium text-muted">Camera, microphone and quality</summary>
+      <div className="mt-3 grid gap-5">{children}</div>
+    </details>
   );
 }

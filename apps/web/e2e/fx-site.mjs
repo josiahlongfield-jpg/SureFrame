@@ -500,6 +500,7 @@ await owner.click("[data-testid=cancel-plan-open]");
 await owner.waitForSelector("[data-testid=cancel-confirm]");
 const cancelText = norm(await owner.textContent("[data-testid=cancel-confirm]"));
 ok("Cancel plan explains what happens and when", cancelText.includes("You keep Studio until") && cancelText.includes("move to the Free plan"), cancelText);
+ok("the page's paragraph about cancelling isn't repeated in the dialog (O92)", !cancelText.includes("If you cancel, or a payment can't be taken") && norm(await owner.textContent("[data-testid=cancel-note]")).includes("If you cancel, or a payment can't be taken"), cancelText);
 ok("Cancel plan lists what Free would take away", cancelText.includes("On Free you'd lose:") && cancelText.includes("counts every video ever recorded on any plan"), cancelText);
 await owner.screenshot({ path: `${shots}/fx-cancel-dialog.png` });
 await owner.click("[data-testid=cancel-confirm-yes]");

@@ -47,10 +47,9 @@ const firstNote = norm(await owner.textContent("[data-testid=first-time] [data-t
 ok("new client: no email address saved, with Add email", firstNote.includes("No email address saved for Client N") && firstNote.includes("Add email"), firstNote);
 await owner.screenshot({ path: `${shots}/no-email-first.png`, fullPage: true });
 
-// Why the first video comes from you: shown with "Don't show this again", which sticks in this browser.
-ok("first video: says why, with Don't show this again", norm(await owner.textContent("[data-testid=first-why]")).includes("This video still goes to Client N") && (await owner.isVisible("[data-testid=first-why-hide]")));
-await owner.check("[data-testid=first-why-hide]");
-ok("ticking it leaves the text there while reading", await owner.isVisible("[data-testid=first-why]"));
+// Why the first video comes from you: one line, with the longer why folded under the expander (O32, S13).
+ok("first video: says why in one line", norm(await owner.textContent("[data-testid=first-why-line]")).includes("First video for Client N: send it yourself") && (await owner.locator("[data-testid=first-why-hide]").count()) === 0);
+ok("the longer why is behind Why does the first video come from me?", await owner.isVisible("[data-testid=first-why-more]"));
 
 // Once they've opened a video, only Copy link is left for them: the note sits above it.
 const n = await prisma.client.findFirst({ where: { workspaceId: ws, name: "Client N" } });
@@ -81,12 +80,12 @@ ok("email saved for the client", (await prisma.client.findUnique({ where: { id: 
 ok("note gone, Send by email back", (await owner.locator("[data-testid=no-email]").count()) === 0 && norm(await owner.textContent("[data-testid=send-panel]")).includes("Saved Client N's email"));
 await owner.screenshot({ path: `${shots}/no-email-saved.png`, fullPage: true });
 
-// Another new client later: the explanation stays hidden, just the buttons.
+// Another new client later: the same one line and the buttons (nothing to hide any more).
 await owner.click("[data-testid=quick-add-open]");
 await owner.fill("[data-testid=quick-add] input[aria-label='Client name']", "Client M");
 await owner.click("[data-testid=quick-add] button:has-text('Add client')");
 await owner.waitForSelector("[data-testid=first-links]", { timeout: 15000 });
-ok("after Don't show this again: no explanation, buttons still there", (await owner.locator("[data-testid=first-why]").count()) === 0 && (await owner.isVisible("[data-testid=first-link-copy]")));
+ok("next new client: the one line and the buttons", norm(await owner.textContent("[data-testid=first-why-line]")).includes("First video for Client M") && (await owner.isVisible("[data-testid=first-link-copy]")));
 
 await browser.close();
 await prisma.$disconnect();

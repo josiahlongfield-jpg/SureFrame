@@ -5,6 +5,7 @@ import Logo from "@/components/Logo";
 import { AuthError } from "next-auth";
 import { auth, authProviders, previewPassword, signIn } from "@/auth";
 import { safeNext } from "@/lib/secrets";
+import { forClaude } from "@/lib/signInLink";
 import { db } from "@/lib/db";
 import { DELETION_GRACE_DAYS } from "@/lib/accountDeletion";
 import { pendingDeletion } from "@/lib/session";
@@ -32,6 +33,8 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   const joining = redirectTo.startsWith("/join/");
   // A paid plan picked on the pricing page ("Get Solo"): say we'll come back to it (V18).
   const picked = planPicked(redirectTo);
+  // Connecting Claude: the email carries a 6-digit code, not a link (lib/signInLink.ts), so the page says so (D4).
+  const claude = forClaude(redirectTo);
   // Checked against the database: a sign-in left over from a deleted account must not bounce back and forth.
   const userId = (await auth())?.user?.id;
   const signedInAs = userId ? await db.user.findUnique({ where: { id: userId }, select: { deleteAt: true } }) : null;
@@ -60,14 +63,16 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
       <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8 short:p-4">
         <Logo tone="dark" />
         <h1 className="mt-6 short:mt-3 text-xl font-semibold text-ink" data-testid="login-heading">
-          {creating ? "Create your free account" : joining ? "Sign in to join your team" : "Sign in"}
+          {claude ? "Connect Claude" : creating ? "Create your free account" : joining ? "Sign in to join your team" : "Sign in"}
         </h1>
         <p className="mt-1 text-sm text-muted">
           {picked
             ? `Sign in or create your account; we'll bring you back to ${picked}.`
-            : creating
-              ? "Already have one? The same email signs you in."
-              : `New to ${BRAND.name}? Entering your email creates your free account.`}
+            : claude
+              ? `Sign in to ${BRAND.name} so Claude can read your activity. We'll email you a code to type in this window.`
+              : creating
+                ? "Already have one? The same email signs you in."
+                : `New to ${BRAND.name}? Entering your email creates your free account.`}
         </p>
         {deleted && (
           <p role="status" className="mt-3 rounded-lg bg-ok-bg px-3 py-2 text-sm text-ok-fg" data-testid="deleted-note">
@@ -107,8 +112,10 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
                 <input name="email" type="email" required autoFocus autoComplete="email" placeholder="you@company.com" className="rounded-lg border border-line-strong px-3 py-2" />
               </label>
               {keepAt === "email" && keep}
-              <button className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover">Email me a sign-in link</button>
-              <p className="text-xs text-dim">No password needed. We&apos;ll email you a link that signs you in.</p>
+              <button className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover">{claude ? "Email me a code" : "Email me a sign-in link"}</button>
+              <p className="text-xs text-dim">
+                {claude ? "No password needed. We'll email you a 6-digit code to type in this window." : "No password needed. We'll email you a link that signs you in."}
+              </p>
             </form>
           )}
           {hasDev && (

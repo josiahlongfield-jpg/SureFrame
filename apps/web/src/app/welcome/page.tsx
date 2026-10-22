@@ -57,7 +57,7 @@ export default async function Welcome({ searchParams }: { searchParams: Promise<
     revalidatePath("/", "layout");
     // A brand-new owner heading for the recorder lands on their first steps instead (key, clients, then record),
     // rather than on the recorder with the key and the clients note stacked above it.
-    redirect(back === "/record" ? "/library" : back);
+    redirect(new URL(back, "http://x").pathname === "/record" ? "/library" : back);
   }
 
   const field = "w-full rounded-xl border border-line-strong bg-surface px-3 py-2.5 text-ink";

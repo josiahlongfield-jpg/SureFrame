@@ -68,6 +68,8 @@ await waitFor(async () => (await prisma.video.findUnique({ where: { id: videoId 
 await owner.reload();
 await owner.waitForSelector("textarea[aria-label='Video title']", { timeout: 20000 });
 
+ok("after Stop: says it's saved and what's next", (await owner.textContent("[data-testid=just-saved]")).includes("Saved. Give it a title and choose who it's for below."));
+
 // Not sent yet: no reactions, and no "be the first" prompt.
 ok("unsent video: no reactions", (await owner.locator("[data-testid=reactions]").count()) === 0);
 const empty = (await owner.textContent("[data-testid=conversation-empty]")) ?? "";
@@ -80,6 +82,23 @@ await owner.fill("textarea[aria-label='Video title']", "Week 1 plan for a long t
 await owner.keyboard.press("Enter");
 ok("title: Saved confirmation", await shown(owner, "[data-testid=title-saved]"));
 ok("title saved", (await prisma.video.findUnique({ where: { id: videoId } })).title.startsWith("Week 1 plan"));
+// Fix-first 10 (O52, O64): a title typed and left without Enter or clicking away is still saved, both after a
+// pause and when the page is left straight away.
+await owner.fill("textarea[aria-label='Video title']", "Week 1 plan, typed and paused");
+ok("title: saved after a pause in typing, no Enter needed", !!(await waitFor(async () => (await prisma.video.findUnique({ where: { id: videoId } })).title === "Week 1 plan, typed and paused", 5000)));
+await owner.fill("textarea[aria-label='Video title']", "Week 1 plan, typed then left");
+await owner.goto(`${BASE}/library`);
+ok("title: saved when the page is left straight after typing", !!(await waitFor(async () => (await prisma.video.findUnique({ where: { id: videoId } })).title === "Week 1 plan, typed then left", 5000)));
+await owner.goto(`${BASE}/v/${videoId}`);
+await owner.waitForSelector("textarea[aria-label='Video title']", { timeout: 20000 });
+ok("title: the left-behind title is shown when back", (await owner.inputValue("textarea[aria-label='Video title']")) === "Week 1 plan, typed then left");
+await owner.fill("textarea[aria-label='Video title']", "");
+await owner.click("[data-testid=conversation-empty]");
+ok("title: an emptied box goes back to the saved title, nothing blank saved", (await owner.inputValue("textarea[aria-label='Video title']")) === "Week 1 plan, typed then left" && (await prisma.video.findUnique({ where: { id: videoId } })).title === "Week 1 plan, typed then left");
+ok("title: the just-saved line only shows straight after Stop", (await owner.locator("[data-testid=just-saved]").count()) === 0);
+await owner.fill("textarea[aria-label='Video title']", "Week 1 plan for a long title that keeps going so it has to wrap on a small phone screen");
+await owner.keyboard.press("Enter");
+await waitFor(async () => (await prisma.video.findUnique({ where: { id: videoId } })).title.endsWith("small phone screen"), 5000);
 
 // A message to the client, encrypted before it's stored.
 await owner.click("[data-testid=message-editor] >> text=Add message");
@@ -136,6 +155,12 @@ ok("client: the tab names the video and who it's from", (await phone.title()).st
 const apiVideo = await (await phone.request.get(`${BASE}/api/videos/${videoId}`)).json();
 ok("client: the video API doesn't send the view count", apiVideo.video && !("viewCount" in apiVideo.video), JSON.stringify(apiVideo).slice(0, 120));
 ok("opening it counts as a view (no play needed)", (await waitFor(async () => (await prisma.video.findUnique({ where: { id: videoId } })).viewCount >= 1, 5000)) === true);
+// O39: reloading (or coming back soon after) is the same view, not another one.
+const viewsBefore = (await prisma.video.findUnique({ where: { id: videoId } })).viewCount;
+await phone.reload();
+await phone.waitForSelector("main video", { timeout: 30000 }).catch(() => {});
+await phone.waitForTimeout(2000);
+ok("a reload doesn't count as another view", (await prisma.video.findUnique({ where: { id: videoId } })).viewCount === viewsBefore, String(viewsBefore));
 ok("client: How this works answers", (await phone.textContent("[data-testid=how-this-works]")).includes("How this works"));
 await phone.click("[data-testid=how-this-works] summary");
 const how = await phone.textContent("[data-testid=how-this-works]");

@@ -44,6 +44,11 @@ await field.fill("Peak Fitness Co");
 await page.click("button:has-text('Save branding')");
 await page.waitForSelector("text=Saved. Your clients see this now.", { timeout: 15000 });
 ok("name saved", (await db.workspace.findUnique({ where: { id: wsId } })).name === "Peak Fitness Co");
+// O102: the button itself says it's saved, until something changes again.
+ok("after saving, the button says Saved", (await page.isVisible("button:has-text('Saved ✓')")) && (await page.locator("[data-testid=unsaved]").count()) === 0);
+await field.fill("Peak Fitness Co.");
+ok("changing it again: back to Save branding, the saved line goes", (await page.isVisible("button:has-text('Save branding')")) && (await page.locator("[data-testid=branding-saved]").count()) === 0);
+await field.fill("Peak Fitness Co");
 
 await page.reload();
 await page.getByLabel("Business name").waitFor();

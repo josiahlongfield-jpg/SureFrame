@@ -125,9 +125,13 @@ export default function ExtensionPrompt({
           Record without it
         </button>
       </div>
-      <label className="flex items-center gap-2 text-xs text-dim">
-        <input type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} className="h-4 w-4 accent-primary" data-testid="extension-dont-ask" />
-        Don&rsquo;t ask me again in this browser
+      {/* Plainly a tick box that goes with Record without it, not a third choice among the buttons (O60). */}
+      <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-line px-3 py-2 text-sm text-muted">
+        <input type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-primary" data-testid="extension-dont-ask" />
+        <span>
+          Don&rsquo;t ask me again in this browser
+          <span className="block text-xs text-dim">Takes effect when you press Record without it.</span>
+        </span>
       </label>
       <button onClick={onCancel} className="justify-self-start text-sm font-medium text-muted underline underline-offset-2 hover:text-ink">
         Back

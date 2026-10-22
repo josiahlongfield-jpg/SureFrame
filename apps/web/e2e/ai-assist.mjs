@@ -157,6 +157,15 @@ await owner.goto(BASE + "/settings/billing");
 await owner.waitForSelector("[data-testid=ai-assist]");
 const billingText = await owner.textContent("[data-testid=ai-assist]");
 ok("billing explains what leaves the device", billingText.includes("The audio isn't sent anywhere to make it") && billingText.includes("Anthropic") && billingText.includes("$8 per month"));
+// D2: the switch sits beside the heading, and the description uses the card's full width below them.
+const d2 = await owner.evaluate(() => {
+  const card = document.querySelector("[data-testid=ai-assist]");
+  const sw = card.querySelector("[role=switch]").getBoundingClientRect();
+  const heading = [...card.querySelectorAll("p")].find((p) => p.textContent.trim() === "AI transcripts and summaries").getBoundingClientRect();
+  const list = card.querySelector("ul").getBoundingClientRect();
+  return { besideHeading: Math.abs(sw.top + sw.height / 2 - (heading.top + heading.height / 2)) < 16, listBelow: list.top >= sw.bottom, listWide: list.right > sw.left };
+});
+ok("add-on card: switch beside the heading, description full width below (D2)", d2.besideHeading && d2.listBelow && d2.listWide, JSON.stringify(d2));
 // Adding it asks first, in the page (src/components/ConfirmDialog.tsx).
 await owner.click("[data-testid=ai-assist] [role=switch]");
 await owner.click("[data-testid=ai-confirm-yes]");

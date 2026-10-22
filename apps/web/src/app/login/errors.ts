@@ -2,6 +2,8 @@ import { EMAIL_BLOCKED } from "@/lib/blockedEmail";
 
 /** The address the last sign-in link went to, for "Check your email" (only this browser, briefly). */
 export const SENT_TO_COOKIE = "sf_signin_to";
+/** When it was sent, so a reload of "Check your email" doesn't restart the Send again wait (O97). */
+export const SENT_AT_COOKIE = "sf_signin_at";
 
 /** What went wrong signing in, for the sign-in and "Check your email" pages. */
 export function errorText(code: string) {

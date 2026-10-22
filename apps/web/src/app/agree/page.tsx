@@ -7,7 +7,7 @@ import RecoverUploads from "@/components/RecoverUploads";
 import { db } from "@/lib/db";
 import { LEGAL, LEGAL_VERSIONS } from "@/lib/legal";
 import { safeNext } from "@/lib/secrets";
-import { agreePath } from "@/lib/session";
+import { agreePath, welcomePath } from "@/lib/session";
 import { agreementKind, hasAgreed, recordAgreement } from "@/lib/terms";
 import AgreeForm from "./AgreeForm";
 
@@ -34,6 +34,19 @@ async function signedIn(to: string) {
 }
 
 /**
+ * Whether this login still has the welcome step to do (lib/session.ts needsWelcome) on its way to `to`: an owner
+ * who hasn't named their business, or a brand-new login whose own workspace isn't made yet. Not on the way to
+ * join a team (no workspace of their own is wanted then), and never for staff.
+ */
+async function needsWelcomeNext(userId: string, to: string) {
+  if (to.startsWith("/join/")) return false;
+  const user = await db.user.findUnique({ where: { id: userId }, select: { onboardedAt: true, activeWorkspaceId: true, memberships: { select: { role: true, workspaceId: true }, orderBy: { id: "asc" } } } });
+  if (!user || user.onboardedAt) return false;
+  const active = user.memberships.find((m) => m.workspaceId === user.activeWorkspaceId) ?? user.memberships[0];
+  return !active || active.role === "OWNER";
+}
+
+/**
  * Where a signed-in account holder agrees to the current Terms of Service and
  * Privacy Policy (lib/terms.ts) before using SureFrame: new accounts first,
  * and everyone again when either changes. Ticking the box and pressing Agree
@@ -54,7 +67,9 @@ export default async function Agree({ searchParams }: { searchParams: Promise<{ 
     // The box must be ticked, whatever the browser sent.
     if (form.get("agree") !== "on") redirect(`${agreePath(back)}&error=tick`);
     await recordAgreement(now);
-    redirect(back);
+    // A brand-new owner goes straight on to naming their business (app/welcome), rather than to a page that would
+    // only send them there (O3: a blank spinner after Agree). Someone joining a team, or staff, carries on.
+    redirect((await needsWelcomeNext(now.id, back)) ? welcomePath(back) : back);
   }
 
   const docLink = (href: string, label: string) => (

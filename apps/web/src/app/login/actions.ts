@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { plainEmail } from "@/lib/emailAddress";
 import { safeNext } from "@/lib/secrets";
 import { countSignInEmail, signInEmailLimited } from "@/lib/signInGuard";
-import { SENT_TO_COOKIE } from "./errors";
+import { SENT_AT_COOKIE, SENT_TO_COOKIE } from "./errors";
 import { withKeep } from "@/lib/activity";
 
 /**
@@ -44,6 +44,7 @@ export async function emailLink(fd: FormData) {
     }
     if (failed) back("send");
     (await cookies()).set(SENT_TO_COOKIE, email!, { httpOnly: true, sameSite: "lax", path: "/login", maxAge: 3600 });
+    (await cookies()).set(SENT_AT_COOKIE, String(Date.now()), { httpOnly: true, sameSite: "lax", path: "/login", maxAge: 3600 });
     redirect(`/login/check?next=${encodeURIComponent(redirectTo)}${again ? "&again=1" : ""}${signup}`);
   }
   try {
@@ -58,5 +59,6 @@ export async function emailLink(fd: FormData) {
     back("send");
   }
   (await cookies()).set(SENT_TO_COOKIE, email!, { httpOnly: true, sameSite: "lax", path: "/login", maxAge: 3600 });
+  (await cookies()).set(SENT_AT_COOKIE, String(Date.now()), { httpOnly: true, sameSite: "lax", path: "/login", maxAge: 3600 });
   redirect(`/login/check?next=${encodeURIComponent(redirectTo)}${again ? "&again=1" : ""}${signup}`);
 }

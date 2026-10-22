@@ -141,12 +141,15 @@ await pro.click("li:has-text('Prefers morning calls') >> button:has-text('Make p
 await pro.waitForSelector("li:has-text('Prefers morning calls') >> text=Private to your team");
 ok("Make private needs no question", sql(`select shared from "Item" where id='${privateId}'`) === "f");
 
-// Repeats and reminders are offered while adding, greyed until there's a due date.
+// Repeats and reminders appear while adding once there's a due date (O13, O74); before that, one hint says so.
 await pro.click("role=tab[name='To-do']");
-ok("add form shows Repeat and Remind before a due date, greyed", (await pro.isVisible("[data-testid=schedule-extras] >> text=Pick a due date")) && (await pro.isDisabled("form select[aria-label=Repeat]")));
+ok("add form: no Repeat or Remind before a due date, just a hint", (await pro.locator("form [data-testid=schedule-extras]").count()) === 0 && (await pro.textContent("form [data-testid=schedule-extras-hint]")).includes("Pick a due date to make it repeat or to get reminders"));
 await pro.fill('textarea[aria-label="New to-do"]', "Weekly review");
 await pro.fill('input[aria-label="Due date"]', "2027-01-05T09:00");
-ok("with a due date they can be set", !(await pro.isDisabled("form select[aria-label=Repeat]")));
+ok("with a due date they appear and can be set", (await pro.isVisible("form [data-testid=schedule-extras]")) && !(await pro.isDisabled("form select[aria-label=Repeat]")) && (await pro.locator("form [data-testid=schedule-extras-hint]").count()) === 0);
+await pro.waitForSelector("form [data-testid=due-words]");
+const dueWords = await pro.textContent("form [data-testid=due-words]");
+ok("the due date is said in words, so the date picker's format can't mislead (O14)", /^Due /.test(dueWords.trim()) && /2027/.test(dueWords) && /January|Jan/.test(dueWords), dueWords);
 await pro.selectOption("form select[aria-label=Repeat]", "week");
 await pro.click("form >> button:has-text('Add privately')");
 await pro.waitForSelector("li:has-text('Weekly review') >> text=/Every week/");

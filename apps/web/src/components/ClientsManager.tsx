@@ -430,10 +430,11 @@ function Manager({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-muted">Need more?</span>
               <select value={buyQty} onChange={(e) => setBuyQty(Number(e.target.value))} aria-label="Extra clients" className="rounded-lg border border-line-strong bg-surface px-2 py-1.5">
-                {[1, 5, 10, 25, 50].map((n) => <option key={n} value={n}>{plural(n, "client", "clients")}</option>)}
+                {/* Small steps too, so a business needing two more isn't made to buy five (O89). */}
+                {[1, 2, 3, 5, 10, 25, 50].map((n) => <option key={n} value={n}>{plural(n, "client", "clients")}</option>)}
               </select>
               <button onClick={() => setBuying("ask")} disabled={!!buying} data-testid="buy-seats" className="rounded-lg bg-solid px-3 py-1.5 font-medium text-white hover:bg-solid-hover disabled:opacity-60">
-                Add for {money(buyQty * seatPrice)}/{per}
+                Add {plural(buyQty, "client", "clients")} for {money(buyQty * seatPrice)}/{per}
               </button>
             </div>
             )}
@@ -810,7 +811,8 @@ function Manager({
                     <p className="break-words font-medium text-ink">{r.name}</p>
                     <p className="break-words text-xs text-dim">
                       {r.email && <><span className="break-all">{r.email}</span> · </>}Removed {dates.day(new Date(r.removedAt))}
-                      {r.purgeAt && ` · deleted for good after ${dates.dayTime(new Date(r.purgeAt))} ${dates.zoneName(new Date(r.purgeAt))}`}
+                      {/* A date is enough here; the time and zone were noise (O24). */}
+                      {r.purgeAt && ` · deleted for good on ${dates.day(new Date(r.purgeAt))}`}
                     </p>
                     {twin && <p className="text-xs text-warn-fg" data-testid="restore-duplicate">{twin.name} uses this email now, so they can&apos;t both be on your list.</p>}
                   </div>

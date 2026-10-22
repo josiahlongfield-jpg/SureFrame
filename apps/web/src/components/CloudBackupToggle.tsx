@@ -49,18 +49,9 @@ export default function CloudBackupToggle({
 
   return (
     <div className="mt-6 rounded-2xl border border-line bg-surface p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="font-semibold text-ink">Cloud backup</p>
-          <p className="mt-1 text-sm text-muted">
-            Your videos are end-to-end encrypted. We keep an encrypted copy so your clients can watch it, and delete it after {days} days. To keep your own copy,
-            open a video and choose Save to device. Cloud backup keeps our encrypted copies until you delete them. We still can&apos;t open them.
-          </p>
-          <p className="mt-2 text-xs text-dim">
-            Optional: US${price} a month (US${yearlyPrice} a year on yearly billing).
-            {needsSubscription && " Available once you start a paid subscription."}
-          </p>
-        </div>
+      {/* The switch sits beside the heading only; the description runs full width under both, so a phone has no empty column (D2). */}
+      <div className="flex items-center justify-between gap-4">
+        <p className="font-semibold text-ink">Cloud backup</p>
         <button
           role="switch"
           aria-checked={on}
@@ -75,6 +66,14 @@ export default function CloudBackupToggle({
           <span className={`absolute top-1 h-5 w-5 rounded-full bg-surface shadow transition ${on ? "left-6" : "left-1"}`} />
         </button>
       </div>
+      <p className="mt-1 text-sm text-muted">
+        Your videos are end-to-end encrypted. We keep an encrypted copy so your clients can watch it, and delete it after {days} days. To keep your own copy,
+        open a video and choose Save to device. Cloud backup keeps our encrypted copies until you delete them. We still can&apos;t open them.
+      </p>
+      <p className="mt-2 text-xs text-dim">
+        Optional: US${price} a month (US${yearlyPrice} a year on yearly billing).
+        {needsSubscription && " Available once you start a paid subscription."}
+      </p>
       {!canEnable && !on && <p className="mt-3 text-sm text-muted">Available on paid plans.</p>}
       {error && <p role="alert" className="mt-3 rounded-xl border border-danger-line bg-danger-bg p-3 text-sm text-danger-fg">{error}</p>}
       {done && <p role="status" className="mt-3 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="backup-done">{done}</p>}

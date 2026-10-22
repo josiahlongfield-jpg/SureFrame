@@ -21,6 +21,8 @@ export default async function RecordPage() {
   const limit = plan.maxVideos;
   const allowance = limit !== null ? await videosUsed(workspace.id) : null;
   const left = allowance && limit !== null ? Math.max(0, limit - allowance.used) : null;
+  // After a first recording, the camera, microphone and quality settings start folded away (D12).
+  const recordedBefore = (await db.video.count({ where: { workspaceId: workspace.id, ownerId: user.id, replyToId: null, sourceId: null } })) > 0;
   return (
     <>
       <AppHeader email={user.email} plan={plan.name} />
@@ -69,6 +71,7 @@ export default async function RecordPage() {
             maxResolution={plan.maxResolution}
             maxDurationMin={plan.maxDurationMin}
             freeVideos={left !== null && limit !== null ? { left, limit } : null}
+            recordedBefore={recordedBefore}
           />
         )}
       </main>

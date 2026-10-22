@@ -6,7 +6,7 @@ import Logo from "@/components/Logo";
 import { safeNext } from "@/lib/secrets";
 import { forClaude } from "@/lib/signInLink";
 import { emailLink } from "../actions";
-import { errorText, SENT_TO_COOKIE } from "../errors";
+import { errorText, SENT_AT_COOKIE, SENT_TO_COOKIE } from "../errors";
 import SendAgain from "./SendAgain";
 
 export const metadata: Metadata = { title: "Check your email" };
@@ -15,7 +15,11 @@ export const metadata: Metadata = { title: "Check your email" };
 export default async function CheckEmail({ searchParams }: { searchParams: Promise<{ next?: string; again?: string; error?: string; signup?: string }> }) {
   const { next, again, error, signup } = await searchParams;
   const redirectTo = safeNext(next);
-  const email = (await cookies()).get(SENT_TO_COOKIE)?.value;
+  const jar = await cookies();
+  const email = jar.get(SENT_TO_COOKIE)?.value;
+  // Seconds since the email went, so a reload carries on the Send again wait instead of starting it over (O97).
+  const sentAt = Number(jar.get(SENT_AT_COOKIE)?.value);
+  const since = Number.isFinite(sentAt) && sentAt > 0 ? Math.max(0, Math.floor((Date.now() - sentAt) / 1000)) : 0;
   // Connecting Claude: the email has only a code (lib/signInLink.ts forClaude).
   const claude = forClaude(redirectTo);
   const startOver = `/login?next=${encodeURIComponent(redirectTo)}${signup === "1" ? "&signup=1" : ""}`;
@@ -73,7 +77,7 @@ export default async function CheckEmail({ searchParams }: { searchParams: Promi
             <input type="hidden" name="next" value={redirectTo} />
             <input type="hidden" name="again" value="1" />
             {signup === "1" && <input type="hidden" name="signup" value="1" />}
-            <SendAgain />
+            <SendAgain since={since} />
           </form>
         )}
         <p className="mt-4 text-sm text-dim">

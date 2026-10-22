@@ -33,7 +33,10 @@ await page.click("text=I've saved it"); // first device: recovery key shown once
 
 // 1) Normal recording
 await page.click("text=Camera only");
+ok("first recording: camera, microphone and quality are all in view", (await page.locator("[data-testid=recorder-settings]").count()) === 0);
 await page.click("text=Start recording");
+// O30: the countdown says recording hasn't started yet, and nothing said during it is lost or counted.
+ok("countdown says recording hasn't started yet", !!(await page.waitForSelector("[data-testid=countdown-note]", { timeout: 5000 }).catch(() => null)));
 await page.waitForSelector("text=/Recording · \\d/", { timeout: 15000 });
 const t0 = Date.now(); await page.waitForTimeout(6000);
 await page.screenshot({ path: `${shots}/recording.png` });
@@ -47,6 +50,14 @@ const dur = await page.$eval("main video", (v) => new Promise((r) => {
   setTimeout(() => r(v.duration), 10000);
 }));
 console.log("watch url", firstUrl, "player duration", dur);
+// What was recorded is the time from "Recording" to Stop: the countdown isn't in it, and nothing after it is cut.
+const elapsed = Date.now() - t0;
+const { PrismaClient } = await import("@prisma/client");
+const prisma = new PrismaClient();
+const stored = await prisma.video.findUnique({ where: { id: firstUrl.split("/v/")[1].split("?")[0] }, select: { durationMs: true } });
+ok("stored length covers the whole recording after the countdown (O30)", stored?.durationMs >= 5500 && stored.durationMs <= 6000 + 3000, `${stored?.durationMs}ms for ~6000ms recorded`);
+ok("the player's length matches (O30)", !Number.isFinite(dur) || (dur >= 5.3 && dur <= 9.5), `player ${dur}s, page time ${elapsed}ms`);
+await prisma.$disconnect();
 await page.fill('textarea[aria-label="Reply"]', "Looks great, ship it");
 await page.click("button:has-text('Send reply')");
 await page.waitForSelector("aside ul >> text=Looks great, ship it");
@@ -55,6 +66,9 @@ await page.screenshot({ path: `${shots}/watch.png` });
 // 2) Crash mid-recording: record 25s (>5MB => at least one part uploaded), then kill the page.
 await page.goto(BASE + "/record");
 await page.click("text=Camera only");
+// D12: after the first recording, the device choices fold away (the mic check stays in view).
+const fold = page.locator("[data-testid=recorder-settings]");
+ok("after a first recording: settings folded under Camera, microphone and quality", (await fold.count()) === 1 && !(await fold.evaluate((d) => d.open)) && (await page.textContent("[data-testid=recorder-settings] summary")) === "Camera, microphone and quality");
 await page.click("text=Start recording");
 await page.waitForSelector("text=/Recording · \\d/", { timeout: 15000 });
 await page.waitForTimeout(25000);

@@ -1,5 +1,5 @@
 // The AI summary box on a video's page: only there while the business pays for the AI summaries add-on (no box,
-// not even an offer, without it), and then near the top for the team: under the "End-to-end encrypted" note,
+// not even an offer, without it: just one quiet line saying where it shows up, O67/O87), and then near the top for the team: under the "End-to-end encrypted" note,
 // straight above the message to the client. On a computer and a phone.
 import { chromium, devices } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
@@ -38,6 +38,13 @@ await page.waitForSelector("[data-testid=message-editor]", { timeout: 20000 });
 
 ok("without the add-on: no AI summary box", (await page.locator("[data-testid=ai-insight]").count()) === 0);
 ok("without the add-on: no AI offer box either", (await page.locator("[data-testid=ai-offer]").count()) === 0 && !(await page.isVisible("text=AI summary.")));
+const placeholder = (await page.textContent("[data-testid=ai-placeholder]").catch(() => "")) ?? "";
+ok("without the add-on: one line says where it would show, with the owner's way to add it (O67)", placeholder.includes("show here when the AI add-on is on") && (await page.getAttribute("[data-testid=ai-placeholder] a", "href")) === "/settings/billing", placeholder);
+await prisma.workspace.update({ where: { id: ws }, data: { plan: "FREE" } });
+await page.reload();
+await page.waitForSelector("[data-testid=message-editor]", { timeout: 20000 });
+ok("on Free too: the line is there, pointing at the plans (O87)", (await page.getAttribute("[data-testid=ai-placeholder] a", "href").catch(() => null)) === "/pricing");
+await prisma.workspace.update({ where: { id: ws }, data: { plan: "STUDIO" } });
 
 // The business switches the add-on on.
 await prisma.workspace.update({ where: { id: ws }, data: { aiAssist: true } });
@@ -52,6 +59,7 @@ for (const [name, size] of [["computer", { width: 1280, height: 900 }], ["phone"
     return { purge: top("[data-testid=purge-note]"), ai: top("[data-testid=ai-insight]"), message: top("[data-testid=message-editor]"), send: top("[data-testid=send-panel]"), next: ai?.nextElementSibling === msg };
   });
   ok(`${name}: with the add-on, the AI summary box is there`, order.ai !== null);
+  ok(`${name}: and the placeholder line is gone`, (await page.locator("[data-testid=ai-placeholder]").count()) === 0);
   ok(`${name}: it sits under the "End-to-end encrypted" note`, order.purge !== null && order.ai > order.purge, JSON.stringify(order));
   ok(`${name}: straight above the message to the client`, order.next && order.ai < order.message, JSON.stringify(order));
   ok(`${name}: above the Send box`, order.send === null || order.ai < order.send, JSON.stringify(order));

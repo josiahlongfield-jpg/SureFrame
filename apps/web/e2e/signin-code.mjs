@@ -27,7 +27,8 @@ const CLAUDE = "/oauth/authorize?response_type=code&client_id=test";
 async function ask(page, email, next = CLAUDE) {
   await page.goto(`${BASE}/login?next=${encodeURIComponent(next)}`);
   await page.fill('input[name="email"]', email);
-  await page.click("text=Email me a sign-in link");
+  // Connecting Claude: the page says so and asks for a code, not a link (D4).
+  await page.click(next.startsWith("/oauth/authorize") ? "text=Email me a code" : "text=Email me a sign-in link");
   await page.waitForURL("**/login/check**");
   await page.waitForSelector("[data-testid=code-form]", { timeout: 10000 }).catch(() => {});
 }
@@ -42,6 +43,8 @@ const email = `code${Date.now()}@example.com`;
 await agreed(email);
 const ctx = await browser.newContext();
 const page = await ctx.newPage();
+await page.goto(`${BASE}/login?next=${encodeURIComponent(CLAUDE)}`);
+ok("from Claude: the sign-in page says Connect Claude and that a code is emailed (D4)", (await page.textContent("[data-testid=login-heading]")).trim() === "Connect Claude" && (await page.isVisible("text=Email me a code")) && (await page.isVisible("text=/6-digit code/")));
 await ask(page, email);
 const code = codeFor(email);
 ok("signing in to connect Claude emails a 6-digit code", /^\d{3} \d{3}$/.test(code ?? ""), String(code));

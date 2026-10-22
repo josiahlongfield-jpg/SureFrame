@@ -186,7 +186,8 @@ export async function runReminders(now = new Date()) {
         m: reminderEmail({ ...base, ...brandOf(ws, appUrl("")), message: own.message, link: appUrl(`/c/${c.token}`), unsubscribe: unsubscribeUrl(c.id), noReply: !own.replyTo }),
       });
     } else {
-      const link = appUrl(teamPath(item.clientId ? `/clients/${item.clientId}` : "/library", ws.id));
+      // A client's to-dos live on their page; the team's own list is the To-dos page.
+      const link = appUrl(teamPath(item.clientId ? `/clients/${item.clientId}` : "/todos", ws.id));
       // A client's to-do goes to the staff member looking after that client
       // (or, when nobody is, to those who can see unassigned clients); general
       // to-dos go to the whole team.

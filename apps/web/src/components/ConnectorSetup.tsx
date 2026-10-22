@@ -85,6 +85,11 @@ function MakeCode({ teamKey }: { teamKey: CryptoKey }) {
           {busy ? "Making…" : "Make a connection code"}
         </button>
         {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+        {/* What a lost code means, and what ends one (O95, B12). */}
+        <p className="mt-2 text-xs text-dim" data-testid="code-lifetime">
+          Lost a code? Make another. Each code keeps working until you disconnect it under Your connections below. Resetting your team&apos;s key
+          doesn&apos;t end a code; only Disconnect does.
+        </p>
       </div>
     );
   }
@@ -95,10 +100,14 @@ function MakeCode({ teamKey }: { teamKey: CryptoKey }) {
         Paste it into SureFrame&apos;s settings in Claude Desktop. It holds your team&apos;s key, so treat it like your recovery key: don&apos;t send it
         to anyone or paste it anywhere else. It&apos;s only shown now.
       </p>
-      <textarea ref={codeBox} readOnly value={code} rows={3} className="mt-3 w-full break-all rounded-lg border border-line bg-canvas p-2 font-mono text-xs text-ink" data-testid="connection-code-text" />
+      <p className="mt-1 text-xs text-dim">
+        It&apos;s long on purpose, so use Copy code rather than selecting it. Lost it later? Make another one; this one keeps working until you disconnect it.
+      </p>
+      <textarea ref={codeBox} readOnly value={code} rows={3} aria-label="Connection code" className="mt-3 w-full break-all rounded-lg border border-dashed border-line-strong bg-surface p-2 font-mono text-xs text-ink" data-testid="connection-code-text" />
       <div className="mt-2 flex flex-wrap gap-2">
         <button
-          className={button}
+          className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover"
+          data-testid="copy-connection-code"
           onClick={async () => {
             const ok = await writeClipboard(code).then(() => true, () => false);
             setCopied(ok ? true : "failed");
@@ -115,5 +124,33 @@ function MakeCode({ teamKey }: { teamKey: CryptoKey }) {
         <p className="mt-2 text-sm text-danger">Your browser didn&apos;t let us copy it. The code is selected: press and hold it (or right-click) and choose Copy.</p>
       )}
     </div>
+  );
+}
+
+/**
+ * Disconnect, asked first (S75): what stops, and for someone else's connection, that they're emailed. The
+ * server action does the disconnecting; Settings > Connections then says it's done.
+ */
+export function DisconnectConnection({ id, what, who, action }: { id: string; what: string; who?: string; action: (form: FormData) => Promise<void> }) {
+  const [asking, setAsking] = useState(false);
+  if (!asking) {
+    return (
+      <button onClick={() => setAsking(true)} className="rounded-lg border border-line-strong px-3 py-1.5 text-sm font-medium text-ink hover:bg-hover" data-testid="disconnect">
+        Disconnect
+      </button>
+    );
+  }
+  return (
+    <form action={action} role="dialog" aria-label={`Disconnect ${what}`} className="w-full rounded-lg border border-danger-line bg-danger-bg p-3 text-sm text-muted sm:max-w-xs" data-testid="disconnect-confirm-box">
+      <input type="hidden" name="id" value={id} />
+      <p className="font-medium text-ink">Disconnect {who ? `${who}'s ` : ""}{what}?</p>
+      <p className="mt-1 text-xs">
+        It stops reading SureFrame straight away.{who ? ` We email ${who} to say so.` : ""} Connecting again takes a new {what === "Claude Desktop" ? "connection code" : "sign-in from Claude"}.
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700" data-testid="disconnect-confirm">Disconnect</button>
+        <button type="button" onClick={() => setAsking(false)} className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-xs hover:bg-hover">Cancel</button>
+      </div>
+    </form>
   );
 }

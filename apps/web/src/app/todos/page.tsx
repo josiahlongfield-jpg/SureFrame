@@ -8,7 +8,7 @@ import { dueTodos } from "@/lib/dueTodos";
 import { accessOf } from "@/lib/permissions";
 import { PLANS } from "@/lib/plans";
 import { reminderDefaultsFor } from "@/lib/reminders";
-import { requirePageUser } from "@/lib/session";
+import { followTeamLink, requirePageUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "To-dos/Reminders" };
 
@@ -16,8 +16,11 @@ export const metadata: Metadata = { title: "To-dos/Reminders" };
  * The menu's To-dos/Reminders: what's due (the team's own list here, and which clients have some due, since a
  * client's to-dos live on their page), and, on its own tab, when reminders go out and what they say.
  */
-export default async function Todos({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const reminders = (await searchParams).tab === "reminders";
+export default async function Todos({ searchParams }: { searchParams: Promise<{ tab?: string; ws?: string }> }) {
+  const { tab: which, ws } = await searchParams;
+  const reminders = which === "reminders";
+  // A reminder email names its team (?ws=): someone on several teams opens that team's list.
+  await followTeamLink(ws, reminders ? "/todos?tab=reminders" : "/todos");
   const me = await requirePageUser(reminders ? "/todos?tab=reminders" : "/todos");
   const { user, workspace, role, membership } = me;
   const [due, teamSize] = await Promise.all([dueTodos(accessOf(me)), db.membership.count({ where: { workspaceId: workspace.id, pausedAt: null } })]);

@@ -29,7 +29,7 @@ import { nameWithBusiness } from "@/lib/senderLine";
 import { clientHelpLimitText } from "@/lib/support/clientHelp";
 import { replacedLinks } from "@/lib/replacedLinks";
 
-type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ team?: string; asClient?: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ team?: string; asClient?: string; new?: string }> };
 
 /**
  * A client whose key this browser isn't known to hold (lib/e2e/keyHeld.ts): an email link opened on a device
@@ -127,6 +127,12 @@ export default async function Watch({ params, searchParams }: Props) {
   // AI summaries add-on. Copies sent to other clients share the original recording's transcript.
   const aiOn = aiAssistActive(workspace);
   const insight = await db.videoInsight.findUnique({ where: { videoId: video.sourceId ?? video.id }, select: { transcript: true, summary: true } });
+  // Opened by Stop (?new=1) on the recorder's own video: it says it's saved, and the Send box has the client their
+  // last video went to chosen already (D12).
+  const justRecorded = viewer.kind === "member" && (await searchParams).new === "1" && video.ownerId === viewer.userId && !video.clientId && !video.sourceId;
+  const lastClientId = justRecorded
+    ? (await db.video.findFirst({ where: { workspaceId: video.workspaceId, ownerId: video.ownerId, id: { not: video.id }, replyToId: null, clientId: { not: null }, sentAt: { not: null } }, orderBy: { sentAt: "desc" }, select: { clientId: true } }))?.clientId ?? null
+    : null;
   // Clients see the business's branding; the team sees the normal app.
   const brand = isMember ? null : brandOf(workspace);
   const memberEmail = viewer.kind === "member" ? (await db.user.findUnique({ where: { id: viewer.userId }, select: { email: true } }))?.email : null;
@@ -240,6 +246,10 @@ export default async function Watch({ params, searchParams }: Props) {
             // No offer box without the AI summaries add-on (Josiah 2026-10-21). A transcript and summary made while it was on stay
             // readable, and removable by the team, as the Terms promise; no new ones.
             ai={aiOn || insight ? { insight, canMake: isMember && aiOn, notice: !isMember } : undefined}
+            // Still no offer box; just one line for the team saying where transcripts and summaries would show (O67, O87).
+            aiPlaceholder={isMember && !aiOn && !insight ? (workspace.plan === "FREE" ? "free" : access?.role === "OWNER" ? "owner" : "staff") : undefined}
+            justRecorded={justRecorded}
+            lastClientId={lastClientId}
             initialReplies={replies.map((r) => replyDTO(r, video.ownerId, who))}
             reactions={reactions}
             hasThumb={hasThumb}

@@ -82,25 +82,38 @@ async function record() {
   return owner.url().split("/v/")[1].split("?")[0];
 }
 const choose = async (...names) => {
+  // After Stop, the client the last video went to is already chosen (D12): start from exactly these names.
+  const suggested = await owner.getAttribute("[data-testid=client-picker]", "data-preselected");
   await owner.click("[data-testid=client-picker]");
-  for (const n of names) await owner.click(`[role=listbox] >> text=${n}`);
+  const multi = (await owner.locator("[role=listbox] input[type=checkbox]").count()) > 0;
+  if (suggested && multi && !names.includes(suggested)) await owner.click(`[role=listbox] >> text=${suggested}`);
+  for (const n of names) if (n !== suggested) await owner.click(`[role=listbox] >> text=${n}`);
   if (await owner.isVisible("[role=listbox]")) await owner.click("[data-testid=send-panel] >> button:has-text('Done')");
 };
 
 // First video: private until sent. Copy link puts Zoe's personal link on the clipboard and emails nobody.
 const first = await record();
+ok("nothing chosen yet: no greyed Send or Copy buttons under the picker (O35)", (await owner.locator("[data-testid=send-email]").count()) === 0 && (await owner.locator("[data-testid=send-link]").count()) === 0);
+ok("first recording: nobody chosen for you", (await owner.locator("[data-testid=preselected-note]").count()) === 0);
 ok("unsent: no extra notes in the Send box", (await owner.locator("[data-testid=send-private]").count()) === 0);
 await owner.click("[data-testid=client-picker]");
 ok("new clients are marked in the picker", (await owner.locator("[role=listbox] li:has-text('Zoe Park') [data-testid=needs-first-link]").count()) === 1);
 await owner.keyboard.press("Escape");
 ok("no first-video box while no new client is chosen", !(await owner.isVisible("[data-testid=first-time]")));
 await choose("Zoe Park");
-ok("choosing Zoe: her first video goes from you, said plainly", await owner.isVisible("[data-testid=first-time]") && (await owner.textContent("[data-testid=first-time]")).includes("This video still goes to Zoe Park") && (await owner.textContent("[data-testid=first-time]")).includes("Once they open it, everything beyond that point is delivered on your behalf to the device the client link is held on, if you select the Send by email function"));
+// One line like the Clients page's steps; Josiah's longer why sits behind the expander (O32, S13).
+ok("choosing Zoe: her first video goes from you, said plainly", await owner.isVisible("[data-testid=first-time]") && (await owner.textContent("[data-testid=first-why-line]")).includes("First video for Zoe Park: send it yourself") && (await owner.textContent("[data-testid=first-why-line]")).includes("After that, we email them") && !(await owner.textContent("[data-testid=first-time]")).includes("This video still goes to"));
+ok("the longer why is folded under the expander", (await owner.textContent("[data-testid=first-why-more]")).includes("Why does the first video come from me?") && !(await owner.isVisible("text=/Once they open it, everything beyond that point/")) && (await owner.textContent("[data-testid=first-why]")).includes("Once they open it, everything beyond that point is delivered on your behalf to the device the client link is held on, if you select the Send by email function"));
+await owner.click("[data-testid=first-why-more]");
+ok("opening it shows Josiah's explanation", await owner.isVisible("text=/Once they open it, everything beyond that point/"));
 ok("a first-time client isn't offered Send by email", (await owner.locator("[data-testid=send-email]").count()) === 0 && (await owner.textContent("[data-testid=first-time]")).includes("Zoe Park") && (await owner.locator("[data-testid=first-links] [data-testid=first-link-copy]").count()) === 1);
 ok("dropdown shows who's chosen", (await owner.textContent("[data-testid=client-picker]")).includes("Zoe Park"));
 ok("only her first-video buttons: no separate Copy link", (await owner.locator("[data-testid=send-link]").count()) === 0);
 await owner.click("[data-testid=first-link-row] [data-testid=first-link-copy]");
 await owner.waitForSelector("text=/link is copied/");
+// The confirmation sits under Zoe's own row, not at the foot of the box (S14).
+ok("link copied: said under Zoe's row", (await owner.textContent("[data-testid=sent-row]:has-text('Zoe Park') [data-testid=row-note]")).includes("Zoe Park's link is copied"));
+ok("copying isn't called sending: Shared with, Not opened yet", (await owner.textContent("[data-testid=sent-heading]")).includes("Shared with 1 client") && (await owner.textContent("[data-testid=sent-row]:has-text('Zoe Park') [data-testid=row-opened]")).includes("Not opened yet"));
 const link = await clipboard();
 ok("copied link opens this video with Zoe's key", link.includes(`v=${first}`) && link.includes("#k="), link);
 await owner.waitForSelector("[data-testid=sent-row]:has-text('Zoe Park') [data-testid=first-link-copy]");
@@ -127,6 +140,7 @@ ok("opening the link is recorded", !!(await waitFor(async () => (await prisma.cl
 
 // Second video to Zoe (has opened a link) and Ann (new): Zoe is emailed, Ann's first video goes from you.
 const second = await record();
+ok("after Stop: the client the last video went to is already chosen, and it says so (D12)", (await owner.textContent("[data-testid=client-picker]")).includes("Zoe Park") && (await owner.textContent("[data-testid=preselected-note]")).includes("Zoe Park is chosen"));
 await choose("Zoe Park", `Ann Lee${stamp}`);
 await owner.screenshot({ path: `${process.argv[2] ?? "/tmp"}/first-link-chosen.png` });
 ok("mixed choice: only Zoe is offered email", (await owner.textContent("[data-testid=send-email]")).trim() === "Email 1 of them");

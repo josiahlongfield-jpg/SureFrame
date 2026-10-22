@@ -246,6 +246,7 @@ ok("Ben replies", (await status(benPage.request.post(`${BASE}/api/videos/${vOwne
 const mail = await waitFor(() => outbox().slice(before).find((m) => m.subject?.includes("Ben replied")));
 ok("reply email goes to Bob (assigned), not the owner who recorded it", mail?.to === bobUser.email && !outbox().slice(before).some((m) => m.to === `sa-owner${stamp}@example.com`), JSON.stringify(mail));
 ok("reply email to the team is from SureFrame (not the business's own name) and has no reply text", mail?.from.startsWith("SureFrame <") && !JSON.stringify(mail).includes("sealed-text-1") && mail.text.includes(`/v/${vOwnerBen}`), mail?.from);
+ok("reply email names the video by its title (O72)", !!mail?.subject.endsWith("replied to \u201cOwner to Ben\u201d") && mail.text.includes("\u201cOwner to Ben\u201d"), mail?.subject);
 await benPage.request.post(`${BASE}/api/videos/${vOwnerBen}/replies`, { data: { kind: "TEXT", body: "sealed-text-2", encrypted: true } });
 await benPage.request.post(`${BASE}/api/videos/${vOwnerBen}/replies`, { data: { kind: "TEXT", body: "sealed-text-3", encrypted: true } });
 await new Promise((r) => setTimeout(r, 1500));

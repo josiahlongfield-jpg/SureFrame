@@ -79,6 +79,7 @@ await owner.screenshot({ path: `${shots}/library-days-closed.png`, fullPage: tru
 
 await owner.click("[data-testid=day-folder] >> nth=1 >> summary");
 ok("clicking a folder shows that day's videos", !!(await owner.waitForSelector(`main a[href="/v/${first}"]`, { state: "visible", timeout: 10000 }).catch(() => null)));
+ok("the deletion date is said once on each day folder, not again on every video in it (O63)", (await owner.locator("[data-testid=day-folder] >> nth=0 >> summary [data-testid=day-deletes]").count()) === 1 && (await owner.locator("main [data-testid=card-deletes]").count()) === 0);
 ok("an older recording without a still gets one too", !!(await owner.waitForSelector(`a[href="/v/${first}"] [data-testid=library-thumb]`, { timeout: 30000 }).catch(() => null)));
 ok("both stills saved once", (await prisma.videoThumb.count({ where: { videoId: { in: [first, second] } } })) === 2);
 const time = (await owner.textContent(`a[href="/v/${first}"] p`)) ?? "";
@@ -101,6 +102,18 @@ await owner.reload();
 await owner.waitForSelector("[data-testid=day-folder]");
 await owner.waitForTimeout(500);
 ok("a closed newest day stays closed", !(await owner.isVisible(`main a[href="/v/${second}"]`)) && (await owner.isVisible(`main a[href="/v/${first}"]`)));
+
+// D12: "With replies" lists the videos a client has replied to, newest reply first.
+await owner.goto(BASE + "/library");
+ok("no With replies filter before any client reply", (await owner.locator("role=navigation[name='Filter videos'] >> text=/With replies/").count()) === 0);
+await prisma.reply.create({ data: { kind: "TEXT", body: "sealed", encrypted: true, authorName: "Client", byClient: true, videoId: first } });
+await owner.reload();
+await owner.click("role=navigation[name='Filter videos'] >> text=/With replies \\(1\\)/");
+await owner.waitForURL((u) => u.searchParams.get("filter") === "replies", { timeout: 15000 });
+await owner.waitForSelector("[data-testid=replies-filter-note]", { timeout: 15000 });
+const repliedList = await owner.$$eval("main a[href^='/v/']", (as) => [...new Set(as.map((a) => a.getAttribute("href").split("?")[0]))]);
+ok("With replies lists just the video the client replied to", JSON.stringify(repliedList) === JSON.stringify([`/v/${first}`]), JSON.stringify(repliedList));
+await owner.goto(BASE + "/library");
 
 // Phones: nothing wider than the screen.
 await owner.setViewportSize({ width: 320, height: 700 });

@@ -7,6 +7,7 @@ import { BRAND } from "@/lib/brand";
 import { zoned } from "@/lib/dates";
 import { teamPath } from "@/lib/teamLink";
 import { activeMember } from "@/lib/team";
+import { isDefaultTitle } from "@/lib/videoTitle";
 
 /** How far ahead of the scheduled deletion the recorder is emailed. */
 export const WARN_BEFORE_MS = 24 * 3_600_000;
@@ -19,7 +20,8 @@ export const WARN_BEFORE_MS = 24 * 3_600_000;
  * daily purge job runs, it still goes out at least a day before the purge that
  * actually deletes the file (the purge runs once a day, after purgeAt).
  *
- * Emails never include titles (encrypted content stays in the app); they list
+ * Emails never include encrypted content (messages, replies, notes); they list
+ * each recording's title once it has been given one (titles aren't encrypted),
  * the recorded date, who it was sent to and a link. Best effort: a failed send
  * is retried on the next run.
  */
@@ -34,7 +36,7 @@ export async function warnExpiring(now = new Date()) {
       // suspended (lib/support/admin.ts); the recordings still expire. Under legal hold they don't, so no warning.
       workspace: { cloudBackup: false, deleteAt: null, suspendedAt: null, closedAt: null, legalHoldAt: null },
     },
-    select: { id: true, ownerId: true, workspaceId: true, sourceId: true, createdAt: true, purgeAt: true, client: { select: { name: true } } },
+    select: { id: true, ownerId: true, workspaceId: true, sourceId: true, createdAt: true, purgeAt: true, title: true, source: { select: { title: true } }, client: { select: { name: true } } },
     orderBy: { purgeAt: "asc" },
     take: 500,
   });
@@ -72,10 +74,10 @@ export async function warnExpiring(now = new Date()) {
     const dates = zoned(ws.timezone);
 
     // A recording sent to several clients is one recording: list it once.
-    const recordings = new Map<string, { link: string; recorded: Date; purgeAt: Date; clients: string[] }>();
+    const recordings = new Map<string, { link: string; title: string; recorded: Date; purgeAt: Date; clients: string[] }>();
     for (const v of mine) {
       const rootId = v.sourceId ?? v.id;
-      const r = recordings.get(rootId) ?? { link: appUrl(`/v/${rootId}?team=1`), recorded: v.createdAt, purgeAt: v.purgeAt!, clients: [] };
+      const r = recordings.get(rootId) ?? { link: appUrl(`/v/${rootId}?team=1`), title: v.source?.title ?? v.title, recorded: v.createdAt, purgeAt: v.purgeAt!, clients: [] };
       if (v.client?.name && !r.clients.includes(v.client.name)) r.clients.push(v.client.name);
       if (v.purgeAt! < r.purgeAt) r.purgeAt = v.purgeAt!;
       if (v.createdAt < r.recorded) r.recorded = v.createdAt;
@@ -99,7 +101,8 @@ export async function warnExpiring(now = new Date()) {
           ? `Our encrypted copy of a recording ${left ? "made by someone no longer on your team" : "you made"} is scheduled to be deleted from our servers in about 24 hours.`
           : `Our encrypted copies of ${n} recordings ${left ? "made by someone no longer on your team" : "you made"} are scheduled to be deleted from our servers in about 24 hours.`,
       lines: list.map((r) => ({
-        text: `Recorded ${dates.day(r.recorded)}${r.clients.length ? `, sent to ${r.clients.join(", ")}` : ""}. Deleted after ${dates.dayTime(r.purgeAt)} ${dates.zoneName(r.purgeAt)}`,
+        // Named by its title once it has one (O72's ask, for this email too); the date says which while it doesn't.
+        text: `${isDefaultTitle(r.title) ? "Recorded" : `\u201c${r.title.trim()}\u201d, recorded`} ${dates.day(r.recorded)}${r.clients.length ? `, sent to ${r.clients.join(", ")}` : ""}. Deleted after ${dates.dayTime(r.purgeAt)} ${dates.zoneName(r.purgeAt)}`,
         link: r.link,
       })),
       note:
