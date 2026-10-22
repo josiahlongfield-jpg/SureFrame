@@ -134,8 +134,8 @@ for (const [name, device] of [["iPhone SE", devices["iPhone SE"]], ["iPhone 13",
   const ctx = await browser.newContext({ storageState: state, permissions: ["camera", "microphone"], viewport: { width: 1360, height: 900 } });
   const page = await ctx.newPage();
   await page.goto(url);
-  await page.click("[data-testid=chat-open]", { timeout: 20000 });
-  await page.click("role=tab[name='Video']");
+  // On a computer the conversation is beside the video already (no Open conversation button).
+  await page.click("aside >> role=tab[name='Video']", { timeout: 20000 });
   await page.waitForSelector("[data-testid=reply-camera-select]", { timeout: 15000 });
   const cams = await page.$$eval("[data-testid=reply-camera-select] option", (os) => os.map((o) => o.value).filter(Boolean));
   ok("computer: a Camera menu lists its cameras", cams.length === 2, JSON.stringify(cams));

@@ -170,8 +170,8 @@ await ep.goto(BASE + "/library");
 ok("sign out everywhere: this browser stays signed out", new URL(ep.url()).pathname === "/login");
 await other.goto(BASE + "/library");
 ok("sign out everywhere: the other browser is signed out too", new URL(other.url()).pathname === "/login", other.url());
-const again = await signIn(here);
-ok("sign out everywhere: signing in again works at once", new URL(again.url()).pathname === "/library");
+const backIn = await signIn(here);
+ok("sign out everywhere: signing in again works at once", new URL(backIn.url()).pathname === "/library");
 await here.close();
 await elsewhere.close();
 
