@@ -11,6 +11,6 @@ export function points(retentionDays: number) {
     { icon: "ai", title: "Paid add-ons: AI and backup", line: `AI pulls out key points and action items. Backup keeps videos past the usual ${retentionDays} days.` },
     { icon: "bolt", title: "Ready when you are", line: "No processing wait. Send it straight away." },
     // Was "Nothing to install", no longer true with the browser extension (Josiah, 22 October 2026).
-    { icon: "plug", title: "Free bonus for Claude users", line: "Connect your own Claude for client reports, checklists and more, at no extra charge." },
+    { icon: "plug", title: "Free bonus for Claude users", line: "Connect your Claude account for client reports, checklists and more, at no extra charge." },
   ] as const;
 }
