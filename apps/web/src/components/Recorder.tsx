@@ -51,6 +51,12 @@ const CAMERA_BUSY = "Your camera is being used by another app, such as a video-c
 const CAMERA_PERMISSION = "Camera permission is needed for this mode. Allow it in your browser's address bar, or choose Screen only.";
 const CAMERA_ERRORS = [NO_CAMERA, CAMERA_BUSY, CAMERA_PERMISSION];
 
+/**
+ * The microphones to choose from. Browsers also list their own "default" (and on Windows "communications") entry, the
+ * same microphone again under another name; "Default microphone" already is that choice, so they're left out (V73).
+ */
+const realMics = (all: MediaDeviceInfo[]) => all.filter((d) => d.kind === "audioinput" && d.deviceId !== "default" && d.deviceId !== "communications");
+
 export default function Recorder({
   maxResolution,
   maxDurationMin,
@@ -224,7 +230,7 @@ export default function Recorder({
   const loadDevices = useCallback(async () => {
     const all = await navigator.mediaDevices.enumerateDevices();
     setCams(all.filter((d) => d.kind === "videoinput"));
-    setMics(all.filter((d) => d.kind === "audioinput"));
+    setMics(realMics(all));
   }, []);
 
   // Camera preview while setting up.
@@ -301,7 +307,7 @@ export default function Recorder({
       const all = await navigator.mediaDevices.enumerateDevices().catch(() => []);
       const found = all.filter((d) => d.kind === "videoinput");
       setCams(found);
-      setMics(all.filter((d) => d.kind === "audioinput"));
+      setMics(realMics(all));
       setCamId((id) => (id && !found.some((d) => d.deviceId === id) ? undefined : id));
       if (found.length > 0 && noCamera) {
         setNoCamera(false);
@@ -764,7 +770,7 @@ export default function Recorder({
                         ? "Recording your screen. Your camera bubble isn\u2019t on screen right now, so your camera is in the circle in the corner of the video."
                         : "Recording your screen. Your camera is the floating bubble: drag it anywhere, and use the size button on its bar, or drag its corner, to resize it."
                       : wholeScreen
-                      ? "Recording your whole screen. Your camera is in the circle in the corner of the video. Drag it to move it."
+                      ? "Recording your whole screen. Your camera is in the circle in the corner of the video. Drag it to move it. Come back to this tab to pause or stop."
                       : bubbleOpen
                         ? canComposeCamera()
                           ? "Recording your screen. Your camera is in the circle in the corner of the video; the floating bubble shows you, with Pause and Stop."

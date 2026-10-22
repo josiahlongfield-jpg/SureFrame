@@ -154,6 +154,7 @@ await browser.close();
   await p.waitForSelector("text=/Recording · \\d/", { timeout: 20000 });
   ok("whole screen: the floating window closes", await p.evaluate(() => !window.documentPictureInPicture?.window));
   ok("and the page says the camera is the circle in the video", (await p.locator("text=Your camera is in the circle in the corner of the video").count()) === 1);
+  ok("and says to come back to this tab to pause or stop (O45)", (await p.locator("text=Come back to this tab to pause or stop.").count()) === 1);
   ok("and offers no pop-out button", (await p.locator("text=Pop out camera bubble").count()) === 0);
   ok("and shows a small camera circle on the page", (await p.locator("[data-testid=camera-circle]").count()) === 1);
   await p.waitForTimeout(2000);

@@ -54,6 +54,9 @@ await prompt.waitFor({ timeout: 5000 }).catch(() => {});
 ok("screen recording: asks to add the extension first", await prompt.isVisible());
 const text = await prompt.innerText();
 ok("says what it does", /camera bubble, with Pause and Stop, on any tab/.test(text), text);
+// O45: without it, the floating window is only for a tab or window; on the whole screen the buttons stay on this tab.
+ok("says what happens without it, also for the whole screen", /floating window when you share a tab or window/.test(text) && /whole screen, your camera goes in the corner of the video, and Pause and Stop stay on this tab/.test(text), text);
+ok("no promise of a floating window whatever is shared", !/stays in a small floating window instead/.test(text), text);
 ok("says why it's safe", /Why it.s safe/.test(text) && /doesn.t read, collect or send anything/.test(text), text);
 const add = page.locator("[data-testid=extension-add]");
 ok("Add goes to the store in a new tab", (await add.getAttribute("href")) === process.env.EXPECT_URL && (await add.getAttribute("target")) === "_blank", await add.getAttribute("href"));
