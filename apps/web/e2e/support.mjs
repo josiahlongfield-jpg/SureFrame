@@ -91,12 +91,15 @@ const otherEmail = `someone${Date.now()}@peak.com`;
 await agreed(otherEmail);
 await other.fill('input[name="email"]', otherEmail);
 await other.click("text=Continue");
-await other.waitForURL("**/support");
-await other.waitForSelector("text=Page not found");
-ok("inbox hidden from customers", !(await other.textContent("body")).includes("visitor@example.com"));
-ok("its tab says Page not found too, not Support inbox", (await other.title()).startsWith("Page not found"), await other.title());
-ok("with a real 404", (await other.request.get(BASE + "/support/accounts")).status() === 404);
+// Signed in but not on the support team: sent to Help, which is what they wanted (V60), never the inbox.
+await other.waitForURL((u) => u.pathname === "/help", { timeout: 30000 });
+ok("inbox hidden from customers: sent to Help", !(await other.textContent("body")).includes("visitor@example.com") && (await other.locator("[data-testid=inbox-list]").count()) === 0);
+ok("its tab is Help's, not Support inbox", !(await other.title()).includes("Support inbox"), await other.title());
+const otherAccounts = await other.request.get(BASE + "/support/accounts");
+ok("the other support pages send them to Help too", new URL(otherAccounts.url()).pathname === "/help", otherAccounts.url());
 // ...and isn't offered to them: no Support in their Settings menu or on the Settings page.
+// Past the one welcome step a new owner gets, so the app's own pages open.
+await prisma.user.update({ where: { email: otherEmail }, data: { onboardedAt: new Date() } });
 await other.goto(BASE + "/library");
 await other.click("[data-testid=settings-menu-button]");
 await other.waitForSelector("[data-testid=settings-menu]");
