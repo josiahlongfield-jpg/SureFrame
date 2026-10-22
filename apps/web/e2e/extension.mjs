@@ -86,6 +86,14 @@ const plain = await ctx.newPage();
 await plain.goto(SITE + "/plain");
 const frameOf = (page) => page.frames().find((f) => f.url().startsWith("chrome-extension://") && f.url().includes("bubble.html"));
 const box = (page) => page.evaluate(() => document.getElementById("sureframe-bubble-frame")?.getBoundingClientRect().toJSON() ?? null);
+// The bubble's size and tucked-away state, as set during this recording (a look kept from another recording is ignored).
+const setLook = async (page, size, collapsed = false) => {
+  await frameOf(page).evaluate(async ([n, c]) => {
+    const { rec } = await chrome.storage.session.get("rec");
+    await chrome.storage.local.set({ bubbleLook: { size: n, collapsed: c, rec: rec.id } });
+  }, [size, collapsed]);
+  await page.waitForTimeout(400);
+};
 ok("before recording: no bubble on web pages", (await box(plain)) === null);
 
 // Screen + camera.
@@ -268,8 +276,7 @@ await clickIn("#size");
 ok("dial: the size button closes it", !(await fr().isVisible("#sizer")));
 await clickIn("#bigger").catch(() => {});
 // Back to the grip's size for the checks below.
-await fr().evaluate((n) => chrome.storage.local.set({ bubbleLook: { size: n, collapsed: false } }), after);
-await plain.waitForTimeout(400);
+await setLook(plain, after);
 
 // A tab opened while recording gets the bubble and the camera too.
 {
@@ -287,6 +294,71 @@ await plain.waitForTimeout(400);
   ok("new tab: same place as the other tabs", Math.round(a.left) === Math.round(bb.left) && Math.round(a.bottom) === Math.round(bb.bottom), `${JSON.stringify(a)} vs ${JSON.stringify(bb)}`);
   await extra.close();
   await plain.bringToFront();
+}
+
+// O56: the corner grip dragged past the window's edge and let go out there, where the frame can't hear the let-go.
+// While held, the bubble stays inside the window; once the pointer is back (or after a while without it), the frame
+// shrinks back around the bubble, so the page underneath works again.
+{
+  const W = 1360, H = 900;
+  await plain.evaluate(() => {
+    const b = document.createElement("button");
+    b.id = "page-button";
+    b.textContent = "Help";
+    b.style.cssText = "position:fixed;top:120px;left:900px;padding:8px 16px";
+    b.onclick = () => (b.textContent = "clicked");
+    document.body.append(b);
+  });
+  const full = (f) => f && f.width >= W - 1 && f.height >= H - 1;
+  const fits = (f) => f && f.left >= 0 && f.top >= 0 && f.right <= W && f.bottom <= H;
+  const circleOnPage = async () => {
+    const f = await box(plain);
+    const c = await frameOf(plain).evaluate(() => document.getElementById("circle").getBoundingClientRect().toJSON());
+    return { x: f.left + c.x, y: f.top + c.y, right: f.left + c.right, bottom: f.top + c.bottom };
+  };
+  async function gripOffTheEdge(dx, dy) {
+    await frameOf(plain).hover("#circle");
+    const f = await box(plain);
+    const g = await frameOf(plain).evaluate(() => document.getElementById("grow").getBoundingClientRect().toJSON());
+    const gx = f.left + g.x + 11, gy = f.top + g.y + 11;
+    await plain.mouse.move(gx, gy, { steps: 3 });
+    await plain.mouse.down();
+    await plain.mouse.move(gx + dx, gy + dy, { steps: 14 });
+  }
+  await setLook(plain, 200);
+  await gripOffTheEdge(-400, -400);
+  const c = await circleOnPage();
+  ok("grip past the edge: the bubble stays inside the window while held", c.x >= -1 && c.y >= -1 && c.right <= W + 1 && c.bottom <= H + 1, JSON.stringify(c));
+  await plain.mouse.up();
+  await plain.mouse.move(W - 200, 60, { steps: 3 });
+  await plain.waitForTimeout(500);
+  let f = await box(plain);
+  ok("grip let go outside the window: the frame shrinks back around the bubble", !full(f) && fits(f), JSON.stringify(f));
+  await plain.click("#page-button");
+  ok("...and the page under it works again", (await plain.textContent("#page-button")) === "clicked");
+  await plain.screenshot({ path: `${shots}/extension-grip-edge.png` });
+  // Let go outside and the pointer not back: shrinks back by itself after a few seconds.
+  await setLook(plain, 200);
+  await gripOffTheEdge(-400, -400);
+  await plain.mouse.up();
+  await plain.waitForTimeout(9500);
+  f = await box(plain);
+  ok("grip let go outside, pointer not back: the frame shrinks back by itself", !full(f) && fits(f), JSON.stringify(f));
+  // Should the frame ever be told the bubble is as big as the window, or report its outline while it covers the page,
+  // it goes back to the bubble's own size.
+  await frameOf(plain).evaluate(() => port.postMessage({ drag: "start" }));
+  await plain.waitForTimeout(300);
+  ok("(the frame covers the page while held)", full(await box(plain)));
+  await frameOf(plain).evaluate(() => port.postMessage({ box: shape }));
+  await plain.waitForTimeout(300);
+  f = await box(plain);
+  ok("an outline reported while covering the page: the frame shrinks back", !full(f) && fits(f), JSON.stringify(f));
+  await frameOf(plain).evaluate(() => port.postMessage({ box: { width: innerWidth * 2, height: innerHeight * 2, anchor: 100 } }));
+  await plain.waitForTimeout(300);
+  f = await box(plain);
+  ok("an outline as big as the window: the frame doesn't cover the page", !full(f) && fits(f), JSON.stringify(f));
+  await plain.evaluate(() => document.getElementById("page-button").remove());
+  await setLook(plain, 200);
 }
 
 // Everywhere on the screen: moved there first, then resized with the grip, the dial and its buttons, and its own
@@ -313,10 +385,7 @@ await plain.waitForTimeout(400);
   // Where it was, unless the circle grew into a side of the window (then all of it moved in together).
   const atSide = (c) => c.x <= 6 || c.x + c.w >= W - 6;
   const circleSize = () => frameOf(plain).evaluate(() => document.getElementById("circle").getBoundingClientRect().width);
-  const setSize = async (n) => {
-    await frameOf(plain).evaluate((n) => chrome.storage.local.set({ bubbleLook: { size: n, collapsed: false } }), n);
-    await plain.waitForTimeout(400);
-  };
+  const setSize = (n) => setLook(plain, n);
   // Drags the bubble by its clock so the middle of the bar lands at x, and the frame's bottom at y.
   async function moveTo(x, y) {
     const clock = await onPage("#clock");
@@ -431,6 +500,17 @@ await rec.waitForURL("**/v/**", { timeout: 30000 }).catch(() => {});
 ok("Stop on the bubble saves the video", /\/v\//.test(rec.url()), rec.url());
 await plain.waitForTimeout(1500);
 ok("after Stop: no bubble on web pages", (await box(plain)) === null);
+// O57: the last recording's bubble left big with its bar tucked away; the next recording starts afresh.
+const worker = ctx.serviceWorkers()[0] ?? (await ctx.waitForEvent("serviceworker"));
+const leftOver = async () => {
+  const kept = await worker.evaluate(async () => {
+    const { bubbleLook } = await chrome.storage.local.get("bubbleLook");
+    await chrome.storage.local.set({ bubbleLook: { ...bubbleLook, size: 436, collapsed: true } });
+    return bubbleLook;
+  });
+  return typeof kept?.rec === "string" && kept.rec.length > 0;
+};
+ok("the bubble's size is kept with the recording it was set in", await leftOver());
 
 // Screen only: just the bar, which stays even when the whole screen is shared.
 await rec.goto(BASE + "/record");
@@ -442,6 +522,7 @@ await plain.waitForSelector("#sureframe-bubble-frame", { timeout: 10000 }).catch
 await plain.waitForTimeout(800);
 const only = await box(plain);
 ok("screen only: the bar alone, no camera", only && only.height <= 44 && !(await frameOf(plain).isVisible("#circle")), JSON.stringify(only));
+ok("a new recording starts with the bar showing, not tucked away as the last one was left", (await frameOf(plain).isVisible("#bar")) && !(await frameOf(plain).isVisible("#mini")));
 await plain.screenshot({ path: `${shots}/extension-screen-only.png` });
 await rec.bringToFront();
 await rec.click("button:has-text('Stop')");
@@ -451,6 +532,7 @@ ok("Stop on the SureFrame tab takes the bar away too", (await box(plain)) === nu
 
 // Screen + Camera, one window shared (Josiah 2026-10-21): the bubble can't be inside another app's window, so the
 // camera is the corner circle in the video the whole way through, and the bubble keeps just Pause and Stop.
+ok("(left big and tucked away again before the next recording)", await leftOver());
 await rec.goto(BASE + "/record");
 await rec.click("text=Screen + Camera");
 await rec.evaluate(() => {
@@ -471,6 +553,7 @@ await plain.waitForTimeout(2500);
 const win = await box(plain);
 const winCam = await frameOf(plain)?.evaluate(() => !!document.getElementById("video").srcObject).catch(() => null);
 ok("one window: the bubble keeps just its bar, camera off", win && win.height <= 44 && !(await frameOf(plain).isVisible("#circle")) && winCam === false, `${JSON.stringify(win)} ${winCam}`);
+ok("one window: starts with the bar showing too", await frameOf(plain).isVisible("#bar"));
 says = await recorderSays();
 ok("...and the recorder says the camera is the corner circle", /Recording a window\. Your camera is in the circle in the corner of the video/.test(says), says);
 await frameOf(plain).click("#stop");
@@ -489,7 +572,9 @@ for (const [name, viewport, deviceScaleFactor] of [
 ]) {
   const c = await chromium.launchPersistentContext(profile, { headless: true, executablePath: process.env.CHROMIUM ?? undefined, args, viewport, deviceScaleFactor });
   const sw = c.serviceWorkers()[0] ?? (await c.waitForEvent("serviceworker"));
-  await sw.evaluate(() => chrome.storage.local.remove(["bubble", "bubbleLook", "bubblePlace"]));
+  // Left big and tucked away by an earlier recording (O57): this one starts at the default size, bar showing.
+  await sw.evaluate(() => chrome.storage.local.remove(["bubble", "bubblePlace"]));
+  await sw.evaluate(() => chrome.storage.local.set({ bubbleLook: { size: 436, collapsed: true, rec: "earlier" } }));
   const p = c.pages()[0] ?? (await c.newPage());
   await p.goto(SITE + "/plain");
   await sw.evaluate(() => chrome.storage.session.set({ rec: { id: "sizes", mode: "screen+camera", phase: "recording", ms: 0, at: Date.now(), beat: Date.now(), tabId: -1 } }));
@@ -497,6 +582,8 @@ for (const [name, viewport, deviceScaleFactor] of [
   const live = !!(await camOn(p));
   let r = await box(p);
   ok(`${name}: the bubble shows its camera, inside the screen`, live && r && r.left >= 0 && r.bottom <= viewport.height, JSON.stringify(r));
+  const fresh = await frameOf(p).evaluate(() => ({ size: document.getElementById("circle").getBoundingClientRect().width, bar: !document.getElementById("bar").hidden }));
+  ok(`${name}: a new recording starts at the default size with its bar`, fresh.size === 200 && fresh.bar, JSON.stringify(fresh));
   await p.mouse.move(r.left + 100, r.top + 100);
   await p.mouse.down();
   await p.mouse.move(r.left + 400, r.top - 200, { steps: 12 });

@@ -134,10 +134,20 @@
           }
         }
       } else if (m.box) {
-        box = { width: Math.ceil(m.box.width), height: Math.ceil(m.box.height), anchor: m.box.anchor ?? m.box.width / 2 };
-        if (full) return;
-        frame.style.width = `${box.width}px`;
-        frame.style.height = `${box.height}px`;
+        const next = { width: Math.ceil(m.box.width), height: Math.ceil(m.box.height), anchor: m.box.anchor ?? m.box.width / 2 };
+        const { w, h } = viewport();
+        // The bubble is never as big as the whole window: an outline that size can only be left over from a gesture
+        // that went wrong, so the gesture is ended and the frame keeps its last real size.
+        if (next.width >= w && next.height >= h) {
+          port.postMessage({ cancel: true });
+          if (full) settle(held);
+          return;
+        }
+        box = next;
+        // The bubble only reports its outline when it isn't being held: covering the page now would be a let-go
+        // that never arrived (released outside the window), so the frame shrinks back around the bubble.
+        if (full) return settle(held);
+        fit();
         clamp();
       } else if (m.drag === "start") {
         // Dragging or resizing: the (see-through) frame covers the page meanwhile, and the bubble moves inside it.
@@ -160,6 +170,13 @@
     told = "";
   }
 
+  /** The frame around the bubble, never bigger than the window. */
+  function fit() {
+    const { w, h } = viewport();
+    frame.style.width = `${Math.min(box.width, w)}px`;
+    frame.style.height = `${Math.min(box.height, h)}px`;
+  }
+
   /** Let go: the frame shrinks back around the bubble where it now is, and every other tab's bubble goes there too. */
   function settle(at) {
     full = false;
@@ -168,8 +185,7 @@
       cx = at.cx;
       bottom = at.bottom;
     }
-    frame.style.width = `${box.width}px`;
-    frame.style.height = `${box.height}px`;
+    fit();
     clamp();
     // Written whole, never merged with what's stored: the bubble's size is kept under its own name by bubble.js, so a
     // move and a resize ending together can't undo each other.
@@ -209,10 +225,18 @@
 
   const onResize = () => clamp();
 
+  // Leaving the tab mid-gesture: its let-go can't be heard from there, so the frame goes back around the bubble now.
+  const onHidden = () => {
+    if (document.visibilityState !== "hidden" || !full || !frame) return;
+    port?.postMessage({ cancel: true });
+    settle(held);
+  };
+
   function stop() {
     alive = false;
     unmount();
     removeEventListener("resize", onResize);
+    document.removeEventListener("visibilitychange", onHidden);
     try {
       chrome.storage.onChanged.removeListener(onStorage);
     } catch {}
@@ -220,6 +244,7 @@
 
   chrome.storage.onChanged.addListener(onStorage);
   addEventListener("resize", onResize);
+  document.addEventListener("visibilitychange", onHidden);
   window.__sureframePage = Object.assign(stop, { alive: () => alive && !!chrome.runtime?.id });
   void load();
 })();

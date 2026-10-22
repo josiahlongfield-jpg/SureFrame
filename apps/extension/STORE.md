@@ -30,7 +30,7 @@ Needs a SureFrame account (sureframe.app). Works in Chrome, Edge, Brave and othe
 **Single purpose:** Show the person's camera and recording controls (Pause, Stop, time) on web pages while they record their screen with SureFrame.
 
 **Permission reasons:**
-- `storage`: remembers the bubble's place, size and whether its controls are tucked away, and passes the recording's state (time, paused) between the SureFrame tab and the bubbles.
+- `storage`: remembers the bubble's place, and its size and whether its controls are tucked away during a recording, and passes the recording's state (time, paused) between the SureFrame tab and the bubbles.
 - `scripting`: adds the bubble to tabs that were already open when the extension was installed or updated, without reloading them.
 - Host permissions (all http and https sites): the bubble and controls have to appear on whatever web page the person is on while recording. The extension never reads page content.
 - Remote code: none. All code is in the package.

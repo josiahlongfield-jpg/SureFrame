@@ -17,7 +17,9 @@ const scale = $("scale");
 const STEP = 20;
 
 let rec = null;
-let prefs = { size: 200, collapsed: false };
+/** Every recording starts with the bubble at this size and its bar showing; changes last until it ends. */
+const DEFAULT = { size: 200, collapsed: false };
+let prefs = { ...DEFAULT };
 /** The size dial under the circle, opened from the bar. Not remembered: it closes on other pages. */
 let dialOpen = false;
 /**
@@ -110,6 +112,11 @@ window.addEventListener("message", (e) => {
       if (!gesture) layout();
       return;
     }
+    // The page script put the frame back around the bubble (its tab was left mid-gesture): the gesture is over.
+    if (m.data?.cancel) {
+      gesture?.end();
+      return;
+    }
     // The frame now covers the page: the bubble stays where it was until the pointer moves.
     const g = gesture;
     if (m.data?.full && g) {
@@ -199,11 +206,18 @@ for (const b of [$("expand"), mini]) b.addEventListener("click", () => !dragged 
 /**
  * Changes the bubble here and on every other tab. The size and tucked-away state are written whole under their own
  * name (the page script keeps the place separately), so two writes landing together can't leave tabs disagreeing.
+ * They're kept with the recording they were made in: the next recording starts afresh (see lookFor).
  */
 function setPrefs(change) {
   prefs = { ...prefs, ...change };
   layout();
-  void chrome.storage.local.set({ bubbleLook: { size: prefs.size, collapsed: prefs.collapsed } }).catch(() => {});
+  if (rec?.id) void chrome.storage.local.set({ bubbleLook: { size: prefs.size, collapsed: prefs.collapsed, rec: rec.id } }).catch(() => {});
+}
+
+/** The size and tucked-away state kept for this recording, or the defaults for a new one. */
+function lookFor(look) {
+  if (!look || !rec?.id || look.rec !== rec.id) return { ...DEFAULT };
+  return { size: Number(look.size) || DEFAULT.size, collapsed: !!look.collapsed };
 }
 
 // ---------- The camera ----------
@@ -315,6 +329,8 @@ setInterval(() => {
 
 let dragged = false;
 let gesture = null;
+/** A gesture with no pointer news for this long is over (see gesture.still). */
+const IDLE = 8000;
 const wrap = document.body;
 
 function drag(el, kind) {
@@ -322,17 +338,22 @@ function drag(el, kind) {
     if (e.button !== 0 || !port || (e.target !== el && e.target.closest("button") && e.target.closest("button") !== el)) return;
     e.preventDefault();
     e.stopPropagation();
+    // A gesture whose let-go was never heard ends where it was before this one starts.
+    gesture?.end();
     el.setPointerCapture(e.pointerId);
     dragged = false;
     el.classList.add("dragging");
     // Where the pointer went down, inside this frame at its own size.
-    gesture = { kind, el, down: { x: e.clientX, y: e.clientY, h: innerHeight }, from: null, at: null, last: null, take: null };
+    gesture = { kind, el, id: e.pointerId, down: { x: e.clientX, y: e.clientY, h: innerHeight }, from: null, at: null, last: null, take: null };
     port.postMessage({ drag: "start" });
     const move = (m) => {
       const g = gesture;
-      if (!g) return;
+      if (!g || m.pointerId !== g.id) return;
+      // Let go outside the window, where this frame can't hear it: the pointer is back with no button held.
+      if (m.type === "pointermove" && m.buttons === 0) return up(m);
+      g.still();
       if (!g.from) {
-        g.last = { clientX: m.clientX, clientY: m.clientY };
+        g.last = { clientX: m.clientX, clientY: m.clientY, pointerId: m.pointerId };
         return;
       }
       // Just after pressing, positions can still be inside the frame at its own size rather than on the page. The
@@ -350,6 +371,9 @@ function drag(el, kind) {
         } else g.onPage = true;
       }
       g.prev = { x, y };
+      // Taken as at the window's edge when the pointer goes past it: the bubble and its frame never reach beyond.
+      x = Math.max(0, Math.min(innerWidth, x));
+      y = Math.max(0, Math.min(innerHeight, y));
       const dx = x - g.from.x;
       const dy = y - g.from.y;
       if (Math.abs(dx) + Math.abs(dy) > 3) dragged = true;
@@ -361,7 +385,7 @@ function drag(el, kind) {
         g.pos = { cx, bottom: Math.max(0, Math.min(innerHeight - shape.height, g.from.bottom - dy)) };
       } else {
         // The grip at the circle's top right: bigger up and right, smaller down and left, around the bar's middle
-        // (twice as much across, so the grip keeps up with the pointer).
+        // (twice as much across, so the grip keeps up with the pointer). Never bigger than fits above it (layout).
         const grow = Math.abs(dx) > Math.abs(dy) ? dx * 2 : -dy;
         prefs.size = Math.max(MIN, Math.min(MAX, g.from.size + grow));
       }
@@ -375,12 +399,15 @@ function drag(el, kind) {
       else port?.postMessage({ drag: "end" });
     };
     const up = (u) => {
+      if (u && u.pointerId !== gesture?.id) return;
+      clearTimeout(gesture?.idle);
       // Where it was let go counts too: a quick flick can end before any move was taken.
-      if (u.type === "pointerup") move(u);
+      if (u?.type === "pointerup") move(u);
       el.classList.remove("dragging");
-      el.removeEventListener("pointermove", move);
-      el.removeEventListener("pointerup", up);
-      el.removeEventListener("pointercancel", up);
+      for (const t of ["pointermove", "pointerup", "pointercancel"]) document.removeEventListener(t, t === "pointermove" ? move : up, true);
+      try {
+        el.releasePointerCapture(e.pointerId);
+      } catch {}
       // Let go before the frame covered the page: finished once it has (see the port's messages).
       if (gesture && !gesture.from) gesture.letGo = true;
       else finish();
@@ -389,11 +416,26 @@ function drag(el, kind) {
     };
     gesture.take = move;
     gesture.finish = finish;
-    el.addEventListener("pointermove", move);
-    el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", up);
+    gesture.end = () => up(null);
+    // Nothing heard for a while: most likely let go outside the window and not back yet. Ended where it is, so the
+    // page underneath works again.
+    const self = gesture;
+    self.still = () => {
+      clearTimeout(self.idle);
+      self.idle = setTimeout(() => gesture === self && self.end(), IDLE);
+    };
+    gesture.still();
+    // Heard on the whole frame, not just what was pressed, so a pointer that lost its capture still ends the gesture.
+    document.addEventListener("pointermove", move, true);
+    document.addEventListener("pointerup", up, true);
+    document.addEventListener("pointercancel", up, true);
   });
 }
+
+// A press anywhere on the frame while it still covers the page means the last let-go was never heard: finish that one.
+document.addEventListener("pointerdown", () => gesture?.end(), true);
+// Leaving the tab (another tab, another app) ends a gesture too: its let-go can't be heard from there.
+document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && gesture?.end());
 
 /**
  * Inside the page-covering frame: the bubble with the middle of its bar at cx, its bottom this far up. Null: back to
@@ -427,11 +469,9 @@ window.addEventListener("resize", () => !gesture && place(null));
 // ---------- Start ----------
 
 async function start() {
-  const [{ rec: r }, { bubbleLook, bubble }] = await Promise.all([chrome.storage.session.get("rec"), chrome.storage.local.get(["bubbleLook", "bubble"])]);
+  const [{ rec: r }, { bubbleLook }] = await Promise.all([chrome.storage.session.get("rec"), chrome.storage.local.get("bubbleLook")]);
   rec = r ?? null;
-  // "bubble" is where 1.0.0 kept it.
-  const look = bubbleLook ?? bubble;
-  if (look) prefs = { size: Number(look.size) || 200, collapsed: !!look.collapsed };
+  prefs = lookFor(bubbleLook);
   layout();
   draw();
   if (document.visibilityState === "visible") void openCamera();
@@ -440,7 +480,14 @@ async function start() {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "session" && changes.rec) {
     const was = rec?.mode;
+    const wasId = rec?.id;
     rec = changes.rec.newValue ?? null;
+    // A new recording: the default size with the bar showing, whatever the last one was left at.
+    if (rec?.id && rec.id !== wasId) {
+      prefs = { ...DEFAULT };
+      dialOpen = false;
+      layout();
+    }
     // Ended, or switched to just Pause and Stop (one window shared: the camera goes in the video's corner instead).
     if (rec?.mode !== "screen+camera") closeCamera();
     if (rec?.mode !== was) layout();
@@ -448,9 +495,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
     draw();
   }
   // Changed on another tab (or this one): the same here, unless this bubble is being resized right now.
-  if (area === "local" && changes.bubbleLook?.newValue && gesture?.kind !== "size" && !sliding) {
-    const b = changes.bubbleLook.newValue;
-    const next = { size: Number(b.size) || prefs.size, collapsed: !!b.collapsed };
+  if (area === "local" && changes.bubbleLook?.newValue?.rec === rec?.id && rec?.id && gesture?.kind !== "size" && !sliding) {
+    const next = lookFor(changes.bubbleLook.newValue);
     if (next.size !== prefs.size || next.collapsed !== prefs.collapsed) {
       prefs = next;
       layout();

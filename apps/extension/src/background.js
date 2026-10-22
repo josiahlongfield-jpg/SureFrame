@@ -8,7 +8,8 @@
 // State lives in chrome.storage.session (cleared when the browser closes):
 //   rec  - the recording the SureFrame tab is running (written by bridge.js)
 //   cmd  - a button pressed on a bubble (read by bridge.js)
-// and in chrome.storage.local the bubble's place ("bubblePlace", page.js) and size ("bubbleLook", bubble.js).
+// and in chrome.storage.local the bubble's place ("bubblePlace", page.js) and, for the recording it was set in, its
+// size and tucked-away state ("bubbleLook", bubble.js; each new recording starts at the default size with its bar).
 
 // Let the content scripts read and watch the session state. Runs every time this worker starts.
 chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS" }).catch(() => {});
