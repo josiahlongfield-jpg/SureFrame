@@ -37,11 +37,16 @@ class BillingError extends Error {
   }
 }
 
-/** Where to fix what stopped a switch. */
-const FIX: Record<string, { href: string; label: string }> = {
+/** Where to fix what stopped a switch (and, when the API's own words don't fit beside the button, what to say). */
+const FIX: Record<string, { href: string; label: string; message?: string }> = {
   TOO_MANY_CLIENTS: { href: "/clients", label: "Go to Clients" },
   TOO_MANY_STAFF: { href: "/settings/team", label: "Go to Team" },
-  TERMS_REQUIRED: { href: `/agree?next=${encodeURIComponent("/pricing")}`, label: "Review and agree" },
+  // The API's TERMS_REQUIRED says to reload the page; here the button takes them straight there (D12d).
+  TERMS_REQUIRED: {
+    href: `/agree?next=${encodeURIComponent("/pricing")}`,
+    label: "Review and agree",
+    message: "Please agree to the updated Terms of Service and Privacy Policy first. Then come back here to switch.",
+  },
 };
 
 export default function UpgradeButton({
@@ -88,7 +93,11 @@ export default function UpgradeButton({
     try {
       await fn();
     } catch (e) {
-      setError({ message: (e as Error).message, code: (e as BillingError).code });
+      const code = (e as BillingError).code;
+      const fix = FIX[code ?? ""];
+      // Something to fix elsewhere: the dialog with its button, not a line inside the confirm.
+      if (fix) setConfirm(undefined);
+      setError({ message: fix?.message ?? (e as Error).message, code });
       setBusy(false);
     }
   }

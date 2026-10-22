@@ -119,6 +119,21 @@ ok("clicking the label shares nothing", sql(`select shared from "Item" where id=
 await pro.click("li:has-text('Prefers morning calls') >> button:has-text('Share…')");
 await pro.waitForSelector("[data-testid=share-confirm]");
 ok("Share asks first, naming the client and the item", (await pro.textContent("[data-testid=share-confirm]")).includes("Share this note with Riley Client?") && (await pro.textContent("[data-testid=share-confirm]")).includes("Prefers morning calls"));
+// D12e: an inline strip under the item (like Stop sharing), not a pop-up; it takes focus and Escape closes it.
+ok("Share asks in a strip under the item, not a pop-up", (await pro.locator("li:has-text('Prefers morning calls') [data-testid=share-confirm]").count()) === 1 && (await pro.locator("[role=dialog][aria-modal=true]").count()) === 0);
+ok("the strip takes focus", await pro.evaluate(() => !!document.activeElement?.closest("[data-testid=share-confirm]")));
+await pro.keyboard.press("Escape");
+ok("Escape closes the strip, sharing nothing", (await pro.locator("[data-testid=share-confirm]").count()) === 0 && sql(`select shared from "Item" where id='${privateId}'`) === "f");
+await pro.click("li:has-text('Prefers morning calls') >> button:has-text('Share…')");
+await pro.waitForSelector("[data-testid=share-confirm]");
+{
+  const vp = pro.viewportSize();
+  await pro.setViewportSize({ width: 320, height: 800 });
+  await pro.waitForTimeout(300);
+  const box = await pro.locator("[data-testid=share-confirm]").boundingBox();
+  ok("the strip fits a 320px phone", !!box && box.x >= 0 && box.x + box.width <= 320 && (await pro.evaluate(() => document.documentElement.scrollWidth <= 321)), JSON.stringify(box));
+  await pro.setViewportSize(vp);
+}
 await pro.click("[data-testid=share-confirm] >> button:has-text('Keep it private')");
 ok("Keep it private shares nothing", sql(`select shared from "Item" where id='${privateId}'`) === "f");
 await pro.click("li:has-text('Prefers morning calls') >> button:has-text('Share…')");

@@ -115,7 +115,8 @@ export default function TeamManager(props: Props) {
 
 type Confirm =
   | { kind: "remove"; member: Member; bundle: Bundle }
-  | { kind: "buy" };
+  | { kind: "buy" }
+  | { kind: "cancel-invite"; invite: Invite };
 
 function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeats, includedStaff, extraStaff, canBuyStaff, staffPrice, per = "month", initialMembers, initialInvites, timezone, business = "", teamPlan = true, defaultPerms }: Props & { teamKey?: CryptoKey }) {
   const [members, setMembers] = useState(initialMembers);
@@ -190,6 +191,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
   }
 
   async function cancel(i: Invite) {
+    setConfirming(undefined);
     const res = await fetch(`/api/team/invites/${i.id}`, { method: "DELETE" });
     if (!res.ok) return;
     keepLink(workspaceId, i.id, null);
@@ -380,6 +382,19 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
       {confirming?.kind === "remove" && (
         <RemoveDialog member={confirming.member} bundle={confirming.bundle} onCancel={() => setConfirming(undefined)} onConfirm={() => resetKeys(confirming.member, confirming.bundle)} />
       )}
+      {confirming?.kind === "cancel-invite" && (
+        // Asks first, like Remove (FF-9): the link they may already have stops working.
+        <Dialog
+          title={confirming.invite.email ? `Cancel the invite for ${confirming.invite.email}?` : "Cancel this invite?"}
+          confirmLabel="Cancel invite"
+          cancelLabel="Keep invite"
+          danger
+          onCancel={() => setConfirming(undefined)}
+          onConfirm={() => void cancel(confirming.invite)}
+        >
+          <p>The invite link stops working straight away, and its staff login is free again. You can invite them again any time.</p>
+        </Dialog>
+      )}
       {confirming?.kind === "buy" && (
         <Dialog
           title={`Add ${buyQty} extra staff ${buyQty === 1 ? "login" : "logins"}?`}
@@ -448,7 +463,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
                     {copiedInvite === i.id ? "Copied" : "Copy invite link"}
                   </button>
                 )}
-                <button onClick={() => cancel(i)} className="rounded-lg px-3 py-1.5 text-dim hover:bg-hover hover:text-danger-fg">Cancel invite</button>
+                <button onClick={() => setConfirming({ kind: "cancel-invite", invite: i })} data-testid="cancel-invite" className="rounded-lg px-3 py-1.5 text-dim hover:bg-hover hover:text-danger-fg">Cancel invite</button>
               </div>
             </li>
           ))}
@@ -551,7 +566,7 @@ function Switcher({ workspaces }: { workspaces: { id: string; name: string; acti
 }
 
 /** An in-page confirmation (not the browser's own box): Escape or Cancel closes it. */
-function Dialog({ title, children, confirmLabel, danger, onCancel, onConfirm }: { title: string; children: ReactNode; confirmLabel: string; danger?: boolean; onCancel: () => void; onConfirm: () => void }) {
+function Dialog({ title, children, confirmLabel, cancelLabel = "Cancel", danger, onCancel, onConfirm }: { title: string; children: ReactNode; confirmLabel: string; cancelLabel?: string; danger?: boolean; onCancel: () => void; onConfirm: () => void }) {
   // Focus goes back to the button that opened it (if it's still there) once it closes.
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
@@ -570,7 +585,7 @@ function Dialog({ title, children, confirmLabel, danger, onCancel, onConfirm }: 
         <h2 id="team-dialog-title" className="text-lg font-semibold text-ink">{title}</h2>
         <div className="mt-2 grid gap-3 text-sm text-muted">{children}</div>
         <div className="mt-6 flex flex-wrap justify-end gap-2">
-          <button type="button" onClick={onCancel} autoFocus className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink hover:bg-hover">Cancel</button>
+          <button type="button" onClick={onCancel} autoFocus className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink hover:bg-hover">{cancelLabel}</button>
           <button type="button" onClick={onConfirm} data-testid="dialog-confirm"
             className={`rounded-lg px-4 py-2 text-sm font-semibold ${danger ? "bg-danger-fg text-white hover:opacity-90" : "bg-solid text-white hover:bg-solid-hover"}`}>
             {confirmLabel}

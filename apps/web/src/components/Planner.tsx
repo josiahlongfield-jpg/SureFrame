@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { decryptText, encryptText, fingerprint } from "@/lib/e2e/crypto";
 import type { ItemDTO } from "@/lib/items";
 import { browserTimeZone, DEFAULT_REMINDERS, repeatLabel, ruleLabel, sortRules, type ReminderRule } from "@/lib/schedule";
@@ -85,6 +85,11 @@ export default function Planner({
   const [error, setError] = useState<string>();
   // Sharing asks first (a private note about a client must not reach them by a stray click); making private doesn't.
   const [asking, setAsking] = useState<Decrypted>();
+  // The share strip takes focus when it opens, so keyboard and screen-reader users land on the question.
+  const stripRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (asking) stripRef.current?.focus();
+  }, [asking]);
   const [deleting, setDeleting] = useState<Decrypted>();
   const [busy, setBusy] = useState(false);
   // The last share change, with an Undo.
@@ -220,6 +225,50 @@ export default function Planner({
   const first = clientName?.split(" ")[0] ?? "client";
   const who = clientName ?? "the client";
 
+  /** Asks before sharing, in a strip under the item (like Stop sharing on the video page), not a pop-up (D12e). */
+  const shareStrip = (i: Decrypted) => (
+    <div
+      ref={stripRef}
+      tabIndex={-1}
+      role="group"
+      aria-label={`Share with ${who}`}
+      data-testid="share-confirm"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && !busy) {
+          e.stopPropagation();
+          setAsking(undefined);
+          setError(undefined);
+        }
+      }}
+      className="mt-2 rounded-lg border border-warn-line bg-warn-bg p-3 text-xs text-muted outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    >
+      <p className="font-medium text-ink">Share this {i.kind === "NOTE" ? "note" : "to-do"} with {who}?</p>
+      <p className="mt-1">
+        {who} will see it on their page{i.kind === "TASK" ? " and can tick it off" : ""}. Your other private to-dos and notes stay private. You can undo this straight after, or make it private again later.
+      </p>
+      {error && (
+        <p role="alert" className="mt-1 font-medium text-danger-fg">
+          {error}
+        </p>
+      )}
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button onClick={confirmShare} disabled={busy} data-testid="share-confirm-yes" className="rounded-lg bg-primary px-2.5 py-1 text-xs font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60">
+          {busy ? "Sharing…" : `Share with ${who}`}
+        </button>
+        <button
+          onClick={() => {
+            setAsking(undefined);
+            setError(undefined);
+          }}
+          disabled={busy}
+          className="rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink hover:bg-surface-2"
+        >
+          Keep it private
+        </button>
+      </div>
+    </div>
+  );
+
   const row = (i: Decrypted) =>
     editing === i.id ? (
       <li key={i.id} className="py-2.5">
@@ -239,73 +288,76 @@ export default function Planner({
         />
       </li>
     ) : (
-      <li key={i.id} className="group flex items-start gap-3 py-2.5">
-        {i.kind === "TASK" ? (
-          <input
-            type="checkbox"
-            checked={i.done}
-            onChange={() => patch(i, { done: !i.done })}
-            aria-label={`Mark "${i.text}" ${i.done ? "not done" : "done"}`}
-            className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
-          />
-        ) : (
-          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-line-strong" aria-hidden />
-        )}
-        <div className="min-w-0 flex-1">
-          <p className={`whitespace-pre-wrap text-sm ${i.done ? "text-dim line-through" : "text-ink"}`}>{i.text}</p>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-dim">
-            {i.dueAt && (
-              <span className={!i.done && new Date(i.dueAt).getTime() < now ? "font-medium text-danger-fg" : ""}>
-                Due {new Date(i.dueAt).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-              </span>
-            )}
-            {i.repeat && (
-              <span className="inline-flex items-center gap-1" title="Repeats">
-                <RepeatIcon /> {repeatLabel(i.repeat)}
-              </span>
-            )}
-            {i.dueAt && !i.done && i.reminders.length > 0 && ((i.remindClient && !client?.remindersOff) || i.remindTeam) && (
-              <span className="inline-flex items-center gap-1" title="Email reminders">
-                <BellIcon /> {sortRules(i.reminders).map(ruleLabel).join(", ")}
-                {role === "member" && (
-                  <span className="text-dim">
-                    {" "}
-                    {/* A client who turned emails off isn't sent one, though the to-do keeps asking for when they turn them back on. */}
-                    · {[i.remindClient && !client?.remindersOff && first, i.remindTeam && teamWho.tag].filter(Boolean).join(" and ")}
-                  </span>
-                )}
-              </span>
-            )}
-            {role === "member" && clientId && (
-              // A label, not a button: changing who sees it is the Share / Make private action beside Edit.
-              <span data-testid="share-state" className={`inline-flex items-center gap-1 rounded px-1.5 ${i.shared ? "bg-primary-soft text-accent" : "bg-surface-2 text-muted"}`}>
-                {i.shared ? <EyeIcon /> : <LockIcon />}
-                {i.shared ? `Shared with ${who}` : "Private to your team"}
-              </span>
-            )}
+      <li key={i.id} className="group py-2.5">
+        <div className="flex items-start gap-3">
+          {i.kind === "TASK" ? (
+            <input
+              type="checkbox"
+              checked={i.done}
+              onChange={() => patch(i, { done: !i.done })}
+              aria-label={`Mark "${i.text}" ${i.done ? "not done" : "done"}`}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+            />
+          ) : (
+            <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-line-strong" aria-hidden />
+          )}
+          <div className="min-w-0 flex-1">
+            <p className={`whitespace-pre-wrap text-sm ${i.done ? "text-dim line-through" : "text-ink"}`}>{i.text}</p>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-dim">
+              {i.dueAt && (
+                <span className={!i.done && new Date(i.dueAt).getTime() < now ? "font-medium text-danger-fg" : ""}>
+                  Due {new Date(i.dueAt).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                </span>
+              )}
+              {i.repeat && (
+                <span className="inline-flex items-center gap-1" title="Repeats">
+                  <RepeatIcon /> {repeatLabel(i.repeat)}
+                </span>
+              )}
+              {i.dueAt && !i.done && i.reminders.length > 0 && ((i.remindClient && !client?.remindersOff) || i.remindTeam) && (
+                <span className="inline-flex items-center gap-1" title="Email reminders">
+                  <BellIcon /> {sortRules(i.reminders).map(ruleLabel).join(", ")}
+                  {role === "member" && (
+                    <span className="text-dim">
+                      {" "}
+                      {/* A client who turned emails off isn't sent one, though the to-do keeps asking for when they turn them back on. */}
+                      · {[i.remindClient && !client?.remindersOff && first, i.remindTeam && teamWho.tag].filter(Boolean).join(" and ")}
+                    </span>
+                  )}
+                </span>
+              )}
+              {role === "member" && clientId && (
+                // A label, not a button: changing who sees it is the Share / Make private action beside Edit.
+                <span data-testid="share-state" className={`inline-flex items-center gap-1 rounded px-1.5 ${i.shared ? "bg-primary-soft text-accent" : "bg-surface-2 text-muted"}`}>
+                  {i.shared ? <EyeIcon /> : <LockIcon />}
+                  {i.shared ? `Shared with ${who}` : "Private to your team"}
+                </span>
+              )}
+            </div>
           </div>
+          {role === "member" && (
+            // Always visible on touch screens, which have no hover.
+            <div className="flex gap-2 text-xs text-dim [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
+              <button onClick={() => setEditing(i.id)} aria-label={`Edit "${i.text}"`} className="hover:text-ink">
+                Edit
+              </button>
+              {clientId &&
+                (i.shared ? (
+                  <button onClick={() => setShared(i, false)} aria-label={`Make "${i.text}" private`} className="hover:text-ink">
+                    Make private
+                  </button>
+                ) : (
+                  <button onClick={() => setAsking(i)} aria-label={`Share "${i.text}" with ${who}`} className="hover:text-ink">
+                    Share…
+                  </button>
+                ))}
+              <button onClick={() => setDeleting(i)} aria-label="Delete" className="hover:text-danger-fg">
+                Delete
+              </button>
+            </div>
+          )}
         </div>
-        {role === "member" && (
-          // Always visible on touch screens, which have no hover.
-          <div className="flex gap-2 text-xs text-dim [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
-            <button onClick={() => setEditing(i.id)} aria-label={`Edit "${i.text}"`} className="hover:text-ink">
-              Edit
-            </button>
-            {clientId &&
-              (i.shared ? (
-                <button onClick={() => setShared(i, false)} aria-label={`Make "${i.text}" private`} className="hover:text-ink">
-                  Make private
-                </button>
-              ) : (
-                <button onClick={() => setAsking(i)} aria-label={`Share "${i.text}" with ${who}`} className="hover:text-ink">
-                  Share…
-                </button>
-              ))}
-            <button onClick={() => setDeleting(i)} aria-label="Delete" className="hover:text-danger-fg">
-              Delete
-            </button>
-          </div>
-        )}
+        {asking?.id === i.id && shareStrip(asking)}
       </li>
     );
 
@@ -369,7 +421,7 @@ export default function Planner({
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <button className="ml-auto rounded-lg bg-solid px-3 py-1.5 font-medium text-white hover:bg-solid-hover">{clientId ? (share ? `Add and share with ${who}` : "Add privately") : "Add"}</button>
           </div>
-          {error && <p role="alert" className="text-sm text-danger-fg">{error}</p>}
+          {error && !asking && <p role="alert" className="text-sm text-danger-fg">{error}</p>}
         </form>
       )}
 
@@ -383,26 +435,6 @@ export default function Planner({
             <button onClick={() => setChanged(undefined)} aria-label="Dismiss" className="text-dim hover:text-ink">✕</button>
           </span>
         </p>
-      )}
-      {asking && (
-        <ConfirmDialog
-          title={`Share this ${asking.kind === "NOTE" ? "note" : "to-do"} with ${who}?`}
-          body={
-            <>
-              <p className="break-words font-medium text-ink">“{asking.text}”</p>
-              <p>
-                {who} will see it on their page{asking.kind === "TASK" ? " and can tick it off" : ""}. Your other private to-dos and notes stay private. You can undo this straight after, or make it private again later.
-              </p>
-            </>
-          }
-          confirmLabel={`Share with ${who}`}
-          cancelLabel="Keep it private"
-          busy={busy}
-          error={error}
-          onConfirm={confirmShare}
-          onCancel={() => setAsking(undefined)}
-          testId="share-confirm"
-        />
       )}
       {deleting && (
         <ConfirmDialog
