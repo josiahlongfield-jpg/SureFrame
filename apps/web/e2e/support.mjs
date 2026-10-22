@@ -150,6 +150,7 @@ await fromEmail.screenshot({ path: `${shots}/support-help-page.png` });
 
 // 7. A signed-in customer asks about their plan
 const owner = await page();
+const ownerIp = `10.7.0.${nets}`;
 await owner.goto(BASE + "/settings/billing");
 const planEmail = `plan${Date.now()}@peak.com`;
 await agreed(planEmail);
@@ -177,6 +178,24 @@ const weekly = await owner.waitForSelector("form [role=alert]", { timeout: 15000
 ok("Free plan: a second person in a week is refused, with when to ask again", weekly.includes("once a week") && /You can ask again from \d{1,2} [A-Z][a-z]{2,3} \d{4}/.test(weekly) && weekly.includes("Paid plans can talk to a person any time"), weekly);
 ok("Free plan: refused without a hand-over, the AI or losing the message", (await owner.locator("[data-testid=with-person]").count()) === 0 && requests.length === callsBeforeRefusal && (await owner.inputValue('textarea[aria-label="Your message"]')).includes(inv));
 ok("Free plan: Talk to a person is off until the allowance lifts", (await owner.locator("[data-testid=talk-to-person]").count()) === 1 && (await owner.isDisabled("[data-testid=talk-to-person]")));
+ok("Free plan: the refusal is about this business's own use, not the network", weekly.includes("you've already done that this week") && !weekly.includes("network"), weekly);
+// Decision 3 (22 October 2026): a signed-in account's allowance is counted per business, so a brand-new Free account on
+// the same network as one that has used it is still passed to a person (O79).
+const neighbour = await (await browser.newContext({ viewport: { width: 1280, height: 900 }, extraHTTPHeaders: { "x-real-ip": ownerIp } })).newPage();
+await neighbour.goto(BASE + "/settings/billing");
+const neighbourEmail = `neighbour${Date.now()}@peak.com`;
+await agreed(neighbourEmail);
+await neighbour.fill('input[name="email"]', neighbourEmail);
+await neighbour.click("text=Continue");
+await neighbour.waitForURL("**/settings/billing");
+await neighbour.click("button:has-text('Help')");
+await neighbour.fill('textarea[aria-label="Your message"]', "Can someone look at my account, please?");
+const netUses = () => prisma.supportUse.count({ where: { kind: "handover", key: { startsWith: "net:" } } });
+const netUsesBefore = await netUses();
+await neighbour.click("[data-testid=talk-to-person]");
+ok("Free plan: a new account on the same network is still passed to a person (O79)", !!(await neighbour.waitForSelector("[data-testid=with-person]", { timeout: 15000 }).catch(() => null)));
+ok("Free plan: a hand-over isn't counted against the network", (await netUses()) === netUsesBefore);
+await neighbour.context().close();
 // Paying businesses can ask any time (a fresh page: the one above remembers the refusal until it lifts).
 await prisma.workspace.updateMany({ where: { members: { some: { user: { email: planEmail } } } }, data: { plan: "SOLO" } });
 await owner.reload();
