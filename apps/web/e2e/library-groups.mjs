@@ -108,10 +108,13 @@ await month.locator("> summary").click();
 const inner = month.locator("[data-testid=week-folder], [data-testid=day-folder]");
 await inner.first().waitFor({ timeout: 10000 }).catch(() => {});
 ok("an opened month shows folders inside", (await inner.count()) >= 1, String(await inner.count()));
-// Keep opening the first closed folder until the 46-day-old video shows.
-for (let i = 0; i < 3 && !(await page.isVisible(`main a[href="/v/${made[46]}"]`)); i++) {
+// Keep opening the first closed folder until the 46-day-old video shows. Days 45 to 47 can fall in two weeks
+// (then it's week, day, week, day), so allow a few more clicks than the folders three days in one week need.
+for (let i = 0; i < 8 && !(await page.isVisible(`main a[href="/v/${made[46]}"]`)); i++) {
   const closed = month.locator("details:not([open]) > summary").first();
-  if (await closed.count()) await closed.click();
+  if (!(await closed.count())) break;
+  await closed.click();
+  await page.waitForTimeout(300);
 }
 ok("opening folders inside it reaches the video", await page.isVisible(`main a[href="/v/${made[46]}"]`));
 const arrows = await month.evaluate((m) =>
