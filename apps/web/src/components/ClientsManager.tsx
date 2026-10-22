@@ -122,6 +122,8 @@ export function parseClientList(text: string) {
 export default function ClientsManager({ workspaceId, fingerprint, ...rest }: Props) {
   const team = useTeamKey(workspaceId, fingerprint);
   const locked = team.state.kind === "recover";
+  // A moment while this browser's key is looked up, as before: the list then opens with or without it.
+  if (team.state.kind === "loading") return <div className="grid h-40 place-items-center text-sm text-dim">Unlocking…</div>;
   return (
     <>
       {locked && (

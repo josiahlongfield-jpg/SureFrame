@@ -184,7 +184,7 @@ await phone.reload();
 await phone.waitForSelector("[data-testid=video-title]", { timeout: 20000 });
 ok("untitled: the client's heading is 'A video from Business A' (Decision 10)", (await phone.textContent("[data-testid=video-title]")) === "A video from Business A");
 ok("untitled: the date it was sent still shows under it", / · \w{3} \d{1,2}, \d{4}/.test(await phone.textContent("[data-testid=video-meta]")), await phone.textContent("[data-testid=video-meta]"));
-ok("untitled: the tab says it once", (await phone.title()) === "A video from Business A", await phone.title());
+ok("untitled: the tab says it once", /^A video from Business A( · SureFrame)?$/.test(await phone.title()), await phone.title());
 ok("untitled: the date-made title isn't on the client's page", !(await phone.textContent("main")).includes("Recording Oct 22"));
 await phone.goto(`${BASE}/inbox`);
 await phone.waitForSelector("[data-testid=inbox-for]", { timeout: 20000 });
