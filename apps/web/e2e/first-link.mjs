@@ -157,7 +157,7 @@ ok("stop sharing: Zoe no longer has it", !!(await waitFor(async () => (await pri
 
 // A business trying a client's link in its own signed-in browser still records the client's visit.
 await owner.goto(BASE + "/clients");
-await owner.click(`li:has-text('Mo Diaz') >> button:has-text('Copy personal link')`);
+await owner.click(`li:has-text('Mo Diaz') >> button:text-is('Copy link')`);
 ok("copying from the clients page is remembered", !!(await waitFor(async () => (await prisma.client.findUnique({ where: { id: mo.id } })).linkSentAt, 5000)));
 await owner.goto(await clipboard());
 await owner.waitForURL("**/inbox**", { timeout: 15000 }).catch(() => {});

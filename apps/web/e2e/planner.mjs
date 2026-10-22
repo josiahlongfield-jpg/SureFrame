@@ -72,7 +72,7 @@ for (let i = 0; i < 50 && Number(itemsSql("count(*)")) < 3; i++) await new Promi
 const bodies = itemsSql("string_agg(body, '|')");
 ok("server stores only ciphertext", !/stock|check-in|stretch|morning/i.test(bodies) && bodies.length > 100);
 
-await pro.click("text=Copy personal link");
+await pro.click("button:text-is('Copy link')");
 await pro.waitForSelector("text=/^(Link copied|Copied)$/", { timeout: 10000 }).catch(() => {});
 const personal = await pro.evaluate(() => navigator.clipboard.readText());
 

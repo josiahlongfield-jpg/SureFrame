@@ -102,7 +102,7 @@ await owner.goto(BASE + "/clients");
 await owner.waitForSelector("[data-testid=clients-search]");
 ok("Clients page: no warning banner", (await owner.locator("[data-testid=waiting-banner]").count()) === 0);
 ok("Client Q: Not opened yet", (await owner.textContent("li:has-text('Client Q') [data-testid=needs-first-link]")) === "Not opened yet");
-ok("Client Q's row: just Copy personal link, like everyone's", (await owner.locator("li:has-text('Client Q') [data-testid=first-link-sender]").count()) === 0 && (await owner.locator("li:has-text('Client Q') button:has-text('Copy personal link')").count()) === 1);
+ok("Client Q's row: just Copy link, like everyone's", (await owner.locator("li:has-text('Client Q') [data-testid=first-link-sender]").count()) === 0 && (await owner.locator("li:has-text('Client Q') button:text-is('Copy link')").count()) === 1);
 
 // 320px: the Send box, the Clients page and the client's page fit.
 await owner.setViewportSize({ width: 320, height: 700 });

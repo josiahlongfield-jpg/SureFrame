@@ -54,7 +54,7 @@ function FirstLink({ clientId, name, email, business, link, teamKeyWrap, sent, t
             void markLinkSent(clientId);
             setSent(true);
           }}
-          copyLabel="Copy personal link"
+          copyLabel="Copy link"
         />
       </div>
     </div>
@@ -81,7 +81,7 @@ function Button({ clientId, name, link, teamKeyWrap, teamKey }: Omit<Props, "wor
         }}
         className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm hover:bg-hover"
       >
-        {copied ? "Copied" : "Copy personal link"}
+        {copied ? "Copied" : "Copy link"}
       </button>
       {canShare && (
         <button

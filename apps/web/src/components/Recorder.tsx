@@ -47,7 +47,7 @@ const fmt = (ms: number) => {
 const EXTENSION_URL = process.env.NEXT_PUBLIC_EXTENSION_URL;
 
 const NO_CAMERA = "No camera found on this device. If you've just plugged one in, it will appear here once your computer finds it.";
-const CAMERA_BUSY = "Your camera is being used by another app, such as the Camera app, Zoom or Teams. Close that app and come back to this page.";
+const CAMERA_BUSY = "Your camera is being used by another app, such as a video-call app or the Camera app. Close it and come back to this page.";
 const CAMERA_PERMISSION = "Camera permission is needed for this mode. Allow it in your browser's address bar, or choose Screen only.";
 const CAMERA_ERRORS = [NO_CAMERA, CAMERA_BUSY, CAMERA_PERMISSION];
 
@@ -926,7 +926,7 @@ export default function Recorder({
                 onCancel={() => setExtensionAsk(false)}
               />
             ) : (
-              <button onClick={requestStart} className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary shadow-sm hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              <button onClick={requestStart} className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary shadow-sm hover:bg-primary-hover">
                 Start recording
               </button>
             )}

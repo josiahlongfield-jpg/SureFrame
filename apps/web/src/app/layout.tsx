@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { BRAND } from "@/lib/brand";
 import { TZ_COOKIE } from "@/lib/dates";
+import SkipLink from "@/components/SkipLink";
 import { fontVars } from "./fonts";
 import "./globals.css";
 
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" data-theme="fresh" className={fontVars}>
       <body className="min-h-screen antialiased">
         <script dangerouslySetInnerHTML={{ __html: zoneScript }} />
+        <SkipLink />
         {children}
       </body>
     </html>

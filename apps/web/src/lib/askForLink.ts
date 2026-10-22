@@ -31,7 +31,7 @@ export async function askForLink(clientId: string) {
         subject: `${client.name} needs their personal link again`,
         lead: `${client.name} tried to open a video, but this phone or computer doesn't have the key their personal link gave it, so they can't watch it.`,
         lines: [
-          { text: `What to do: open ${client.name}'s page, press Copy personal link, and send it to them yourself, for example by text or message. Once they open it, they can watch everything again. Nothing has been lost.` },
+          { text: `What to do: open ${client.name}'s page, press Copy link, and send it to them yourself, for example by text or message. Once they open it, they can watch everything again. Nothing has been lost.` },
           { text: "This happens when a browser clears saved site data (Safari does after a week or so without a visit) or they use a new device." },
         ],
         button: { label: `Open ${client.name}'s page`, link: page },
@@ -43,7 +43,7 @@ export async function askForLink(clientId: string) {
         subject: `${client.name} is waiting for their personal link`,
         lead: `${client.name} tried to open a video, but they haven't opened their personal link yet, so they can't watch it.`,
         lines: [
-          { text: `What to do: send ${client.name} a video yourself from its Send box with Send from your email or Copy link (or press Copy personal link on their page), for example by email, text or message. Once they open it, they can watch their videos, and emailed videos open for them too.` },
+          { text: `What to do: send ${client.name} a video yourself from its Send box with Send from your email or Copy link (or press Copy link on their page), for example by email, text or message. Once they open it, they can watch their videos, and emailed videos open for them too.` },
           { text: "Their personal link holds the key to their videos, so only your team can send it. We can't email it for you." },
         ],
         button: { label: `Open ${client.name}'s page`, link: page },

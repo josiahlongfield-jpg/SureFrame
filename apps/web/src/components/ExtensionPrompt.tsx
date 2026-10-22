@@ -70,7 +70,7 @@ export default function ExtensionPrompt({
         <p className="text-sm text-ink">
           {cameraOn ? "Your camera bubble, with Pause and Stop, will follow you to every tab while you record." : "Pause and Stop will follow you to every tab while you record."}
         </p>
-        <button onClick={onStart} className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary shadow-sm hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+        <button onClick={onStart} className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary shadow-sm hover:bg-primary-hover">
           Start recording
         </button>
       </section>
@@ -116,7 +116,7 @@ export default function ExtensionPrompt({
           target="_blank"
           rel="noopener"
           onClick={() => setOpened(true)}
-          className="min-w-[10rem] flex-1 rounded-xl bg-primary px-4 py-3 text-center font-semibold text-on-primary shadow-sm hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          className="min-w-[10rem] flex-1 rounded-xl bg-primary px-4 py-3 text-center font-semibold text-on-primary shadow-sm hover:bg-primary-hover"
           data-testid="extension-add"
         >
           Add the free extension

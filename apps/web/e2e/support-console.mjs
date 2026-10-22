@@ -189,13 +189,14 @@ await prisma.membership.create({ data: { userId: fay.id, workspaceId: wsE, role:
 // =====================================================================================================
 // Who can open the console
 // =====================================================================================================
-const notFound = async (page, p) => {
-  const r = await page.goto(BASE + p);
-  // With app/loading.tsx the page streams, so a not-found can arrive as a 200 with the not-found page.
-  return r.status() === 404 || !!(await page.waitForSelector("text=Page not found", { timeout: 15000 }).catch(() => null));
+// Someone signed in who doesn't answer support is sent to Help, never shown the console (V60).
+const sentToHelp = async (page, p) => {
+  await page.goto(BASE + p);
+  const there = await page.waitForURL((u) => u.pathname === "/help", { timeout: 15000 }).then(() => true, () => false);
+  return there && !(await page.isVisible("[data-testid=back-to-app]")) && !norm(await page.textContent("body")).includes("Support log");
 };
 for (const p of ["/support/lookup?q=example.com", `/support/workspaces/${wsA}`, `/support/users/${aUser.id}`, "/support/log"]) {
-  ok(`not an admin: ${p.split("?")[0]} is not found`, await notFound(bOwner, p));
+  ok(`not an agent: ${p.split("?")[0]} sends them to Help`, await sentToHelp(bOwner, p));
 }
 ok("not an admin: sees nothing of the console", !(await bOwner.isVisible("text=Support powers")) && !(await bOwner.isVisible(`text=${aEmail}`)));
 const anon = await (await browser.newContext()).newPage();

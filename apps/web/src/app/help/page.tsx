@@ -21,7 +21,8 @@ const every = (days: number) => (days === 7 ? "once a week" : `once every ${days
 /** The FAQ answers asked about most, by id (components/Faq.tsx). */
 const COMMON = ["storage", "free-plan", "first-email", "phone", "recovery-key", "cancel", "only-me", "who-sees-replies"];
 
-export default async function Help() {
+export default async function Help({ searchParams }: { searchParams: Promise<{ from?: string }> }) {
+  const { from } = await searchParams;
   const signedIn = !!(await auth())?.user;
   const tier = supportTier(signedIn ? (await currentUser().catch(() => null))?.workspace : null);
   return (
@@ -30,6 +31,12 @@ export default async function Help() {
       <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
         <p className="kicker">Help</p>
         <h1 className="display mt-3 text-3xl text-ink">How can we help?</h1>
+        {/* A visitor who tried /support lands here (src/middleware.ts); our own support team signs in from this line (V60). */}
+        {from === "support" && !signedIn && (
+          <p className="mt-2 text-sm text-dim" data-testid="support-signin">
+            On our support team? <Link href="/login?next=%2Fsupport" className="font-medium text-accent hover:underline">Sign in to the support console</Link>.
+          </p>
+        )}
         <p className="mt-2 text-muted">
           Our assistant answers straight away. To reach someone on the team, choose Talk to a person under the chat{tier === "paying" ? "" : " (see the limits below)"}.
         </p>

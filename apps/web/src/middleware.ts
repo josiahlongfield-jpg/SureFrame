@@ -110,7 +110,21 @@ async function maintenance(req: NextRequest) {
 }
 
 export async function middleware(req: NextRequest) {
-  return (await maintenance(req)) ?? withoutKeepMark(req) ?? sessionActivity(req);
+  return (await maintenance(req)) ?? withoutKeepMark(req) ?? guessedAddress(req) ?? sessionActivity(req);
+}
+
+/**
+ * Addresses people guess (V60, V75): /settings/staff is the Team page (the menu says "Invite staff"), and a visitor who
+ * tries /support wants help, not the support team's sign-in (/help says where the console's sign-in is). Signed-in
+ * people who don't answer support are sent to /help by app/support/layout.tsx.
+ */
+function guessedAddress(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  if (pathname !== "/settings/staff" && !(pathname === "/support" && !sessionCookies(req).length)) return null;
+  const url = req.nextUrl.clone();
+  url.pathname = pathname === "/support" ? "/help" : "/settings/team";
+  if (pathname === "/support") url.search = "?from=support";
+  return NextResponse.redirect(url);
 }
 
 /** Back from a sign-in link that carried "keep me signed in": the same page, without the mark in its address. */

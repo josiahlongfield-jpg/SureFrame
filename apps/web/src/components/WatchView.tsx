@@ -777,7 +777,7 @@ function WatchBody({
                     onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), e.currentTarget.blur())}
                     onBlur={saveTitle}
                     aria-label="Video title"
-                    className="min-w-0 flex-1 resize-none overflow-hidden rounded-lg border border-line bg-transparent px-2 py-1 text-2xl font-semibold leading-snug text-ink [overflow-wrap:break-word] hover:border-line-strong focus:border-primary focus:outline-none"
+                    className="min-w-0 flex-1 resize-none overflow-hidden rounded-lg border border-line bg-transparent px-2 py-1 text-2xl font-semibold leading-snug text-ink [overflow-wrap:break-word] hover:border-line-strong focus:border-primary"
                   />
                   <button
                     type="button"
@@ -1319,7 +1319,7 @@ function VideoReplyChip({ reply, mediaKey }: { reply: ReplyDTO; mediaKey: Crypto
             <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z" /></svg>
           </span>
         </span>
-        {length ? <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-[11px] leading-4 text-white">{clock(length)}</span> : null}
+        {length ? <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-xs leading-4 text-white">{clock(length)}</span> : null}
       </button>
       <dialog
         ref={dialog}
@@ -1422,7 +1422,7 @@ function MessageEditor({ videoId, rootKey, sealed, to }: { videoId: string; root
             rows={3}
             aria-label={`Message to ${who}`}
             placeholder="e.g. Here's this week's plan. Let me know if anything's unclear."
-            className="w-full resize-y rounded-lg border border-line-strong px-3 py-2 text-sm focus:border-primary focus:outline-none"
+            className="w-full resize-y rounded-lg border border-line-strong px-3 py-2 text-sm focus:border-primary"
           />
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <button onClick={() => save(text)} disabled={state === "saving"} className="rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">

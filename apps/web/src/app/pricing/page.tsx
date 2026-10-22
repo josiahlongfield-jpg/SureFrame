@@ -8,6 +8,7 @@ import SiteFooter from "@/components/SiteFooter";
 import PricingTable, { type CurrentPlan } from "@/components/PricingTable";
 import { auth } from "@/auth";
 import { RETENTION_DAYS } from "@/lib/retention";
+import { LEGAL } from "@/lib/legal";
 import {
   AI_ASSIST_PRICES,
   AI_SUMMARIES_PER_MONTH,
@@ -118,7 +119,8 @@ function GoodToKnow() {
       "Cancelling",
       <>
         Cancel any time in Settings &gt; Billing. Your plan stays until the end of the period you&rsquo;ve paid for, then your workspace moves to Free. Payments
-        aren&rsquo;t refunded for part of a period, except where the law requires it, including under the Australian Consumer Law.
+        aren&rsquo;t refunded for part of a period, except where the law requires it, including under the Australian Consumer Law, or where Link,
+        which sells our plans, gives one under its own terms.
       </>,
     ],
     [
@@ -168,7 +170,8 @@ function FreePlanInFull() {
     ["Clients", `${free.clientSeats} clients. Clients never pay and don't need an account.`],
     [
       "Videos",
-      `${free.maxVideos} videos in total, not per month, counting videos recorded on any plan. Deleting a video doesn't give its place back. Replies and sending a video to more clients don't count. Free is for trying SureFrame, so its videos don't start again each month; paid plans have no limit on videos.`,
+      // Said once, here, in full (V20); the Free card only names the number.
+      `${free.maxVideos} videos in total for the life of the workspace, not per month: Free is for trying SureFrame. Every video recorded counts, on any plan, so a workspace that moves back to Free may already have used them all. Deleting a video doesn't give its place back; replies and sending a video to more clients don't count. Paid plans have no limit on videos.`,
     ],
     [
       "Length",
@@ -234,16 +237,12 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
       <main className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
         <div className="text-center">
           <p className="kicker">Pricing</p>
-          <h1 className="display mt-3 text-4xl   text-ink">Simple pricing. Clients always free.</h1>
+          <h1 className="display mt-3 text-3xl text-ink sm:text-4xl">Simple pricing. Clients always free.</h1>
         </div>
         <Offers founding={foundingOpen() ? foundingLastDay() : null} ended={ended} forOther={forOther} busy={query.code === "busy"} linked={linked} auto={auto} referral={referral} />
         <PricingTable current={current} signedIn={signedIn} retentionDays={RETENTION_DAYS} start={start} />
         <p className="mt-10 text-center text-sm text-dim">
           More than 100 clients? Add extra clients for US${EXTRA_SEAT_PRICE.toFixed(2)} a month each, or US${EXTRA_SEAT_PRICE_YEARLY} a year on yearly billing.
-        </p>
-        <p className="mt-2 text-center text-sm text-dim" data-testid="free-videos-note">
-          Free includes {PLANS.FREE.maxVideos} videos in total, not per month, counting videos recorded on any plan. Deleting a video doesn&rsquo;t give its place
-          back. Replies and sending a video to more clients don&rsquo;t count.
         </p>
         <p className="mt-2 text-center text-sm text-dim" data-testid="currency-note">All prices are in US dollars (USD), plus any sales tax, VAT or GST that applies where you are. Checkout may offer to charge you in your own currency at Stripe&rsquo;s exchange rate; otherwise your bank converts it.</p>
 
@@ -267,12 +266,21 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
                   </li>
                 ))}
               </ul>
-              <p className="mt-3 text-xs text-dim">Not available on Free. Off unless you switch it on. Works best on a computer.</p>
+              <p className="mt-3 text-xs text-dim">Summary limits are per calendar month, on yearly billing too. Not available on Free. Off unless you switch it on. Works best on a computer.</p>
             </div>
-            <div className="rounded-2xl border border-line bg-surface p-6">
+            {/* Filled with what backup does and doesn't keep, so it isn't a mostly empty card beside the AI one (V19). Terms section 7. */}
+            <div className="flex flex-col rounded-2xl border border-line bg-surface p-6" data-testid="addon-backup">
               <h3 className="font-semibold text-ink">Cloud backup</h3>
               <p className="mt-2 text-sm text-muted">Keep the encrypted copies of your videos on our servers until you delete them, instead of for {RETENTION_DAYS} days. We still can&apos;t open them.</p>
+              <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted">
+                <li>Covers your videos and everyone&rsquo;s video and voice replies. Text replies, to-dos and notes are always kept until they&rsquo;re deleted.</li>
+                <li>If you switch it off or your paid plan ends, our copies are deleted {RETENTION_DAYS} days later.</li>
+                <li>
+                  Unsent replies are still deleted after {LEGAL.heldReplyDays} days, and a removed client&rsquo;s conversations after {LEGAL.removedClientDays} days.
+                </li>
+              </ul>
               <p className="mt-4 text-sm text-muted">US${CLOUD_BACKUP_PRICE}/month or US${CLOUD_BACKUP_PRICE_YEARLY}/year on any paid plan</p>
+              <p className="mt-3 text-xs text-dim">Not available on Free. Off unless you switch it on.</p>
             </div>
           </div>
         </section>
@@ -280,11 +288,10 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
         <section className="mx-auto mt-6 max-w-3xl rounded-2xl border border-line bg-surface p-6" data-testid="bonus-claude">
           <p className="text-xs font-semibold uppercase tracking-wide text-accent">Free on every plan</p>
           <h3 className="mt-1 font-semibold text-ink">{CLAUDE_BONUS.kicker}: SureFrame for Claude</h3>
-          <p className="mt-2 text-sm text-muted">{CLAUDE_BONUS.blurb}</p>
-          <p className="mt-2 text-sm font-medium text-ink">{CLAUDE_BONUS.withAddOn}</p>
-          <p className="mt-2 text-sm text-muted">{CLAUDE_BONUS.privacy}</p>
+          {/* One short line here; the home page and How it works have the rest (V25). */}
+          <p className="mt-2 text-sm text-muted" data-testid="bonus-claude-line">{CLAUDE_BONUS.pricingLine}</p>
           <p className="mt-3 text-xs text-dim">
-            No extra charge from us. {CLAUDE_BONUS.needs} {CLAUDE_BONUS.trademark}{" "}
+            {CLAUDE_BONUS.needs} {CLAUDE_BONUS.trademark}{" "}
             <Link href="/help/claude" className="font-medium text-accent hover:underline">How it works</Link>
           </p>
         </section>

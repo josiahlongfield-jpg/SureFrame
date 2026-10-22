@@ -52,7 +52,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
           Clients watch and reply to the videos you send them for free. They don&apos;t need an account, just the link to your video.
         </p>
         <p className="mt-1 text-sm text-dim" data-testid="links-explained">
-          Each client has one personal link (Copy personal link) that opens every video you send them, and the link to a single video from its Send box holds the same key: whichever
+          Each client has one personal link (Copy link) that opens every video you send them, and the link to a single video from its Send box holds the same key: whichever
           they open first sets up their phone or computer, and after that every video opens there.
         </p>
         {clients.some((c) => c.pausedAt) && (

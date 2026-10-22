@@ -1,5 +1,6 @@
 import Link from "next/link";
 import LegalPage, { SubprocessorList } from "@/components/LegalPage";
+import { CODE_MINUTES, CODE_TRIES } from "@/lib/signInCodeRules";
 import { LEGAL, operatorLine, R2_LOCATION, SUBPROCESSORS_UPDATED } from "@/lib/legal";
 
 export const metadata = { title: "Data Processing Agreement" };
@@ -7,7 +8,7 @@ export const metadata = { title: "Data Processing Agreement" };
 export default function Page() {
   const mail = <a href={`mailto:${LEGAL.email}`}>{LEGAL.email}</a>;
   return (
-    <LegalPage title="Data Processing Agreement" version={LEGAL.dpaVersion} updated={LEGAL.dpaUpdated}>
+    <LegalPage title="Data Processing Agreement" version={LEGAL.dpaVersion} updated={LEGAL.dpaUpdated} doc="dpa">
       <p>
         {operatorLine()} (&ldquo;we&rdquo;, &ldquo;us&rdquo;). This Data Processing Agreement (&ldquo;DPA&rdquo;) forms part of the {LEGAL.product}{" "}
         <Link href="/legal/terms">Terms of Service</Link> (the &ldquo;Terms&rdquo;) between us and the business that uses {LEGAL.product} (&ldquo;you&rdquo;). It
@@ -64,7 +65,11 @@ export default function Page() {
             <li>storing, relaying and deleting end-to-end encrypted content;</li>
             <li>storing client and team details and using them to send links, reminders and notifications;</li>
             <li>controlling who can access what, including pausing, suspending or turning off access as the Terms describe;</li>
-            <li>and, only if you switch on the AI add-on, sending transcript text to our AI provider for a summary.</li>
+            <li>only if you switch on the AI add-on, sending transcript text to our AI provider for a summary;</li>
+            <li>
+              and, only if you connect your own AI assistant (section 23 of the Terms), making the information it can read available to it on your
+              instruction.
+            </li>
           </ul>
         </li>
         <li>
@@ -77,7 +82,7 @@ export default function Page() {
             <li>
               Information we can read: client names and email addresses, link status (when a link was sent or first opened, and whether it&rsquo;s paused, removed
               or turned off), reminder preferences and assignments; staff names, email addresses, roles, permissions and settings; video titles, reply author
-              names, dates, sizes, lengths and view counts; to-do due dates and repeat and reminder settings; reminder messages and staff reminders; and Team
+              names, dates, sizes, lengths, view counts and emoji reactions; to-do due dates and repeat and reminder settings; reminder messages and staff reminders; and Team
               overview activity figures.
             </li>
             <li>
@@ -161,25 +166,26 @@ export default function Page() {
         </li>
         <li>
           When you delete your account, we keep Customer Personal Data for {LEGAL.deletionGraceDays} days so you can reactivate it, then delete it. If we close your
-          account under section 9 of the Terms, we delete it {LEGAL.closureDeleteDays} days after closure (or on the date already set, if you&rsquo;d already
-          deleted your account). Either way, a legal hold (below) can keep it longer.
+          account under section 9 of the Terms, we delete it {LEGAL.closureDeleteDays} days after closure (the {LEGAL.reviewDays} days you have to ask for a
+          review or a copy of your data, plus two weeks for us to act on it), or on the date already set, if you&rsquo;d already deleted your account. Either way, a legal hold (below) can keep it longer.
         </li>
         <li>
           If we need to keep Customer Personal Data longer because the law requires it, or for a legal claim or a report to the authorities (a legal hold, as
           section 9 of the Terms describes), we keep only what we need, keep protecting it under this DPA, and delete it once it&rsquo;s no longer needed.
         </li>
         <li>
-          Before your account is deleted, you can download your data in Settings &gt; Account and save videos to your device (if you deleted your account, keep it
-          first). If we close your account under section 9 of the Terms, you can&rsquo;t sign in, so email {LEGAL.email} within {LEGAL.reviewDays} days of the
-          closure and we&rsquo;ll send you your account data download, unless the law stops us. Encrypted content is returned in encrypted form, which only your
-          keys can open.
+          Before your account is deleted, you can download your data in Settings &gt; Account, as a readable copy unlocked in your browser or as stored
+          (encrypted, which only your keys can open), and save videos to your device (if you deleted your account, keep it first). If we close your account under
+          section 9 of the Terms, you can&rsquo;t sign in, so email {LEGAL.email} within {LEGAL.reviewDays} days of the closure and we&rsquo;ll send you your
+          account data download, unless the law stops us. That download is as stored: encrypted content in it can be opened only with your keys.
         </li>
         <li>Deleted data may remain in our providers&rsquo; backups until those backups expire, and this DPA keeps applying to it until then.</li>
       </ul>
 
       <h2>11. Personal data breaches</h2>
       <p>
-        We&rsquo;ll notify the workspace owner by email without undue delay after becoming aware of a personal data breach affecting Customer Personal Data.
+        We&rsquo;ll notify the workspace owner by email without undue delay after becoming aware of a personal data breach affecting Customer Personal Data,
+        and we aim to do so within 48 hours of becoming aware of it.
         We&rsquo;ll include what we know of its nature, the categories and approximate numbers of people and records affected, the likely consequences, the measures
         taken or proposed, and who to contact. We&rsquo;ll add more as we learn it, and take reasonable steps to contain the breach. Notifying you isn&rsquo;t an
         admission of fault.
@@ -292,7 +298,7 @@ export default function Page() {
         </li>
         <li>
           <strong>Browser protections:</strong> other sites can&rsquo;t show our pages in a frame; content-type sniffing is blocked; referrers stay within our site;
-          and camera, microphone and screen access is limited to our own site.
+          and camera, microphone and screen access is limited to our own site and our browser extension.
         </li>
         <li>
           <strong>Storage:</strong> browsers get signed, short-lived links to files. Upload links are valid for 15 minutes and limited to the exact size of the
@@ -305,7 +311,9 @@ export default function Page() {
           accounts, and we record each action taken with them.
         </li>
         <li>
-          <strong>Sign-in:</strong> passwordless sign-in links that work once and expire after 24 hours. Sessions usually
+          <strong>Sign-in:</strong> passwordless sign-in links that work once and expire after 24 hours; when someone signs in to connect Claude, a 6-digit
+          code instead, which works for {CODE_MINUTES} minutes and {CODE_TRIES} tries and is kept only as a one-way fingerprint, with the email address, until it
+          expires. Sessions usually
           end when the browser closes, and after 8 hours without use; someone who ticks &ldquo;Keep me signed in&rdquo; when signing in, or turns it on later in
           Settings, stays signed in on that device for 30 days from when it was turned on. We can sign a login out on every device. Repeated attempts are rate-limited, and
           scheduled jobs need a secret to run.

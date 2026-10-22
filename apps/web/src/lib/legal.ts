@@ -84,6 +84,12 @@ export const LEGAL = {
    * termsVersion.
    * 22 October 2026: section 23 on connecting your own Claude (Settings > Connections), an optional, read-only feature someone
    * has to switch on; it takes nothing away, so it keeps termsVersion.
+   * 22 October 2026 (later): a short version at the top; section 18 says which changes get a new version (and a new agreement) and
+   * which only move this date and are listed on /legal/archive, as we already do; a section on our browser extension and Claude
+   * Desktop connector (24); your own AI assistant in your browser (23, with a pointer from 9); the readable data download (17);
+   * the 30-minute transcript limit (22); the help chat limits line (13); why a closed account is deleted after 44 days (9); the
+   * liability cap not covering what the law won't let us limit (16); the Australian Consumer Law line (20); and 30 days' notice
+   * before ending the Free plan (6). They describe what we already do or add to what customers get, so they keep termsVersion.
    */
   termsUpdated: "22 October 2026",
   /**
@@ -95,8 +101,12 @@ export const LEGAL = {
    * backup while recording and finishing unfinished recordings, upload links sized to each piece, video stills among the
    * encrypted content, "Keep me signed in" from Settings, and where recordings are stored. They clarify what we already do, so
    * they keep dpaVersion.
+   * 22 October 2026: the readable data download (10), connecting your own AI assistant (3), 6-digit sign-in codes for connecting
+   * Claude, emoji reactions among what we can read, the browser extension's camera access, a 48-hour target for telling you about
+   * a breach (11), and why a closed account is deleted after 44 days. They describe what we already do or add to what customers get,
+   * so they keep dpaVersion.
    */
-  dpaUpdated: "20 October 2026",
+  dpaUpdated: "22 October 2026",
   /**
    * The Privacy Policy page's own "last updated" date. Describing discount codes, referrals and the sf_offer cookie
    * (16 October 2026) only explains more of what we already do, so it keeps privacyVersion. So do a short section for
@@ -123,6 +133,10 @@ export const LEGAL = {
    * 22 October 2026: the SureFrame connectors for Claude (#claude-connectors): what the online one reads, that the desktop one
    * unlocks content on the person's own computer, and the 90-day list of which tools a connection used. Optional, switched on
    * by the person, and read-only, so it keeps privacyVersion.
+   * 22 October 2026 (later): "Changes" says which changes get a new version (and a new agreement) and which only move this date
+   * and are listed on /legal/archive; the Claude Desktop connector also reads transcripts when the AI add-on is used; 6-digit
+   * sign-in codes for connecting Claude; and why a closed account is deleted after 44 days. They describe what the app already
+   * does, so they keep privacyVersion.
    */
   privacyUpdated: "22 October 2026",
 };
@@ -143,6 +157,92 @@ export const LEGAL_VERSIONS = [
       "We explain when we may suspend or close an account or turn off a client’s link, sometimes without warning, and how to ask for a review.",
       "We added a section for people in the EU and UK and a data processing agreement for businesses, and we now keep a record of when you agree to these documents.",
     ],
+  },
+];
+
+/**
+ * Wording updates that kept the same version (no new agreement needed), newest first, for the "Wording updates" list on
+ * /legal/archive and the "What changed" line under each document's title. Taken from the comments on termsUpdated,
+ * privacyUpdated and dpaUpdated above: add a line here whenever one of those dates moves.
+ */
+export type WordingUpdate = { date: string; terms?: string[]; privacy?: string[]; dpa?: string[] };
+export const WORDING_UPDATES: WordingUpdate[] = [
+  {
+    date: "22 October 2026",
+    terms: [
+      "A short version at the top.",
+      "Section 18 explains which changes get a new version you agree to, and which smaller ones only move the date and are listed here.",
+      "Section 23 covers connecting your own Claude, and using your own AI assistant in your browser (with a pointer from section 9).",
+      "Section 24 covers our browser extension and Claude Desktop connector.",
+      "Section 17 mentions the readable copy of your data; section 22 the 30-minute limit for transcripts; section 13 where help chat limits are shown.",
+      "Why an account we close is deleted after 44 days; the liability cap doesn’t cover what the law won’t let us limit; the Australian Consumer Law line; 30 days’ notice before we end the Free plan.",
+    ],
+    privacy: [
+      "Sections on our connectors for Claude, including that the Claude Desktop connector also reads transcripts when you use AI summaries.",
+      "6-digit sign-in codes for connecting Claude.",
+      "“Changes” explains which changes get a new version you agree to, and which only move the date and are listed here.",
+      "Why an account we close is deleted after 44 days.",
+    ],
+    dpa: [
+      "The readable copy of your data, connecting your own AI assistant, 6-digit sign-in codes, emoji reactions among what we can read, and camera access for our browser extension.",
+      "We aim to tell you about a breach within 48 hours of becoming aware of it.",
+      "Why an account we close is deleted after 44 days.",
+    ],
+  },
+  {
+    date: "21 October 2026",
+    privacy: [
+      "Our browser extension: what it keeps while you record, and that on install it checks open tabs only to find SureFrame tabs.",
+      "The help chats receive which browser and device you use; two small browser settings (camera shape, sharper stills).",
+      "Using your own AI assistant (such as Claude in Chrome) with your pages.",
+    ],
+  },
+  {
+    date: "20 October 2026",
+    terms: [
+      "What the help chat on client pages keeps, and its daily limit on the Free plan.",
+      "Unsent video and voice replies are deleted after 7 days, even with cloud backup.",
+      "Recordings that stop unexpectedly are finished from their encrypted copy, and count toward the Free plan.",
+      "Turning “Keep me signed in” on or off in Settings; “Former team member”; how we hold keys.",
+    ],
+    privacy: [
+      "What the help chat on client pages sends to the AI and keeps, and the weekly list of its questions.",
+      "When a person reads a business help chat; server backup while recording; video stills; “Former team member”.",
+      "New cookies (sf_lib_view, sf_lib_layout, sf_inbox_layout, fc_key_<clientId>); which emails we send clients; where recordings are stored.",
+    ],
+    dpa: [
+      "The client help chat’s questions as our own information; unsent replies deleted after 7 days; server backup while recording.",
+      "Upload links sized to each piece; video stills among the encrypted content; “Keep me signed in” from Settings; where recordings are stored.",
+    ],
+  },
+  {
+    date: "18 October 2026",
+    terms: [
+      "A discount code given to one business can be added to a plan it already pays for, from its next bill.",
+      "The help chat on client pages is AI only and points clients to the business.",
+      "The help chat’s limits for visitors and Free plans.",
+    ],
+    privacy: [
+      "Unsent replies are deleted after 7 days; the help chat on client pages and the questions it keeps for 90 days.",
+      "Invited team members are emailed; a replaced client link is kept only as a one-way fingerprint; “Continue with Google” taken out (it isn’t offered).",
+      "Where recordings are stored; the help chat’s limits keep a one-way fingerprint for 31 days.",
+    ],
+    dpa: ["Google sign-in taken out, since only email sign-in is offered; where files are stored; the help chat’s 31-day fingerprints."],
+  },
+  {
+    date: "17 October 2026",
+    terms: ["“Keep me signed in”, and cancelling in Settings > Billing."],
+    privacy: ["A short section for clients; the intro shown once per device; “Keep me signed in” and its cookies; clients deleting their own replies."],
+    dpa: ["“Keep me signed in” among the security measures."],
+  },
+  {
+    date: "16 October 2026",
+    terms: ["Discount codes for starting a subscription or moving up a plan, codes given to one business for one use, and the referral programme."],
+    privacy: ["Discount codes, referrals and the sf_offer cookie."],
+  },
+  {
+    date: "13 October 2026",
+    terms: ["Founding prices and discount offers."],
   },
 ];
 

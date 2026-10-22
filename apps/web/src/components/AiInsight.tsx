@@ -200,7 +200,7 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
           aria-expanded={open}
           aria-controls={bodyId}
           data-testid="ai-toggle"
-          className={`flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${open ? "rounded-t-2xl" : "rounded-2xl"}`}
+          className={`flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-hover ${open ? "rounded-t-2xl" : "rounded-2xl"}`}
         >
           <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-accent">AI</span>
           <span className="min-w-0 flex-1">
@@ -315,7 +315,7 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
                           title={`Play from ${fmt(s.start)}`}
                           onClick={() => onSeek(Math.round(s.start * 1000))}
                           onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onSeek(Math.round(s.start * 1000)))}
-                          className="cursor-pointer rounded hover:bg-hover focus-visible:bg-surface-2 focus-visible:outline-none"
+                          className="cursor-pointer rounded hover:bg-hover focus-visible:bg-surface-2"
                         >
                           {s.text}
                         </span>

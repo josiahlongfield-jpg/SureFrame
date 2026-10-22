@@ -15,7 +15,6 @@
 .ff-tab svg { width: 0.9375rem; height: 0.9375rem; flex: none; }
 .ff-tab:hover { color: var(--color-ink); }
 .ff-tab[aria-selected="true"] { color: var(--color-ink); background: rgb(255 111 97 / 0.2); }
-.ff-tab:focus-visible { outline: 0.125rem solid var(--color-highlight); outline-offset: 1px; }
 .ff-pg { position: absolute; left: 0.625rem; right: 0.625rem; bottom: 0.1875rem; height: 0.125rem; border-radius: 1px; overflow: hidden; }
 .ff-pgbar { background: var(--color-highlight); transform-origin: 0 50%; transform: scaleX(0); animation: ff-fill var(--dur, 6s) linear forwards; }
 .ff.paused .ff-pgbar { animation-play-state: paused; }
@@ -33,7 +32,6 @@
 .ff-lock svg { width: 0.75rem; height: 0.75rem; }
 .ff-pause { width: 1.5rem; height: 1.5rem; border-radius: 0.4375rem; display: grid; place-items: center; color: var(--color-muted); background: rgb(255 255 255 / 0.05); border: 1px solid var(--color-line); cursor: pointer; }
 .ff-pause:hover { color: var(--color-ink); }
-.ff-pause:focus-visible { outline: 0.125rem solid var(--color-highlight); outline-offset: 1px; }
 .ff-pause svg { width: 0.6875rem; height: 0.6875rem; }
 
 .ff-panel { padding: 0.875rem; min-height: 0; overflow: hidden; font-size: 0.8125rem; line-height: 1.45; color: var(--color-ink); }
@@ -212,7 +210,7 @@
   .ff { grid-template-rows: auto 22.5rem; }
   /* Four to a row, icon over the label, so all eight fit in two rows on a phone. */
   .ff-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .ff-tab { flex-direction: column; gap: 0.25rem; padding: 0.5rem 0.125rem 0.625rem; font-size: 0.6875rem; }
+  .ff-tab { flex-direction: column; gap: 0.25rem; padding: 0.5rem 0.125rem 0.625rem; font-size: 0.75rem; }
   .f-hide-sm { display: none !important; }
   .f-only-sm { display: block; }
   .f-client .f-screen { aspect-ratio: 16 / 7; }

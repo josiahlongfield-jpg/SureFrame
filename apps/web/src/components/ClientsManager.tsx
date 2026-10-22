@@ -459,7 +459,7 @@ function Manager({
             {showBuy && suggestStudio && (
               <p data-testid="studio-hint" className="rounded-lg bg-primary-soft px-3 py-2 text-ink">
                 That would bring Solo to {money(soloAfter)}/month. Studio is {money(studioHint.studioPrice)}/month with {studioHint.studioClients} clients and 3 staff logins (yours included).{" "}
-                <Link href="/pricing" className="font-medium underline">Compare plans</Link>
+                <Link href="/pricing" className="font-medium underline">See plans</Link>
               </p>
             )}
           </div>
@@ -524,7 +524,7 @@ function Manager({
               <summary className="cursor-pointer text-xs font-medium text-dim hover:text-ink">Or send {justAdded.length === 1 ? "their" : "each one their"} link now</summary>
               {justAdded.length === 1 ? (
                 <div className="mt-2">
-                  <FirstLinkSender plain name={justAdded[0].name} email={justAdded[0].email} business={business} getLink={() => linkOf(justAdded[0])} onSent={() => sent(justAdded[0])} copyLabel="Copy personal link" />
+                  <FirstLinkSender plain name={justAdded[0].name} email={justAdded[0].email} business={business} getLink={() => linkOf(justAdded[0])} onSent={() => sent(justAdded[0])} copyLabel="Copy link" />
                 </div>
               ) : (
                 <>
@@ -532,7 +532,7 @@ function Manager({
                     {justAdded.map((c) => (
                       <li key={c.id} className="rounded-lg bg-surface p-3">
                         <p className="mb-1.5 break-words font-medium">{c.name}</p>
-                        <FirstLinkSender compact plain name={c.name} email={c.email} business={business} getLink={() => linkOf(c)} onSent={() => sent(c)} copyLabel="Copy personal link" />
+                        <FirstLinkSender compact plain name={c.name} email={c.email} business={business} getLink={() => linkOf(c)} onSent={() => sent(c)} copyLabel="Copy link" />
                       </li>
                     ))}
                   </ul>
@@ -700,7 +700,7 @@ function Manager({
                     {c.replaced && !c.linkOff && (
                       <p className="text-xs text-warn-fg" data-testid="link-replaced">
                         Link replaced on {dates.shortDay(new Date(c.replaced.at))}
-                        {c.replaced.emailed ? ": we emailed them the new one." : ": the old one no longer works, so send them the new one (Copy personal link)."}
+                        {c.replaced.emailed ? ": we emailed them the new one." : ": the old one no longer works, so send them the new one (Copy link)."}
                       </p>
                     )}
                     {/* Replies waiting, so they aren't only found on the library's cards. */}
@@ -723,8 +723,8 @@ function Manager({
                     {/* New clients are set up by their first video's link, sent from its Send box, so their own link is no more urgent than anyone's. */}
                     {!c.linkOff && (
                       <>
-                        <button onClick={() => copy(c)} aria-label={`Copy personal link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover">
-                          {copied === c.id ? "Copied" : "Copy personal link"}
+                        <button onClick={() => copy(c)} aria-label={`Copy link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover">
+                          {copied === c.id ? "Copied" : "Copy link"}
                         </button>
                         {canShare && <button onClick={() => share(c)} aria-label={`Share personal link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover">Share</button>}
                       </>

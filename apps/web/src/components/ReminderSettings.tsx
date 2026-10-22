@@ -68,7 +68,7 @@ export default function ReminderSettings({ initial }: { initial: Settings }) {
     setStatus("saved");
   }
 
-  const field = "rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none";
+  const field = "rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm focus:border-primary";
 
   return (
     <form onSubmit={save} className="mt-8 grid gap-6 lg:grid-cols-[1fr_23.75rem]">

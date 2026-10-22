@@ -4,6 +4,7 @@ import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import { BUSINESS_FAQ, CLIENT_FAQ, FaqList } from "@/components/Faq";
 import OpenFaqFromHash from "@/components/OpenFaqFromHash";
+import FaqExpandAll from "@/components/FaqExpandAll";
 import { LEGAL } from "@/lib/legal";
 
 export const metadata: Metadata = {
@@ -22,7 +23,10 @@ export default function Faq() {
           Can&rsquo;t find what you need? Ask in <Link href="/help" className="font-medium text-accent hover:underline">Help</Link> or email{" "}
           <a href={`mailto:${LEGAL.email}`} className="font-medium text-accent hover:underline">{LEGAL.email}</a>.
         </p>
-        <h2 id="businesses" className="mt-10 scroll-mt-20 text-xl font-semibold text-ink">For businesses</h2>
+        <div className="mt-10 flex flex-wrap items-center justify-between gap-3">
+          <h2 id="businesses" className="scroll-mt-20 text-xl font-semibold text-ink">For businesses</h2>
+          <FaqExpandAll />
+        </div>
         <div className="mt-4">
           <FaqList items={BUSINESS_FAQ} />
         </div>

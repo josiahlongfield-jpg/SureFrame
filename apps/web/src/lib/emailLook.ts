@@ -60,7 +60,7 @@ export function emailShell(inner: string, footer = "Sent with SureFrame", accent
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${EMAIL.card}" style="max-width:480px;border-collapse:separate;background:${EMAIL.card};border:1px solid ${EMAIL.border};border-top:3px solid ${accent};border-radius:16px"><tr><td style="padding:28px 24px;font-family:${EMAIL.font};color:${EMAIL.ink};text-align:left">
 ${inner}
 </td></tr></table>
-<p style="font-family:${EMAIL.font};font-size:11px;color:${EMAIL.dim};margin:16px 0 0">${esc(footer)}</p>
+<p style="font-family:${EMAIL.font};font-size:12px;color:${EMAIL.dim};margin:16px 0 0">${esc(footer)}</p>
 </td></tr></table>
 </div>`;
 }

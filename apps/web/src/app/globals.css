@@ -233,6 +233,34 @@ body {
   background: var(--color-canvas);
   color: var(--color-ink);
 }
+
+/*
+ * One focus ring everywhere (D7): keyboard users see the same 2px ring on every link, button and box, in each look's
+ * highlight colour (dark coral on warm white, light coral on navy, the business's colour on client pages). Outside any
+ * layer, so it wins over utilities that would hide or restyle it; the components carry no focus-ring classes of their own.
+ * Panels and headings that only take focus from code (tabindex -1, such as an opened dialog or the skip link's target)
+ * don't get it.
+ */
+:focus-visible:not([tabindex="-1"]) {
+  outline: 2px solid var(--color-highlight);
+  outline-offset: 2px;
+}
+
+/* The skip link (components/SkipLink.tsx): off screen until a keyboard user tabs to it, first thing on every page. */
+.skip-link {
+  position: fixed;
+  left: 0.75rem;
+  top: 0.75rem;
+  z-index: 100;
+  padding: 0.625rem 1rem;
+  border-radius: 0.75rem;
+  background: #ff6f61;
+  color: #0f2747;
+  font-weight: 600;
+  font-size: 0.875rem;
+  transform: translateY(-200%);
+}
+.skip-link:focus-visible { transform: none; outline-color: #0f2747; }
 /* Sign-in and other one-screen pages that are all navy. */
 html:has(body > [data-theme="navy"]) { color-scheme: dark; background: #0b1e38; }
 

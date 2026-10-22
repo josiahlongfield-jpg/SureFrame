@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { exportKey, fingerprint as keyFingerprint } from "@/lib/e2e/crypto";
 import { loadKey, teamKeyName } from "@/lib/e2e/keystore";
-import TeamKeyGate, { KEY_CREATED } from "./TeamKeyGate";
+import TeamKeyGate, { KEY_CREATED, UNLOCKED } from "./TeamKeyGate";
 import { BRAND } from "@/lib/brand";
 import { writeClipboard } from "@/lib/clipboard";
 
@@ -13,6 +13,47 @@ import { writeClipboard } from "@/lib/clipboard";
 export const FIND_IT_LATER = "You can show it again any time under Settings > Account (Show recovery key) on a device that's already unlocked.";
 
 const groups = (value: string) => value.match(/.{1,4}/g) ?? [value];
+
+/**
+ * V69: "I've saved it" pressed without Copy, Download or Print in that box marks this browser (one flag per workspace);
+ * a gentle line under the header then says so until the key is copied, downloaded or printed (here or in Settings >
+ * Account) or the person says they kept it another way.
+ */
+const NOT_KEPT = "sureframe.keyNotKept.";
+export const KEY_KEPT_EVENT = "sureframe:key-kept";
+let keptOnThisPage = false;
+function markKept() {
+  keptOnThisPage = true;
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith(NOT_KEPT)) localStorage.removeItem(k);
+  } catch {
+    /* storage blocked: no reminder either */
+  }
+  window.dispatchEvent(new Event(KEY_KEPT_EVENT));
+}
+function noteIfNotKept(workspaceId?: string) {
+  if (keptOnThisPage || !workspaceId) return;
+  try {
+    localStorage.setItem(NOT_KEPT + workspaceId, "1");
+  } catch {
+    /* storage blocked */
+  }
+}
+export function keyNotKept(workspaceId: string) {
+  try {
+    return localStorage.getItem(NOT_KEPT + workspaceId) === "1";
+  } catch {
+    return false;
+  }
+}
+export function forgetNotKept(workspaceId: string) {
+  try {
+    localStorage.removeItem(NOT_KEPT + workspaceId);
+  } catch {
+    /* storage blocked */
+  }
+  window.dispatchEvent(new Event(KEY_KEPT_EVENT));
+}
 
 /**
  * The recovery key in groups of four, in a font with a slashed zero and with
@@ -57,6 +98,7 @@ export function KeyActions({ value, business, tone = "plain" }: { value: string;
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    markKept();
   }
   function print() {
     // A hidden frame holding just the key, so the rest of the page isn't printed.
@@ -71,6 +113,7 @@ export function KeyActions({ value, business, tone = "plain" }: { value: string;
     frame.contentWindow!.focus();
     frame.contentWindow!.print();
     setTimeout(() => frame.remove(), 60_000);
+    markKept();
   }
   return (
     <div className="flex flex-wrap gap-2">
@@ -79,6 +122,7 @@ export function KeyActions({ value, business, tone = "plain" }: { value: string;
         onClick={async () => {
           await writeClipboard(value);
           setCopied(true);
+          markKept();
         }}
         className={btn}
       >
@@ -90,8 +134,8 @@ export function KeyActions({ value, business, tone = "plain" }: { value: string;
   );
 }
 
-/** This device's copy of the team key as a recovery key, if it has the current one. */
-function useDeviceKey(workspaceId: string, fingerprint: string | null) {
+/** This device's copy of the team key as a recovery key, if it has the current one (null when it hasn't; undefined while checking). */
+export function useDeviceKey(workspaceId: string, fingerprint: string | null) {
   const [value, setValue] = useState<string | null>();
   useEffect(() => {
     let cancelled = false;
@@ -104,10 +148,14 @@ function useDeviceKey(workspaceId: string, fingerprint: string | null) {
     };
     void load(false);
     const onCreated = (e: Event) => (e as CustomEvent<string>).detail === workspaceId && void load(true);
+    // Unlocked with the recovery key on this page: the device holds it now (V91).
+    const onUnlocked = (e: Event) => (e as CustomEvent<string>).detail === workspaceId && void load(false);
     window.addEventListener(KEY_CREATED, onCreated);
+    window.addEventListener(UNLOCKED, onUnlocked);
     return () => {
       cancelled = true;
       window.removeEventListener(KEY_CREATED, onCreated);
+      window.removeEventListener(UNLOCKED, onUnlocked);
     };
   }, [workspaceId, fingerprint]);
   return { value };
@@ -134,6 +182,7 @@ export function RecoveryKeyBox({
   onLater,
   titled = true,
   shared = false,
+  workspaceId,
 }: {
   value: string;
   business: string;
@@ -143,6 +192,8 @@ export function RecoveryKeyBox({
   titled?: boolean;
   /** Shown to staff: it's the team's key, the same for everyone on it. */
   shared?: boolean;
+  /** For the gentle "not copied or downloaded yet" line (V69). */
+  workspaceId?: string;
 }) {
   const [saved, setSaved] = useState(false);
   if (saved) return <SavedNote />;
@@ -168,6 +219,7 @@ export function RecoveryKeyBox({
           type="button"
           onClick={async () => {
             // Answered straight away; the server is told in the background.
+            noteIfNotKept(workspaceId);
             setSaved(true);
             await markSaved();
             onSaved();
@@ -215,7 +267,7 @@ export function RecoveryKeyStep({ workspaceId, fingerprint, business }: { worksp
       </div>
     );
   }
-  return <RecoveryKeyBox value={value} business={business} onSaved={() => router.refresh()} titled={false} />;
+  return <RecoveryKeyBox value={value} business={business} onSaved={() => router.refresh()} titled={false} workspaceId={workspaceId} />;
 }
 
 const LATER = "sf-recovery-key-later";
@@ -274,7 +326,7 @@ export default function RecoveryKeyReminder({
       {!later ? (
         <>
           {note && <p className="mb-2 text-sm font-medium text-warn-fg">{note}</p>}
-          <RecoveryKeyBox value={value} business={business} shared={shared} onSaved={() => { setSaved(true); router.refresh(); }} onLater={() => remindLater(true)} />
+          <RecoveryKeyBox value={value} business={business} shared={shared} onSaved={() => { setSaved(true); router.refresh(); }} onLater={() => remindLater(true)} workspaceId={workspaceId} />
         </>
       ) : (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warn-line bg-warn-bg px-4 py-2.5 text-sm text-warn-fg">
@@ -282,6 +334,35 @@ export default function RecoveryKeyReminder({
           <button type="button" onClick={() => remindLater(false)} className="font-medium underline">Show recovery key</button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * V69: shown under the header after "I've saved it" when this browser never copied, downloaded or printed the key. Gentle:
+ * one line, with the way to the key and a way to say it was kept another way. Not on Settings > Account, which shows it.
+ */
+export function KeyNotKeptNote({ workspaceId }: { workspaceId: string }) {
+  const pathname = usePathname();
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const check = () => setShow(keyNotKept(workspaceId));
+    check();
+    window.addEventListener(KEY_KEPT_EVENT, check);
+    return () => window.removeEventListener(KEY_KEPT_EVENT, check);
+  }, [workspaceId]);
+  if (!show || pathname === "/settings/account") return null;
+  return (
+    <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
+      <div role="status" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl border border-warn-line bg-warn-bg px-4 py-2.5 text-sm text-warn-fg" data-testid="key-not-kept">
+        <p>You haven&apos;t copied or downloaded your recovery key yet. Without it, you can&apos;t open your videos on a new device.</p>
+        <span className="flex flex-wrap gap-x-4">
+          <a href="/settings/account#recovery-key" className="font-medium underline">Show recovery key</a>
+          <button type="button" onClick={() => forgetNotKept(workspaceId)} className="underline-offset-2 hover:underline" data-testid="key-not-kept-dismiss">
+            I&apos;ve kept it another way
+          </button>
+        </span>
+      </div>
     </div>
   );
 }

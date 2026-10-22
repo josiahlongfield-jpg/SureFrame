@@ -70,7 +70,7 @@ for (const width of [1440, 1280, 1100]) {
   }
   const rights = all.map((r) => r.controls.at(-1).right);
   ok(`${width}px: every row's Remove client ends at the same right edge`, Math.max(...rights) - Math.min(...rights) <= 1, rights.join(","));
-  ok(`${width}px: a client who hasn't opened a link yet has the same Copy personal link as everyone`, all.find((r) => r.name === "Client A").controls.some((c) => c.text === "Copy personal link"));
+  ok(`${width}px: a client who hasn't opened a link yet has the same Copy link as everyone`, all.find((r) => r.name === "Client A").controls.some((c) => c.text === "Copy link"));
   await page.locator("[data-testid=client-row-actions]").first().locator("xpath=ancestor::ul").screenshot({ path: `${shots}/client-rows-${width}.png` });
   if (width === 1280) await page.screenshot({ path: `${shots}/client-rows-page.png`, fullPage: true });
 }

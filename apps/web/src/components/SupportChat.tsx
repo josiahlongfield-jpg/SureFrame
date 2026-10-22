@@ -253,7 +253,7 @@ export function SupportChat({ signedIn, limits, className = "" }: { signedIn: bo
             </button>
           )}
         </div>
-        <p className="mt-2 text-[0.6875rem] text-dim">
+        <p className="mt-2 text-xs text-dim">
           Answers come from an AI assistant and can be wrong. Never share your recovery key, password or card details.{" "}
           <a href="/legal/privacy" className="underline hover:text-muted">Privacy</a>
         </p>

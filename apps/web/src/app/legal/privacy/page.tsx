@@ -1,13 +1,14 @@
 import Link from "next/link";
 import LegalPage, { SubprocessorList } from "@/components/LegalPage";
 import { DATA_LOCATIONS, LEGAL, operatorLine, R2_LOCATION } from "@/lib/legal";
+import { CODE_MINUTES, CODE_TRIES } from "@/lib/signInCodeRules";
 
 export const metadata = { title: "Privacy Policy" };
 
 export default function Page() {
   const mail = <a href={`mailto:${LEGAL.email}`}>{LEGAL.email}</a>;
   return (
-    <LegalPage title="Privacy Policy" version={LEGAL.privacyVersion} updated={LEGAL.privacyUpdated}>
+    <LegalPage title="Privacy Policy" version={LEGAL.privacyVersion} updated={LEGAL.privacyUpdated} doc="privacy">
       <p>
         {operatorLine()} (&ldquo;we&rdquo;, &ldquo;us&rdquo;). This policy explains what personal information we collect when you use {LEGAL.product}, why, and what
         choices you have. We handle personal information in line with the Australian Privacy Principles in the Privacy Act 1988 (Cth). Where they apply, we also
@@ -111,6 +112,10 @@ export default function Page() {
         </li>
         <li>
           <strong>Technical information:</strong> IP address, browser type and logs of requests, used to keep the service secure, prevent abuse and fix problems.
+        </li>
+        <li>
+          <strong>Sign-in codes:</strong> when you sign in to connect Claude, we email a 6-digit code instead of a link; it works for {CODE_MINUTES} minutes and {CODE_TRIES} tries,
+          and we keep only a one-way fingerprint of it, with the email address, until it expires.
         </li>
         <li>
           <strong>Support and safety records:</strong> when we act on an account through our support tools (for example a warning, a suspension, turning off a
@@ -249,7 +254,7 @@ export default function Page() {
         You can also connect your own Claude to {LEGAL.product} in Settings &gt; Connections. The online connector signs in with your {LEGAL.product} account and
         reads your activity in that team: client names and who looks after them, video titles, when videos were sent and whether they were opened, when replies were
         written and who&rsquo;s waiting for an answer, and to-do due dates. It can&rsquo;t read your encrypted content. The Claude Desktop connector also fetches your
-        encrypted to-dos, notes, messages, replies and AI summaries and unlocks them on your own computer with your team&rsquo;s key, which you give it as a
+        encrypted to-dos, notes, messages, replies and, if you use AI summaries, their transcripts and summaries, and unlocks them on your own computer with your team&rsquo;s key, which you give it as a
         connection code; we never receive the key. Both only read, and only what you can see.
       </p>
       <p>
@@ -346,8 +351,8 @@ export default function Page() {
           made for it stay with the team, shown as &ldquo;Former team member&rdquo;.
         </li>
         <li>
-          If we close an account under our terms, we permanently delete the account, its workspaces and their content {LEGAL.closureDeleteDays} days later (or on
-          the date already set, if its holder had already deleted it), unless we need to keep them for legal reasons (see the last point below). The account
+          If we close an account under our terms, we permanently delete the account, its workspaces and their content {LEGAL.closureDeleteDays} days later (the {LEGAL.reviewDays} days its holder has to ask for a review or a
+          copy of their data, plus two weeks for us to act on it), or on the date already set, if its holder had already deleted it, unless we need to keep them for legal reasons (see the last point below). The account
           holder can&rsquo;t sign in, but can email us within {LEGAL.reviewDays} days of the closure for a copy of their account data download.
         </li>
         <li>
@@ -581,11 +586,13 @@ export default function Page() {
 
       <h2>Changes</h2>
       <p>
-        We&rsquo;ll update this page when our practices change, and tell you by email about significant changes. When we update it, we ask account holders to
-        read and agree to the new version before carrying on, and we keep a record of that. If you already have an account, we email you first, and you can carry
-        on for {LEGAL.changeNoticeDays} days after that email before you need to agree. Each version has a number, shown at the top. Versions from 11
-        October 2026 onwards are listed in our <Link href="/legal/archive">archive of versions</Link>, and we&rsquo;ll send you a copy of any earlier version if you
-        ask.
+        We&rsquo;ll update this page when our practices change. If a change is significant, we give it a new version number, email account holders about it,
+        and ask them to read and agree to the new version before carrying on, and we keep a record of that. If you already have an account, you can carry on for{" "}
+        {LEGAL.changeNoticeDays} days after that email before you need to agree. Smaller changes that only clarify, add to what you get, or keep less of your
+        information don&rsquo;t get a new version: we update the &ldquo;Last updated&rdquo; date, note them in our{" "}
+        <Link href="/legal/archive#wording-updates">list of versions and changes</Link>, and they apply from that date. Each version has a number, shown at the
+        top. Versions from 11 October 2026 onwards are listed in our <Link href="/legal/archive">archive of versions</Link>, and we&rsquo;ll send you a copy of any
+        earlier version if you ask.
       </p>
 
       <h2>Contact and complaints</h2>
