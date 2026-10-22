@@ -37,7 +37,8 @@ export default function DeleteAccountButton({ email }: { email: string }) {
           disabled={!matches}
           onClick={() => setSure(true)}
           data-testid="delete-account"
-          className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+          // Until the email matches: red writing in a grey outline, so it never reads as the coral of Save.
+          className="rounded-xl border border-red-600 bg-red-600 px-4 py-2 text-sm font-semibold text-white enabled:hover:bg-red-700 disabled:cursor-not-allowed disabled:border-line-strong disabled:bg-surface disabled:text-danger-fg"
         >
           Delete my account
         </button>
