@@ -48,6 +48,18 @@ ok("setup: round, a quarter of the height, tucked into the bottom-left corner", 
 ok("setup: and no full-size camera", c.videos === 1);
 // Dragged towards the top right and let go: it snaps into that corner, the same gap from both edges.
 {
+  // The recovery key note under the header can appear a moment after the page loads and push the page down, so wait
+  // for the circle to stay put before taking hold of it.
+  const steady = async () => {
+    let last = "";
+    for (let i = 0; i < 20; i++) {
+      const now = JSON.stringify(await page.locator("[data-testid=camera-circle]").boundingBox());
+      if (now === last) return;
+      last = now;
+      await page.waitForTimeout(250);
+    }
+  };
+  await steady();
   const box = await page.locator("[data-testid=camera-circle]").boundingBox();
   const panel = await page.locator("[data-testid=camera-circle]").evaluate((v) => v.parentElement.getBoundingClientRect().toJSON());
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
