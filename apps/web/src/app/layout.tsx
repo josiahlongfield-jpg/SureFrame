@@ -29,12 +29,11 @@ export const metadata: Metadata = {
 const zoneScript = `try{var z=encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC");if(("; "+document.cookie).indexOf("; ${TZ_COOKIE}="+z)<0)document.cookie="${TZ_COOKIE}="+z+"; path=/; max-age=31536000; samesite=lax"}catch(e){}`;
 
 /**
- * Pull-to-refresh on phones (Josiah, 23 October 2026): iPhone browsers could reload a page that was at the very top a
- * little way down, hiding its top under the header. Each page notes whether it was at the top when it was left
- * (sessionStorage, this tab only); reloading a page that was at the top turns the browser's own scroll restoring off
- * for that load and starts at the top. A page left part-way down is restored as usual.
+ * Refresh on phones (Josiah, 23 October 2026): reloading a page on a phone or tablet (touch screen, or narrower than
+ * 768px) always starts at the top, wherever the page was left, so the header and first screen are in view. The
+ * browser's own scroll restoring is turned off for that load only. Desktop reloads keep their place as usual.
  */
-const topScript = `try{var k=function(){return"sf-top:"+location.pathname+location.search},n=performance.getEntriesByType&&performance.getEntriesByType("navigation")[0];if(n&&n.type==="reload"&&sessionStorage.getItem(k())==="1"){history.scrollRestoration="manual";scrollTo(0,0);addEventListener("load",function(){scrollTo(0,0);setTimeout(function(){history.scrollRestoration="auto"},1000)})}var s=function(){try{sessionStorage.setItem(k(),scrollY<=2?"1":"0")}catch(e){}};addEventListener("pagehide",s);document.addEventListener("visibilitychange",function(){document.visibilityState==="hidden"&&s()})}catch(e){}`;
+const topScript = `try{var n=performance.getEntriesByType&&performance.getEntriesByType("navigation")[0];if(n&&n.type==="reload"&&(matchMedia("(pointer:coarse)").matches||innerWidth<768)){history.scrollRestoration="manual";scrollTo(0,0);addEventListener("load",function(){scrollTo(0,0);setTimeout(function(){history.scrollRestoration="auto"},1000)})}}catch(e){}`;
 
 export const viewport: Viewport = { themeColor: "#0f2747", colorScheme: "light" };
 

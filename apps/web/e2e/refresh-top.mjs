@@ -1,7 +1,6 @@
-// Pull-to-refresh on phones (Josiah, 23 October 2026): a page reloaded while at the very top must start at the top,
-// not a little way down with its top under the header. src/app/layout.tsx topScript turns the browser's own scroll
-// restoring off for a reload of a page that was left at the top; a page left part-way down is still restored.
-// (The iPhone bug itself can't be reproduced in Chromium, so this checks the switch it relies on and both outcomes.)
+// Refresh on phones (Josiah, 23 October 2026): reloading any page on a phone starts at the top, wherever it was left.
+// src/app/layout.tsx topScript turns the browser's own scroll restoring off for a reload on a touch or narrow screen;
+// a desktop reload still keeps its place.
 import { chromium } from "@playwright/test";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
@@ -24,7 +23,7 @@ for (const path of ["/", "/pricing", "/faq", "/login", "/help"]) {
   ok(`${path}: restoring is back on afterwards`, (await page.evaluate(() => history.scrollRestoration)) === "auto");
 }
 
-for (const path of ["/", "/pricing"]) {
+for (const path of ["/", "/pricing", "/help"]) {
   await page.goto(BASE + path);
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.evaluate(() => window.scrollTo(0, 600));
@@ -34,7 +33,21 @@ for (const path of ["/", "/pricing"]) {
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.waitForTimeout(300);
   const y = await page.evaluate(() => window.scrollY);
-  ok(`${path}: reloaded part-way down, it keeps its place`, y > 400, String(y));
+  ok(`${path}: phone reloaded part-way down starts at the top`, y === 0, String(y));
+}
+
+const desk = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
+for (const path of ["/", "/pricing"]) {
+  await desk.goto(BASE + path);
+  await desk.waitForLoadState("networkidle").catch(() => {});
+  await desk.evaluate(() => window.scrollTo(0, 600));
+  await desk.waitForTimeout(200);
+  ok(`${path}: desktop long enough to test (scrolled to 600)`, (await desk.evaluate(() => window.scrollY)) >= 590);
+  await desk.reload();
+  await desk.waitForLoadState("networkidle").catch(() => {});
+  await desk.waitForTimeout(300);
+  const y = await desk.evaluate(() => window.scrollY);
+  ok(`${path}: desktop reloaded part-way down keeps its place`, y > 400, String(y));
 }
 
 await browser.close();
