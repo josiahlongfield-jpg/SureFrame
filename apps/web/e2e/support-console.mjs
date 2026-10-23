@@ -661,7 +661,7 @@ if (isAgent) {
   const fresh = `notice-owner${stamp}@example.com`;
   await (await signIn(fresh, "/library")).close();
   const owners = new Set(
-    (await prisma.user.findMany({ where: { closedAt: null, deleteAt: null, memberships: { some: { role: "OWNER", workspace: { closedAt: null, deleteAt: null } } } }, select: { email: true } })).map((u) => u.email.toLowerCase()),
+    (await prisma.user.findMany({ where: { closedAt: null, deleteAt: null, memberships: { some: { role: { in: ["OWNER", "ADMIN"] }, workspace: { closedAt: null, deleteAt: null } } } }, select: { email: true } })).map((u) => u.email.toLowerCase()),
   );
   await open("/support/notices");
   ok("notices: the page fits a phone", await admin.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1));
@@ -679,7 +679,7 @@ if (isAgent) {
   const before = outbox().length;
   await admin.click("[data-testid=notice-send]");
   await admin.waitForSelector("[data-testid=notice-confirm]");
-  ok("notices: asks first, with how many owners it emails", norm(await admin.textContent("[data-testid=notice-confirm] h2")) === `Email ${owners.size} business owner${owners.size === 1 ? "" : "s"}?`, await admin.textContent("[data-testid=notice-confirm] h2"));
+  ok("notices: asks first, with how many owners it emails", norm(await admin.textContent("[data-testid=notice-confirm] h2")) === `Email ${owners.size === 1 ? "1 business owner or admin" : `${owners.size} business owners and admins`}?`, await admin.textContent("[data-testid=notice-confirm] h2"));
   await admin.click("[data-testid=notice-confirm-yes]");
   ok("notices: a start date under 30 days away is refused by the server", !!(await admin.waitForSelector("[data-testid=notice-confirm] [role=alert]:has-text('at least 30 days away')", { timeout: 15000 }).catch(() => null)) && outbox().length === before);
   await admin.click("[data-testid=notice-confirm] button:has-text('Cancel')");

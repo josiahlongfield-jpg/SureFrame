@@ -48,13 +48,14 @@ export const NoticeInput = z.object({
 });
 export type NoticeInput = z.infer<typeof NoticeInput>;
 
-/** Every business owner's address, once each: owners of a business that isn't closed or being deleted, whose own login isn't either. */
+/** Every business owner's and admin's address, once each (admins act for the business too, G10): of a business that isn't closed or
+ * being deleted, whose own login isn't either. */
 export async function noticeRecipients() {
   const rows = await db.user.findMany({
     where: {
       closedAt: null,
       deleteAt: null,
-      memberships: { some: { role: "OWNER", workspace: { closedAt: null, deleteAt: null } } },
+      memberships: { some: { role: { in: ["OWNER", "ADMIN"] }, workspace: { closedAt: null, deleteAt: null } } },
     },
     select: { email: true },
     orderBy: { createdAt: "asc" },
@@ -97,7 +98,7 @@ export async function sendSubprocessorNotice(admin: SupportAdmin, raw: unknown, 
   if (n.startsOn < earliest) return { ok: false, message: `The start date must be at least ${NOTICE_DAYS} days away: ${longDate(earliest)} or later.` };
   const target = `${n.name} from ${n.startsOn}`;
   const recipients = await noticeRecipients();
-  if (!recipients.length) return { ok: false, message: "There are no business owners to email." };
+  if (!recipients.length) return { ok: false, message: "There are no business owners or admins to email." };
   // Claimed in one statement: a second click (or a second admin) for the same notice finds this row and stops.
   const claimed = await db.$transaction(async (tx) => {
     const already = await tx.adminAction.findFirst({ where: { action: NOTICE_ACTION, target }, select: { createdAt: true } });

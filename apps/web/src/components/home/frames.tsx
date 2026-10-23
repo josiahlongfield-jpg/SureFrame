@@ -309,7 +309,7 @@ export function frames(retentionDays: number): Frame[] {
     { key: "send", tab: "Send", icon: Icon.send, title: "Weekly check-in", detail: "Send to many", body: <Send /> },
     { key: "replies", tab: "Replies", icon: Icon.reply, title: "Weekly check-in", detail: "Conversation", body: <Replies /> },
     { key: "todos", tab: "To-dos", icon: Icon.todo, title: "To-dos/Reminders", detail: "Your team", body: <Todos /> },
-    { key: "ai", tab: "AI summary", icon: Icon.ai, title: "Weekly check-in", detail: "AI add-on", body: <AiSummary /> },
+    { key: "ai", tab: "Summary", icon: Icon.ai, title: "Weekly check-in", detail: "AI add-on", body: <AiSummary /> },
     { key: "backup", tab: "Backup", icon: Icon.cloud, title: "Library", detail: "Cloud backup add-on", body: <Backup days={retentionDays} /> },
     { key: "branding", tab: "Branding", icon: Icon.brand, title: "Branding", detail: "Paid plans", body: <Branding /> },
     { key: "team", tab: "Team", icon: Icon.team, title: "Team", detail: "Studio & Agency", body: <Team /> },

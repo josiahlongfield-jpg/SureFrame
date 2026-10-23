@@ -94,6 +94,8 @@ export const LEGAL = {
    * liability cap not covering what the law won't let us limit (16); the Australian Consumer Law line (20); and 30 days' notice
    * before ending the Free plan (6). They describe what we already do or add to what customers get, so they keep termsVersion.
    * Also 22 October 2026: section 2 notes a team member whose name is the business name is shown once (no new version).
+   * Also 22 October 2026: section 4 repeats the Privacy Policy's under-13 line (G8). The business was already responsible for a
+   * parent's permission for clients under 18, so it adds no new duty and keeps termsVersion.
    * Also 22 October 2026 (Josiah's decisions): section 13 says client help chat questions may be read to improve the help chat,
    * and that the weekly list of them emailed to our support inbox is kept for up to 12 months (decision 7). It describes what we
    * already do and sets a limit where there was none, so it keeps termsVersion.
@@ -117,6 +119,8 @@ export const LEGAL = {
    * to choose" (decision 12, softer than before); Annex 1 says the sole trader's full legal name is given on request for a signed
    * copy (decision 11); section 8 names the "New SureFrame sub-processor" email (decision 22); and section 16 says why no EU or UK
    * representative is appointed (Article 27(2), decision 21). They describe what we already do or promise, so they keep dpaVersion.
+   * Also 22 October 2026: the section 8 notice goes to the workspace's admins as well as its owner (G10), more notice than before,
+   * so it keeps dpaVersion.
    */
   dpaUpdated: "22 October 2026",
   /**
@@ -203,6 +207,7 @@ export const WORDING_UPDATES: WordingUpdate[] = [
       "Section 2: a team member whose name is the business name is shown once.",
       "Why an account we close is deleted after 44 days; the liability cap doesn’t cover what the law won’t let us limit; the Australian Consumer Law line; 30 days’ notice before we end the Free plan.",
       "Section 13: questions typed into the help chat on client pages may be read to improve it, and the weekly list of them is kept for up to 12 months.",
+      "Section 4: a client under 13 needs any parental consent the law requires (for example under COPPA), as the Privacy Policy already says.",
     ],
     privacy: [
       "Sections on our connectors for Claude, including that the Claude Desktop connector also reads transcripts when you use AI summaries.",
@@ -224,6 +229,7 @@ export const WORDING_UPDATES: WordingUpdate[] = [
       "Recordings are kept in Cloudflare’s Oceania region as far as Cloudflare allows us to choose.",
       "Annex 1: the sole trader’s full legal name is given on request for a signed copy of this agreement.",
       "Section 8 names the “New SureFrame sub-processor” email we send before a new sub-processor starts; section 16 explains why we haven’t appointed a representative in the EU or UK.",
+      "Section 8: the new sub-processor notice goes to each workspace’s owner and any admins.",
     ],
   },
   {

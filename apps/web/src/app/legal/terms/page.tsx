@@ -101,6 +101,8 @@ export default function Page() {
         </li>
         <li>
           Clients under 18 may use a client link only with a parent&rsquo;s or guardian&rsquo;s permission, which the business is responsible for getting.
+          Don&rsquo;t add a client under 13 without any parental consent the law requires, such as verifiable parental consent under the US
+          Children&rsquo;s Online Privacy Protection Act (COPPA). We don&rsquo;t knowingly collect children&rsquo;s information for our own purposes.
         </li>
         <li>
           You&rsquo;re responsible for following the privacy, spam and recording laws that apply to you, including getting any consent needed before recording people

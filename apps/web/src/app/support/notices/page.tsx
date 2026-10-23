@@ -5,6 +5,7 @@ import { earliestStart, longDate, NOTICE_ACTION, NOTICE_DAYS, NOTICE_SUBJECT, no
 import { consoleAdmin } from "../_console/ui";
 import { supportTitle } from "../_console/meta";
 import NoticeForm from "./NoticeForm";
+import { noticePeople } from "@/lib/support/noticePeople";
 
 export const generateMetadata = supportTitle("Sub-processor notice", "admin", { robots: { index: false } });
 
@@ -24,9 +25,8 @@ export default async function Notices() {
     <div>
       <h1 className="text-2xl font-semibold tracking-tight text-ink">New sub-processor notice</h1>
       <p className="mt-2 text-sm text-muted">
-        Our Data Processing Agreement (section 8) promises every business owner an email at least {NOTICE_DAYS} days before a new sub-processor starts
-        handling their customers&rsquo; information. This sends that email, headed &ldquo;{NOTICE_SUBJECT}&rdquo;, to all {owners} business owner
-        {owners === 1 ? "" : "s"} and records it in the <Link href="/support/log" className="font-medium text-accent hover:underline">Support log</Link>. Add the
+        Our Data Processing Agreement (section 8) promises each business an email at least {NOTICE_DAYS} days before a new sub-processor starts
+        handling their customers&rsquo; information. This sends that email, headed &ldquo;{NOTICE_SUBJECT}&rdquo;, to {noticePeople(owners)} and records it in the <Link href="/support/log" className="font-medium text-accent hover:underline">Support log</Link>. Add the
         sub-processor to the list in the Privacy Policy and the DPA&rsquo;s Annex 3 too.
       </p>
       <NoticeForm owners={owners} earliest={earliestStart()} days={NOTICE_DAYS} />

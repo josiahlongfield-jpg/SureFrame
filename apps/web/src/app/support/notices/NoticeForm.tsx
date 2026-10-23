@@ -3,6 +3,7 @@
 import { useState } from "react";
 import ConfirmDialog, { primaryButton } from "@/components/ConfirmDialog";
 import { sendNotice } from "./actions";
+import { noticePeople } from "@/lib/support/noticePeople";
 
 const field = "w-full rounded-xl border border-line-strong px-3 py-2 text-sm";
 
@@ -17,7 +18,7 @@ export default function NoticeForm({ owners, earliest, days }: { owners: number;
   const [error, setError] = useState<string>();
   const [done, setDone] = useState<string>();
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const people = `${owners} business owner${owners === 1 ? "" : "s"}`;
+  const people = noticePeople(owners);
 
   async function send() {
     setBusy(true);
@@ -26,7 +27,7 @@ export default function NoticeForm({ owners, earliest, days }: { owners: number;
       const r = await sendNotice(form);
       if (r.ok) {
         setAsking(false);
-        setDone(`Sent to ${r.sent} of ${r.recipients} business owner${r.recipients === 1 ? "" : "s"}. It's in the Support log.`);
+        setDone(`Sent to ${r.sent} of ${noticePeople(r.recipients)}. It's in the Support log.`);
         setForm({ name: "", purpose: "", location: "", startsOn: earliest });
       } else setError(r.message);
     } catch {
@@ -77,7 +78,7 @@ export default function NoticeForm({ owners, earliest, days }: { owners: number;
       )}
       <div>
         <button className={primaryButton} disabled={!owners} data-testid="notice-send">
-          Email every business owner…
+          Email every business owner and admin…
         </button>
       </div>
       {asking && (
@@ -86,7 +87,7 @@ export default function NoticeForm({ owners, earliest, days }: { owners: number;
           body={
             <>
               <p>
-                Every business owner on SureFrame gets the notice about <strong className="text-ink">{form.name}</strong>, starting{" "}
+                Every business owner and admin on SureFrame gets the notice about <strong className="text-ink">{form.name}</strong>, starting{" "}
                 {new Intl.DateTimeFormat("en-AU", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${form.startsOn}T00:00:00Z`))}.
               </p>
               <p>This can&rsquo;t be undone, and it can only be sent once for this sub-processor and date.</p>

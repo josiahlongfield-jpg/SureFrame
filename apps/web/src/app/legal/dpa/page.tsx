@@ -133,7 +133,7 @@ export default function Page() {
       <p>
         You authorise the sub-processors in <a href="#subprocessors">Annex 3</a>. Each is bound by a written contract with data protection terms that protect
         Customer Personal Data at least as well as this DPA does, as far as they apply to its service. We remain responsible to you for their work. We&rsquo;ll
-        update Annex 3 and email the workspace owner a notice headed &ldquo;New {LEGAL.product} sub-processor&rdquo;, saying who it is, what it does for us,
+        update Annex 3 and email the workspace&rsquo;s owner and any admins a notice headed &ldquo;New {LEGAL.product} sub-processor&rdquo;, saying who it is, what it does for us,
         where it processes information and when it starts, at least 30 days before a new sub-processor starts processing Customer Personal Data. If you object on
         reasonable data protection grounds, email {mail} within that time and we&rsquo;ll work with you in good faith. If we can&rsquo;t resolve it, you may delete
         your account, and we&rsquo;ll refund any fees you&rsquo;ve prepaid for the period after that.
