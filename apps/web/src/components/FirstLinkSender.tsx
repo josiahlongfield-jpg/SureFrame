@@ -118,16 +118,16 @@ export default function FirstLinkSender({
           disabled={off}
           className={emailFirst && !only ? btn : main}
           data-testid="first-link-copy"
-          onClick={() => run("link", () => writeClipboard(getLink()), `${name}'s link is copied. Paste it into a text, chat or email to them. It only opens for ${name}.`)}
+          onClick={() => run("link", () => writeClipboard(getLink()), `${name}'s link is copied. It only opens for ${name}.`)}
         >
-          {busy === "link" ? "Copying…" : done?.how === "link" && !done.error ? "Link copied" : copyLabel}
+          {busy === "link" ? "Copying…" : done?.how === "link" && !done.error && !inline ? "Link copied" : copyLabel}
         </button>}
         {!short && !only && <button
           type="button"
           disabled={off}
           className={btn}
           data-testid="first-link-message"
-          onClick={() => run("message", () => writeClipboard(message().then((m) => m.body)), `Copied the link with a short note that tells ${name} what it is. Paste it into a text, chat or email to them.`)}
+          onClick={() => run("message", () => writeClipboard(message().then((m) => m.body)), `Copied the link with a short note that tells ${name} what it is.`)}
         >
           {busy === "message" ? "Copying…" : done?.how === "message" && !done.error ? "Copied" : "Copy link + message"}
         </button>}

@@ -214,7 +214,7 @@ await owner.evaluate(() => document.addEventListener("click", (e) => e.target?.h
 for (const n of ["Client C", "Client B"]) {
   await sentRow(owner, n).locator("[data-testid=first-link-email]").click();
   await sentRow(owner, n).locator("[data-testid=copy-instead]").click();
-  await sentRow(owner, n).locator("[data-testid=row-note]:has-text('Copied')").waitFor();
+  await sentRow(owner, n).locator("[data-testid=row-state]:has-text('Link copied')").waitFor();
 }
 const mail = await waitFor(() => mailTo(aEmail).find((m) => /sent you a video/.test(m.subject)));
 ok("email subject has the title", mail?.subject.endsWith("sent you a video: Week 1 plan"), mail?.subject);

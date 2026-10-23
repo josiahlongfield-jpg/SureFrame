@@ -35,5 +35,5 @@ export async function sendByLink(page, name) {
     }
   } else if (section === "link") await row.locator("[data-testid=copy-row-link]").click();
   else throw new Error(`${name} was emailed, so there's no link to copy`);
-  await row.locator("[data-testid=row-note]:has-text('Copied')").waitFor({ timeout: 15000 });
+  await row.locator("[data-testid=row-state]:has-text('Link copied')").waitFor({ timeout: 15000 });
 }

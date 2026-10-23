@@ -229,17 +229,22 @@ export default function SendPanel({
     }
   }
 
+  /** Drops a row's line, e.g. an earlier "Couldn't copy", once "Link copied" says it all. */
+  function clearRowNote(id: string) {
+    setRowNotes((cur) => {
+      const next = { ...cur };
+      delete next[id];
+      return next;
+    });
+  }
+
   /** After a first video's link went out from the business: said under that client's own row. */
   function firstSent(c: ClientOption, how: "link" | "message" | "share" | "email") {
     void markLinkSent(c.id);
     setRows((cur) => ({ ...cur, [c.id]: how === "email" ? "own-email" : "copied" }));
-    setRowNotes((cur) => ({
-      ...cur,
-      [c.id]:
-        how === "email"
-          ? { text: `Your email app should open with ${c.name}'s video and personal link, ready to send.`, fallback: true }
-          : { text: `Copied ${c.name}'s video and personal link. Paste it into a text, chat or email to them.` },
-    }));
+    // A copy needs no line of its own: the row already says "Link copied" (Josiah, 23 October 2026).
+    if (how === "email") setRowNotes((cur) => ({ ...cur, [c.id]: { text: `Your email app should open with ${c.name}'s video and personal link, ready to send.`, fallback: true } }));
+    else clearRowNote(c.id);
   }
 
   /** A client added from this box: chosen straight away, ready for Send. */
@@ -261,7 +266,7 @@ export default function SendPanel({
     }
     void markLinkSent(r.clientId);
     setRows((cur) => ({ ...cur, [r.clientId]: "copied" }));
-    setRowNotes((cur) => ({ ...cur, [c.id]: { text: `Copied ${c.name}'s link.` } }));
+    clearRowNote(c.id);
   }
 
   async function emailRow(r: Recipient) {
@@ -454,7 +459,7 @@ export default function SendPanel({
       return setRowNotes((cur) => ({ ...cur, [c.id]: { text: "Couldn't copy the link. Try again.", error: true } }));
     }
     setRows((cur) => ({ ...cur, [c.id]: "copied" }));
-    setRowNotes((cur) => ({ ...cur, [c.id]: { text: `Copied ${c.name}'s video and personal link. Paste it into an email to them.` } }));
+    clearRowNote(c.id);
   }
 
   /** A section of sent clients, each with its own heading (Josiah's names for them). */

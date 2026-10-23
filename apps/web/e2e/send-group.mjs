@@ -116,13 +116,13 @@ for (const width of [390, 320]) {
 await owner.setViewportSize({ width: 1280, height: 900 });
 
 await row("Client L").locator("[data-testid=copy-row-link]").click();
-await row("Client L").locator("[data-testid=row-note]").waitFor();
+await row("Client L").locator("[data-testid=row-state]:has-text('Link copied')").waitFor();
 const copiedL = await owner.evaluate(() => navigator.clipboard.readText());
 ok("Client L: their own link copied, with their key", copiedL.includes("v=") && copiedL.includes("#k="), copiedL);
-ok("Client L: a short line confirms it", norm(await row("Client L").locator("[data-testid=row-note]").textContent()) === "Copied Client L's link.");
+ok("Client L: Link copied beside their name, with no second line", (await row("Client L").locator("[data-testid=row-note]").count()) === 0);
 await row("Client G").locator("[data-testid=first-link-copy]").click();
-await row("Client G").locator("[data-testid=row-note]").waitFor();
-ok("Client G: copied their video with their personal link", norm(await row("Client G").locator("[data-testid=row-note]").textContent()).startsWith("Copied Client G's video and personal link."));
+await row("Client G").locator("[data-testid=row-state]:has-text('Link copied')").waitFor();
+ok("Client G: Link copied beside their name, no line on where to paste it", (await row("Client G").locator("[data-testid=row-note]").count()) === 0);
 await row("Client F").locator("[data-testid=first-link-email]").click();
 await row("Client F").locator("[data-testid=copy-instead]").waitFor();
 ok("Client F: email app line, with Copy the link instead if nothing opens", /Your email app should open with Client F's video and personal link/.test(norm(await row("Client F").locator("[data-testid=row-note]").textContent())));
