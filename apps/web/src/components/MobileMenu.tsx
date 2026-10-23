@@ -39,7 +39,7 @@ export default function MobileMenu({ links, settings, plan, planHref, email, sig
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-controls="app-menu"
-        className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 font-medium text-muted hover:bg-hover"
+        className="flex items-center gap-1.5 rounded-lg border border-line px-2 py-2 font-medium sm:px-3 text-muted hover:bg-hover"
         data-testid="menu-button"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="text-dim">

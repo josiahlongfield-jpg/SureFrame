@@ -126,7 +126,7 @@ export default function NotificationBell({ initialUnread, initialNewest }: { ini
         title="Notifications"
         data-testid="bell"
         data-shaking={shaking || undefined}
-        className="relative grid h-10 w-10 place-items-center rounded-lg text-muted hover:bg-hover hover:text-ink"
+        className="relative grid h-10 w-9 place-items-center sm:w-10 rounded-lg text-muted hover:bg-hover hover:text-ink"
       >
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={shaking ? "bell-shake" : undefined} onAnimationEnd={() => setShaking(false)}>
           <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16z" />

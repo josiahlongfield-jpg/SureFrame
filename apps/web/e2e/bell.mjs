@@ -148,7 +148,9 @@ await prisma.notification.createMany({ data: [todo("Reminder: Call Client A back
 await owner.goto(BASE + "/library");
 await owner.waitForSelector("[data-testid=bell-dot]");
 await openBell(owner);
-ok("the list has the to-dos, newest first, then the read reply", (await items(owner).count()) === 3 && (await items(owner).last().getAttribute("data-read")) === "true");
+const reads = await items(owner).evaluateAll((els) => els.map((e) => e.hasAttribute("data-read")));
+// The reply that came in while its conversation was open is its own line (the first was already read).
+ok("the list: the two to-dos unread on top, then the two read reply lines", JSON.stringify(reads) === JSON.stringify([false, false, true, true]), JSON.stringify(reads));
 await owner.click("[data-testid=bell-read-all]");
 await owner.waitForSelector("[data-testid=bell-dot]", { state: "detached", timeout: 10000 });
 ok("Mark all as read: every line read, dot gone, button gone", (await owner.locator("[data-testid=bell-item]:not([data-read])").count()) === 0 && (await owner.locator("[data-testid=bell-read-all]").count()) === 0);

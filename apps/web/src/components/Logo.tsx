@@ -7,7 +7,8 @@ export default function Logo({ href = "/", tone = "light" }: { href?: string; to
   return (
     <Link href={href} aria-label={BRAND.name} className={`flex items-center gap-2 text-lg ${tone === "dark" ? "text-ink" : "text-ink"}`}>
       <LogoMark size={tone === "dark" ? 26 : 30} tone={tone} />
-      <Wordmark className={tone === "dark" ? "text-xl" : ""} />
+      {/* The smallest phones get a slightly smaller name, so the top bar fits. */}
+      <Wordmark className={tone === "dark" ? "text-lg min-[22.5rem]:text-xl" : ""} />
     </Link>
   );
 }

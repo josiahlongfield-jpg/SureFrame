@@ -71,7 +71,7 @@ export default async function AppHeader({ email, plan, widget = true }: { email:
       {/* The bar itself is navy; notices, prompts and the help chat below it keep the page's colours.
           It's the menus' anchor, so the phone menu opens right under it, over any banner. */}
       <div data-theme="navy" className="relative z-40 bg-canvas text-ink">
-      <div className="mx-auto flex h-16 max-w-6xl sm:h-[4.5rem] items-center justify-between gap-4 px-4 sm:px-6">
+      <div className="mx-auto flex h-16 max-w-6xl sm:h-[4.5rem] items-center justify-between gap-2 px-4 sm:gap-4 sm:px-6">
         <div className="flex items-center gap-6">
           <Logo href="/library" tone="dark" />
           <nav className="hidden items-center gap-5 text-sm lg:flex">
@@ -79,7 +79,8 @@ export default async function AppHeader({ email, plan, widget = true }: { email:
             <SettingsMenu links={settings} />
           </nav>
         </div>
-        <div className="flex items-center gap-2 text-sm min-[30rem]:gap-3">
+        {/* Phones: tighter, so the bell, Record and Menu fit beside the logo at 320px. */}
+        <div className="flex items-center gap-1.5 text-sm min-[30rem]:gap-3">
           {/* Shown on phones too (from 384px wide), so the plan is one glance away. */}
           <Link
             href={planHref}
@@ -91,7 +92,7 @@ export default async function AppHeader({ email, plan, widget = true }: { email:
             {plan}
           </Link>
           {bell && <NotificationBell initialUnread={bell.unread} initialNewest={bell.newest} />}
-          <Link href="/record" className="whitespace-nowrap rounded-[0.625rem] bg-primary px-4 py-2 font-medium text-on-primary hover:bg-primary-hover">
+          <Link href="/record" className="whitespace-nowrap rounded-[0.625rem] bg-primary px-3 py-2 sm:px-4 font-medium text-on-primary hover:bg-primary-hover">
             <span className="sm:hidden">Record</span>
             <span className="hidden sm:inline">New recording</span>
           </Link>
