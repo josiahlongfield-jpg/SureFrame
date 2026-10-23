@@ -57,6 +57,12 @@ await page.click("[data-testid=confirm-sign-in]");
 await page.waitForURL((u) => u.pathname === "/agree", { timeout: 30000 });
 ok("a new account is asked to agree to the terms first", new URL(page.url()).searchParams.get("next") === "/clients");
 await passAgree(page);
+// A new owner names the business next (O3), then carries on.
+await page.waitForURL((u) => u.pathname === "/welcome" || u.pathname === "/clients", { timeout: 30000 });
+if (new URL(page.url()).pathname === "/welcome") {
+  await page.fill("[data-testid=welcome-business]", "Business A");
+  await page.click("[data-testid=welcome-submit]");
+}
 await page.waitForURL("**/clients");
 ok("link signs in and returns to the page asked for", true);
 
