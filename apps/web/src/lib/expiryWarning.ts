@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { appUrl } from "@/lib/stripe";
 import { sendMail } from "@/lib/mail";
+import { notify } from "@/lib/notifications";
 import { brandOf } from "@/lib/branding";
 import { teamEmail } from "@/lib/teamEmail";
 import { BRAND } from "@/lib/brand";
@@ -117,6 +118,8 @@ export async function warnExpiring(now = new Date()) {
     try {
       await sendMail({ to, ...mail });
       sent++;
+      // In their bell too (lib/notifications.ts): the recording, or the Library's "Deleting soon" for several.
+      await notify([{ userId: membership.userId, workspaceId, kind: "EXPIRING", text: mail.subject, href: n === 1 ? new URL(list[0].link).pathname : "/library?filter=soon" }]);
     } catch (err) {
       // Release them so the next run tries again.
       await db.video.updateMany({ where: { id: { in: mine.map((v) => v.id) }, expiryWarnedAt: stamp }, data: { expiryWarnedAt: null } });

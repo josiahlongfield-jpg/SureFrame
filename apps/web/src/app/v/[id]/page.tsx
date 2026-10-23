@@ -33,7 +33,7 @@ import ClientContactLine from "@/components/ClientContactLine";
 import { contactOf } from "@/lib/clientContact";
 import { clientTitle, isDefaultTitle } from "@/lib/videoTitle";
 
-type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ team?: string; asClient?: string; new?: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ team?: string; asClient?: string; new?: string; conv?: string }> };
 
 /**
  * A client whose key this browser isn't known to hold (lib/e2e/keyHeld.ts): an email link opened on a device
@@ -297,6 +297,8 @@ export default async function Watch({ params, searchParams }: Props) {
             justRecorded={justRecorded}
             initialReplies={replies.map((r) => replyDTO(r, video.ownerId, who))}
             conversations={conversations}
+            // From the bell (lib/notifications.ts): straight to this page's own conversation, not the list.
+            openOwn={(await searchParams).conv === "1"}
             reactions={reactions}
             hasThumb={hasThumb}
             sourceId={video.sourceId}

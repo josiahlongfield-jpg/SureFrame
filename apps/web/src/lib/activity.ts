@@ -39,3 +39,9 @@ export const activityCookie = (secure = process.env.NODE_ENV === "production", k
 
 /** The KEEP cookie, set when a sign-in completes with KEEP_NEXT ticked. */
 export const keepCookie = (secure = process.env.NODE_ENV === "production") => ({ httpOnly: true, sameSite: "lax" as const, secure, path: "/", maxAge: KEEP_DAYS * 86_400 });
+
+/**
+ * The bell's "visit" (components/NotificationBell.tsx): set by the page with no expiry, so it goes when the browser
+ * closes, and cleared on sign-in and sign-out (src/auth.ts). The first page without it shakes the bell if anything's unread.
+ */
+export const BELL_VISIT_COOKIE = "sf_bell";

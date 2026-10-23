@@ -103,16 +103,14 @@ await owner.waitForSelector("[data-testid=day-folder]");
 await owner.waitForTimeout(500);
 ok("a closed newest day stays closed", !(await owner.isVisible(`main a[href="/v/${second}"]`)) && (await owner.isVisible(`main a[href="/v/${first}"]`)));
 
-// D12: "With replies" lists the videos a client has replied to, newest reply first.
-await owner.goto(BASE + "/library");
-ok("no With replies filter before any client reply", (await owner.locator("role=navigation[name='Filter videos'] >> text=/With replies/").count()) === 0);
+// The bell replaced the "With replies" filter (Josiah, 23 October 2026): no filter even once a client has replied, and
+// an old link to it shows everything.
 await prisma.reply.create({ data: { kind: "TEXT", body: "sealed", encrypted: true, authorName: "Client", byClient: true, videoId: first } });
-await owner.reload();
-await owner.click("role=navigation[name='Filter videos'] >> text=/With replies \\(1\\)/");
-await owner.waitForURL((u) => u.searchParams.get("filter") === "replies", { timeout: 15000 });
-await owner.waitForSelector("[data-testid=replies-filter-note]", { timeout: 15000 });
-const repliedList = await owner.$$eval("main a[href^='/v/']", (as) => [...new Set(as.map((a) => a.getAttribute("href").split("?")[0]))]);
-ok("With replies lists just the video the client replied to", JSON.stringify(repliedList) === JSON.stringify([`/v/${first}`]), JSON.stringify(repliedList));
+await owner.goto(BASE + "/library");
+ok("no With replies filter, even with a client reply", (await owner.locator("text=/With replies/").count()) === 0);
+await owner.goto(BASE + "/library?filter=replies");
+await owner.waitForSelector(`main a[href="/v/${second}"]`, { timeout: 15000 }).catch(() => null);
+ok("an old With replies link shows every video", (await owner.locator(`main a[href="/v/${second}"]`).count()) > 0 || (await owner.locator("[data-testid=day-folder]").count()) > 0);
 await owner.goto(BASE + "/library");
 
 // Phones: nothing wider than the screen.

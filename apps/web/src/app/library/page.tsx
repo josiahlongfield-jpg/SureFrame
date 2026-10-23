@@ -56,10 +56,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // "Deleting soon": server copies deleted within a week (no cloud backup), soonest first.
   const soonWhere: Prisma.VideoWhereInput = { ...scope, AND: [{ purgeAt: { not: null, lte: new Date(Date.now() + 7 * 86_400_000) } }, { status: { notIn: ["EXPIRED", "RECORDING"] } }] };
   const soon = filter === "soon";
-  // "With replies" (D12): videos a client has replied to, newest reply first, so replies are found without opening each video.
-  const clientReply = { authorUserId: null, ...visibleReplies };
-  const repliesWhere: Prisma.VideoWhereInput = { AND: [scope, { OR: [{ replies: { some: clientReply } }, { copies: { some: { replies: { some: clientReply } } } }] }] };
-  const replied = filter === "replies" && !soon;
+  // Client replies are found with the bell in the top menu (lib/notifications.ts), which replaced the "With replies"
+  // filter (Josiah, 23 October 2026); an old link to it shows everything.
   const clients = await db.client.findMany({ where: { ...clientScopeWhere(access), removedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } });
   const clientId = clients.some((c) => c.id === rawClient) ? rawClient! : "";
   const searching = !!q || !!clientId;
@@ -69,10 +67,10 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     ...(q ? [{ OR: [{ title: contains }, { client: { name: contains } }, { copies: { some: { client: { name: contains } } } }] }] : []),
     ...(clientId ? [{ OR: [{ clientId }, { copies: { some: { clientId } } }] }] : []),
   ];
-  const [found, soonCount, allowance, repliedCount] = await Promise.all([
+  const [found, soonCount, allowance] = await Promise.all([
     // Copies sent to other clients count their views and replies towards the original, and name who it went to.
     db.video.findMany({
-      where: { AND: [soon ? soonWhere : replied ? repliesWhere : scope, ...search] },
+      where: { AND: [soon ? soonWhere : scope, ...search] },
       orderBy: soon ? { purgeAt: "asc" } : { createdAt: "desc" },
       include: {
         copies: { select: { id: true, viewCount: true, client: { select: { id: true, name: true, assignedToId: true, removedAt: true } } } },
@@ -83,9 +81,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     }),
     db.video.count({ where: soonWhere }),
     plan.maxVideos !== null ? videosUsed(workspace.id) : null,
-    db.video.count({ where: repliesWhere }),
   ]);
-  let videos = found;
+  const videos = found;
   // The client's replies in each conversation (the team's own aren't news), newest first, with when they came,
   // so each device can tell which it hasn't seen (components/LibraryTools.tsx). Held and uploading replies don't count yet.
   const convIds = videos.flatMap((v) => [v.id, ...v.copies.map((c) => c.id)]);
@@ -96,9 +93,6 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   for (const r of clientReplies) fromClients.set(r.videoId, [...(fromClients.get(r.videoId) ?? []), r.createdAt.toISOString()]);
   const convsOf = (v: { id: string; copies: { id: string }[] }): Conv[] =>
     [v.id, ...v.copies.map((c) => c.id)].map((id) => ({ id, fromClient: fromClients.get(id) ?? [] }));
-  // With replies: the video with the newest client reply first.
-  const lastReply = (v: { id: string; copies: { id: string }[] }) => convsOf(v).reduce((at, c) => (c.fromClient[0] && c.fromClient[0] > at ? c.fromClient[0] : at), "");
-  if (replied) videos = [...videos].sort((a, b) => lastReply(b).localeCompare(lastReply(a)));
   // A new owner's first steps (components/FirstSteps.tsx) include the clients step; staff get "Start here" below.
   const steps = await firstStepsFor(me);
   // A new business starts on its clients: once they're in, sending a video is picking them from a list.
@@ -114,12 +108,11 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   };
   const showParam = (m: boolean) => (isManager(access) ? (m ? "mine" : undefined) : m ? undefined : "all");
   const tabs = [
-    { href: withParams({ show: showParam(false), filter: soon ? "soon" : replied ? "replies" : undefined }), label: "All", active: !mine },
-    { href: withParams({ show: showParam(true), filter: soon ? "soon" : replied ? "replies" : undefined }), label: "Mine", active: mine },
+    { href: withParams({ show: showParam(false), filter: soon ? "soon" : undefined }), label: "All", active: !mine },
+    { href: withParams({ show: showParam(true), filter: soon ? "soon" : undefined }), label: "Mine", active: mine },
   ];
   const filters = [
-    { href: withParams({ show: team ? showParam(mine) : undefined }), label: "All videos", active: !soon && !replied },
-    ...(repliedCount || replied ? [{ href: withParams({ show: team ? showParam(mine) : undefined, filter: "replies" }), label: `With replies (${repliedCount})`, active: replied }] : []),
+    { href: withParams({ show: team ? showParam(mine) : undefined }), label: "All videos", active: !soon },
     ...(!workspace.cloudBackup || soonCount > 0 || soon ? [{ href: withParams({ show: team ? showParam(mine) : undefined, filter: "soon" }), label: `Deleting soon${soonCount ? ` (${soonCount})` : ""}`, active: soon }] : []),
   ];
   const dates = zoned(workspace.timezone);
@@ -321,7 +314,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // By client: a folder per client, the one with the newest video first, then videos not sent to anyone.
   // A video sent to several clients is in each of their folders. Staff who only see their own clients
   // aren't shown folders for the others.
-  const byClient = pickedView === "client" && !soon && !replied && !searching && clients.length > 0;
+  const byClient = pickedView === "client" && !soon && !searching && clients.length > 0;
   const clientFolders = () => {
     const map = new Map<string, { id: string; name: string; removed: boolean; items: Item[]; convs: Conv[] }>();
     const unsent: Item[] = [];
@@ -404,7 +397,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-ink">{team ? "Team videos" : "Your videos"}</h1>
             <p className="mt-1 text-sm text-dim">
-              {soon ? `${videos.length} deleting from our servers within 7 days` : replied ? `${videos.length} ${videos.length === 1 ? "video" : "videos"} with replies from clients` : (
+              {soon ? `${videos.length} deleting from our servers within 7 days` : (
                 <>
                   {videos.length} {videos.length === 1 ? "video" : "videos"}
                   {allowance && plan.maxVideos !== null && (
@@ -461,17 +454,12 @@ export default async function Library({ searchParams }: { searchParams: Promise<
         {(videos.length > 0 || searching) && !startHere && (
           <LibrarySearch q={q} client={clientId} clients={clients} keep={{ show, filter }} />
         )}
-        {videos.length > 0 && !startHere && !staffStart && <LibraryViewSwitch view={byClient ? "client" : "date"} layout={layout} canGroupByClient={!soon && !replied && !searching && clients.length > 0} />}
+        {videos.length > 0 && !startHere && !staffStart && <LibraryViewSwitch view={byClient ? "client" : "date"} layout={layout} canGroupByClient={!soon && !searching && clients.length > 0} />}
         {searching && (
           <p className="-mt-3 mb-4 text-sm text-muted" data-testid="search-summary">
             {videos.length} {videos.length === 1 ? "video" : "videos"}
             {q && <> matching &ldquo;{q}&rdquo;</>}
             {clientId && <> sent to {clients.find((c) => c.id === clientId)?.name}</>}
-          </p>
-        )}
-        {replied && (
-          <p className="-mt-4 mb-6 max-w-2xl text-sm text-muted" data-testid="replies-filter-note">
-            Videos your clients have replied to, the newest reply first. &ldquo;New&rdquo; marks replies you haven&apos;t opened on this device yet.
           </p>
         )}
         {soon && (
@@ -486,11 +474,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             <h2 className="font-semibold text-ink">No videos match</h2>
             <p className="mt-1 text-sm text-dim">Try another word, or clear the search to see everything.</p>
           </div>
-        ) : videos.length === 0 && replied ? (
-          <div className="rounded-2xl border border-dashed border-line-strong p-16 text-center">
-            <h2 className="font-semibold text-ink">No replies yet</h2>
-            <p className="mt-1 text-sm text-dim">When a client replies to a video, it shows here.</p>
-          </div>
+
         ) : videos.length === 0 && soon ? (
           <div className="rounded-2xl border border-dashed border-line-strong p-16 text-center">
             <h2 className="font-semibold text-ink">Nothing deleting soon</h2>
@@ -532,7 +516,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             <Link href="/record" className="mt-6 inline-block rounded-xl bg-primary px-5 py-2.5 font-semibold text-on-primary hover:bg-primary-hover">Record a video</Link>
           </div>
         ) : (
-          soon || searching || replied ? (
+          soon || searching ? (
             cards(videos, false)
           ) : byClient ? (
             clientView()

@@ -9,6 +9,7 @@ import { isDefaultTitle } from "@/lib/videoTitle";
 import MediaPlayer, { fixDuration } from "./MediaPlayer";
 import PosterCover, { usePoster } from "./PosterCover";
 import ReplyComposer, { deleteReply, sendHeldReply, type ReplyComposerHandle } from "./ReplyComposer";
+import { NOTIFICATIONS_CHANGED } from "./NotificationBell";
 import SecureMedia, { useDecryptedUrl } from "./SecureMedia";
 import TeamKeyGate from "./TeamKeyGate";
 import AiInsight, { type SealedInsight } from "./AiInsight";
@@ -117,6 +118,8 @@ type Props = {
   initialHeld?: ReplyDTO[];
   /** Members only: every client this recording went to, each with their own conversation. */
   conversations?: Conversation[];
+  /** Opened from the bell: this page's own conversation, not the list of them. */
+  openOwn?: boolean;
   sendMany?: SendMany;
   /** AI summaries add-on: the encrypted transcript/summary, whether this viewer may make one, and whether to tell a client AI is used. */
   ai?: { insight: SealedInsight; canMake: boolean; notice: boolean };
@@ -256,6 +259,7 @@ function WatchBody({
   initialReplies,
   initialHeld = [],
   conversations,
+  openOwn = false,
   sendMany,
   ai,
   reactions: clientReactions,
@@ -289,7 +293,7 @@ function WatchBody({
   const listed = convs.some((c) => c.id !== video.id);
   // The conversation on screen: this video's own, another client's copy, or none while the list shows. The
   // recording's own page starts on the list; a client's copy starts on that client's conversation.
-  const [convId, setConvId] = useState<string | null>(() => (listed && !sourceId ? null : video.id));
+  const [convId, setConvId] = useState<string | null>(() => (listed && !sourceId && !openOwn ? null : video.id));
   const conv = convId ?? video.id;
   const convRef = useRef(conv);
   convRef.current = conv;
@@ -498,6 +502,18 @@ function WatchBody({
       /* storage blocked: the dot just resets next visit */
     }
   }, [showing, latest, conv]);
+  // A client's replies in the bell (lib/notifications.ts) are read once their conversation is on screen.
+  const readFor = useRef<string | null>(null);
+  // Again when a reply arrives while it's on screen.
+  const newestTheirs = loadedFor === conv ? replies.reduce((t, r) => (!r.mine && r.createdAt > t ? r.createdAt : t), "") : "";
+  useEffect(() => {
+    const key = `${conv}|${newestTheirs}`;
+    if (!canEdit || !showing || readFor.current === key) return;
+    readFor.current = key;
+    void fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ videoId: conv }) })
+      .then((res) => res.ok && window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED)))
+      .catch(() => {});
+  }, [canEdit, showing, conv, newestTheirs]);
   // New messages in one client's conversation: counted live for the one loaded here, from the page for the rest.
   const live = (id: string) => id === loadedFor;
   const newIn = (c: Conversation) =>

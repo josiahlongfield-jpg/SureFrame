@@ -13,6 +13,7 @@ import { DEFAULT_REMINDERS, isTimeZone, nextOccurrence, reminderTime, type Remin
 import { Repeat, ReminderRules } from "@/lib/scheduleSchema";
 import { teamPath } from "@/lib/teamLink";
 import { activeMember } from "@/lib/team";
+import { notify, type NewNotification } from "@/lib/notifications";
 
 export const workspaceTz = (w: Pick<Workspace, "timezone">) => w.timezone ?? "UTC";
 
@@ -175,6 +176,8 @@ export async function runReminders(now = new Date()) {
     const base = { business: ws.name, due: item.dueAt, now, tz: workspaceTz(ws) };
     // Clients' reminders come from "Business A via SureFrame"; the team's own from SureFrame (lib/mail.ts).
     const mails: { to: string; m: ReturnType<typeof reminderEmail>; replyTo?: string | null; fromName?: string }[] = [];
+    // The team's reminders go in their bells too (lib/notifications.ts), saying what the email's subject says.
+    const bells: NewNotification[] = [];
     if (r.to === "CLIENT") {
       const c = item.client;
       if (!c || c.removedAt || c.pausedAt || c.linkDisabledAt || c.remindersOff || !c.email || !item.shared) { await skip("client unavailable"); continue; }
@@ -193,7 +196,9 @@ export async function runReminders(now = new Date()) {
       // (or, when nobody is, to those who can see unassigned clients); general
       // to-dos go to the whole team.
       for (const mem of item.client ? clientTeam(ws.members, item.client) : ws.members) {
-        mails.push({ to: mem.user.email, m: reminderEmail({ ...base, link, team: true, clientName: item.client?.name }) });
+        const m = reminderEmail({ ...base, link, team: true, clientName: item.client?.name });
+        mails.push({ to: mem.user.email, m });
+        bells.push({ userId: mem.userId, workspaceId: ws.id, kind: "TODO", text: m.subject, href: item.clientId ? `/clients/${item.clientId}` : "/todos", clientId: item.clientId });
       }
     }
     // A daily ceiling per business keeps reminders from being used to send bulk mail.
@@ -206,6 +211,7 @@ export async function runReminders(now = new Date()) {
     // Claim it first, so a run that overlaps this one can't send it again.
     const claimed = await db.reminder.updateMany({ where: { id: r.id, sentAt: null }, data: { sentAt: now } });
     if (claimed.count === 0) continue;
+    await notify(bells);
     const failed: string[] = [];
     let delivered = 0;
     for (const { to, m, replyTo, fromName } of mails) {

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { brandOf } from "@/lib/branding";
 import { sendMail } from "@/lib/mail";
+import { notify } from "@/lib/notifications";
 import { canSeeClient, canSeeVideo, permsOf, type Access } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
@@ -62,6 +63,7 @@ export const POST = handle(async (req: Request) => {
   const notices = [];
   for (const m of wanted) {
     const n = await db.staffNotice.create({ data: { workspaceId: workspace.id, fromUserId: me.user.id, toUserId: m.userId, message: body.data.message, link: link?.path, linkLabel: link?.label } });
+    await notify([{ userId: m.userId, workspaceId: workspace.id, kind: "STAFF_REMINDER", text: `Reminder from ${fromName}: ${body.data.message}`, href: link?.path ?? "/library" }]);
     try {
       const mail = teamEmail({
         business: workspace.name,

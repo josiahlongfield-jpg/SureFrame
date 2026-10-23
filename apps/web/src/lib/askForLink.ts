@@ -1,6 +1,7 @@
 import { brandOf } from "@/lib/branding";
 import { db } from "@/lib/db";
 import { sendMail } from "@/lib/mail";
+import { notify } from "@/lib/notifications";
 import { rateLimit } from "@/lib/rateLimit";
 import { appUrl } from "@/lib/stripe";
 import { teamEmail } from "@/lib/teamEmail";
@@ -50,6 +51,8 @@ export async function askForLink(clientId: string) {
         logoUrl: brand.logoUrl,
         color: brand.color,
       });
+  // In their bells too (lib/notifications.ts), even if the email doesn't go.
+  await notify(to.map((m) => ({ userId: m.userId, workspaceId: ws.id, kind: "LINK_REQUEST" as const, text: mail.subject, href: `/clients/${client.id}`, groupKey: `link:${client.id}`, clientId: client.id })));
   let sent = 0;
   for (const m of to) {
     try {

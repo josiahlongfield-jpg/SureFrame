@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { sendMail } from "@/lib/mail";
+import { notify as addToBell } from "@/lib/notifications";
 import { clientSeatLimit, PLANS, RECEIPTS_NOTE, staffSeatLimit } from "@/lib/plans";
 import { appUrl } from "@/lib/stripe";
 import { teamEmail } from "@/lib/teamEmail";
@@ -79,5 +80,6 @@ async function emailOwner(workspaceId: string, business: string, planName: strin
       "Pausing doesn't delete anything, though recordings still expire on the usual schedule. Upgrade, or remove clients or staff you no longer need, and the others are restored straight away. Please let anyone affected know about the change. " +
       RECEIPTS_NOTE,
   });
+  await addToBell([{ userId: owner.userId, workspaceId, kind: "PAUSED", text: mail.subject, href: "/settings/billing" }]);
   await sendMail({ to: owner.user.email, ...mail });
 }

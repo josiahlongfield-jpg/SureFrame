@@ -12,8 +12,10 @@ import { limitsNote, supportTier } from "@/lib/support/allowance";
 import { MONTHLY_CHANGES } from "@/lib/legal";
 import { isSupportAgent } from "@/lib/support/tickets";
 import { settingsPages } from "@/lib/settingsMenu";
+import { bellCount } from "@/lib/notifications";
 import ChangesNotice from "./ChangesNotice";
 import NamePrompt from "./NamePrompt";
+import NotificationBell from "./NotificationBell";
 import StaffNotices from "./StaffNotices";
 import Logo from "./Logo";
 import MobileMenu from "./MobileMenu";
@@ -31,7 +33,7 @@ export default async function AppHeader({ email, plan, widget = true }: { email:
   const me = await currentUser();
   const manager = !!me && me.role !== "MEMBER";
   const owner = me?.role === "OWNER";
-  const [teamSize, steps, former, notices, due] = me
+  const [teamSize, steps, former, notices, due, bell] = me
     ? await Promise.all([
         db.membership.count({ where: { workspaceId: me.workspace.id } }),
         // Only needed to hide the key reminder on the library while the first steps show it.
@@ -40,8 +42,10 @@ export default async function AppHeader({ email, plan, widget = true }: { email:
         owner && !me.user.memberships.some((m) => m.role !== "OWNER") ? formerTeams(me.user.id) : [],
         db.staffNotice.findMany({ where: { toUserId: me.user.id, workspaceId: me.workspace.id, dismissedAt: null }, include: { from: { select: { name: true, email: true } } }, orderBy: { createdAt: "desc" }, take: 5 }),
         dueTodos(accessOf(me)).then((d) => d.total),
+        // The bell's red dot (lib/notifications.ts).
+        bellCount(me.user.id, me.workspace.id),
       ])
-    : [1, null, [], [], 0];
+    : [1, null, [], [], 0, null];
   // This month's wording updates (decision 6): owners and admins who agreed before them, until the note's end date, and
   // not while the banner asking them to agree to new versions is showing.
   const changesNotice =
@@ -86,6 +90,7 @@ export default async function AppHeader({ email, plan, widget = true }: { email:
           >
             {plan}
           </Link>
+          {bell && <NotificationBell initialUnread={bell.unread} initialNewest={bell.newest} />}
           <Link href="/record" className="whitespace-nowrap rounded-[0.625rem] bg-primary px-4 py-2 font-medium text-on-primary hover:bg-primary-hover">
             <span className="sm:hidden">Record</span>
             <span className="hidden sm:inline">New recording</span>

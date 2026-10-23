@@ -3,6 +3,7 @@ import { zoned } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { RECEIPTS_NOTE } from "@/lib/plans";
 import { sendMail } from "@/lib/mail";
+import { notify } from "@/lib/notifications";
 import { applyBackupSetting, purgeDate } from "@/lib/retention";
 import { appUrl } from "@/lib/stripe";
 import { teamEmail } from "@/lib/teamEmail";
@@ -37,6 +38,7 @@ export async function tellOwnerBackupEnded(workspaceId: string) {
     logoUrl: brand.logoUrl,
     color: brand.color,
   });
+  await notify([{ userId: owner.userId, workspaceId, kind: "BACKUP_ENDED", text: `${mail.subject}. Our copies are deleted on ${when}`, href: "/settings/billing" }]);
   await sendMail({ to: owner.user.email, ...mail }).catch((err) => console.error("[billing] backup-ended email", workspaceId, err));
 }
 

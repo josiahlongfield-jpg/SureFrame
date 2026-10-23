@@ -9,6 +9,7 @@ import { activeMember } from "@/lib/team";
 import { zoned } from "@/lib/dates";
 import { videoLabel } from "@/lib/videoTitle";
 import { BRAND } from "@/lib/brand";
+import { notify } from "@/lib/notifications";
 
 /**
  * Team emails about client replies and videos sent by staff. Each event is
@@ -46,6 +47,16 @@ export function replyRecipients(members: Member[], o: { assignedToId: string | n
   return [...out];
 }
 
+/**
+ * Whose bell a client's reply goes in: the same people, except the person looking after the conversation always gets
+ * it, even with reply emails off (Josiah, 23 October 2026: the bell is how a reply is never missed).
+ */
+export function replyBellRecipients(members: Member[], o: { assignedToId: string | null; recorderId: string }) {
+  const find = (id: string | null) => (id ? members.find((m) => m.userId === id) : undefined);
+  const primary = find(o.assignedToId) ?? find(o.recorderId) ?? members.find((m) => m.role === "OWNER");
+  return [...new Set([...(primary ? [primary.userId] : []), ...replyRecipients(members, o)])];
+}
+
 /** Owners and admins (never the sender) who asked to hear about this staff member's sends. */
 export function sentRecipients(members: Member[], o: { actorId: string; assignedToId: string | null }) {
   return members
@@ -66,6 +77,24 @@ export async function notifyClientReply(conversationId: string) {
     // Paused or suspended staff can't sign in: their clients' replies go to whoever else would hear (the owner at least).
     const members = await db.membership.findMany({ where: { workspaceId: video.workspaceId, ...activeMember }, orderBy: { id: "asc" } });
     const to = replyRecipients(members, { assignedToId: video.client.assignedToId, recorderId: video.ownerId });
+    const name = video.client.name;
+    // Which video, as the email names it (its title, or when it was recorded).
+    const ws = await db.workspace.findUnique({ where: { id: video.workspaceId }, select: { timezone: true } });
+    const source = video.sourceId ? await db.video.findUnique({ where: { id: video.sourceId }, select: { title: true, createdAt: true } }) : null;
+    const which = videoLabel(source?.title ?? video.title, source?.createdAt ?? video.createdAt, zoned(ws?.timezone ?? null).day);
+    await notify(
+      replyBellRecipients(members, { assignedToId: video.client.assignedToId, recorderId: video.ownerId }).map((userId) => ({
+        userId,
+        workspaceId: video.workspaceId,
+        kind: "REPLY" as const,
+        text: (n: number) => `${name} ${n === 1 ? "replied" : `sent ${n} replies`} to ${which}`,
+        // Opens straight on this client's conversation (WatchView), on phones in the conversation sheet.
+        href: `/v/${video.id}?conv=1#reply`,
+        groupKey: `reply:${video.id}`,
+        videoId: video.id,
+        clientId: video.clientId,
+      })),
+    );
     if (!to.length) return;
     await db.teamNotification.createMany({
       data: to.map((userId) => ({ kind: "CLIENT_REPLY" as const, userId, workspaceId: video.workspaceId, groupKey: video.id, clientId: video.clientId, videoId: video.id })),
@@ -91,6 +120,22 @@ export async function notifyVideosSent(workspaceId: string, actorId: string, sen
       })),
     );
     if (!rows.length) return;
+    const actor = await db.user.findUnique({ where: { id: actorId }, select: { name: true, email: true } });
+    const who = actor?.name ?? actor?.email.split("@")[0] ?? "Someone on your team";
+    const byUser = new Map<string, number>();
+    for (const r of rows) byUser.set(r.userId, (byUser.get(r.userId) ?? 0) + 1);
+    // One line per sender while unread, adding up their sends.
+    for (const [userId, n] of byUser)
+      await notify(
+        Array.from({ length: n }, () => ({
+          userId,
+          workspaceId,
+          kind: "SENT" as const,
+          text: (count: number) => `${who} sent ${count === 1 ? "a video" : `${count} videos`} to clients`,
+          href: "/team",
+          groupKey: `sent:${actorId}`,
+        })),
+      );
     await db.teamNotification.createMany({ data: rows });
     for (const userId of new Set(rows.map((r) => r.userId))) await flushGroup(userId, "VIDEO_SENT", `sent:${actorId}`);
   } catch (err) {

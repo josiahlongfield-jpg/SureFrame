@@ -3,6 +3,7 @@ import { rateLimit } from "@/lib/rateLimit";
 import type { SupportMessage, SupportTicket } from "@prisma/client";
 import { db } from "@/lib/db";
 import { sendMail } from "@/lib/mail";
+import { notify } from "@/lib/notifications";
 import { EMAIL, emailButton, emailColors, emailMark, emailShell } from "@/lib/emailLook";
 import { appUrl } from "@/lib/stripe";
 import { REPLY_WITHIN } from "@/lib/support/person";
@@ -93,6 +94,9 @@ ${emailButton(link, "See the conversation", emailColors())}`),
 export async function staffReply(ticket: SupportTicket & { user: { email: string } | null }, body: string) {
   await db.supportMessage.create({ data: { ticketId: ticket.id, author: "STAFF", body } });
   await db.supportTicket.update({ where: { id: ticket.id }, data: { status: "ANSWERED", urgent: false } });
+  // A signed-in customer's bell too (lib/notifications.ts), in the business they asked from.
+  if (ticket.userId && ticket.workspaceId)
+    await notify([{ userId: ticket.userId, workspaceId: ticket.workspaceId, kind: "SUPPORT", text: "Reply from SureFrame support", href: `/help#t=${ticket.accessToken}`, groupKey: `support:${ticket.id}` }]);
   const to = ticket.user?.email ?? ticket.email;
   if (!to) return false;
   const link = appUrl(`/help#t=${ticket.accessToken}`);

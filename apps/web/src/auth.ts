@@ -114,7 +114,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // ticked before this sign-in, else not at all.
     async signIn() {
       const { cookies, headers } = await import("next/headers");
-      const { ACTIVITY_COOKIE, KEEP_COOKIE, KEEP_HEADER, KEEP_NEXT_COOKIE, activityCookie, keepCookie } = await import("@/lib/activity");
+      const { ACTIVITY_COOKIE, BELL_VISIT_COOKIE, KEEP_COOKIE, KEEP_HEADER, KEEP_NEXT_COOKIE, activityCookie, keepCookie } = await import("@/lib/activity");
       try {
         const jar = await cookies();
         // Ticked in this browser, or carried in the emailed link (src/middleware.ts passes it on as KEEP_HEADER).
@@ -123,6 +123,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (keep) jar.set(KEEP_COOKIE, "1", keepCookie());
         else jar.delete(KEEP_COOKIE);
         jar.delete(KEEP_NEXT_COOKIE);
+        // A new visit for the bell: it shakes on the first page if anything's unread (components/NotificationBell.tsx).
+        jar.delete(BELL_VISIT_COOKIE);
       } catch {
         // Not in a request that can set cookies; the callback request sets it instead.
       }
@@ -130,9 +132,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // Signing out ends "Keep me signed in" on this device too.
     async signOut() {
       const { cookies } = await import("next/headers");
-      const { KEEP_COOKIE } = await import("@/lib/activity");
+      const { BELL_VISIT_COOKIE, KEEP_COOKIE } = await import("@/lib/activity");
       try {
         (await cookies()).delete(KEEP_COOKIE);
+        (await cookies()).delete(BELL_VISIT_COOKIE);
       } catch {
         // Not in a request that can set cookies; the next sign-in decides it afresh anyway.
       }

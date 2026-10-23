@@ -7,6 +7,7 @@ import { clientLink, newClientToken, seatUsage } from "@/lib/clients";
 import { clientRemovedEmail } from "@/lib/clientRemovedEmail";
 import { zoned } from "@/lib/dates";
 import { sendMail } from "@/lib/mail";
+import { notify } from "@/lib/notifications";
 import { newLinkEmail } from "@/lib/newLinkEmail";
 import { rateLimit } from "@/lib/rateLimit";
 import { clientMailSettings } from "@/lib/reminders";
@@ -212,6 +213,8 @@ export async function purgeClient(id: string, now = new Date()): Promise<"purged
       // Replies, reactions, transcripts and upload parts go with their videos.
       if (deleteIds.length) await tx.video.deleteMany({ where: { id: { in: deleteIds } } });
       await tx.teamNotification.deleteMany({ where: { OR: [{ clientId: id }, { videoId: { in: [...deleteIds, ...detach] } }] } });
+      // The bell's notifications that name them (lib/notifications.ts).
+      await tx.notification.deleteMany({ where: { OR: [{ clientId: id }, { videoId: { in: [...deleteIds, ...detach] } }] } });
       // The label is the client's name or the video's title.
       await tx.staffNotice.updateMany({
         where: { workspaceId: client.workspaceId, link: { in: [`/clients/${id}`, ...drop.map((v) => `/v/${v.id}`)] } },
@@ -367,15 +370,15 @@ export async function warnClientPurge(now = new Date()) {
       ? await db.membership.findMany({ where: { workspaceId, userId: { in: removerIds }, ...activeMember }, include: { user: { select: { email: true } } } })
       : [];
     const recipients = [
-      { email: owner.user.email, canRestore: true, clients: mine },
-      ...removers.map((m) => ({ email: m.user.email, canRestore: m.role !== "MEMBER", clients: mine.filter((c) => c.removedById === m.userId) })),
+      { email: owner.user.email, userId: owner.userId, canRestore: true, clients: mine },
+      ...removers.map((m) => ({ email: m.user.email, userId: m.userId, canRestore: m.role !== "MEMBER", clients: mine.filter((c) => c.removedById === m.userId) })),
     ];
 
     const dates = zoned(ws.timezone);
     const brand = brandOf(ws, appUrl(""));
     const when = (d: Date) => `${dates.dayTime(d)} ${dates.zoneName(d)}`;
     let delivered = 0;
-    for (const { email, canRestore, clients } of recipients) {
+    for (const { email, userId, canRestore, clients } of recipients) {
       const n = clients.length;
       const first = clients[0];
       const mail = teamEmail({
@@ -401,6 +404,7 @@ export async function warnClientPurge(now = new Date()) {
       try {
         await sendMail({ to: email, ...mail });
         delivered++;
+        await notify([{ userId, workspaceId, kind: "CLIENT_DELETING", text: mail.subject, href: canRestore ? "/clients?removed=1" : "/library", clientId: n === 1 ? first.id : null }]);
       } catch (err) {
         console.error("client purge warning failed", err);
       }

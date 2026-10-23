@@ -29,6 +29,7 @@ model User {
   invitesSent         Invite[]           @relation("InviteSender")
   supportTickets      SupportTicket[]
   teamNotifications   TeamNotification[]
+  notifications       Notification[]
   noticesSent         StaffNotice[]      @relation("NoticeFrom")
   noticesReceived     StaffNotice[]      @relation("NoticeTo")
   connectorGrants     ConnectorGrant[]
@@ -207,6 +208,7 @@ model Workspace {
   keyRotations          KeyRotation[]
   aiUsages              AiUsage[]
   teamNotifications     TeamNotification[]
+  notifications         Notification[]
   staffNotices          StaffNotice[]
   clientQuestions       ClientQuestion[]
   connectorGrants       ConnectorGrant[]
@@ -730,6 +732,35 @@ model TeamNotification {
   @@index([sentAt, createdAt])
   @@index([userId, groupKey])
   @@index([workspaceId])
+}
+
+/// The bell in the top menu (lib/notifications.ts): what the team's emails say, kept in the app too, per person and
+/// business. Plain text only (names and titles, never anything end-to-end encrypted).
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  workspaceId String
+  /// What it's about (lib/notifications.ts NotificationKind).
+  kind        String
+  text        String
+  /// Where it opens, a path in the app.
+  href        String
+  /// Notifications that add up while unread (a client's replies in one conversation) share a group.
+  groupKey    String?
+  count       Int       @default(1)
+  /// The conversation, for a client's reply: read once it's opened.
+  videoId     String?
+  /// The client it names, so it goes when they're deleted for good (lib/clientRemoval.ts).
+  clientId    String?
+  createdAt   DateTime  @default(now())
+  readAt      DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, workspaceId, createdAt])
+  @@index([userId, groupKey])
+  @@index([createdAt])
+  @@index([clientId])
 }
 
 /// The last team email per person and group, so bursts send one email per 15 minutes.

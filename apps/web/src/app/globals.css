@@ -312,3 +312,24 @@ html:has(.fit-screen), html:has(.fit-screen) body { overflow: hidden; height: 10
 @media (prefers-reduced-motion: reduce) {
   .notice-flash { animation-duration: 2.4s; }
 }
+
+/* The bell in the top menu shakes when something new comes in (components/NotificationBell.tsx). */
+@keyframes bell-shake {
+  0%, 100% { transform: rotate(0); }
+  10% { transform: rotate(16deg); }
+  22% { transform: rotate(-14deg); }
+  34% { transform: rotate(11deg); }
+  46% { transform: rotate(-8deg); }
+  58% { transform: rotate(5deg); }
+  70% { transform: rotate(-3deg); }
+}
+.bell-shake { animation: bell-shake 1s ease-in-out 2; transform-origin: 50% 8%; }
+/* With motion turned off on the device, the dot pulses instead. */
+@keyframes bell-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bell-shake { animation: none; }
+  .bell-shake + .bell-dot, .bell-shaking .bell-dot { animation: bell-pulse 1s ease-out 3; }
+}
