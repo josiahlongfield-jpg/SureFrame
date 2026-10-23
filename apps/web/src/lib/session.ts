@@ -7,6 +7,7 @@ import { db, type Workspace } from "@/lib/db";
 import { agreementKind, hasAgreed, noticePeriod, TERMS_REQUIRED } from "@/lib/terms";
 import { setViewerZone, TZ_COOKIE } from "@/lib/dates";
 import { JOINING_COOKIE } from "@/lib/joining";
+import { hashToken } from "@/lib/team";
 
 /** Shown to staff the plan no longer covers (lib/seatLimits.ts). */
 export const STAFF_PAUSED = "Your access to this team is paused because its plan changed. Ask the owner to restore it.";
@@ -40,7 +41,14 @@ export class HttpError extends Error {
  * Existing workspaces are never touched: this only decides whether a new one is made.
  */
 export async function mayStartFree(userId: string) {
-  if ((await cookies()).get(JOINING_COOKIE)?.value) return false;
+  // Only an invite that can still be used holds a Free business back: one since used, cancelled or expired (or whose
+  // team is gone) no longer does, so nobody is left stuck on the paid-only Start page for the cookie's day (Fable).
+  const token = (await cookies()).get(JOINING_COOKIE)?.value;
+  if (token) {
+    const invite = await db.invite.findUnique({ where: { tokenHash: hashToken(token) }, select: { revokedAt: true, acceptedAt: true, expiresAt: true, workspace: { select: { suspendedAt: true, closedAt: true, deleteAt: true } } } });
+    const live = invite && !invite.revokedAt && !invite.acceptedAt && invite.expiresAt > new Date() && !invite.workspace.suspendedAt && !invite.workspace.closedAt && !invite.workspace.deleteAt;
+    if (live) return false;
+  }
   return !(await db.invite.count({ where: { acceptedById: userId } }));
 }
 

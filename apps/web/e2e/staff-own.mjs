@@ -169,6 +169,30 @@ for (let i = 0; i < 20 && !ownWs; i++) {
 ok("signing up for themselves clears the joining mark", !(await s3.context().cookies()).some((c) => c.name === "sf_joining" && c.value));
 ok("…and they get a Free business, not the paid-only Start page", ownWs?.plan === "FREE" && path(s3) !== "/start", `${s3.url()} user=${!!ownUser} ${ownWs?.plan}`);
 
+// ---- Opens a join link that's then cancelled, and signs in normally: the dead invite no longer holds back Free ----
+const s4Email = `so-staff4${stamp}@example.com`;
+const own4 = `so-own4${stamp}@example.com`;
+const s4 = await newPage({ width: 320, height: 700 });
+// Studio's staff seats are full of earlier invites by now: cancel the unused ones to make room.
+await prisma.invite.updateMany({ where: { workspaceId: ws.id, acceptedAt: null, revokedAt: null }, data: { revokedAt: new Date() } });
+const link4 = await invite(s4Email);
+await s4.goto(link4);
+await s4.waitForFunction(() => document.cookie.includes("sf_joining="), null, { timeout: 15000 }).catch(() => {});
+await prisma.invite.updateMany({ where: { email: s4Email.toLowerCase() }, data: { revokedAt: new Date() } });
+await agreed(own4);
+await s4.goto(`${BASE}/login?next=/library`);
+await s4.fill('input[name="email"]', own4);
+await s4.click("text=Continue");
+await s4.waitForURL((u) => u.pathname !== "/login", { timeout: 30000 }).catch(() => {});
+await s4.waitForLoadState("networkidle").catch(() => {});
+const own4User = await prisma.user.findUnique({ where: { email: own4 } });
+let own4Ws = null;
+for (let i = 0; i < 20 && !own4Ws; i++) {
+  own4Ws = own4User && (await prisma.workspace.findFirst({ where: { members: { some: { userId: own4User.id, role: "OWNER" } } } }));
+  if (!own4Ws) await new Promise((r) => setTimeout(r, 500));
+}
+ok("a cancelled invite's mark doesn't hold back their Free business", own4Ws?.plan === "FREE" && path(s4) !== "/start", `${s4.url()} ${own4Ws?.plan}`);
+
 await browser.close();
 server.close();
 await prisma.$disconnect();
