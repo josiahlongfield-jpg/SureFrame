@@ -13,6 +13,7 @@ import { isEmailBlocked } from "@/lib/blockedEmail";
 import KeepSignedIn from "@/components/KeepSignedIn";
 import AuthLinks from "@/components/AuthLinks";
 import { emailLink } from "./actions";
+import { JOINING_COOKIE } from "@/lib/joining";
 import { errorText } from "./errors";
 import { BRAND } from "@/lib/brand";
 import { PLANS } from "@/lib/plans";
@@ -33,6 +34,12 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   // "Start free" (it opens /record) and a plan picked on the pricing page: say an account is being made.
   const creating = signup === "1" || /^\/(record|pricing)(\/|\?|$)/.test(redirectTo);
   const joining = redirectTo.startsWith("/join/");
+  // Creating an account for themselves: forget a join link opened earlier in this browser, so their sign-up still makes
+  // a Free business (Decision 4). The emailed link does the same in ./actions.ts.
+  const forgetJoining = async () => {
+    "use server";
+    if (creating && !joining) (await cookies()).delete(JOINING_COOKIE);
+  };
   // A paid plan picked on the pricing page ("Get Solo"): say we'll come back to it (V18).
   const picked = planPicked(redirectTo);
   // Connecting Claude: the email carries a 6-digit code, not a link (lib/signInLink.ts), so the page says so (D4).
@@ -106,7 +113,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
         )}
         <div className="mt-6 grid gap-3 short:mt-3">
           {authProviders.some((p) => p.id === "google") && (
-            <form action={async () => { "use server"; await signIn("google", { redirectTo }); }}>
+            <form action={async () => { "use server"; await forgetJoining(); await signIn("google", { redirectTo }); }}>
               <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-line-strong px-4 py-3 font-medium hover:bg-hover">
                 <GoogleMark /> Continue with Google
               </button>
@@ -139,6 +146,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
               action={async (fd: FormData) => {
                 "use server";
                 if (await isEmailBlocked(String(fd.get("email") ?? ""))) redirect(`/login?error=blocked&next=${encodeURIComponent(redirectTo)}`);
+                await forgetJoining();
                 try {
                   await signIn("dev", { email: fd.get("email"), password: fd.get("password") ?? "", redirectTo });
                 } catch (e) {

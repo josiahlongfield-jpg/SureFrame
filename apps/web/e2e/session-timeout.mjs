@@ -154,6 +154,7 @@ const ep = await signIn(here, { width: 320, height: 700 });
 const other = await signIn(elsewhere);
 await ep.goto(BASE + "/settings/account#device");
 ok("sign out everywhere: under This device", (await ep.textContent("[data-testid=keep-device]")).includes("Sign out everywhere"));
+ok("sign out everywhere: says Claude stays connected, and where to disconnect it", (await ep.textContent("[data-testid=sign-out-everywhere-claude]")).includes("Claude stays connected") && (await ep.getAttribute("[data-testid=sign-out-everywhere-claude] a", "href")) === "/settings/connections");
 await ep.click("[data-testid=sign-out-everywhere]");
 const confirmText = await ep.textContent("[data-testid=sign-out-everywhere-confirm]").catch(() => "");
 ok("sign out everywhere: asks first, saying this device is included", confirmText.includes("Sign out on every device?") && confirmText.includes("this one included"), confirmText);

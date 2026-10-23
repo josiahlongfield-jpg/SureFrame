@@ -10,6 +10,7 @@ import { safeNext } from "@/lib/secrets";
 import { countSignInEmail, signInEmailLimited } from "@/lib/signInGuard";
 import { SENT_AT_COOKIE, SENT_TO_COOKIE } from "./errors";
 import { withKeep } from "@/lib/activity";
+import { JOINING_COOKIE } from "@/lib/joining";
 
 /**
  * Emails a sign-in link, from the sign-in page or "Send again" on the check
@@ -26,6 +27,9 @@ export async function emailLink(fd: FormData) {
   const signup = fd.get("signup") === "1" ? "&signup=1" : "";
   const back = (code: string) => redirect(`${again ? "/login/check" : "/login"}?error=${code}&next=${encodeURIComponent(asked)}${signup}`);
   if (!email) back("email");
+  // Signing up for themselves (not on the way to an invite): a join link opened earlier in this browser mustn't hold
+  // back their Free business (Decision 4, lib/session.ts mayStartFree).
+  if (signup && !asked.startsWith("/join/")) (await cookies()).delete(JOINING_COOKIE);
   // Refused again in src/auth.ts for any way in; checked here so the page says why.
   if (await isEmailBlocked(email)) back("blocked");
   // Sending is counted inside the provider (src/auth.ts), so direct API calls are limited too;

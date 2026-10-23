@@ -110,6 +110,7 @@ ok("pricing: Solo shows about A$ a month", norm(await visitor.textContent("[data
 ok("pricing: Free has no A$ estimate", (await visitor.$$("[data-testid=plan-FREE] [data-testid=aud-estimate]")).length === 0);
 const audNote = norm(await visitor.textContent("[data-testid=aud-note]"));
 ok("pricing: the A$ note says it's an estimate and the bank's rate applies", audNote.includes("estimates") && audNote.includes("charged in US dollars") && audNote.includes("your bank's rate on the day applies"), audNote);
+ok("pricing: the A$ note puts GST at checkout, not as a SureFrame charge", audNote.includes("before any GST added at checkout where it applies") && !audNote.includes("before any GST."), audNote);
 ok("AI add-on says what happens to longer videos", norm(await visitor.textContent("[data-testid=addon-ai]")).includes("longer videos don't get a transcript or summary"));
 await visitor.click("[role=radio]:has-text('Yearly')");
 const freeYear = norm(await visitor.textContent("[data-testid=plan-FREE] p.mt-4"));
@@ -221,6 +222,10 @@ ok("signed out, /support goes to Help (V60)", new URL(visitor.url()).pathname ==
 await visitor.goto(BASE + "/settings/staff");
 ok("/settings/staff goes to the Team page (V75)", visitor.url().includes("next=%2Fsettings%2Fteam") || new URL(visitor.url()).pathname === "/settings/team", visitor.url());
 
+// The redirect from /settings/staff can still be settling, which makes the next goto resolve with no response (null):
+// start from a blank page so the 404 is the only navigation.
+await visitor.waitForLoadState("networkidle").catch(() => {});
+await visitor.goto("about:blank");
 const missing = await visitor.goto(BASE + "/no-such-page-" + stamp);
 ok("404: status 404 with its own tab title", missing.status() === 404 && (await visitor.title()).startsWith("Page not found"), await visitor.title());
 ok("404: has the site header and footer", (await seen(visitor, "header >> text=Pricing")) && (await seen(visitor, "footer >> text=Privacy")));

@@ -24,7 +24,7 @@ export default function SignOutEverywhereButton() {
       <p className="font-semibold">Sign out on every device?</p>
       <p className="mt-1 text-muted">
         Every phone, computer and browser signed in to your account is signed out, this one included. You can sign in again straight away. Your videos, clients and
-        recovery key don&apos;t change.
+        recovery key don&apos;t change. A connected Claude stays connected until you disconnect it on Connections.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         <button disabled={pending} autoFocus className="rounded-xl bg-primary px-4 py-2 font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60" data-testid="sign-out-everywhere-yes">

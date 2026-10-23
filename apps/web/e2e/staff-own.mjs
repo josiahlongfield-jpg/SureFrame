@@ -147,6 +147,28 @@ await s2.goto(`${BASE}/login?next=/record`);
 await s2.waitForURL((u) => u.pathname === "/start", { timeout: 15000 }).catch(() => {});
 ok("removed: the sign-in page doesn't bounce, it goes to Start", path(s2) === "/start");
 
+// ---- Opens a join link, then signs up for themselves in the same browser: still a Free business (Fable, 23 Oct) ----
+const s3Email = `so-staff3${stamp}@example.com`;
+const ownEmail = `so-own${stamp}@example.com`;
+const s3 = await newPage({ width: 320, height: 700 });
+await s3.goto(await invite(s3Email));
+await s3.waitForFunction(() => document.cookie.includes("sf_joining="), null, { timeout: 15000 }).catch(() => {});
+ok("a join link marks this browser as joining", (await s3.context().cookies()).some((c) => c.name === "sf_joining" && c.value));
+await s3.goto(BASE + "/signup");
+await agreed(ownEmail);
+await s3.fill('input[name="email"]', ownEmail);
+await s3.click("text=Continue");
+await s3.waitForURL((u) => u.pathname !== "/signup" && u.pathname !== "/login", { timeout: 30000 }).catch(() => {});
+await s3.waitForLoadState("networkidle").catch(() => {});
+const ownUser = await prisma.user.findUnique({ where: { email: ownEmail } });
+let ownWs = null;
+for (let i = 0; i < 20 && !ownWs; i++) {
+  ownWs = ownUser && (await prisma.workspace.findFirst({ where: { members: { some: { userId: ownUser.id, role: "OWNER" } } } }));
+  if (!ownWs) await new Promise((r) => setTimeout(r, 500));
+}
+ok("signing up for themselves clears the joining mark", !(await s3.context().cookies()).some((c) => c.name === "sf_joining" && c.value));
+ok("…and they get a Free business, not the paid-only Start page", ownWs?.plan === "FREE" && path(s3) !== "/start", `${s3.url()} user=${!!ownUser} ${ownWs?.plan}`);
+
 await browser.close();
 server.close();
 await prisma.$disconnect();

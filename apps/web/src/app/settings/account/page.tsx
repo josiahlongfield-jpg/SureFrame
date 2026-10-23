@@ -262,6 +262,14 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
             <form action={signOutEverywhere} className="mt-3">
               <SignOutEverywhereButton />
             </form>
+            {/* Claude's connection isn't a sign-in, so this doesn't end it (Fable, 23 October): say where it's ended. */}
+            <p className="mt-2 text-xs text-dim" data-testid="sign-out-everywhere-claude">
+              {!limited ? (
+                <>Claude stays connected: use Disconnect on <Link href="/settings/connections" className="underline">Connections</Link>.</>
+              ) : (
+                <>Claude stays connected: use Disconnect on Connections.</>
+              )}
+            </p>
           </div>
         </section>
 

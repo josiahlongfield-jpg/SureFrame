@@ -14,4 +14,4 @@ export const AUD_RATE_DATE = "October 2026";
 export const audFor = (usd: number) => `A$${Math.round(usd * AUD_PER_USD).toLocaleString("en-AU")}`;
 
 /** The note that goes with the estimates, wherever they're shown. */
-export const AUD_NOTE = `A$ amounts are estimates at about A$${AUD_PER_USD.toFixed(2)} to US$1 (${AUD_RATE_DATE}), before any GST. You're charged in US dollars, and your bank's rate on the day applies.`;
+export const AUD_NOTE = `A$ amounts are estimates at about A$${AUD_PER_USD.toFixed(2)} to US$1 (${AUD_RATE_DATE}), before any GST added at checkout where it applies. You're charged in US dollars, and your bank's rate on the day applies.`;
