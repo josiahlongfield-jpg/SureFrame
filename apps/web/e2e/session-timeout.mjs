@@ -166,10 +166,12 @@ await ep.click("[data-testid=sign-out-everywhere-yes]");
 await ep.waitForURL("**/login**", { timeout: 15000 }).catch(() => {});
 const why = await ep.textContent("[data-testid=everywhere-note]").catch(() => "");
 ok("sign out everywhere: this browser is signed out and told why", new URL(ep.url()).pathname === "/login" && why.includes("You signed out everywhere") && why.includes("this one included"), why || ep.url());
+// The page streams in, so its redirect to the sign-in page can land a moment after it opens.
+const lands = (p) => p.waitForURL((u) => u.pathname === "/login", { timeout: 30000 }).then(() => true, () => false);
 await ep.goto(BASE + "/library");
-ok("sign out everywhere: this browser stays signed out", new URL(ep.url()).pathname === "/login");
+ok("sign out everywhere: this browser stays signed out", await lands(ep), ep.url());
 await other.goto(BASE + "/library");
-ok("sign out everywhere: the other browser is signed out too", new URL(other.url()).pathname === "/login", other.url());
+ok("sign out everywhere: the other browser is signed out too", await lands(other), other.url());
 const backIn = await signIn(here);
 ok("sign out everywhere: signing in again works at once", new URL(backIn.url()).pathname === "/library");
 await here.close();

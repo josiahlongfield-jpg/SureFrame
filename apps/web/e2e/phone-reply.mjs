@@ -167,6 +167,10 @@ for (const [name, device] of [["iPhone SE", devices["iPhone SE"]], ["iPhone 13",
   await page.waitForSelector("[data-testid=reply-review] video", { timeout: 15000 });
   ok("computer: recorded with the chosen camera", true);
   await page.screenshot({ path: `${shots}/reply-devices-computer.png` });
+  // Discarded, so no unsent reply is waiting when the portrait-camera phones below open this video.
+  await page.click("[data-testid=reply-review] button:has-text('Discard')");
+  await page.click("[data-testid=discard-yes]");
+  await page.waitForSelector("[data-testid=reply-review]", { state: "detached", timeout: 15000 }).catch(() => {});
   await ctx.close();
 }
 
