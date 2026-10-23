@@ -196,24 +196,25 @@ ok("picker marks first-time clients", (await owner.locator("[role=listbox] li:ha
 ok("picker: same status as the Clients page (Client B's link was sent)", norm(await owner.textContent("[role=listbox] li:has-text('Client B') [data-testid=needs-first-link]"))?.includes("Not opened yet"));
 await owner.keyboard.press("Escape");
 await chooseClients(owner, "Client A", "Client B", "Client C");
-ok("Send box: new clients chosen, their first videos go from you", norm(await owner.textContent("[data-testid=first-time]")).includes("A new client's first link has to come from you, because it carries their private key, which we never see."));
-const firstBox = norm(await owner.textContent("[data-testid=first-links]"));
-ok("chosen first-timers: each named, with their own Copy link", (await owner.locator("[data-testid=first-link-row]:has-text('Client B') [data-testid=first-link-copy]").count()) === 1 && (await owner.locator("[data-testid=first-link-row]:has-text('Client C') [data-testid=first-link-copy]").count()) === 1, firstBox);
-ok("several first-timers: each row still has Copy link + message (S15)", (await owner.locator("[data-testid=first-link-row]:has-text('Client B') [data-testid=first-link-message]").count()) === 1 && (await owner.locator("[data-testid=first-link-row]:has-text('Client C') [data-testid=first-link-message]").count()) === 1);
-ok("several first-timers: one line for them all, the why folded away", norm(await owner.textContent("[data-testid=first-why-line]")).includes("First videos for 2 clients: send each one yourself") && !(await owner.isVisible("text=/Alongside each video is that client's personal link/")));
-// Mixed choice (Josiah, 23 October: "Send to all" and "Email 1 of them" doubled up): one email button naming who's
-// emailed, the new clients' first links only from their box, and a line saying which does what.
-ok("mixed choice: one email button naming the client, no Send to all, no Copy all", (await owner.textContent("[data-testid=send-email]")).trim() === "Email Client A" && (await owner.locator("[data-testid=send-all]").count()) === 0 && (await owner.locator("[data-testid=send-link]").count()) === 0);
-ok("it says who is emailed and that the new clients' links come from the box", norm(await owner.textContent("[data-testid=send-mixed-explained]")) === "Client A gets it by email. Client B and Client C are new, so their first links come from you, in the box above.", norm(await owner.textContent("[data-testid=send-mixed-explained]")));
+// Several chosen (Josiah, 23 October 2026: the email, copy and first-link parts at once were overwhelming): one Send
+// button for everyone, then a short list of only those whose link has to come from you.
+ok("several chosen: just one Send button for them all", norm(await owner.textContent("[data-testid=send-all]")) === "Send to 3 clients" && (await owner.locator("[data-testid=send-email]").count()) === 0 && (await owner.locator("[data-testid=send-link]").count()) === 0 && (await owner.locator("[data-testid=first-time]").count()) === 0 && (await owner.locator("[data-testid=no-email]").count()) === 0);
+ok("one short line says what happens", norm(await owner.textContent("[data-testid=send-group-note]")) === "We email everyone we can, then show you who needs their link from you.");
 await owner.screenshot({ path: `${shots}/fx-send-chosen.png`, fullPage: true });
-await owner.click("[data-testid=send-email]");
-await owner.waitForSelector("[data-testid=send-status] >> text=/Emailed 1 client/");
-const status = norm(await owner.textContent("[data-testid=send-status]"));
-ok("status: emailed the reached client, and the new clients' first videos come from you", status.includes("Emailed 1 client") && status.includes("First videos for 2 clients come from you"), status);
-await owner.click("[data-testid=first-link-row]:has-text('Client B') [data-testid=first-link-copy]");
+await owner.click("[data-testid=send-all]");
+await owner.waitForSelector("[data-testid=send-todo]");
+ok("after sending: sent to all 3, 1 emailed", norm(await owner.textContent("[data-testid=todo-summary]")) === "Sent to 3 clients. We emailed 1.", norm(await owner.textContent("[data-testid=todo-summary]")));
+ok("only the two new clients are listed, each marked New client", (await owner.locator("[data-testid=todo-row]").count()) === 2 && (await owner.locator("[data-testid=todo-row]:has-text('Client B') [data-testid=todo-why]").textContent()) === "New client" && (await owner.locator("[data-testid=todo-row]:has-text('Client C')").count()) === 1);
+ok("each has just Send from your email and Copy link", (await owner.locator("[data-testid=todo-row] [data-testid=first-link-email]").count()) === 2 && (await owner.locator("[data-testid=todo-row] [data-testid=first-link-copy]").count()) === 2 && (await owner.locator("[data-testid=todo-row] [data-testid=first-link-message]").count()) === 0);
+ok("the why is folded away", !(await owner.isVisible("text=/carries their private key/")));
+ok("Client A is already under Shared, the two still to do aren't yet", (await owner.locator("[data-testid=sent-row]").count()) === 1 && (await owner.locator("[data-testid=sent-row]:has-text('Client A')").count()) === 1);
+await owner.screenshot({ path: `${shots}/fx-send-todo.png`, fullPage: true });
+await owner.click("[data-testid=todo-row]:has-text('Client B') [data-testid=first-link-copy]");
 await owner.waitForSelector("[data-testid=sent-row]:has-text('Client B')");
-// Client C is then the only new client left, so the box shows their buttons on their own.
-await owner.click("[data-testid=first-links] [data-testid=first-link-copy]");
+ok("copied: Client B leaves the list", (await owner.locator("[data-testid=todo-row]").count()) === 1);
+await owner.click("[data-testid=todo-row]:has-text('Client C') [data-testid=first-link-copy]");
+await owner.waitForSelector("[data-testid=todo-done]");
+ok("all done once every link has gone", norm(await owner.textContent("[data-testid=todo-done]")) === "All done: everyone has their link.");
 await owner.waitForSelector("[data-testid=sent-row]:has-text('Client C')");
 const mail = await waitFor(() => mailTo(aEmail).find((m) => /sent you a video/.test(m.subject)));
 ok("email subject has the title", mail?.subject.endsWith("sent you a video: Week 1 plan"), mail?.subject);

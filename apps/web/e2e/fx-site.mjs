@@ -156,7 +156,7 @@ await visitor.click("#ff-tab-record");
 ok("home demo: no Pop out camera bubble button while recording (the bubble opens by itself)", !(await visitor.isVisible("#ff-panel-record >> text=Pop out camera bubble")));
 await visitor.click("#ff-tab-send");
 const sendFrame = norm(await visitor.textContent("#ff-panel-send"));
-ok("home demo: a first-time client's link is sent by the business, not emailed", sendFrame.includes("New") && sendFrame.includes("Copy all 3 links"), sendFrame);
+ok("home demo: several clients chosen, one Send button (like the app)", sendFrame.includes("New") && sendFrame.includes("Send to 3 clients") && !sendFrame.includes("Copy all"), sendFrame);
 // Round 3: Claude introduced and kept apart from the AI add-on (V3, V4); what clients see when staff leave (V9); one label (D12).
 const claudeSection = norm(await visitor.textContent("[data-testid=home-claude]"));
 ok("home: Claude is introduced as Anthropic's AI assistant (V3), in Josiah's words (decision 17)", claudeSection.includes("Already use Claude, Anthropic's AI assistant? Connect it to SureFrame free of charge and ask it for things to help streamline your service such as client reports, follow-up lists and more.") && !claudeSection.includes("Claude is an AI assistant made by Anthropic"));

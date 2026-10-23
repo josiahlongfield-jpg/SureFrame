@@ -92,8 +92,8 @@ ok("Ana (already sent) isn't offered again", !offered.includes("Ana") && offered
 await owner.click(`button:has-text("sm-staff${stamp}'s clients")`);
 ok("staff quick pick selects their two clients", (await owner.isChecked("[role=listbox] label:has-text('Ben') >> input")) && (await owner.isChecked("[role=listbox] label:has-text('Cal') >> input")) && !(await owner.isChecked("[role=listbox] label:has-text('Dee') >> input")));
 await owner.click("[data-testid=send-panel] >> button:has-text('Done (2)')");
-await owner.click("[data-testid=send-email]");
-await owner.waitForSelector("text=/Emailed 2 clients/");
+await owner.click("[data-testid=send-all]");
+await owner.waitForSelector("[data-testid=todo-summary] >> text=/Sent to 2 clients\\. We emailed both\\./");
 await owner.screenshot({ path: `${shots}/send-many.png`, fullPage: true });
 const copies = await prisma.video.findMany({ where: { sourceId: videoId } });
 const original = await prisma.video.findUnique({ where: { id: videoId } });

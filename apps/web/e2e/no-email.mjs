@@ -84,8 +84,9 @@ await owner.screenshot({ path: `${shots}/no-email-saved.png`, fullPage: true });
 await owner.click("[data-testid=quick-add-open]");
 await owner.fill("[data-testid=quick-add] input[aria-label='Client name']", "Client M");
 await owner.click("[data-testid=quick-add] button:has-text('Add client')");
-await owner.waitForSelector("[data-testid=first-links]", { timeout: 15000 });
-ok("next new client: the one line and the buttons", norm(await owner.textContent("[data-testid=first-why-line]")).includes("First video for Client M") && (await owner.isVisible("[data-testid=first-link-copy]")));
+// Client N is still chosen, so that's two: one Send button for both (Josiah, 23 October 2026).
+await owner.waitForSelector("[data-testid=send-all]", { timeout: 15000 });
+ok("next new client added with another chosen: one Send button for both", norm(await owner.textContent("[data-testid=send-all]")) === "Send to 2 clients" && (await owner.locator("[data-testid=first-links]").count()) === 0);
 
 await browser.close();
 await prisma.$disconnect();

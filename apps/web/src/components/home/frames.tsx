@@ -61,7 +61,7 @@ function Send() {
           </div>
         </div>
         <span className="f-link f-hide-md" style={{ justifySelf: "start" }}>+ Add a new client</span>
-        <div className="f-row"><span className="f-btn pri">Send by email</span><span className="f-btn sec">Copy all 3 links</span></div>
+        <div className="f-row"><span className="f-btn pri">Send to 3 clients</span></div>
         {/* No room for the sent list in the phone-sized window: it would run out of the box. */}
         <div className="f-hr f-hide-sm" />
         <p className="f-hide-sm" style={{ fontWeight: 500 }}>Sent to 1 client</p>
