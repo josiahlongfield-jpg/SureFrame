@@ -60,6 +60,7 @@ await owner.waitForSelector("text=/Recording · \\d/", { timeout: 15000 });
 await owner.waitForTimeout(2000);
 await owner.click("button:has-text('Stop')");
 await owner.waitForURL("**/v/**", { timeout: 30000 });
+const videoUrl = owner.url().split("?")[0];
 await owner.waitForSelector("[data-testid=send-no-clients]", { timeout: 20000 });
 await owner.waitForSelector("text=I've saved it", { timeout: 3000 }).then((b) => b.click()).catch(() => {});
 const open = owner.locator("[data-testid=quick-add-open]");
@@ -68,6 +69,7 @@ await owner.fill("[data-testid=quick-add] input[aria-label='Client name']", "Cli
 await owner.check("[data-testid=quick-add] [data-testid=route-link]");
 await owner.click("[data-testid=quick-add] button:has-text('Add client')");
 await owner.waitForSelector("[data-testid=quick-add]", { state: "detached", timeout: 15000 });
+await owner.goto(videoUrl);
 await sendByLink(owner, "Client A");
 const personal = await owner.evaluate(() => navigator.clipboard.readText());
 const sent = await prisma.video.findFirst({ where: { workspaceId: ws, client: { name: "Client A" }, replyToId: null } });
