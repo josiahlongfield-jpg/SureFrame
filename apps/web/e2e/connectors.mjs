@@ -61,6 +61,7 @@ const workspaceId = me.memberships[0].workspaceId;
 await owner.goto(BASE + "/clients");
 for (const name of ["Avery", "Blake"]) {
   await owner.fill('input[aria-label="Client name"]', name);
+  await owner.check("[data-testid=route-link]");
   await owner.click("button:has-text('Add client')");
   await owner.waitForSelector(`a:has-text('${name}')`);
 }

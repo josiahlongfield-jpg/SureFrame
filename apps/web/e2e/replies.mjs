@@ -66,6 +66,7 @@ console.log("stranger sees:", await stranger.textContent("h1"));
 // Add a client through the UI (their key is made in the coach's browser), then send
 await coach.goto(BASE + "/clients");
 await coach.fill('input[aria-label="Client name"]', "Sam Client");
+await coach.check("[data-testid=route-link]");
 await coach.click("button:has-text('Add client')");
 await coach.waitForSelector("text=Sam Client");
 await coach.goto(link);
@@ -178,6 +179,7 @@ console.log("new device with recovery key, duration", await laptop.$eval("main v
 for (const n of ["Two", "Three"]) {
   await coach.goto(BASE + "/clients");
   await coach.fill('input[aria-label="Client name"]', `Client ${n}`);
+  await coach.check("[data-testid=route-link]");
   await coach.click("button:has-text('Add client')");
   await coach.waitForSelector(`text=Client ${n}`);
 }

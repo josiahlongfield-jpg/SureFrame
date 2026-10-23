@@ -61,6 +61,7 @@ await webhook(owner, "customer.subscription.created", sub);
 await owner.goto(BASE + "/clients");
 await owner.waitForSelector("text=Add a client");
 await owner.fill('input[aria-label="Client name"]', "Avery");
+await owner.check("[data-testid=route-link]");
 await owner.click("button:has-text('Add client')");
 await owner.waitForSelector("text=Avery");
 ok("no seat-buying strip while most client seats are free (S9)", (await owner.locator("[data-testid=buy-seats], select[aria-label='Extra clients']").count()) === 0);

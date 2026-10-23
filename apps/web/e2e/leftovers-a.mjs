@@ -161,12 +161,12 @@ await owner.click("[data-testid=bulk-add] >> button:has-text('Add 2 clients')");
 await owner.waitForSelector("[data-testid=added-note]", { timeout: 15000 });
 await owner.click("[data-testid=added-done]");
 const filter = await owner.$$eval("[data-testid=clients-filter] option", (os) => os.map((o) => o.textContent));
-ok("filter: No email shows its count (O25)", filter.includes("No email (1)"), JSON.stringify(filter));
+ok("filter: Copy link shows its count (O25)", filter.includes("Copy link (1)"), JSON.stringify(filter));
 ok("a new client's row: More ways to send opens their page (O22)", (await owner.locator("[data-testid=row-more-ways]").count()) === 2);
 const r2 = await prisma.client.findFirst({ where: { workspaceId: ws, name: "Client R2" } });
 await owner.goto(`${BASE}/clients/${r2.id}`);
-await owner.waitForSelector("text=No email yet");
-ok("client page: names the client in full when there's no email (O36)", await owner.isVisible("text=No email yet, so Client R2 can't get reminders."));
+await owner.waitForSelector("[data-testid=client-route]");
+ok("client page: a Copy link client says so, with Change (O36)", norm(await owner.textContent("[data-testid=client-route]")).startsWith("Receives videos by copy link, sent however you choose.") && (await owner.locator("[data-testid=route-change]").count()) === 1);
 
 // ---------- A video ----------
 await owner.goto(BASE + "/record");

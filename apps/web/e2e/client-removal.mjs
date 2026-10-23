@@ -179,6 +179,7 @@ ok("Ben emailed", !!(await waitMail(ben.email, (m) => m.subject.includes("has en
 await prisma.keyRotation.create({ data: { workspaceId: ws, fromFingerprint: "f".repeat(22), wrap: "w".repeat(60) } });
 await owner.goto(BASE + "/clients");
 await owner.waitForSelector("[data-testid=removed-clients]", { timeout: 30000 });
+await owner.check("[data-testid=route-email]");
 await owner.fill("input[aria-label='Client email']", ben.email.toUpperCase());
 const hint = norm(await owner.textContent("[data-testid=removed-match]").catch(() => ""));
 ok("adding someone removed: hint to restore instead", hint.startsWith(`Ben ${stamp} was removed on`) && hint.includes("Restore them instead to keep their history"), hint);

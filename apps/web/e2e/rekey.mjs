@@ -8,7 +8,7 @@ import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 import { start, state, createSubscription } from "./fake-stripe.mjs";
 import { agreed } from "./agree.mjs";
-import { chooseClients, sendByLink } from "./send.mjs";
+import { chooseClients, sendByLink, sendTo } from "./send.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const shots = process.argv[2] ?? "/tmp";
@@ -54,7 +54,8 @@ await owner.request.post(BASE + "/api/webhooks/stripe", { headers: { "stripe-sig
 await owner.goto(BASE + "/clients");
 for (const [name, email] of [["Avery", `avery${stamp}@example.com`], ["Blake", ""]]) {
   await owner.fill('input[aria-label="Client name"]', name);
-  await owner.fill('input[aria-label="Client email"]', email);
+  await owner.check(`[data-testid=route-${email ? "email" : "link"}]`);
+  if (email) await owner.fill('input[aria-label="Client email"]', email);
   await owner.click("button:has-text('Add client')");
   await owner.waitForSelector(`a:has-text('${name}')`);
 }
@@ -70,16 +71,8 @@ await owner.click("button:has-text('Stop')");
 await owner.waitForURL("**/v/**", { timeout: 30000 });
 const videoUrl = owner.url().split("?")[0];
 // Wait for the choice to be saved before leaving the page.
-await chooseClients(owner, avery.name);
-await Promise.all([
-  owner.waitForResponse((r) => r.request().method() === "PATCH" && r.url().includes("/api/videos/"), { timeout: 30000 }),
-  // Avery hasn't opened a personal link yet, so it's sent from the personal-link box.
-  (async () => {
-    const first = owner.locator("[data-testid=first-link-row] [data-testid=first-link-copy]");
-    if (await first.count()) await first.click();
-    else await owner.click("[data-testid=send-link]");
-  })(),
-]);
+// Avery hasn't opened a personal link yet, so it goes from the First time section.
+await sendByLink(owner, avery.name);
 
 await owner.goto(`${BASE}/clients/${avery.id}`);
 await owner.fill('textarea[aria-label="New to-do"]', "Log your sleep");
@@ -137,7 +130,8 @@ await staff.waitForTimeout(2500);
 await staff.click("button:has-text('Stop')");
 await staff.waitForURL("**/v/**", { timeout: 30000 });
 const staffVideoId = staff.url().split("/v/")[1].split("?")[0];
-await sendByLink(staff, avery.name);
+// Avery has opened a link and is set to Email, so this one is emailed.
+await sendTo(staff, avery.name);
 await prisma.video.update({ where: { id: staffVideoId }, data: { sentAt: new Date() } });
 const staffReply = await prisma.reply.create({ data: { kind: "TEXT", body: "sealed".padEnd(40, "x"), encrypted: true, authorName: "Team member 1", videoId: staffVideoId, authorUserId: joined.id } });
 const pendingInvite = await owner.request.post(BASE + "/api/team/invites", { data: { teamKeyWrap: "x".repeat(44) } });

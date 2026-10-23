@@ -137,6 +137,7 @@ ok("Amy turns her reply emails off", (await amyMembership()).replyNotify === "OF
 await amy.goto(BASE + "/clients");
 await amy.waitForSelector('input[aria-label="Client name"]');
 await amy.fill('input[aria-label="Client name"]', "Cal");
+await amy.check("[data-testid=route-email]");
 await amy.fill('input[aria-label="Client email"]', `cal-old${stamp}@example.com`);
 await amy.click("button:has-text('Add client')");
 await amy.click("a[href^='/clients/']:has-text('Cal')");

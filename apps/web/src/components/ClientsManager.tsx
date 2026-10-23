@@ -10,6 +10,7 @@ import RemoveExtras from "./RemoveExtras";
 import { ReplyBadges, type Conv } from "./LibraryTools";
 import FirstLinkSender, { PersonalLinkSteps } from "./FirstLinkSender";
 import { DialogButtons, DialogShell, dangerButton, quietButton } from "./ConfirmDialog";
+import RouteChoice, { routeLine, type Route } from "./SendRoute";
 
 type Seats = { used: number; limit: number };
 /** `reached`: the client has opened their personal link, so emailed videos open for them. `linkSent`: the team copied or shared it. */
@@ -178,6 +179,8 @@ function Manager({
   const [seats, setSeats] = useState(initialSeats);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  // How the client being added gets their videos (Josiah, 23 October 2026): nothing chosen until they pick.
+  const [route, setRoute] = useState<Route | null>(null);
   const [bulk, setBulk] = useState<string | null>(null);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -194,6 +197,8 @@ function Manager({
   const [listError, setListError] = useState<string>();
   // The clients just added: sending their personal link is the next step.
   const [justAdded, setJustAdded] = useState<Client[]>([]);
+  // The route chosen for a client added on their own, said back once they're added.
+  const [addedRoute, setAddedRoute] = useState<Route | null>(null);
   // Names from a pasted list that didn't fit in the seats left.
   const [unfit, setUnfit] = useState<string[]>([]);
   // Lines of a pasted list that couldn't be read: kept in the box to fix, never dropped.
@@ -217,7 +222,7 @@ function Manager({
   const dates = zoned(timezone);
   const left = Math.max(0, seats.limit - seats.used);
   // Adding someone who was removed: offer to restore them instead, so their history comes back.
-  const typed = email.trim().toLowerCase();
+  const typed = route === "email" ? email.trim().toLowerCase() : "";
   const removedMatch = typed ? removed.find((r) => r.email?.toLowerCase() === typed) : undefined;
   // Adding someone already on the list: say so before they press Add (the server refuses it too).
   const typedName = name.trim().toLowerCase();
@@ -254,17 +259,18 @@ function Manager({
     setError(undefined);
     setNotice(undefined);
     if (name.trim().length > NAME_MAX) return setError(`That name is too long. Names can be up to ${NAME_MAX} characters.`);
-    if (activeMatch || !teamKey) return;
+    if (activeMatch || !teamKey || !route) return;
     setBusy(true);
     const res = await fetch("/api/clients", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       // Each client gets their own key, created here and stored only wrapped with the team key.
-      body: JSON.stringify({ name, email, teamKeyWrap: await wrapKey(await generateKey(), teamKey), keyFingerprint: await fingerprint(teamKey) }),
+      body: JSON.stringify({ name, email: route === "email" ? email : "", teamKeyWrap: await wrapKey(await generateKey(), teamKey), keyFingerprint: await fingerprint(teamKey) }),
     });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) return setError(data.error ?? "Could not add client");
+    setAddedRoute(route);
     setClients((c) => [...c, data.client].sort((a, b) => a.name.localeCompare(b.name)));
     setSeats((s) => ({ ...s, used: s.used + 1 }));
     setJustAdded([data.client]);
@@ -272,6 +278,7 @@ function Manager({
     setUnread([]);
     setName("");
     setEmail("");
+    setRoute(null);
   }
 
   // Pasting a whole list: everyone not already on the list, added in one go (as many as there are seats for).
@@ -307,6 +314,7 @@ function Manager({
     setUnfit(rest.map((c) => c.name));
     setUnread(bad);
     // The note under the form says what was added and what's next.
+    setAddedRoute(null);
     setJustAdded(data.clients);
   }
 
@@ -443,10 +451,10 @@ function Manager({
             client&apos;s private key is made here and locked with your team&apos;s key, so we never see it.
           </p>
         ) : (
-        <form onSubmit={add} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+        <form onSubmit={add} className="mt-4 grid max-w-xl gap-3">
           <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Name" aria-label="Client name" className="min-w-0 rounded-lg border border-line-strong px-3 py-2 text-sm" />
-          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email (optional)" aria-label="Client email" className="min-w-0 rounded-lg border border-line-strong px-3 py-2 text-sm" />
-          <button disabled={busy || full || !!activeMatch || !teamKey} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
+          <RouteChoice route={route} onRoute={setRoute} email={email} onEmail={setEmail} />
+          <button disabled={busy || full || !!activeMatch || !teamKey || !route || (route === "email" && !email.trim())} className="w-fit rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
             Add client
           </button>
         </form>
@@ -460,7 +468,7 @@ function Manager({
         {justAdded.length > 0 && (
           <div ref={addedNote} role="status" data-testid="added-note" className="mt-3 rounded-xl border border-line bg-surface-2 p-4 text-sm text-ink">
             <p className="text-ok-fg">
-              {justAdded.length === 1 ? `${justAdded[0].name} added.` : `Added ${plural(justAdded.length, "client", "clients")}.`}{" "}
+              {justAdded.length === 1 && addedRoute ? routeLine(justAdded[0].name, addedRoute) : justAdded.length === 1 ? `${justAdded[0].name} added.` : `Added ${plural(justAdded.length, "client", "clients")}.`}{" "}
               {unfit.length > 0 && (
                 <span data-testid="bulk-unfit">
                   {plural(unfit.length, "client", "clients")} didn&apos;t fit in your seats ({unfit.slice(0, 5).join(", ")}{unfit.length > 5 ? "…" : ""}), so {unfit.length === 1 ? "it's" : "they're"} still in the box below.{" "}
@@ -525,7 +533,7 @@ function Manager({
         ) : (
           <div className="mt-4 grid gap-2 border-t border-line pt-4" data-testid="bulk-add">
             <label htmlFor="bulk-list" className="text-sm font-medium text-ink">Paste your client list</label>
-            <p className="text-xs text-dim">One client per line: a name and email (&ldquo;Client A, client-a@example.com&rdquo;), just an email, or copy the name and email columns straight from a spreadsheet.</p>
+            <p className="text-xs text-dim">One client per line: a name and email (&ldquo;Client A, client-a@example.com&rdquo;), just an email, or copy the name and email columns straight from a spreadsheet. Clients with an email get their videos by email; the rest by Copy link. You can change this in Clients at any time.</p>
             <textarea
               id="bulk-list"
               value={bulk}
@@ -546,7 +554,7 @@ function Manager({
             {noEmail.length > 0 && (
               <div className="text-sm text-muted" data-testid="bulk-no-email">
                 <p>
-                  {noEmail.length === 1 ? "1 line has no email, so it's added as a name only" : `${noEmail.length} lines have no email, so they're added as names only`} (you can add an email later). Check {noEmail.length === 1 ? "it's a name" : "they're names"}:
+                  {noEmail.length === 1 ? "1 line has no email, so it's added as a name only" : `${noEmail.length} lines have no email, so they're added as names only`}, getting their videos by Copy link. Check {noEmail.length === 1 ? "it's a name" : "they're names"}:
                 </p>
                 <ul className="mt-1 list-disc pl-5 text-xs">
                   {noEmail.slice(0, 5).map((c, i) => <li key={i} className="break-words">{c.name}</li>)}
@@ -713,7 +721,7 @@ function Manager({
             <select value={filter} onChange={(e) => setFilter(e.target.value as Filter)} aria-label="Show" data-testid="clients-filter" className="min-w-0 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm">
               <option value="all">All</option>
               <option value="first">Not opened a video yet{waiting ? ` (${waiting})` : ""}</option>
-              <option value="no-email">No email{withoutEmail ? ` (${withoutEmail})` : ""}</option>
+              <option value="no-email">Copy link{withoutEmail ? ` (${withoutEmail})` : ""}</option>
               {clients.some((c) => c.paused || c.linkOff) && <option value="paused">Paused or link off</option>}
             </select>
           </div>
@@ -742,7 +750,7 @@ function Manager({
                       </span>
                     )}
                     <p className="break-words text-xs text-dim">
-                      {c.email && <><span className="break-all">{c.email}</span> · </>}{plural(c.videoCount, "video", "videos")}
+                      {c.email ? <><span className="break-all">{c.email}</span> · </> : <>Copy link · </>}{plural(c.videoCount, "video", "videos")}
                       {staff.length > 1 && seesAll && !canManage && ` · ${staffName(c.assignedToId) ?? "Unassigned"}`}
                     </p>
                     {/* After a key reset an old link no longer opens: a reminder for anyone who saved it in a draft. */}

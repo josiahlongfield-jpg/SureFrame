@@ -15,9 +15,9 @@ export function welcomeEmail(o: { name: string | null; business: string; link: s
   const lead = `${o.business} is set up on ${BRAND.name}. Here are your first steps:`;
   const steps = [
     "Save your recovery key. It opens your encrypted videos on a new phone or computer, and we can't recover it for you. You can show it again any time under Settings > Account (Show recovery key).",
-    "Add a client, with their email if you have it.",
-    "Record a video and pick the client in its Send box. Send a new client's first video yourself, with Send from your email or Copy link: they just open it and watch, and it sets them up on that phone or computer.",
-    "After that, press Send by email and we'll email them each new video.",
+    "Add a client and choose how they receive videos: by email from us, or a link you copy and send yourself.",
+    "Record a video, pick the client in its Send box and press Send. Send a new client's first video yourself, with Send from your email or Copy link: they just open it and watch, and it sets them up on that phone or computer.",
+    "After that, Send emails each new video to clients set to Email, and gives you the link to copy for the rest.",
   ];
   // Help is in the corner on a computer, and in the top bar or menu on a phone (decision 1).
   const help = `Questions? Press Help on any ${BRAND.name} page (in the corner on a computer, or in the menu on a phone), or email ${LEGAL.email}.`;

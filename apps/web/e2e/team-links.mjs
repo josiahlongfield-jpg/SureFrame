@@ -28,6 +28,7 @@ await owner.click("text=I've saved it");
 const recoveryKey = await owner.evaluate(() => Object.entries(localStorage).find(([k]) => k.startsWith("framecast.key.team:"))?.[1]);
 await owner.goto(BASE + "/clients");
 await owner.fill('input[aria-label="Client name"]', "Lee");
+await owner.check("[data-testid=route-link]");
 await owner.click("button:has-text('Add client')");
 await owner.waitForSelector("a:has-text('Lee')");
 const lee = await prisma.client.findFirst({ where: { name: "Lee", workspace: { members: { some: { user: { email: ownerEmail } } } } } });

@@ -8,7 +8,7 @@ import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 import { start, state, createSubscription } from "./fake-stripe.mjs";
 import { agreed } from "./agree.mjs";
-import { chooseClients, sendByLink } from "./send.mjs";
+import { chooseClients, sendByLink, sentRow } from "./send.mjs";
 const norm = (t) => (t ?? "").replace(/\s+/g, " ").trim();
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
@@ -65,13 +65,14 @@ await owner.goto(BASE + "/clients");
 const names = ["Ana", "Ben", "Cal", "Dee"];
 for (const n of names) {
   await owner.fill('input[aria-label="Client name"]', n);
+  await owner.check("[data-testid=route-email]");
   await owner.fill('input[aria-label="Client email"]', `${n.toLowerCase()}${stamp}@example.com`);
   await owner.click("button:has-text('Add client')");
   await owner.waitForSelector(`a:has-text('${n}')`);
 }
 const clients = Object.fromEntries((await prisma.client.findMany({ where: { workspaceId } })).map((c) => [c.name, c]));
-// Ben and Cal have already opened their personal links, so Send by email can email them.
-for (const n of ["Ben", "Cal"]) await prisma.client.update({ where: { id: clients[n].id }, data: { assignedToId: staffUser.id, linkOpenedAt: new Date() } });
+// Ben and Cal have already opened their personal links. Ben gets his videos by email; Cal by Copy link (no email kept).
+for (const n of ["Ben", "Cal"]) await prisma.client.update({ where: { id: clients[n].id }, data: { assignedToId: staffUser.id, linkOpenedAt: new Date(), ...(n === "Cal" ? { email: null } : {}) } });
 
 // Record, send to Ana as usual, then to the staff member's clients in one go.
 await owner.goto(BASE + "/record");
@@ -92,8 +93,9 @@ ok("Ana (already sent) isn't offered again", !offered.includes("Ana") && offered
 await owner.click(`button:has-text("sm-staff${stamp}'s clients")`);
 ok("staff quick pick selects their two clients", (await owner.isChecked("[role=listbox] label:has-text('Ben') >> input")) && (await owner.isChecked("[role=listbox] label:has-text('Cal') >> input")) && !(await owner.isChecked("[role=listbox] label:has-text('Dee') >> input")));
 await owner.click("[data-testid=send-panel] >> button:has-text('Done (2)')");
-await owner.click("[data-testid=send-all]");
-await owner.waitForSelector("[data-testid=todo-summary] >> text=/Sent to 2 clients\\. We emailed both\\./");
+await owner.click("[data-testid=send]");
+await owner.waitForSelector("[data-testid=sec-link]");
+ok("Ben is under Emailed to, Cal under Copy link to", (await sentRow(owner, "Ben").getAttribute("data-section")) === "email" && /Emailed/.test(norm(await sentRow(owner, "Ben").textContent())) && (await sentRow(owner, "Cal").getAttribute("data-section")) === "link");
 await owner.screenshot({ path: `${shots}/send-many.png`, fullPage: true });
 const copies = await prisma.video.findMany({ where: { sourceId: videoId } });
 const original = await prisma.video.findUnique({ where: { id: videoId } });
@@ -102,7 +104,7 @@ ok("copies share the stored file, nothing re-uploaded", copies.every((c) => c.st
 ok("each copy has that client's own key wrap", copies.every((c) => c.clientKeyWrap && c.clientKeyWrap !== original.clientKeyWrap));
 const mails = readdirSync(".data/outbox").filter((f) => !outboxBefore.has(f)).map((f) => JSON.parse(readFileSync(`.data/outbox/${f}`, "utf8")));
 const toThem = (m) => [clients.Ben.email, clients.Cal.email].includes(m.to);
-ok("both clients emailed", mails.filter((m) => toThem(m) && /sent you a video/.test(m.subject)).length === 2);
+ok("only Ben (set to Email) was emailed", mails.filter((m) => toThem(m) && /sent you a video/.test(m.subject)).length === 1 && mails.some((m) => m.to === clients.Ben.email));
 const recorder = await prisma.user.findUnique({ where: { id: original.ownerId } });
 const sentWs = await prisma.workspace.findUnique({ where: { id: original.workspaceId } });
 // C39: the subject names who recorded it and the business ("Sam at Business"), or the name once when it's the business's own.
@@ -119,16 +121,13 @@ ok("all-clients pick adds only who's left", left.length === 1 && left[0] === "De
 await owner.click("[role=group] >> text=Clear");
 await owner.keyboard.press("Escape");
 
-// No separate waiting list: Ana, who has this video but hasn't opened it, is under Sent to with the
-// first-video buttons; choosing Dee (new) shows the ways to send her first video, under the picker.
-await owner.waitForSelector("[data-testid=sent-row]:has-text('Ana') [data-testid=first-link-copy]", { timeout: 20000 });
+// No separate waiting list: Ana, who has this video but hasn't opened it, is under First time with Send from your
+// email (she's set to Email); choosing Dee (new) shows just the Send button until it's pressed.
+await sentRow(owner, "Ana").locator("[data-testid=first-link-email]").waitFor({ timeout: 20000 });
 ok("no waiting list", (await owner.locator("[data-testid=waiting-list]").count()) === 0);
-ok("Ana: under Sent to, sent from you, with the first-video buttons", norm(await owner.textContent("[data-testid=sent-row]:has-text('Ana')")).includes("Not opened yet") && (await owner.locator("[data-testid=sent-row]:has-text('Ana') [data-testid=first-link-email]").count()) === 1);
+ok("Ana: under First time, Not opened yet", (await sentRow(owner, "Ana").getAttribute("data-section")) === "first" && norm(await sentRow(owner, "Ana").textContent()).includes("Not opened yet"));
 await chooseClients(owner, "Dee");
-await owner.waitForSelector("[data-testid=first-link-row]", { timeout: 10000 });
-ok("choosing Dee: her first video's buttons, Email and Copy link", (await owner.locator("[data-testid=first-link-row] [data-testid=first-link-copy]").count()) === 1 && norm(await owner.textContent("[data-testid=first-why-line]")).includes("First video for Dee"));
-const top = async (sel) => (await owner.locator(sel).first().boundingBox()).y;
-ok("Choose clients sits above the first-video box", (await top("[data-testid=client-picker]")) < (await top("[data-testid=first-time]")));
+ok("choosing Dee: one Send to client button, her row not there until it's pressed", norm(await owner.textContent("[data-testid=send]")) === "Send to client" && (await sentRow(owner, "Dee").count()) === 0);
 await owner.click("[data-testid=client-picker]");
 await owner.click("[role=group] >> text=Clear");
 await owner.keyboard.press("Escape");
@@ -136,9 +135,13 @@ await owner.keyboard.press("Escape");
 // Ben opens his copy from the link the owner copies for him.
 const benCopy = copies.find((c) => c.clientId === clients.Ben.id);
 const calCopy = copies.find((c) => c.clientId === clients.Cal.id);
-await owner.click(`[data-testid=sent-row]:has-text('Ben') >> [data-testid=copy-row-link]`);
+// Ben was emailed, so his link comes from the Clients page (his personal link), pointed at his copy.
+await owner.goto(BASE + "/clients");
+await owner.click(`button[aria-label='Copy link for Ben']`);
 await owner.waitForTimeout(300);
-const benLink = await clip(owner);
+const benPersonal = await clip(owner);
+const benLink = benPersonal.replace("#", `?v=${benCopy.id}#`);
+await owner.goto(`${BASE}/v/${videoId}`);
 ok("Ben's link opens his copy", benLink.includes(`v=${benCopy.id}`) && benLink.includes("#k="));
 const ben = await (await browser.newContext(perms)).newPage();
 await ben.goto(benLink);
@@ -151,7 +154,7 @@ await ben.click("button:has-text('Send')");
 await ben.waitForSelector("text=Ben's private reply");
 
 // Cal can't open Ben's copy or see his reply.
-await owner.click(`[data-testid=sent-row]:has-text('Cal') >> [data-testid=copy-row-link]`);
+await sentRow(owner, "Cal").locator("[data-testid=copy-row-link]").click();
 await owner.waitForTimeout(300);
 const cal = await (await browser.newContext(perms)).newPage();
 await cal.goto(await clip(owner));

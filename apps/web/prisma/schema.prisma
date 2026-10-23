@@ -316,6 +316,8 @@ model Video {
   viewCount            Int           @default(0)
   /// Sent to a client while the upload was still finishing: email them once it's done.
   emailClientWhenReady Boolean       @default(false)
+  /// When we last emailed its client that it's waiting (cleared when it goes to someone else). The Send box's "Emailed to".
+  emailedAt            DateTime?
   password             String?
   expiresAt            DateTime?
   createdAt            DateTime      @default(now())

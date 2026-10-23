@@ -64,7 +64,7 @@ export const PATCH = handle(async (req: Request, ctx: { params: Promise<{ id: st
       title: body.data.title,
       clientId: body.data.clientId,
       ...(body.data.clientId !== undefined ? { clientKeyWrap: body.data.clientId ? body.data.clientKeyWrap : null, emailClientWhenReady: false } : {}),
-      ...(body.data.clientId !== undefined && body.data.clientId !== current.clientId ? { sentAt: body.data.clientId ? new Date() : null } : {}),
+      ...(body.data.clientId !== undefined && body.data.clientId !== current.clientId ? { sentAt: body.data.clientId ? new Date() : null, emailedAt: null } : {}),
     },
   });
   // Tell the client by email, now or once the upload has finished.

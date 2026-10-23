@@ -1,13 +1,14 @@
 // Clients first, then sending (src/components/SendPanel.tsx):
 // - a new business is shown "Start here: add your clients", and can paste a whole list;
-// - a video is sent by choosing clients from one dropdown, then Send by email or Copy link;
+// - a video is sent by choosing clients from one dropdown, then one Send button;
 // - a new client is marked "New" and their first video goes from the business itself (its link holds
-//   their key); copying it doesn't count, only their opening it, after which Send by email works for them;
+//   their key); copying it doesn't count, only their opening it, after which clients set to Email are emailed;
 // - the library shows an encrypted still from each recording.
 import { chromium } from "@playwright/test";
 import { readdirSync, readFileSync, mkdirSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import { agreed } from "./agree.mjs";
+import { sentRow } from "./send.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const prisma = new PrismaClient();
@@ -16,6 +17,7 @@ const ok = (name, pass, detail = "") => {
   console.log(`${pass ? "PASS" : "FAIL"} ${name}${pass ? "" : ` ${detail}`}`);
   if (!pass) failed++;
 };
+const norm = (t) => (t ?? "").replace(/\s+/g, " ").trim();
 mkdirSync(".data/outbox", { recursive: true });
 const mailTo = (to) => readdirSync(".data/outbox").map((f) => JSON.parse(readFileSync(`.data/outbox/${f}`, "utf8"))).filter((m) => m.to === to && /sent you a video/.test(m.subject));
 const waitFor = async (fn, ms = 20000) => {
@@ -88,40 +90,42 @@ const choose = async (...names) => {
   if (await owner.isVisible("[role=listbox]")) await owner.click("[data-testid=send-panel] >> button:has-text('Done')");
 };
 
-// First video: private until sent. Copy link puts Zoe's personal link on the clipboard and emails nobody.
+// First video: private until sent. Send goes to the First time section; nothing is emailed, the link goes from you.
 const first = await record();
-ok("nothing chosen yet: no greyed Send or Copy buttons under the picker (O35)", (await owner.locator("[data-testid=send-email]").count()) === 0 && (await owner.locator("[data-testid=send-link]").count()) === 0);
+ok("nothing chosen yet: no greyed Send button under the picker (O35)", (await owner.locator("[data-testid=send]").count()) === 0);
 ok("first recording: nobody chosen for you", (await owner.textContent("[data-testid=client-picker]")).includes("Choose"));
 ok("unsent: no extra notes in the Send box", (await owner.locator("[data-testid=send-private]").count()) === 0);
 await owner.click("[data-testid=client-picker]");
 ok("new clients are marked in the picker", (await owner.locator("[role=listbox] li:has-text('Zoe Park') [data-testid=needs-first-link]").count()) === 1);
 await owner.keyboard.press("Escape");
-ok("no first-video box while no new client is chosen", !(await owner.isVisible("[data-testid=first-time]")));
 await choose("Zoe Park");
-// One line like the Clients page's steps; Josiah's longer why sits behind the expander (O32, S13).
-ok("choosing Zoe: her first video goes from you, said plainly", await owner.isVisible("[data-testid=first-time]") && (await owner.textContent("[data-testid=first-why-line]")).includes("First video for Zoe Park: send it yourself") && (await owner.textContent("[data-testid=first-why-line]")).includes("After that, we email them") && !(await owner.textContent("[data-testid=first-time]")).includes("This video still goes to"));
-// Josiah's approved wording (Decision 18).
-const WHY = "A new client's first link has to come from you, because it carries their private key, which we never see. Once they've opened it, Send by email does the rest.";
-ok("the longer why is folded under the expander", (await owner.textContent("[data-testid=first-why-more]")).includes("Why does the first video come from me?") && !(await owner.isVisible("text=/first link has to come from you/")) && (await owner.textContent("[data-testid=first-why]")).includes(WHY));
-await owner.click("[data-testid=first-why-more]");
-ok("opening it shows Josiah's explanation (Decision 18)", await owner.isVisible("text=/first link has to come from you, because it carries their private key/"));
-ok("a first-time client isn't offered Send by email", (await owner.locator("[data-testid=send-email]").count()) === 0 && (await owner.textContent("[data-testid=first-time]")).includes("Zoe Park") && (await owner.locator("[data-testid=first-links] [data-testid=first-link-copy]").count()) === 1);
+ok("choosing Zoe: one Send to client button, nothing else yet", (await owner.textContent("[data-testid=send]")).trim() === "Send to client" && (await owner.locator("[data-testid^=sec-]").count()) === 0);
 ok("dropdown shows who's chosen", (await owner.textContent("[data-testid=client-picker]")).includes("Zoe Park"));
-ok("only her first-video buttons: no separate Copy link", (await owner.locator("[data-testid=send-link]").count()) === 0);
-await owner.click("[data-testid=first-link-row] [data-testid=first-link-copy]");
-await owner.waitForSelector("text=/link is copied/");
-// The confirmation sits under Zoe's own row, not at the foot of the box (S14).
-ok("link copied: said under Zoe's row", (await owner.textContent("[data-testid=sent-row]:has-text('Zoe Park') [data-testid=row-note]")).includes("Zoe Park's link is copied"));
-ok("copying isn't called sending: Shared with, Not opened yet", (await owner.textContent("[data-testid=sent-heading]")).includes("Shared with 1 client") && (await owner.textContent("[data-testid=sent-row]:has-text('Zoe Park') [data-testid=row-opened]")).includes("Not opened yet"));
+await owner.click("[data-testid=send]");
+await owner.waitForSelector("[data-testid=sec-first]", { timeout: 15000 });
+const zoeRow = sentRow(owner, "Zoe Park");
+// Josiah's approved wording (Decision 18), with its second sentence for clients set to Email or Copy link.
+const WHY = "A new client's first link has to come from you, because it carries their private key, which we never see. Once they've opened it, clients set to Email get every video after that from us.";
+ok("Zoe is under First time client - Personal link required, the why folded away", (await owner.locator("[data-testid=sec-first]").locator("[data-testid=sent-row]").count()) === 1 && !(await owner.isVisible("text=/first link has to come from you/")) && norm(await owner.textContent("[data-testid=sec-first-why]")).includes(WHY));
+await owner.click("[data-testid=sec-first-why] summary");
+ok("opening it shows Josiah's explanation (Decision 18)", await owner.isVisible("text=/first link has to come from you, because it carries their private key/"));
+ok("Zoe is set to Email: Send from your email, no Send by email from us", (await zoeRow.locator("[data-testid=first-link-email]").count()) === 1 && (await zoeRow.locator("[data-testid=email-row]").count()) === 0);
+ok("the video is hers now", (await prisma.video.findUnique({ where: { id: first } })).clientId === zoe.id);
+ok("and she wasn't emailed", mailTo(zoeEmail).length === 0);
+// Send from your email opens the business's email app; caught here so the page stays.
+await owner.evaluate(() => document.addEventListener("click", (e) => e.target?.href?.startsWith?.("mailto:") && e.preventDefault(), true));
+await zoeRow.locator("[data-testid=first-link-email]").click();
+await zoeRow.locator("[data-testid=copy-instead]").click();
+await zoeRow.locator("[data-testid=row-note]:has-text('Copied')").waitFor();
+// The confirmation sits under Zoe's own row (S14).
+ok("Copy the link instead: said under Zoe's row", norm(await zoeRow.locator("[data-testid=row-note]").textContent()).startsWith("Copied Zoe Park's video and personal link."));
+ok("copying isn't called opening: Not opened yet", norm(await zoeRow.locator("[data-testid=row-opened]").textContent()).includes("Not opened yet"));
 const link = await clipboard();
 ok("copied link opens this video with Zoe's key", link.includes(`v=${first}`) && link.includes("#k="), link);
-await owner.waitForSelector("[data-testid=sent-row]:has-text('Zoe Park') [data-testid=first-link-copy]");
-ok("Zoe is under Sent to, link copied, with Email and Copy link to send again", (await owner.textContent("[data-testid=sent-row]:has-text('Zoe Park')")).includes("Link copied") && (await owner.locator("[data-testid=sent-row]:has-text('Zoe Park') [data-testid=row-first]").count()) === 0 && (await owner.locator("[data-testid=sent-row]:has-text('Zoe Park') [data-testid=first-link-copy]").count()) === 1 && (await owner.locator("[data-testid=waiting-list]").count()) === 0);
-ok("the video is hers now", (await prisma.video.findUnique({ where: { id: first } })).clientId === zoe.id);
 ok("copying the link is remembered", !!(await waitFor(async () => (await prisma.client.findUnique({ where: { id: zoe.id } })).linkSentAt, 5000)));
 ok("but copying doesn't count as reaching her", !(await prisma.client.findUnique({ where: { id: zoe.id } })).linkOpenedAt);
 ok("and she can't be emailed until she opens it", (await owner.evaluate(async (id) => (await fetch(`/api/videos/${id}/notify`, { method: "POST" })).status, first)) === 409);
-ok("Copy link emails nobody", mailTo(zoeEmail).length === 0);
+ok("nothing emailed", mailTo(zoeEmail).length === 0);
 
 // The team opened it, so the library has its still.
 ok("library still saved, encrypted", !!(await waitFor(async () => prisma.videoThumb.findUnique({ where: { videoId: first } }), 15000)));
@@ -143,19 +147,17 @@ const second = await record();
 ok("after Stop: nobody is chosen, though the last video went to Zoe", (await owner.textContent("[data-testid=client-picker]")).includes("Choose") && !(await owner.textContent("[data-testid=client-picker]")).includes("Zoe Park"));
 await choose("Zoe Park", `Ann Lee${stamp}`);
 await owner.screenshot({ path: `${process.argv[2] ?? "/tmp"}/first-link-chosen.png` });
-ok("two chosen: one Send button for both", (await owner.textContent("[data-testid=send-all]")).trim() === "Send to 2 clients" && (await owner.locator("[data-testid=send-email]").count()) === 0);
-await owner.click("[data-testid=send-all]");
-const note = await waitFor(async () => {
-  const t = await owner.textContent("[data-testid=todo-summary]").catch(() => "");
-  return /Sent to/.test(t) ? t : null;
-}, 15000);
-ok("says it went to both and Zoe was emailed", /Sent to 2 clients\. We emailed 1\./.test(note ?? ""), String(note));
+ok("two chosen: one Send button for both", (await owner.textContent("[data-testid=send]")).trim() === "Send to 2 clients");
+await owner.click("[data-testid=send]");
+await owner.waitForSelector("[data-testid=sec-email]", { timeout: 15000 });
+ok("Zoe is under Emailed to, marked Emailed", (await owner.locator("[data-testid=sec-email] [data-testid=sent-row]").count()) === 1 && /Emailed/.test(norm(await sentRow(owner, "Zoe Park").textContent())));
 ok("Zoe emailed about the second video", (await waitFor(() => mailTo(zoeEmail).some((m) => m.text.includes(second)))) === true);
-ok("Ann is listed as needing her link from you, with her own Copy button", (await owner.textContent("[data-testid=todo-list]")).includes(`Ann Lee${stamp}`) && (await owner.locator("[data-testid=todo-row] [data-testid=first-link-copy]").count()) === 1);
-await owner.click("[data-testid=todo-row] >> [data-testid=first-link-copy]");
-await owner.waitForSelector("[data-testid=sent-row]:has-text('Ann Lee') [data-testid=first-link-copy]");
+const annRow = sentRow(owner, `Ann Lee${stamp}`);
+ok("Ann is under First time, with Send from your email", (await owner.locator("[data-testid=sec-first] [data-testid=sent-row]").count()) === 1 && (await annRow.locator("[data-testid=first-link-email]").count()) === 1);
+await annRow.locator("[data-testid=first-link-email]").click();
+await annRow.locator("[data-testid=copy-instead]").click();
+await annRow.locator("[data-testid=row-note]:has-text('Copied')").waitFor();
 await owner.screenshot({ path: `${process.argv[2] ?? "/tmp"}/first-link-sent.png`, fullPage: true });
-ok("Ann and Zoe are both under Sent to", (await owner.locator("[data-testid=sent-row]", { hasText: "Ann Lee" }).count()) === 1 && (await owner.locator("[data-testid=sent-row]", { hasText: "Zoe Park" }).count()) === 1);
 const annCopy = await prisma.video.findFirst({ where: { sourceId: second, clientId: ann.id } });
 ok("Ann got her own copy", !!annCopy);
 const annLink = await clipboard();
@@ -163,10 +165,11 @@ ok("Ann's link opens her own conversation", annLink.includes(`v=${annCopy?.id}`)
 ok("Ann wasn't emailed a link she can't open", mailTo(annEmail).length === 0);
 
 // Stop sharing takes it back from the first client, after an in-page confirm.
-await owner.locator("[data-testid=sent-row]", { hasText: "Zoe Park" }).locator("[data-testid=stop-sharing]").click();
+await sentRow(owner, "Zoe Park").locator("[data-testid=stop-sharing]").click();
 ok("stop sharing asks first", await owner.isVisible("[data-testid=stop-sharing-confirm]"));
 await owner.click("[data-testid=stop-sharing-confirm] >> button:has-text('Stop sharing with Zoe Park')");
 ok("stop sharing: Zoe no longer has it", !!(await waitFor(async () => (await prisma.video.findUnique({ where: { id: second } })).clientId === null, 5000)));
+ok("and it's no longer marked emailed", !(await prisma.video.findUnique({ where: { id: second } })).emailedAt);
 
 
 // A business trying a client's link in its own signed-in browser still records the client's visit.

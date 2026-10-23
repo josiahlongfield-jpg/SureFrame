@@ -95,6 +95,7 @@ ok("the first browser's leftover copy is cleared", left === "empty", String(left
 // ---- A client's video reply, closed mid-recording, then opened from the link in another browser. ----
 await a2.goto(BASE + "/clients");
 await a2.fill('input[aria-label="Client name"]', "Client A");
+await a2.check("[data-testid=route-link]");
 await a2.click("button:has-text('Add client')");
 await a2.waitForSelector("text=Client A");
 await a2.goto(BASE + `/v/${videoId}`);

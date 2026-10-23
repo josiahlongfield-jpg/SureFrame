@@ -4,16 +4,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fingerprint, generateKey, unwrapKey, wrapKey } from "@/lib/e2e/crypto";
-import { shareLink, useCanShare, writeClipboard } from "@/lib/clipboard";
+import { writeClipboard } from "@/lib/clipboard";
 import { isDefaultTitle } from "@/lib/videoTitle";
 import { LinkBadge, markLinkSent, personalLink } from "./ClientsManager";
 import FirstLinkSender from "./FirstLinkSender";
+import RouteChoice, { routeLine, routeOf, type Route } from "./SendRoute";
 import { useTitleSaver } from "./useTitleSaver";
 import type { ClientOption, SendMany } from "./WatchView";
 
 /** A client this recording went to, and their conversation about it (this video, or their own copy); `opened` once they've watched it. */
 type Recipient = { clientId: string; convId: string; opened?: boolean };
-type RowState = "emailed" | "when-ready" | "copied" | "shared" | "own-email";
+type RowState = "emailed" | "when-ready" | "copied" | "own-email";
 
 /**
  * A client is reached once they've opened a link with their key on a device
@@ -24,25 +25,21 @@ type RowState = "emailed" | "when-ready" | "copied" | "shared" | "own-email";
 const reached = (c: ClientOption) => !!c.hasLink;
 const canEmail = (c: ClientOption) => reached(c) && !!c.emailable;
 
-const names = (list: ClientOption[]) => (list.length === 1 ? list[0].name : `${list.slice(0, -1).map((c) => c.name).join(", ")} and ${list[list.length - 1].name}`);
+/**
+ * Which part of the Send box a client's row sits in (Josiah, 23 October 2026): a first video always comes from the
+ * business; after that, clients set to Email are emailed and the rest are listed with Copy link. A client who turned
+ * our emails off is listed with Copy link too.
+ */
+type Section = "email" | "link" | "first";
+const sectionOf = (c: ClientOption): Section => (!reached(c) ? "first" : c.email && !c.emailsOff ? "email" : "link");
 
-/** Why Send by email isn't there for these clients: no address saved, or they turned emails off. */
-function noEmailNote(list: ClientOption[]) {
-  const off = list.filter((c) => c.emailsOff);
-  const none = list.filter((c) => !c.emailsOff);
-  const why = [
-    none.length ? `No email address saved for ${names(none)}` : "",
-    off.length ? `${names(off)} turned off emails from you` : "",
-  ].filter(Boolean);
-  return `${why.join(", and ")}, so copy the ${list.length === 1 ? "link" : "links"} and send ${list.length === 1 ? "it" : "them"} yourself.`;
-}
 const btn = "rounded-lg border border-line-strong bg-surface px-2.5 py-1 text-xs hover:bg-hover disabled:opacity-50";
 
 /**
- * Sending a recording: choose clients from one list, then either we email
- * them, or you copy their links to send from your own app. Each client gets
- * their own private conversation; nobody sees anyone else's replies. A new
- * client's first video goes from you (its link sets them up on their device).
+ * Sending a recording: choose one client or several, then one Send button. Each client gets it the way chosen when
+ * they were added: we email those set to Email, those set to Copy link are listed with their own link to copy, and a
+ * client's first video goes from the business (its link sets them up on their device). Each client gets their own
+ * private conversation; nobody sees anyone else's replies.
  */
 export default function SendPanel({
   video,
@@ -56,7 +53,7 @@ export default function SendPanel({
   teamKey,
   onTitle,
 }: {
-  video: { id: string; title: string; status: string; encrypted: boolean; sourceId: string | null; viewCount?: number };
+  video: { id: string; title: string; status: string; encrypted: boolean; sourceId: string | null; viewCount?: number; emailed?: "sent" | "when-ready" | null };
   clients: ClientOption[];
   /** The business's name, signed at the end of the message sent with a personal link. */
   business: string;
@@ -74,12 +71,7 @@ export default function SendPanel({
   const router = useRouter();
   // Clients added from this box, until the page's own list has them.
   const [extra, setExtra] = useState<ClientOption[]>([]);
-  // Emails added from this box, until the page's own list has them.
-  const [added, setAdded] = useState<Record<string, string>>({});
-  const clients = useMemo(
-    () => [...given, ...extra.filter((e) => !given.some((c) => c.id === e.id))].map((c) => (added[c.id] && !c.email ? { ...c, email: added[c.id], emailable: true } : c)),
-    [given, extra, added],
-  );
+  const clients = useMemo(() => [...given, ...extra.filter((e) => !given.some((c) => c.id === e.id))], [given, extra]);
   const [adding, setAdding] = useState(false);
   const isCopy = !!video.sourceId;
   const uploading = video.status === "RECORDING";
@@ -94,9 +86,15 @@ export default function SendPanel({
     ...(sentToId ? [{ clientId: sentToId, convId: video.id, opened: (video.viewCount ?? 0) > 0 }] : []),
     ...(sendMany?.copies ?? []).map((c) => ({ clientId: c.clientId, convId: c.id, opened: c.opened })),
   ]);
-  const [rows, setRows] = useState<Record<string, RowState>>({});
-  // What was just done for a client, said under their own row.
-  const [rowNotes, setRowNotes] = useState<Record<string, string>>({});
+  // What's been done for each client: emailed by us (kept on the video, so it's still said after a reload), or sent by the business.
+  const [rows, setRows] = useState<Record<string, RowState>>(() => {
+    const out: Record<string, RowState> = {};
+    if (sentToId && video.emailed) out[sentToId] = video.emailed === "sent" ? "emailed" : "when-ready";
+    for (const c of sendMany?.copies ?? []) if (c.emailed) out[c.clientId] = "emailed";
+    return out;
+  });
+  // The confirmation line under a client's own row.
+  const [rowNotes, setRowNotes] = useState<Record<string, { text: string; fallback?: boolean; error?: boolean }>>({});
   // Always starts with nobody chosen: a remembered client would need taking off every time it's for someone else
   // (Josiah, 23 October 2026).
   const [picked, setPicked] = useState<string[]>([]);
@@ -105,11 +103,8 @@ export default function SendPanel({
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<{ text: string; error?: boolean }>();
   const [stopping, setStopping] = useState<string | null>(null);
-  // After sending to several clients: how it went, and who still needs their link from you.
-  const [todo, setTodo] = useState<{ sent: number; emailed: number; ids: string[] } | null>(null);
   // Named in this box: it says so, though the title is no longer the default.
   const [titled, setTitled] = useState(false);
-  const canShare = useCanShare();
   const byId = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients]);
   const has = new Set(recipients.map((r) => r.clientId));
   // Who can be chosen: active clients with a key, who don't have it yet.
@@ -120,16 +115,8 @@ export default function SendPanel({
   const shown = search.trim() ? available.filter((c) => c.name.toLowerCase().includes(search.trim().toLowerCase())) : available;
   const team = (sendMany?.staff.length ?? 0) > 1;
   const chosen = picked.map((id) => byId.get(id)!).filter(Boolean);
-  const chosenEmail = chosen.filter(canEmail);
-  const chosenFirst = chosen.filter((c) => !reached(c));
-  // Several chosen: one Send button does it all, and afterwards only the clients whose link has to come from you are
-  // listed (Josiah, 23 October 2026: the separate email, copy and first-link parts were too much to take in at once).
-  const group = chosen.length > 1;
-  const copyWords = canShare ? "Copy link or Share" : "Copy link";
-  // Chosen clients who've had a link but can't be emailed, said beside Copy link so it's clear why Send by email isn't there.
-  const unemailable = chosen.filter((c) => reached(c) && !c.emailable);
 
-  // Each recipient's personal link for their conversation, worked out ahead so Copy and Share work in one tap.
+  // Each recipient's personal link for their conversation, worked out ahead so Copy link works in one tap.
   const [links, setLinks] = useState<Record<string, string>>({});
   useEffect(() => {
     let cancelled = false;
@@ -180,14 +167,12 @@ export default function SendPanel({
   }
   const pickAll = (ids: string[]) => setPicked(ids.filter((id) => available.some((c) => c.id === id)));
 
-  /** Gives each chosen client this recording; returns their conversations. `email` emails those who can open it from an email. */
-  async function deliver(list: ClientOption[], email: boolean) {
-    const notifyOf = (c: ClientOption) => email && canEmail(c);
+  /** Gives each chosen client this recording, emailing those set to Email who can open it from an email. */
+  async function deliver(list: ClientOption[]) {
     const wrapFor = async (c: ClientOption) => (c.teamKeyWrap ? wrapKey(rootKey, await unwrapKey(c.teamKeyWrap, teamKey)) : undefined);
     const keyFingerprint = await fingerprint(teamKey);
     const added: Recipient[] = [];
     const states: Record<string, RowState> = {};
-    let emailed = 0;
     let rest = list;
     const first = !primaryRef.current;
     if (first && list.length) {
@@ -197,20 +182,17 @@ export default function SendPanel({
       const res = await fetch(`/api/videos/${video.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId: c.id, clientKeyWrap: await wrapFor(c), keyFingerprint, notify: notifyOf(c) }),
+        body: JSON.stringify({ clientId: c.id, clientKeyWrap: await wrapFor(c), keyFingerprint, notify: canEmail(c) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? `Couldn't send it to ${c.name}. Try again.`);
       setPrimary(c.id);
       added.push({ clientId: c.id, convId: video.id });
-      if (data.emailed) {
-        states[c.id] = data.emailed === "when-ready" ? "when-ready" : "emailed";
-        emailed++;
-      }
+      if (data.emailed) states[c.id] = data.emailed === "when-ready" ? "when-ready" : "emailed";
     }
     // Everyone else gets their own copy: one request for those we email, one for the rest.
     for (const notify of [true, false]) {
-      const group = rest.filter((c) => notifyOf(c) === notify);
+      const group = rest.filter((c) => canEmail(c) === notify);
       if (!group.length) continue;
       const res = await fetch(`/api/videos/${video.id}/send`, {
         method: "POST",
@@ -219,70 +201,27 @@ export default function SendPanel({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Couldn't send it. Try again.");
-      const sent = data.sent as { id: string; clientId: string }[];
+      const sent = data.sent as { id: string; clientId: string; emailed?: boolean }[];
       added.push(...sent.map((s) => ({ clientId: s.clientId, convId: s.id })));
-      // We only know how many emails went out, so each is marked only when they all did.
-      if (notify && data.emailed === sent.length) for (const s of sent) states[s.clientId] = "emailed";
-      if (notify) emailed += data.emailed ?? 0;
+      for (const s of sent) if (s.emailed) states[s.clientId] = "emailed";
     }
     setRecipients((cur) => [...cur, ...added]);
     setRows((cur) => ({ ...cur, ...states }));
     // The rest of the page (the conversation panel) shows who this video is with.
     if (first && added.length) router.refresh();
     setPicked((cur) => cur.filter((id) => !list.some((c) => c.id === id)));
-    return { added, emailed };
+    return added;
   }
 
-  /** Emails the chosen clients who can open it from an email; anyone else stays chosen, with their link to copy. */
-  async function sendByEmail() {
-    const list = chosenEmail;
-    const left = chosen.filter((c) => !canEmail(c));
-    setBusy("email");
+  /**
+   * The one Send button, for one client or several (Josiah, 23 October 2026): everyone chosen gets the video, those
+   * set to Email are emailed now, and the sections below list who has a link to copy or a first video to send.
+   */
+  async function send() {
+    setBusy("send");
     setNote(undefined);
     try {
-      const { emailed } = await deliver(list, true);
-      const firsts = left.filter((c) => !reached(c));
-      const noEmail = left.filter((c) => reached(c));
-      setNote({
-        text: [
-          emailed ? `Emailed ${emailed} ${emailed === 1 ? "client" : "clients"}.` : "",
-          firsts.length ? `${firsts.length === 1 ? `${firsts[0].name}'s first video comes` : `First videos for ${firsts.length} clients come`} from you: send ${firsts.length === 1 ? "it" : "each one"} with the buttons under their name.` : "",
-          noEmail.length ? `${noEmail.length === 1 ? noEmail[0].name : `${noEmail.length} clients`} can't be emailed, so use ${copyWords} for them.` : "",
-        ].filter(Boolean).join(" "),
-      });
-    } catch (err) {
-      setNote({ text: (err as Error).message, error: true });
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  /** One client: their link goes straight onto the clipboard, ready to paste into any app. */
-  async function sendByLink(list = chosen) {
-    setBusy("link");
-    setNote(undefined);
-    try {
-      const c = list[0];
-      await writeClipboard(deliver(list, false).then(({ added }) => linkFor(c, added[0].convId)));
-      void markLinkSent(c.id);
-      setRows((cur) => ({ ...cur, [c.id]: "copied" }));
-      setNote({ text: `${c.name}'s link is copied. Paste it into your own app, text or email. It only opens for ${c.name}.` });
-    } catch (err) {
-      setNote({ text: (err as Error).message || "Couldn't copy the link. Try again.", error: true });
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  /** Several clients: everyone gets the video and we email all we can; whoever's link has to come from you is listed next. */
-  async function sendAll() {
-    const list = chosen;
-    setBusy("all");
-    setNote(undefined);
-    setTodo(null);
-    try {
-      const { added, emailed } = await deliver(list, true);
-      setTodo({ sent: added.length, emailed, ids: list.filter((c) => !canEmail(c)).map((c) => c.id) });
+      await deliver(chosen);
     } catch (err) {
       setNote({ text: (err as Error).message || "Couldn't send it. Try again.", error: true });
     } finally {
@@ -290,81 +229,50 @@ export default function SendPanel({
     }
   }
 
-  /** A chosen client getting their first video: gives them this video, then its link, which sets them up (the buttons say what's done with it). */
-  // First videos go out one at a time, and once per client however many of its buttons are pressed.
-  const firstQueue = useRef<Promise<unknown>>(Promise.resolve());
-  const firstLinks = useRef(new Map<string, Promise<string>>());
-  function deliverFirst(c: ClientOption) {
-    let link = firstLinks.current.get(c.id);
-    if (!link) {
-      link = firstQueue.current.then(async () => {
-        setNote(undefined);
-        const { added } = await deliver([c], false);
-        return linkFor(c, added[0].convId);
-      });
-      firstQueue.current = link.catch(() => {});
-      firstLinks.current.set(c.id, link);
-      link.catch(() => firstLinks.current.delete(c.id));
-    }
-    return link;
-  }
-
-  /**
-   * After a first video's link went out by any of the ways in FirstLinkSender. What happened is said under that
-   * client's own row (S14), not at the foot of the box, where it sat under the next client's buttons.
-   */
+  /** After a first video's link went out from the business: said under that client's own row. */
   function firstSent(c: ClientOption, how: "link" | "message" | "share" | "email") {
     void markLinkSent(c.id);
-    setRows((cur) => ({ ...cur, [c.id]: how === "share" ? "shared" : how === "email" ? "own-email" : "copied" }));
-    setNote(undefined);
+    setRows((cur) => ({ ...cur, [c.id]: how === "email" ? "own-email" : "copied" }));
     setRowNotes((cur) => ({
       ...cur,
       [c.id]:
         how === "email"
-          ? `Your email app should open with ${c.name}'s link and a short message, ready to send. Nothing opened? Use Copy link and paste it into an email.`
-          : how === "share"
-            ? `Shared ${c.name}'s link with a short message. Once they open it, Send by email works for them too.`
-            : `${c.name}'s link is copied${how === "message" ? " with a short message" : ""}. Paste it into a text, chat or email to them. It only opens for ${c.name}.`,
+          ? { text: `Your email app should open with ${c.name}'s video and personal link, ready to send.`, fallback: true }
+          : { text: `Copied ${c.name}'s video and personal link. Paste it into a text, chat or email to them.` },
     }));
   }
 
-  /** An email saved from this box: Send by email works for them straight away once they've opened a video. */
-  function emailAdded(c: ClientOption, email: string) {
-    setAdded((cur) => ({ ...cur, [c.id]: email }));
-    setNote({ text: `Saved ${c.name}'s email.` });
-    router.refresh();
-  }
-
-  /** A client added from this box: chosen straight away, so the ways to send their first video are the next thing shown. */
-  function quickAdded(c: ClientOption) {
+  /** A client added from this box: chosen straight away, ready for Send. */
+  function quickAdded(c: ClientOption, route: Route) {
     setExtra((cur) => [...cur, c]);
     setPicked((cur) => (many ? [...cur, c.id] : [c.id]));
     setAdding(false);
+    setNote({ text: routeLine(c.name, route) });
   }
 
   async function copyRow(r: Recipient) {
+    const c = byId.get(r.clientId);
     const link = links[r.convId];
-    if (!link) return;
-    await writeClipboard(link);
+    if (!link || !c) return;
+    try {
+      await writeClipboard(link);
+    } catch {
+      return setRowNotes((cur) => ({ ...cur, [c.id]: { text: "Couldn't copy the link. Try again.", error: true } }));
+    }
     void markLinkSent(r.clientId);
     setRows((cur) => ({ ...cur, [r.clientId]: "copied" }));
-  }
-
-  async function shareRow(r: Recipient) {
-    const link = links[r.convId];
-    if (!link) return;
-    if (await shareLink(link, video.title)) {
-      void markLinkSent(r.clientId);
-      setRows((cur) => ({ ...cur, [r.clientId]: "shared" }));
-    }
+    setRowNotes((cur) => ({ ...cur, [c.id]: { text: `Copied ${c.name}'s link.` } }));
   }
 
   async function emailRow(r: Recipient) {
-    setNote(undefined);
+    const c = byId.get(r.clientId);
+    setBusy(`email:${r.convId}`);
     const res = await fetch(`/api/videos/${r.convId}/notify`, { method: "POST" }).catch(() => null);
     const data = await res?.json().catch(() => ({}));
-    if (!res?.ok) return setNote({ text: data?.error ?? "Couldn't send it. Try again.", error: true });
+    setBusy(null);
+    if (!res?.ok) return setRowNotes((cur) => ({ ...cur, [r.clientId]: { text: data?.error ?? "Couldn't send it. Try again.", error: true } }));
     setRows((cur) => ({ ...cur, [r.clientId]: data.emailed === "when-ready" ? "when-ready" : "emailed" }));
+    setRowNotes((cur) => ({ ...cur, [r.clientId]: { text: data.emailed === "when-ready" ? `We'll email ${c?.name ?? "them"} once the upload finishes.` : `Emailed ${c?.name ?? "them"} again.` } }));
   }
 
   /** Stop sharing: the client's link no longer opens this. Their own copy (and its conversation) is deleted; this video itself goes back to the team. */
@@ -387,7 +295,16 @@ export default function SendPanel({
     // This page was their own copy: it's gone, so go back to the recording.
     if (r.convId === video.id && isCopy) return void (window.location.href = `/v/${video.sourceId}`);
     setRecipients((cur) => cur.filter((x) => x.convId !== r.convId));
-    firstLinks.current.delete(r.clientId);
+    setRows((cur) => {
+      const next = { ...cur };
+      delete next[r.clientId];
+      return next;
+    });
+    setRowNotes((cur) => {
+      const next = { ...cur };
+      delete next[r.clientId];
+      return next;
+    });
     if (own) {
       setPrimary(null);
       router.refresh();
@@ -397,11 +314,12 @@ export default function SendPanel({
 
   const label = picked.length === 0 ? (many ? "Choose clients" : "Choose a client") : picked.length === 1 ? byId.get(picked[0])?.name : `${picked.length} clients chosen`;
   const isBlocked = (c: ClientOption) => !!(c.removed || c.paused || c.linkOff || !c.link);
-  // Listed in the to-do until their link has gone, then in the Shared list like everyone else.
-  const linkGone = (id: string) => ["copied", "shared", "own-email", "emailed", "when-ready"].includes(rows[id] ?? "");
-  const pending = (todo?.ids ?? []).filter((id) => !linkGone(id) && recipients.some((r) => r.clientId === id) && byId.has(id));
-  const sentRows = recipients.filter((r) => byId.has(r.clientId) && !pending.includes(r.clientId));
-  const sentLink = (c: ClientOption) => c.linkSent || rows[c.id] === "copied" || rows[c.id] === "shared" || rows[c.id] === "own-email";
+  const sentLink = (c: ClientOption) => c.linkSent || rows[c.id] === "copied" || rows[c.id] === "own-email";
+  const sent = recipients.filter((r) => byId.has(r.clientId));
+  const inSection = (s: Section) => sent.filter((r) => sectionOf(byId.get(r.clientId)!) === s);
+  const emailRows = inSection("email");
+  const linkRows = inSection("link");
+  const firstRows = inSection("first");
 
   /** Asks before taking this video away from a client. */
   const stopBox = (r: Recipient) => {
@@ -448,94 +366,49 @@ export default function SendPanel({
     )
   ) : null;
 
-  // New clients chosen: their first video goes from the business, so each gets the ways to send it.
-  const showLinkBox = chosenFirst.length > 0;
-  // Just one new client, nobody else: their buttons are the send buttons, under one line saying so.
-  const soloFirst = chosen.length === 1 && chosenFirst.length === 1;
-  const linkBox = soloFirst ? (
-    <div className="mt-3" data-testid="first-time">
-      <FirstWhy one={chosenFirst[0].name}>
-        {/* Josiah's words (Decision 18). */}
-        <p>A new client&apos;s first link has to come from you, because it carries their private key, which we never see. Once they&apos;ve opened it, Send by email does the rest.</p>
-      </FirstWhy>
-      {!chosenFirst[0].email && (
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="no-email">
-          <p className="text-xs font-medium text-warn-fg">No email address saved for {chosenFirst[0].name}.</p>
-          <AddEmail client={chosenFirst[0]} onSaved={emailAdded} />
-        </div>
-      )}
-      <div className="mt-2" data-testid="first-links">
-        <div data-testid="first-link-row">
-          <FirstLinkSender video name={chosenFirst[0].name} email={chosenFirst[0].email} business={business} disabled={!!busy} getLink={() => deliverFirst(chosenFirst[0])} onSent={(how) => firstSent(chosenFirst[0], how)} />
-        </div>
-      </div>
-    </div>
-  ) : (
-    <div className="mt-3 rounded-xl bg-surface-2 p-3 text-sm text-ink" data-testid="first-time">
-      <FirstWhy many={chosenFirst.map((c) => c.name)}>
-        <p>A new client&apos;s first link has to come from you, because it carries their private key, which we never see. Once they&apos;ve opened it, Send by email does the rest.</p>
-      </FirstWhy>
-      <ul className="mt-2 grid gap-2" data-testid="first-links">
-        {chosenFirst.map((c) => (
-          <li key={c.id} className="flex flex-wrap items-center justify-between gap-2" data-testid="first-link-row">
-            <span className="min-w-0 break-words font-medium">
-              {c.name}
-              {!c.email && (
-                <span className="ml-2 inline-flex flex-wrap items-center gap-x-2 text-xs font-normal" data-testid="no-email">
-                  <span className="text-warn-fg">No email saved</span>
-                  <AddEmail client={c} onSaved={emailAdded} />
-                </span>
-              )}
-            </span>
-            {/* The same three ways as for one client, Copy link + message included (S15). */}
-            <FirstLinkSender compact video name={c.name} email={c.email} business={business} disabled={!!busy} getLink={() => deliverFirst(c)} onSent={(how) => firstSent(c, how)} />
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-
-  /** One recipient's row: their name, what happened, Copy link (and Share, Email), and Stop sharing behind a confirm. */
-  const row = (r: Recipient) => {
+  /** One client's row in a section: their name, what's happened, the section's buttons, and Stop sharing behind a confirm. */
+  const row = (r: Recipient, section: Section) => {
     const c = byId.get(r.clientId)!;
     const blocked = isBlocked(c);
     const state = rows[r.clientId];
+    const rowNote = rowNotes[r.clientId];
+    const status =
+      section === "email"
+        ? state === "emailed" ? "Emailed" : state === "when-ready" ? "Emailed when the upload finishes" : "Not emailed yet"
+        : state === "own-email" ? "Sent from your email" : state === "copied" ? "Link copied" : section === "first" && !sentLink(c) ? "Not sent yet" : null;
     return (
-      <li key={r.convId} className="rounded-xl bg-surface-2 px-3 py-2 text-sm" data-testid="sent-row">
+      <li key={r.convId} className="py-2 text-sm first:pt-0 last:pb-0" data-testid="sent-row" data-section={section}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="min-w-0 break-words">
-            {r.convId === video.id ? <span className="font-medium text-ink">{c.name}</span> : (
-              <Link href={`/v/${r.convId}`} className="font-medium text-ink hover:text-accent hover:underline">{c.name}</Link>
-            )}{" "}
-            {state && (
-              <span className="ml-2 text-xs text-ok-fg">
-                {/* Copying a link or opening the email app isn't sending it: say only what happened here (O33, O41). */}
-                {state === "emailed" ? "Emailed" : state === "when-ready" ? "Emailed when the upload finishes" : state === "shared" ? "Shared" : state === "own-email" ? "Email app opened" : "Link copied"}
-              </span>
+            {r.convId === video.id ? <span className="font-medium text-ink" data-testid="row-name">{c.name}</span> : (
+              <Link href={`/v/${r.convId}`} className="font-medium text-ink hover:text-accent hover:underline" data-testid="row-name">{c.name}</Link>
+            )}
+            {section === "link" && c.emailsOff && (
+              <span className="ml-2 text-xs text-dim" data-testid="emails-off">Emails turned off by client</span>
+            )}
+            {!blocked && status && (
+              <span className={`ml-2 text-xs ${state ? "text-ok-fg" : "text-dim"}`} data-testid="row-state">{status}</span>
             )}
             {!blocked && (
-              // Whether they've watched it yet, so a row says more than "Emailed".
+              // Whether they've watched it yet.
               <span className={`ml-2 text-xs ${r.opened ? "text-ok-fg" : "text-dim"}`} data-testid="row-opened">
                 {r.opened ? "· Opened" : "· Not opened yet"}
               </span>
             )}
           </span>
-          <span className="flex flex-wrap gap-1.5">
-            {!blocked && !reached(c) && (
-              <FirstLinkSender compact plain short inline video name={c.name} email={c.email} business={business} disabled={!links[r.convId]} getLink={async () => links[r.convId]} onSent={(how) => firstSent(c, how)} />
+          <span className="flex flex-wrap items-center gap-1.5">
+            {!blocked && section === "first" && (
+              <FirstLinkSender compact inline video only={routeOf(c)} name={c.name} email={c.email} business={business} disabled={!links[r.convId]} getLink={async () => links[r.convId]} onSent={(how) => firstSent(c, how)} />
             )}
-            {!blocked && reached(c) && (
-              <>
-                {canEmail(c) && (
-                  <button onClick={() => emailRow(r)} className={btn}>{state === "emailed" ? "Send again" : "Send by email"}</button>
-                )}
-                <button onClick={() => copyRow(r)} disabled={!links[r.convId]} data-testid="copy-row-link" className={btn}>
-                  Copy link
-                </button>
-                {canShare && (
-                  <button onClick={() => shareRow(r)} disabled={!links[r.convId]} className={btn}>Share</button>
-                )}
-              </>
+            {!blocked && section === "email" && (
+              <button onClick={() => emailRow(r)} disabled={busy === `email:${r.convId}`} data-testid="email-row" className={btn}>
+                {state === "emailed" || state === "when-ready" ? "Send again" : "Send by email"}
+              </button>
+            )}
+            {!blocked && section === "link" && (
+              <button onClick={() => copyRow(r)} disabled={!links[r.convId]} data-testid="copy-row-link" className={btn}>
+                Copy link
+              </button>
             )}
             {!c.removed && (
               <button onClick={() => setStopping(stopping === r.convId ? null : r.convId)} data-testid="stop-sharing" className="rounded-lg px-2 py-1 text-xs text-dim hover:text-danger-fg">
@@ -550,25 +423,51 @@ export default function SendPanel({
           <p className="mt-1 text-xs text-warn-fg">SureFrame support turned off {c.name}&apos;s link, so they can&apos;t open this. Contact support@sureframe.app.</p>
         ) : c.paused ? (
           <p className="mt-1 text-xs text-warn-fg">{c.name} is paused because your plan covers fewer clients, so they can&apos;t open this until they&apos;re restored.</p>
-        ) : !reached(c) && !sentLink(c) ? (
-          <p className="mt-1 text-xs text-dim" data-testid="row-first">Not sent yet: email it from your email or copy the link.</p>
-        ) : !c.emailable && state !== "copied" && state !== "shared" ? (
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="text-xs text-dim">
-              {c.emailsOff ? `${c.name} turned off emails from you` : `${c.name} has no email address saved`}, so send them the link yourself.
-            </p>
-            {!c.emailsOff && <AddEmail client={c} onSaved={emailAdded} />}
-          </div>
         ) : null}
-        {rowNotes[r.clientId] && (
-          <p role="status" className="mt-1 text-xs text-ok-fg" data-testid="row-note">
-            {rowNotes[r.clientId]}
+        {rowNote && (
+          <p role={rowNote.error ? "alert" : "status"} className={`mt-1 text-xs ${rowNote.error ? "text-danger-fg" : "text-ok-fg"}`} data-testid="row-note">
+            {rowNote.text}
+            {rowNote.fallback && (
+              <>
+                {" "}
+                <span className="text-dim">Nothing opened?</span>{" "}
+                <button type="button" onClick={() => copyFirst(r)} className="font-medium text-accent hover:underline" data-testid="copy-instead">
+                  Copy the link instead
+                </button>
+              </>
+            )}
           </p>
         )}
         {stopping === r.convId && stopBox(r)}
       </li>
     );
   };
+
+  /** "Nothing opened?" after Send from your email: their link onto the clipboard, to paste into an email by hand. */
+  async function copyFirst(r: Recipient) {
+    const c = byId.get(r.clientId);
+    const link = links[r.convId];
+    if (!link || !c) return;
+    try {
+      await writeClipboard(link);
+    } catch {
+      return setRowNotes((cur) => ({ ...cur, [c.id]: { text: "Couldn't copy the link. Try again.", error: true } }));
+    }
+    setRows((cur) => ({ ...cur, [c.id]: "copied" }));
+    setRowNotes((cur) => ({ ...cur, [c.id]: { text: `Copied ${c.name}'s video and personal link. Paste it into an email to them.` } }));
+  }
+
+  /** A section of sent clients, each with its own heading (Josiah's names for them). */
+  const section = (id: Section, title: string, list: Recipient[], intro?: React.ReactNode) =>
+    list.length > 0 && (
+      <section className="mt-3 rounded-xl bg-surface-2 p-3" data-testid={`sec-${id}`}>
+        <h3 className="text-sm font-medium text-ink">{title}</h3>
+        {intro}
+        <ul className="mt-2 divide-y divide-line">{list.map((r) => row(r, id))}</ul>
+      </section>
+    );
+
+  const firstNames = firstRows.map((r) => byId.get(r.clientId)!.name);
 
   return (
     <div className="mt-5 rounded-2xl border border-line bg-surface p-4" data-testid="send-panel">
@@ -613,7 +512,6 @@ export default function SendPanel({
               <p className="mt-2 text-sm text-muted">Every client you can send to has this video.</p>
               {/* Still a way to send it to someone new (O42). */}
               {addControl}
-              {showLinkBox && linkBox}
             </>
           ) : (
             <>
@@ -677,60 +575,21 @@ export default function SendPanel({
                 )}
               </div>
 
-
               {addControl}
 
-              {/* Under the picker, so who's chosen and who still needs their link read in order. */}
-              {showLinkBox && !group && linkBox}
-
-              {!group && unemailable.length > 0 && (
-                <div className="mt-3" data-testid="no-email">
-                  <p className="text-xs font-medium text-warn-fg">{noEmailNote(unemailable)}</p>
-                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                    {unemailable.filter((c) => !c.emailsOff).map((c) => (
-                      <AddEmail key={c.id} client={c} label={unemailable.length > 1 ? `Add ${c.name}'s email` : undefined} onSaved={emailAdded} />
-                    ))}
-                  </div>
-                </div>
-              )}
-              {/* Nothing chosen yet: no greyed Send/Copy pair under the picker (O35). */}
-              {group && (
-                <div className="mt-3" data-testid="send-group">
+              {/* Nothing chosen yet: no greyed Send button under the picker (O35). */}
+              {chosen.length > 0 && (
+                <div className="mt-3">
                   <button
-                    onClick={sendAll}
+                    onClick={send}
                     disabled={!!busy}
-                    data-testid="send-all"
+                    data-testid="send"
                     className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
                   >
-                    {busy === "all" ? "Sending…" : `Send to ${chosen.length} clients`}
+                    {busy === "send" ? "Sending…" : chosen.length === 1 ? "Send to client" : `Send to ${chosen.length} clients`}
                   </button>
-                  {chosen.some((c) => !canEmail(c)) && (
-                    <p className="mt-1.5 text-xs text-dim" data-testid="send-group-note">We email everyone we can, then show you who needs their link from you.</p>
-                  )}
                 </div>
               )}
-              {picked.length > 0 && !group && <div className="mt-3 flex flex-wrap gap-2">
-                {chosenEmail.length > 0 && (
-                  <button
-                    onClick={sendByEmail}
-                    disabled={!chosenEmail.length || !!busy}
-                    data-testid="send-email"
-                    className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
-                  >
-                    {busy === "email" ? "Sending…" : "Send by email"}
-                  </button>
-                )}
-                {!soloFirst && (
-                  <button
-                    onClick={() => sendByLink()}
-                    disabled={!picked.length || !!busy}
-                    data-testid="send-link"
-                    className="rounded-xl border border-line-strong px-4 py-2 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50"
-                  >
-                    {busy === "link" ? "Copying…" : "Copy link"}
-                  </button>
-                )}
-              </div>}
               {!many && primary === null && sendMany === undefined && (
                 <p className="mt-1 text-xs text-dim">To send one video to several clients at once, ask the owner or an admin.</p>
               )}
@@ -745,194 +604,90 @@ export default function SendPanel({
         <p className="text-sm text-muted">To send this video to more clients, ask the owner or an admin to let you send to several clients.</p>
       )}
 
-      {todo && (
-        <div className="mt-3 rounded-xl bg-surface-2 p-3 text-sm" data-testid="send-todo">
-          <p role="status" className="font-medium text-ink" data-testid="todo-summary">
-            {`Sent to ${todo.sent} ${todo.sent === 1 ? "client" : "clients"}.`}
-            {todo.emailed > 0 && ` We emailed ${todo.emailed === todo.sent ? (todo.sent === 2 ? "both" : `all ${todo.sent}`) : todo.emailed}.`}
-          </p>
-          {pending.length > 0 ? (
-            <>
-              <p className="mt-1 text-muted">{pending.length === 1 ? `${byId.get(pending[0])!.name} needs their link from you:` : `These ${pending.length} need their link from you:`}</p>
-              <ul className="mt-2 grid gap-2" data-testid="todo-list">
-                {pending.map((id) => {
-                  const c = byId.get(id)!;
-                  const r = recipients.find((x) => x.clientId === id)!;
-                  return (
-                    <li key={id} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1" data-testid="todo-row">
-                      <span className="min-w-0 break-words font-medium text-ink">
-                        {c.name}
-                        <span className="ml-2 text-xs font-normal text-dim" data-testid="todo-why">{!reached(c) ? "New client" : c.emailsOff ? "Emails turned off" : "No email saved"}</span>
-                      </span>
-                      <span className="flex flex-wrap items-center gap-1.5">
-                        {!reached(c) ? (
-                          <FirstLinkSender compact short inline video name={c.name} email={c.email} business={business} disabled={!links[r.convId]} getLink={async () => links[r.convId]} onSent={(how) => firstSent(c, how)} />
-                        ) : (
-                          <>
-                            {canEmail(c) && <button onClick={() => emailRow(r)} className={btn}>Send by email</button>}
-                            <button onClick={() => copyRow(r)} disabled={!links[r.convId]} data-testid="todo-copy" className={btn}>Copy link</button>
-                            {canShare && <button onClick={() => shareRow(r)} disabled={!links[r.convId]} className={btn}>Share</button>}
-                          </>
-                        )}
-                      </span>
-                      {reached(c) && !c.emailable && !c.emailsOff && (
-                        <span className="w-full">
-                          <AddEmail client={c} onSaved={emailAdded} />
-                        </span>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-              <details className="mt-2 text-xs text-muted" data-testid="todo-why-more">
-                <summary className="cursor-pointer font-medium text-accent">Why can&apos;t SureFrame send these?</summary>
-                <p className="mt-1">
-                  A new client&apos;s first link has to come from you, because it carries their private key, which we never see. Once they&apos;ve opened it, Send by email does the rest.
-                  Without an email address, send the link however you like.
-                </p>
-              </details>
-            </>
-          ) : todo.ids.length > 0 ? (
-            <p className="mt-1 text-ok-fg" data-testid="todo-done">All done: everyone has their link.</p>
-          ) : null}
-        </div>
-      )}
-
       {note && (
         <p role={note.error ? "alert" : "status"} data-testid="send-status" className={`mt-3 text-sm ${note.error ? "text-danger-fg" : "text-ok-fg"}`}>
           {note.text}
         </p>
       )}
 
-      {sentRows.length > 0 && (
-        <div className={canPick || isCopy ? "mt-4 border-t border-line pt-4" : ""}>
-          {/* Not "Sent to": a first video's link may only have been copied so far, and each row says what happened (O33). */}
-          <h3 className="text-sm font-medium text-ink" data-testid="sent-heading">Shared with {sentRows.length} {sentRows.length === 1 ? "client" : "clients"}</h3>
-          <ul className="mt-2 grid gap-2" data-testid="sent-list">
-            {sentRows.map((r) => row(r))}
-          </ul>
+      {sent.length > 0 && (
+        <div className={canPick || isCopy ? "mt-4 border-t border-line pt-1" : ""}>
+          {section("email", "Emailed to", emailRows)}
+          {section(
+            "link",
+            "Copy link to",
+            linkRows,
+            // Josiah's words (23 October 2026).
+            <p className="mt-1 text-xs text-muted" data-testid="sec-link-intro">Each link only works for its respective client, so send them one at a time. A client needs their personal link saved on their device to watch.</p>,
+          )}
+          {section(
+            "first",
+            "First time client - Personal link required",
+            firstRows,
+            <div className="mt-1 grid gap-1 text-xs text-muted">
+              <p data-testid="sec-first-intro">
+                {firstNames.length === 1 ? `${firstNames[0]} hasn't` : "These clients haven't"} opened a SureFrame link yet, so this first one has to come from you.
+                The video still goes to {firstNames.length === 1 ? "them" : "each of them"}, along with {firstNames.length === 1 ? "their" : "their own"} personal link.
+              </p>
+              <details data-testid="sec-first-why">
+                <summary className="cursor-pointer font-medium text-accent">Why can&apos;t SureFrame send these?</summary>
+                {/* Josiah's words (Decision 18). */}
+                <p className="mt-1">
+                  A new client&apos;s first link has to come from you, because it carries their private key, which we never see. Once they&apos;ve opened it, clients set to
+                  Email get every video after that from us.
+                </p>
+              </details>
+            </div>,
+          )}
         </div>
       )}
     </div>
   );
 }
 
-
-/**
- * A new client's first video: one line on what to do, the same as the Clients page's steps ("Send their first video
- * yourself … After that, we email them"), with the longer why behind "Why does the first video come from me?" (O32, S13).
- */
-function FirstWhy({ one, many, children }: { one?: string; many?: string[]; children: React.ReactNode }) {
-  const who = one ?? (many && many.length === 1 ? many[0] : null);
-  return (
-    <div className="grid gap-1 text-sm text-ink" data-testid="first-why">
-      <p data-testid="first-why-line">
-        {who ? (
-          <>
-            <span className="font-medium">First video for {who}:</span> send it yourself, from your email or by copying the link. They just open it and watch.
-          </>
-        ) : (
-          <>
-            <span className="font-medium">First videos for {many?.length ?? 0} clients:</span> send each one yourself, from your email or by copying the link. They just open it and watch.
-          </>
-        )}{" "}
-        After that, we email them: press Send by email for every video after the first.
-      </p>
-      <details className="text-xs text-muted">
-        <summary className="cursor-pointer font-medium text-accent" data-testid="first-why-more">Why does the first video come from me?</summary>
-        <div className="mt-1 grid gap-1">{children}</div>
-      </details>
-    </div>
-  );
-}
-
-/** Saves an email for a client who has none, without leaving the video. */
-function AddEmail({ client, label, onSaved }: { client: ClientOption; label?: string; onSaved: (c: ClientOption, email: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
-  if (!open) {
-    return (
-      <button type="button" onClick={() => setOpen(true)} className="text-xs font-medium text-accent hover:underline" data-testid="add-email">
-        {label ?? "Add email"}
-      </button>
-    );
-  }
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(undefined);
-    try {
-      const res = await fetch(`/api/clients/${client.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.trim() }) });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) return setError(data.error ?? "Couldn't save the email. Try again.");
-      onSaved(client, email.trim());
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <form onSubmit={save} className="flex w-full flex-wrap items-center gap-2" data-testid="add-email-form">
-      <input
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        type="email"
-        required
-        autoFocus
-        placeholder={`${client.name}'s email`}
-        aria-label={`${client.name}'s email`}
-        className="min-w-0 flex-1 rounded-lg border border-line-strong px-3 py-1.5 text-sm"
-      />
-      <button disabled={busy || !email.trim()} className="rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
-        {busy ? "Saving…" : "Save"}
-      </button>
-      <button type="button" onClick={() => setOpen(false)} className="rounded-lg px-2 py-1.5 text-sm text-dim hover:text-ink">Cancel</button>
-      {error && <p role="alert" className="w-full text-xs text-danger-fg">{error}</p>}
-    </form>
-  );
-}
-
 /** Adds a client without leaving the video: their own key is made here, as on the Clients page. */
-function QuickAddClient({ teamKey, onAdded, onCancel }: { teamKey: CryptoKey; onAdded: (c: ClientOption) => void; onCancel?: () => void }) {
+function QuickAddClient({ teamKey, onAdded, onCancel }: { teamKey: CryptoKey; onAdded: (c: ClientOption, route: Route) => void; onCancel?: () => void }) {
   const [name, setName] = useState("");
+  const [route, setRoute] = useState<Route | null>(null);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   async function add(e: React.FormEvent) {
     e.preventDefault();
+    if (!route) return;
     setBusy(true);
     setError(undefined);
     try {
       const res = await fetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, teamKeyWrap: await wrapKey(await generateKey(), teamKey), keyFingerprint: await fingerprint(teamKey) }),
+        body: JSON.stringify({ name, email: route === "email" ? email : "", teamKeyWrap: await wrapKey(await generateKey(), teamKey), keyFingerprint: await fingerprint(teamKey) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return setError(data.error ?? "Couldn't add the client. Try again.");
       const c = data.client as { id: string; name: string; email: string | null; link: string; teamKeyWrap: string | null; assignedToId: string | null };
-      onAdded({ id: c.id, name: c.name, email: c.email, link: c.link, teamKeyWrap: c.teamKeyWrap, assignedToId: c.assignedToId, hasLink: false, mine: true, emailable: !!c.email });
+      onAdded({ id: c.id, name: c.name, email: c.email, link: c.link, teamKeyWrap: c.teamKeyWrap, assignedToId: c.assignedToId, hasLink: false, mine: true, emailable: !!c.email }, route);
     } finally {
       setBusy(false);
     }
   }
   return (
-    <form onSubmit={add} className="mt-3 grid gap-2 rounded-xl border border-line-strong bg-surface p-3 sm:grid-cols-[1fr_1fr_auto]" data-testid="quick-add">
+    <form onSubmit={add} className="mt-3 grid gap-3 rounded-xl border border-line-strong bg-surface p-3" data-testid="quick-add">
       <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} placeholder="Client's name" aria-label="Client name" className="min-w-0 rounded-lg border border-line-strong px-3 py-2 text-sm" />
-      <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email (optional)" aria-label="Client email" className="min-w-0 rounded-lg border border-line-strong px-3 py-2 text-sm" />
+      <RouteChoice route={route} onRoute={setRoute} email={email} onEmail={setEmail} />
       <div className="flex gap-2">
-        <button disabled={busy || !name.trim()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
+        <button disabled={busy || !name.trim() || !route || (route === "email" && !email.trim())} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
           {busy ? "Adding…" : "Add client"}
         </button>
         {onCancel && (
           <button type="button" onClick={onCancel} className="rounded-lg px-2 py-2 text-sm text-dim hover:text-ink">Cancel</button>
         )}
       </div>
-      {error && <p role="alert" className="text-sm text-danger-fg sm:col-span-3">{error}</p>}
+      {error && <p role="alert" className="text-sm text-danger-fg">{error}</p>}
     </form>
   );
 }
+
 
 /**
  * The date-made title says nothing to a client: offer to name the video before it's sent. Saved as it's typed

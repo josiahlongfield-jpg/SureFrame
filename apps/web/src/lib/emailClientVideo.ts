@@ -27,6 +27,7 @@ export async function emailClientVideoResult(videoId: string): Promise<"sent" | 
   if (typeof r === "string") return r;
   try {
     await sendMail(r);
+    await db.video.update({ where: { id: videoId }, data: { emailedAt: new Date() } });
     return "sent";
   } catch (err) {
     console.error("new video email failed", err);
@@ -34,14 +35,21 @@ export async function emailClientVideoResult(videoId: string): Promise<"sent" | 
   }
 }
 
-/** Many at once (sending a video to many clients), as batches. Returns how many went out. */
+/** Many at once (sending a video to many clients), as batches. Returns the videos whose email went out. */
 export async function emailClientVideos(videoIds: string[]) {
-  const mails: Mail[] = [];
+  const ready: { id: string; mail: Mail }[] = [];
   for (const id of videoIds) {
     const r = await clientVideoEmail(id);
-    if (typeof r !== "string") mails.push(r);
+    if (typeof r !== "string") ready.push({ id, mail: r });
   }
-  return sendMails(mails);
+  // A batch at a time, so each video is marked emailed only if its own batch went.
+  const emailed: string[] = [];
+  for (let i = 0; i < ready.length; i += 100) {
+    const chunk = ready.slice(i, i + 100);
+    if ((await sendMails(chunk.map((x) => x.mail))) === chunk.length) emailed.push(...chunk.map((x) => x.id));
+  }
+  if (emailed.length) await db.video.updateMany({ where: { id: { in: emailed } }, data: { emailedAt: new Date() } });
+  return emailed;
 }
 
 async function clientVideoEmail(videoId: string): Promise<Mail | NotSent> {

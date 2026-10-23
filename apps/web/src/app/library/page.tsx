@@ -516,8 +516,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             <p className="font-mono text-xs uppercase tracking-widest text-accent">Start here</p>
             <h2 className="mt-2 text-xl font-semibold text-ink">Add your clients first</h2>
             <p className="mt-2 max-w-xl text-sm text-muted">
-              Put in the clients you&apos;ll send videos to, with their email addresses. You can paste a whole list at once.
-              Then, when a video is ready, you pick them from a list and press Send from your email or Copy link for their first video, and Send by email after that.
+              Put in the clients you&apos;ll send videos to, and choose how each one receives them: by email from us, or a link you copy and send yourself. You can paste a whole list at once.
+              Then, when a video is ready, pick them and press Send. A new client&apos;s first video goes from your email or a copied link; after that, we email the clients set to Email.
             </p>
             <PersonalLinkSteps className="mt-6" />
             <div className="mt-6 flex flex-wrap items-center gap-4">

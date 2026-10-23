@@ -113,6 +113,7 @@ ok("message stored encrypted (no plain text on the server)", sealed.length > 24 
 // A client, sent the video with their personal link.
 await owner.goto(BASE + "/clients");
 await owner.fill('input[aria-label="Client name"]', "Client A");
+await owner.check("[data-testid=route-link]");
 await owner.click("button:has-text('Add client')");
 await owner.waitForSelector("text=Client A");
 const clientRow = await waitFor(() => prisma.client.findFirst({ where: { workspaceId: ws, name: "Client A" } }));

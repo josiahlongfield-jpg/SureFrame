@@ -26,6 +26,7 @@ export default function FirstLinkSender({
   short,
   inline,
   copyLabel = "Copy link",
+  only,
 }: {
   name: string;
   email?: string | null;
@@ -46,6 +47,8 @@ export default function FirstLinkSender({
   /** Buttons only, sitting among a row's other buttons; what happened is said by the row and its panel. */
   inline?: boolean;
   copyLabel?: string;
+  /** Just the one way this client gets their videos (chosen when they were added): their email app, or Copy link. */
+  only?: "email" | "link";
 }) {
   const canShare = useCanShare();
   const [busy, setBusy] = useState<How | null>(null);
@@ -109,17 +112,17 @@ export default function FirstLinkSender({
   return (
     <div data-testid="first-link-sender" className={inline ? "contents" : undefined}>
       <div className={`flex flex-wrap gap-1.5 ${alignEnd ? "sm:justify-end" : ""}`}>
-        {emailFirst && emailButton}
-        <button
+        {only !== "link" && emailFirst && emailButton}
+        {only !== "email" && <button
           type="button"
           disabled={off}
-          className={emailFirst ? btn : main}
+          className={emailFirst && !only ? btn : main}
           data-testid="first-link-copy"
           onClick={() => run("link", () => writeClipboard(getLink()), `${name}'s link is copied. Paste it into a text, chat or email to them. It only opens for ${name}.`)}
         >
           {busy === "link" ? "Copying…" : done?.how === "link" && !done.error ? "Link copied" : copyLabel}
-        </button>
-        {!short && <button
+        </button>}
+        {!short && !only && <button
           type="button"
           disabled={off}
           className={btn}
@@ -128,7 +131,7 @@ export default function FirstLinkSender({
         >
           {busy === "message" ? "Copying…" : done?.how === "message" && !done.error ? "Copied" : "Copy link + message"}
         </button>}
-        {canShare && (
+        {canShare && !only && (
           <button
             type="button"
             disabled={off}
@@ -153,7 +156,7 @@ export default function FirstLinkSender({
             Share
           </button>
         )}
-        {!emailFirst && emailButton}
+        {only !== "link" && !emailFirst && emailButton}
       </div>
       {done && (!inline || done.error) && (
         <p role={done.error ? "alert" : "status"} data-testid="first-link-done" className={`mt-1.5 text-xs ${done.error ? "text-danger-fg" : "text-ok-fg"} ${alignEnd ? "sm:ml-auto sm:max-w-sm sm:text-right" : ""}`}>
@@ -171,9 +174,9 @@ export default function FirstLinkSender({
  */
 export function PersonalLinkSteps({ className = "", compact, skipAdd }: { className?: string; compact?: boolean; skipAdd?: boolean }) {
   const steps = [
-    ...(skipAdd ? [] : [{ title: "Add the client", body: "Name, and email if you have it." }]),
+    ...(skipAdd ? [] : [{ title: "Add the client", body: "Name, and how they receive videos: by email, or a link you send." }]),
     { title: "Send their first video yourself", body: "From your email, or copy the link. They just open it and watch." },
-    { title: "After that, we email them", body: "Press Send by email for every video after the first." },
+    { title: "After that, just press Send", body: "We email clients set to Email. For the rest, copy their link." },
   ];
   return (
     <div className={`rounded-xl border border-line bg-surface-2 p-4 text-sm text-ink ${className}`} data-testid="personal-link-steps">
@@ -194,7 +197,7 @@ export function PersonalLinkSteps({ className = "", compact, skipAdd }: { classN
       <details className="mt-3 text-xs text-muted">
         <summary className="cursor-pointer font-medium text-accent">Why does the first video come from me?</summary>
         {/* Josiah's words (Decision 18), the same as the Send box's. */}
-        <p className="mt-1" data-testid="first-why-text">A new client&apos;s first link has to come from you, because it carries their private key, which we never see. Once they&apos;ve opened it, Send by email does the rest.</p>
+        <p className="mt-1" data-testid="first-why-text">A new client&apos;s first link has to come from you, because it carries their private key, which we never see. Once they&apos;ve opened it, clients set to Email get every video after that from us.</p>
       </details>
     </div>
   );

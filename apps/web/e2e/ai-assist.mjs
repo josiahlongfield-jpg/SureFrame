@@ -178,6 +178,7 @@ ok("webhook keeps it on", (await prisma.workspace.findUnique({ where: { id: work
 // Clients and a recording sent to one.
 await owner.goto(BASE + "/clients");
 await owner.fill('input[aria-label="Client name"]', "Ana");
+await owner.check("[data-testid=route-email]");
 await owner.fill('input[aria-label="Client email"]', `ana${stamp}@example.com`);
 await owner.click("button:has-text('Add client')");
 await owner.waitForSelector("a:has-text('Ana')");

@@ -207,7 +207,7 @@ export async function purgeClient(id: string, now = new Date()): Promise<"purged
       if (detach.length) {
         await tx.reply.deleteMany({ where: { videoId: { in: detach } } });
         await tx.reaction.deleteMany({ where: { videoId: { in: detach } } });
-        await tx.video.updateMany({ where: { id: { in: detach } }, data: { clientId: null, clientKeyWrap: null, sentAt: null, emailClientWhenReady: false, viewCount: 0 } });
+        await tx.video.updateMany({ where: { id: { in: detach } }, data: { clientId: null, clientKeyWrap: null, sentAt: null, emailedAt: null, emailClientWhenReady: false, viewCount: 0 } });
       }
       // Replies, reactions, transcripts and upload parts go with their videos.
       if (deleteIds.length) await tx.video.deleteMany({ where: { id: { in: deleteIds } } });

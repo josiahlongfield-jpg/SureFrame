@@ -60,14 +60,19 @@ await owner.waitForSelector("[data-testid=send-no-clients]", { timeout: 20000 })
 await owner.waitForSelector("text=I've saved it", { timeout: 3000 }).then((b) => b.click()).catch(() => {});
 ok("no clients: add one right here, nothing else in the way", (await owner.isVisible("[data-testid=quick-add]")) && (await owner.locator("[data-testid=send-no-clients] [data-testid=personal-link-steps]").count()) === 0);
 await owner.fill("[data-testid=quick-add] input[aria-label='Client name']", "Client Q");
+await owner.check("[data-testid=quick-add] [data-testid=route-email]");
 await owner.fill("[data-testid=quick-add] input[aria-label='Client email']", `client-q-${stamp}@example.com`);
 await owner.click("[data-testid=quick-add] button:has-text('Add client')");
-await owner.waitForSelector("[data-testid=first-links]", { timeout: 15000 });
-const box = norm(await owner.textContent("[data-testid=first-links]"));
-ok("added and chosen: this is Client Q's first video, sent from your own email or texts", norm(await owner.textContent("[data-testid=first-time]")).includes("A new client's first link has to come from you, because it carries their private key, which we never see.") && !norm(await owner.textContent("[data-testid=send-panel]")).includes("can't be connected") && (await owner.textContent("[data-testid=client-picker]")).includes("Client Q"));
-ok("every way to send it is offered, their own email first", ["Copy link", "Copy link + message", "Send from your email"].every((t) => box.includes(t)) && (await owner.locator("[data-testid=first-links] [data-testid=first-link-sender] button").first().getAttribute("data-testid")) === "first-link-email", box);
+await owner.waitForSelector("[data-testid=send]", { timeout: 15000 });
+ok("added and chosen: one Send to client button", norm(await owner.textContent("[data-testid=send]")) === "Send to client" && (await owner.textContent("[data-testid=client-picker]")).includes("Client Q"));
 const q = await prisma.client.findFirst({ where: { workspaceId: ws, name: "Client Q" } });
 ok("Client Q has their own key", !!q?.teamKeyWrap);
+await owner.click("[data-testid=send]");
+await owner.waitForSelector("[data-testid=sec-first]", { timeout: 15000 });
+const qRow = "[data-testid=sec-first] [data-testid=sent-row]:has-text('Client Q')";
+ok("Client Q's first video is under First time, with why it comes from you", norm(await owner.textContent("[data-testid=sec-first]")).includes("A new client's first link has to come from you, because it carries their private key, which we never see.") && !norm(await owner.textContent("[data-testid=send-panel]")).includes("can't be connected"));
+ok("set to Email: just Send from your email", (await owner.locator(`${qRow} [data-testid=first-link-email]`).count()) === 1 && (await owner.locator(`${qRow} [data-testid=first-link-copy]`).count()) === 0);
+ok("pressing Send gave Client Q this video, without emailing it", (await prisma.video.findUnique({ where: { id: vid } })).clientId === q.id && !(await prisma.video.findUnique({ where: { id: vid } })).emailedAt);
 await owner.screenshot({ path: `${shots}/personal-link-send.png`, fullPage: true });
 
 // Send from your email: the business's own email app, filled in (caught before it leaves the page).
@@ -81,22 +86,18 @@ await owner.evaluate(() => {
     }
   }, true);
 });
-await owner.click("[data-testid=first-links] [data-testid=first-link-email]");
+await owner.click(`${qRow} [data-testid=first-link-email]`);
 const mailto = await waitFor(() => owner.evaluate(() => window.__mailto));
 const body = mailto ? decodeURIComponent(mailto.split("body=")[1] ?? "") : "";
 ok("mailto: to Client Q, subject names the business, body has their video link with key", !!mailto && mailto.startsWith(`mailto:client-q-${stamp}%40example.com?subject=`) && decodeURIComponent(mailto).includes(`A video for you from ${business}`) && body.includes(`v=${vid}`) && body.includes("#k=") && body.includes("I've recorded a video for you") && body.trim().endsWith(business), mailto ?? "none");
-ok("sending it gave Client Q this video", (await prisma.video.findUnique({ where: { id: vid } })).clientId === q.id);
-const qRow = "[data-testid=sent-row]:has-text('Client Q')";
-await owner.waitForSelector(`${qRow} [data-testid=first-link-copy]`);
-ok("Client Q is under Sent to, with the same buttons to send it again", norm(await owner.textContent("[data-testid=sent-list]")).includes("Client Q") && (await owner.locator("[data-testid=waiting-list]").count()) === 0);
-ok("their row: Not opened yet, no extra note", norm(await owner.textContent(qRow)).includes("Not opened yet") && (await owner.locator(`${qRow} [data-testid=row-first]`).count()) === 0);
+await owner.waitForSelector(`${qRow} [data-testid=row-note]`);
 // Said under Client Q's own row (S14), and not called sent: the email app only opened (O33, O41).
-ok("their row says the email app should open", norm(await owner.textContent(`${qRow} [data-testid=row-note]`)).includes("Your email app should open") && norm(await owner.textContent(qRow)).includes("Email app opened") && (await owner.locator("[data-testid=send-status]").count()) === 0);
+ok("their row says the email app should open, with Copy the link instead", norm(await owner.textContent(`${qRow} [data-testid=row-note]`)).includes("Your email app should open") && (await owner.locator(`${qRow} [data-testid=copy-instead]`).count()) === 1 && norm(await owner.textContent(qRow)).includes("Not opened yet"));
 ok("marked as sent", !!(await waitFor(async () => (await prisma.client.findUnique({ where: { id: q.id } })).linkSentAt)));
-await owner.click(`${qRow} [data-testid=first-link-copy]`);
+await owner.click(`${qRow} [data-testid=copy-instead]`);
 await owner.waitForTimeout(300);
 const link = await clip();
-ok("Copy link: their video link with key", link.includes(`v=${vid}`) && link.includes("#k="), link);
+ok("Copy the link instead: their video link with key", link.includes(`v=${vid}`) && link.includes("#k="), link);
 
 // Clients page: no warning banner, just a quiet mark until they open it.
 await owner.goto(BASE + "/clients");

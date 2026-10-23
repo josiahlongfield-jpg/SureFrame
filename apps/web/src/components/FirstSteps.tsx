@@ -52,7 +52,7 @@ export default function FirstSteps({ steps, workspaceId, fingerprint, business }
       body: (
         <div data-testid="start-here">
           <p className="max-w-xl text-sm text-muted">
-            Put in the clients you&apos;ll send videos to, with their email addresses. You can paste a whole list at once. Then, when a video is ready, you pick them from a list and press Send from your email or Copy link for their first video, and Send by email after that.
+            Put in the clients you&apos;ll send videos to, and choose how each one receives them: by email from us, or a link you copy and send yourself. You can paste a whole list at once. Then, when a video is ready, pick them and press Send. A new client&apos;s first video goes from your email or a copied link; after that, we email the clients set to Email.
           </p>
           <PersonalLinkSteps className="mt-3" />
           <div className="mt-3 flex flex-wrap items-center gap-4">

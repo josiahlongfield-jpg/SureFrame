@@ -102,6 +102,7 @@ ok("click collapses it again", (await owner.getAttribute(toggle, "aria-expanded"
 // Send to a client and copy their personal link.
 await owner.goto(BASE + "/clients");
 await owner.fill('input[aria-label="Client name"]', "Pia Phone");
+await owner.check("[data-testid=route-link]");
 await owner.click("button:has-text('Add client')");
 await owner.waitForSelector("text=Pia Phone");
 await owner.goto(`${BASE}/v/${videoId}`);

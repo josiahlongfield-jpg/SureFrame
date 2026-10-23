@@ -42,6 +42,8 @@ type Video = {
   teamKeyWrap: string | null;
   clientKeyWrap: string | null;
   purgeAt: string | null;
+  /** Team only: we emailed its client ("sent"), or will once the upload finishes. */
+  emailed?: "sent" | "when-ready" | null;
 };
 
 export type ClientOption = {
@@ -79,7 +81,7 @@ export type SendMany = {
   sourceId: string | null;
   staff: { id: string; name: string }[];
   /** Copies already sent to other clients; `opened` once that client has watched theirs. */
-  copies: { id: string; clientId: string; opened?: boolean }[];
+  copies: { id: string; clientId: string; opened?: boolean; emailed?: boolean }[];
 };
 
 export type WatchViewer = { kind: "member"; workspaceId: string; fingerprint: string | null } | { kind: "client"; clientId: string };
@@ -972,7 +974,7 @@ function WatchBody({
         )}
         {canEdit && teamKey && !expired && (
           <SendPanel
-            video={{ id: video.id, title, status: video.status, encrypted: video.encrypted, sourceId, viewCount: video.viewCount }}
+            video={{ id: video.id, title, status: video.status, encrypted: video.encrypted, sourceId, viewCount: video.viewCount, emailed: video.emailed }}
             clients={clients}
             business={business}
             canAddClient={canAddClients}

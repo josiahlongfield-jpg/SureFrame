@@ -1,10 +1,10 @@
-// Several clients at once (Josiah, 23 October 2026: the email, copy and first-link parts together were overwhelming).
-// One "Send to N clients" button gives everyone the video and emails all it can; then only the clients whose link has
-// to come from the business are listed, one Copy (or Send from your email) each, and each leaves the list once done.
+// How each client gets their videos (Josiah, 23 October 2026): chosen once, when they're added (Email, or Copy link to
+// send however you choose), then one Send button for one client or several. After it, up to three sections: "Emailed
+// to", "Copy link to" and "First time client - Personal link required".
 import { chromium } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { agreed } from "./agree.mjs";
-import { chooseClients } from "./send.mjs";
+import { chooseClients, sentRow } from "./send.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const prisma = new PrismaClient();
@@ -29,6 +29,8 @@ await owner.fill('input[name="email"]', email);
 await owner.click("text=Continue");
 await owner.waitForURL((u) => u.pathname === "/library");
 const ws = (await prisma.membership.findFirst({ where: { user: { email } } })).workspaceId;
+// Five clients: more than the free plan's three seats.
+await prisma.workspace.update({ where: { id: ws }, data: { plan: "SOLO" } });
 
 await owner.goto(BASE + "/record");
 await owner.click("text=Camera only");
@@ -41,58 +43,122 @@ const videoUrl = owner.url().split("?")[0];
 await owner.waitForSelector("[data-testid=send-no-clients]", { timeout: 20000 });
 await owner.waitForSelector("text=I've saved it", { timeout: 3000 }).then((b) => b.click()).catch(() => {});
 
-// Three kinds of client: one we can email, one who's opened a link but has no email saved, and one brand new.
+// Five clients: Email (reached), Copy link (reached), Email but they turned emails off (reached), and two new ones.
 const add = async (name, mail) => {
   const open = owner.locator("[data-testid=quick-add-open]");
   if (await open.count()) await open.click();
   await owner.fill("[data-testid=quick-add] input[aria-label='Client name']", name);
-  if (mail) await owner.fill("[data-testid=quick-add] input[type=email]", mail);
+  ok(`${name}: Add client waits for how they'll receive videos`, await owner.isDisabled("[data-testid=quick-add] button:has-text('Add client')"));
+  await owner.check(`[data-testid=quick-add] [data-testid=route-${mail ? "email" : "link"}]`);
+  if (mail) {
+    ok(`${name}: Email shows a box for their address, and Add waits for it`, (await owner.isVisible("[data-testid=quick-add] input[aria-label='Client email']")) && (await owner.isDisabled("[data-testid=quick-add] button:has-text('Add client')")));
+    await owner.fill("[data-testid=quick-add] input[aria-label='Client email']", mail);
+  } else {
+    ok(`${name}: Copy link has no email box`, (await owner.locator("[data-testid=quick-add] input[aria-label='Client email']").count()) === 0);
+  }
   await owner.click("[data-testid=quick-add] button:has-text('Add client')");
-  await owner.waitForSelector("[data-testid=quick-add]", { state: "detached", timeout: 15000 });
+  await owner.waitForSelector("[data-testid=quick-add]", { state: "detached", timeout: 15000 }).catch(async (e) => {
+    console.log("quick-add still open:", norm(await owner.textContent("[data-testid=send-panel]")));
+    throw e;
+  });
+  return norm(await owner.textContent("[data-testid=send-status]"));
 };
-await add("Client A", `sg-a-${stamp}@example.com`);
-await add("Client N");
+const lineA = await add("Client A", `sg-a-${stamp}@example.com`);
+ok("adding by Email: a line confirms it, and where to change it", lineA === "Client A will receive their videos by email. You can change this in Clients at any time.", lineA);
+await owner.screenshot({ path: `${shots}/send-route-added.png`, fullPage: true });
+const lineL = await add("Client L");
+ok("adding by Copy link: a line confirms it", lineL === "Client L will receive their videos by copy link, sent however you choose. You can change this in Clients at any time.", lineL);
+await add("Client O", `sg-o-${stamp}@example.com`);
 await add("Client F", `sg-f-${stamp}@example.com`);
+await add("Client G");
 const byName = async (name) => prisma.client.findFirst({ where: { workspaceId: ws, name } });
-await prisma.client.update({ where: { id: (await byName("Client A")).id }, data: { linkOpenedAt: new Date() } });
-await prisma.client.update({ where: { id: (await byName("Client N")).id }, data: { linkOpenedAt: new Date() } });
+ok("Copy link clients are saved with no email", !(await byName("Client L")).email && (await byName("Client A")).email === `sg-a-${stamp}@example.com`);
+for (const n of ["Client A", "Client L", "Client O"]) await prisma.client.update({ where: { id: (await byName(n)).id }, data: { linkOpenedAt: new Date() } });
+await prisma.client.update({ where: { id: (await byName("Client O")).id }, data: { remindersOff: true } });
 await owner.goto(videoUrl);
 
-await chooseClients(owner, "Client A", "Client N", "Client F");
-const panel = norm(await owner.textContent("[data-testid=send-panel]"));
-ok("one Send button for all three", norm(await owner.textContent("[data-testid=send-all]")) === "Send to 3 clients");
-ok("nothing else to take in before sending: no email, copy, first-link or no-email parts", (await owner.locator("[data-testid=send-email], [data-testid=send-link], [data-testid=first-time], [data-testid=no-email]").count()) === 0, panel);
-ok("one short line on what happens", norm(await owner.textContent("[data-testid=send-group-note]")) === "We email everyone we can, then show you who needs their link from you.");
-await owner.screenshot({ path: `${shots}/send-group-chosen.png`, fullPage: true });
+await chooseClients(owner, "Client A");
+ok("one client: the button says Send to client", norm(await owner.textContent("[data-testid=send]")) === "Send to client");
+// Client A stays chosen.
+await chooseClients(owner, "Client L", "Client O", "Client F", "Client G");
+ok("several: one button, Send to 5 clients", norm(await owner.textContent("[data-testid=send]")) === "Send to 5 clients");
+ok("nothing else to take in before sending", (await owner.locator("[data-testid^=sec-], [data-testid=first-link-sender]").count()) === 0);
+await owner.screenshot({ path: `${shots}/send-route-chosen.png`, fullPage: true });
 
-await owner.click("[data-testid=send-all]");
-await owner.waitForSelector("[data-testid=send-todo]", { timeout: 15000 });
-ok("says it went to all three, one emailed", norm(await owner.textContent("[data-testid=todo-summary]")) === "Sent to 3 clients. We emailed 1.", norm(await owner.textContent("[data-testid=todo-summary]")));
-ok("everyone got the video", (await prisma.video.count({ where: { OR: [{ id: videoUrl.split("/v/")[1] }, { sourceId: videoUrl.split("/v/")[1] }], clientId: { not: null } } })) === 3);
-const why = Object.fromEntries(await Promise.all(["Client N", "Client F"].map(async (n) => [n, norm(await owner.textContent(`[data-testid=todo-row]:has-text('${n}') [data-testid=todo-why]`))])));
-ok("only the two who need a link from you are listed, each with why", (await owner.locator("[data-testid=todo-row]").count()) === 2 && why["Client N"] === "No email saved" && why["Client F"] === "New client", JSON.stringify(why));
-ok("Client N: Copy link and Add email", (await owner.locator("[data-testid=todo-row]:has-text('Client N') [data-testid=todo-copy]").count()) === 1 && (await owner.locator("[data-testid=todo-row]:has-text('Client N') [data-testid=add-email]").count()) === 1);
-ok("Client F: Send from your email and Copy link", (await owner.locator("[data-testid=todo-row]:has-text('Client F') [data-testid=first-link-email]").count()) === 1 && (await owner.locator("[data-testid=todo-row]:has-text('Client F') [data-testid=first-link-copy]").count()) === 1);
-ok("Client A is under Shared, emailed", /Emailed/.test(norm(await owner.textContent("[data-testid=sent-row]:has-text('Client A')"))) && (await owner.locator("[data-testid=sent-row]").count()) === 1);
-await owner.screenshot({ path: `${shots}/send-group-todo.png`, fullPage: true });
+await owner.click("[data-testid=send]");
+await owner.waitForSelector("[data-testid=sec-first]", { timeout: 15000 });
+const id = videoUrl.split("/v/")[1];
+ok("everyone got the video", (await prisma.video.count({ where: { OR: [{ id }, { sourceId: id }], clientId: { not: null } } })) === 5);
+const names = async (sec) => owner.$$eval(`[data-testid=sec-${sec}] [data-testid=sent-row]`, (rs) => rs.map((r) => r.querySelector("[data-testid=row-name]").textContent.trim()));
+const [em, li, fi] = [await names("email"), await names("link"), await names("first")];
+ok("Emailed to: only the Email client who can be emailed", JSON.stringify(em) === '["Client A"]', JSON.stringify(em));
+ok("Copy link to: the Copy link client, and the one who turned emails off", JSON.stringify(li.sort()) === '["Client L","Client O"]', JSON.stringify(li));
+ok("First time: both new clients, whatever their route", JSON.stringify(fi.sort()) === '["Client F","Client G"]', JSON.stringify(fi));
+ok("section titles are Josiah's", norm(await owner.textContent("[data-testid=sec-email] h3")) === "Emailed to" && norm(await owner.textContent("[data-testid=sec-link] h3")) === "Copy link to" && norm(await owner.textContent("[data-testid=sec-first] h3")) === "First time client - Personal link required");
+const row = (n) => sentRow(owner, n);
+ok("Client A: Emailed, with Send again and Stop sharing, no Copy link", /Emailed/.test(norm(await row("Client A").textContent())) && (await row("Client A").locator("button:has-text('Send again')").count()) === 1 && (await row("Client A").locator("[data-testid=stop-sharing]").count()) === 1 && (await row("Client A").locator("text=Copy link").count()) === 0);
+ok("Client A really was emailed (kept on the video)", !!(await prisma.video.findFirst({ where: { OR: [{ id }, { sourceId: id }], clientId: (await byName("Client A")).id } })).emailedAt);
+ok("Copy link to: Josiah's line under the title", norm(await owner.textContent("[data-testid=sec-link-intro]")) === "Each link only works for its respective client, so send them one at a time. A client needs their personal link saved on their device to watch.");
+ok("Client L: Copy link and Stop sharing only, nothing sent yet", (await row("Client L").locator("[data-testid=copy-row-link]").count()) === 1 && (await row("Client L").locator("[data-testid=email-row]").count()) === 0 && !/Link copied/.test(norm(await row("Client L").textContent())));
+ok("Client O: marked Emails turned off by client", norm(await row("Client O").locator("[data-testid=emails-off]").textContent()) === "Emails turned off by client");
+ok("nobody on Copy link was emailed", !(await prisma.video.findFirst({ where: { OR: [{ id }, { sourceId: id }], clientId: (await byName("Client L")).id } })).emailedAt);
+ok("Client F (Email): only Send from your email", (await row("Client F").locator("[data-testid=first-link-email]").count()) === 1 && (await row("Client F").locator("[data-testid=first-link-copy]").count()) === 0);
+ok("Client G (Copy link): only Copy link", (await row("Client G").locator("[data-testid=first-link-copy]").count()) === 1 && (await row("Client G").locator("[data-testid=first-link-email]").count()) === 0);
+ok("First time: says why, that the video still goes, and the folded why", /still goes to each of them, along with their own personal link/.test(norm(await owner.textContent("[data-testid=sec-first-intro]"))) && (await owner.locator("[data-testid=sec-first-why] summary:has-text(\"Why can't SureFrame send these?\")").count()) === 1);
+await owner.screenshot({ path: `${shots}/send-route-sections.png`, fullPage: true });
 
 for (const width of [390, 320]) {
   await owner.setViewportSize({ width, height: 844 });
   await owner.waitForTimeout(200);
-  ok(`${width}px: the list fits the screen`, await owner.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
-  await owner.screenshot({ path: `${shots}/send-group-todo-${width}.png`, fullPage: true });
+  ok(`${width}px: the sections fit the screen`, await owner.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+  await owner.screenshot({ path: `${shots}/send-route-sections-${width}.png`, fullPage: true });
 }
 await owner.setViewportSize({ width: 1280, height: 900 });
 
-await owner.click("[data-testid=todo-row]:has-text('Client N') [data-testid=todo-copy]");
-await owner.waitForSelector("[data-testid=sent-row]:has-text('Client N')");
-const copiedN = await owner.evaluate(() => navigator.clipboard.readText());
-ok("Client N's own link copied, with their key", copiedN.includes("v=") && copiedN.includes("#k="), copiedN);
-ok("Client N leaves the list", (await owner.locator("[data-testid=todo-row]").count()) === 1);
-await owner.click("[data-testid=todo-row]:has-text('Client F') [data-testid=first-link-copy]");
-await owner.waitForSelector("[data-testid=todo-done]");
-ok("all done once every link has gone", norm(await owner.textContent("[data-testid=todo-done]")) === "All done: everyone has their link." && (await owner.locator("[data-testid=sent-row]").count()) === 3);
-ok("Client F wasn't emailed a link they can't open", !(await prisma.client.findUnique({ where: { id: (await byName("Client F")).id } })).linkOpenedAt);
+await row("Client L").locator("[data-testid=copy-row-link]").click();
+await row("Client L").locator("[data-testid=row-note]").waitFor();
+const copiedL = await owner.evaluate(() => navigator.clipboard.readText());
+ok("Client L: their own link copied, with their key", copiedL.includes("v=") && copiedL.includes("#k="), copiedL);
+ok("Client L: a short line confirms it", norm(await row("Client L").locator("[data-testid=row-note]").textContent()) === "Copied Client L's link.");
+await row("Client G").locator("[data-testid=first-link-copy]").click();
+await row("Client G").locator("[data-testid=row-note]").waitFor();
+ok("Client G: copied their video with their personal link", norm(await row("Client G").locator("[data-testid=row-note]").textContent()).startsWith("Copied Client G's video and personal link."));
+await row("Client F").locator("[data-testid=first-link-email]").click();
+await row("Client F").locator("[data-testid=copy-instead]").waitFor();
+ok("Client F: email app line, with Copy the link instead if nothing opens", /Your email app should open with Client F's video and personal link/.test(norm(await row("Client F").locator("[data-testid=row-note]").textContent())));
+ok("Client F wasn't emailed a link they can't open", !(await byName("Client F")).linkOpenedAt && !(await prisma.video.findFirst({ where: { OR: [{ id }, { sourceId: id }], clientId: (await byName("Client F")).id } })).emailedAt);
+await owner.screenshot({ path: `${shots}/send-route-done.png`, fullPage: true });
+
+// After a reload the sections are the same, and Client A still reads Emailed.
+await owner.goto(videoUrl);
+await owner.waitForSelector("[data-testid=sec-email]", { timeout: 20000 });
+ok("after a reload: Client A still says Emailed", /Emailed/.test(norm(await row("Client A").textContent())) && (await row("Client A").locator("button:has-text('Send again')").count()) === 1);
+
+// Changing a client's route on their page.
+await owner.goto(`${BASE}/clients/${(await byName("Client A")).id}`);
+ok("client page: says how they receive videos", norm(await owner.textContent("[data-testid=client-route]")).startsWith(`Receives videos by email: sg-a-${stamp}@example.com`));
+await owner.click("[data-testid=route-change]");
+await owner.check("[data-testid=route-edit] [data-testid=route-link]");
+ok("switching to Copy link says the email goes", /is removed, so we won't email Client A anything, reminders included/.test(norm(await owner.textContent("[data-testid=route-edit]"))));
+await owner.click("[data-testid=route-edit] button:has-text('Save')");
+await owner.waitForSelector("[data-testid=route-saved]");
+ok("client page: a line confirms the change", norm(await owner.textContent("[data-testid=route-saved]")) === "Client A will receive their videos by copy link, sent however you choose. You can change this in Clients at any time.");
+ok("Client A now has no email saved", !(await byName("Client A")).email);
+await owner.screenshot({ path: `${shots}/send-route-client-page.png`, fullPage: true });
+await owner.goto(videoUrl);
+await owner.waitForSelector("[data-testid=sec-link]", { timeout: 20000 });
+ok("back on the video: Client A is under Copy link to", (await owner.locator("[data-testid=sec-link] [data-testid=sent-row]").filter({ has: owner.locator('[data-testid=row-name]:text-is("Client A")') }).count()) === 1);
+
+// The Clients page's add form asks the same question.
+await owner.goto(`${BASE}/clients`);
+await owner.fill('input[aria-label="Client name"]', "Client Z");
+ok("Clients page: Add client waits for how they'll receive videos", await owner.isDisabled("button:has-text('Add client')"));
+await owner.check("[data-testid=route-email]");
+await owner.screenshot({ path: `${shots}/send-route-clients-add.png` });
+await owner.setViewportSize({ width: 320, height: 844 });
+await owner.waitForTimeout(200);
+ok("320px: the add form fits", await owner.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+await owner.screenshot({ path: `${shots}/send-route-clients-add-320.png` });
 
 await browser.close();
 await prisma.$disconnect();

@@ -37,6 +37,7 @@ ok("own to-do added on To-dos/Reminders", true);
 // A client and their space
 await pro.goto(BASE + "/clients");
 await pro.fill('input[aria-label="Client name"]', "Riley Client");
+await pro.check("[data-testid=route-link]");
 await pro.click("button:has-text('Add client')");
 await pro.click("a[href^='/clients/']:has-text('Riley Client')");
 await pro.waitForURL("**/clients/**");

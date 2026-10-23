@@ -81,6 +81,6 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
   const sends = copies.map((c) => ({ videoId: c.id, clientId: c.clientId }));
   after(() => notifyVideosSent(workspace.id, me.user.id, sends));
 
-  const emailed = body.data.notify ? await emailClientVideos(copies.map((c) => c.id)) : 0;
-  return Response.json({ sent: copies.map((c) => ({ id: c.id, clientId: c.clientId })), skipped: wanted.length - fresh.length, emailed }, { status: 201 });
+  const emailedIds = body.data.notify ? await emailClientVideos(copies.map((c) => c.id)) : [];
+  return Response.json({ sent: copies.map((c) => ({ id: c.id, clientId: c.clientId, emailed: emailedIds.includes(c.id) })), skipped: wanted.length - fresh.length, emailed: emailedIds.length }, { status: 201 });
 });
