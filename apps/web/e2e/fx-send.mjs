@@ -201,14 +201,20 @@ const firstBox = norm(await owner.textContent("[data-testid=first-links]"));
 ok("chosen first-timers: each named, with their own Copy link", (await owner.locator("[data-testid=first-link-row]:has-text('Client B') [data-testid=first-link-copy]").count()) === 1 && (await owner.locator("[data-testid=first-link-row]:has-text('Client C') [data-testid=first-link-copy]").count()) === 1, firstBox);
 ok("several first-timers: each row still has Copy link + message (S15)", (await owner.locator("[data-testid=first-link-row]:has-text('Client B') [data-testid=first-link-message]").count()) === 1 && (await owner.locator("[data-testid=first-link-row]:has-text('Client C') [data-testid=first-link-message]").count()) === 1);
 ok("several first-timers: one line for them all, the why folded away", norm(await owner.textContent("[data-testid=first-why-line]")).includes("First videos for 2 clients: send each one yourself") && !(await owner.isVisible("text=/Alongside each video is that client's personal link/")));
-ok("mixed choice: one Send to all, no second Copy all in the box", (await owner.textContent("[data-testid=send-all]")).trim() === "Send to all 3" && (await owner.locator("[data-testid=copy-all-first]").count()) === 0 && (await owner.locator("[data-testid=send-link]").count()) === 0);
-ok("it says who is emailed and whose links are copied", norm(await owner.textContent("[data-testid=send-all-explained]")).includes("emails Client A, and copies the links for Client B, Client C"));
-ok("emailing only the reached client is still offered", (await owner.textContent("[data-testid=send-email]")).trim() === "Email 1 of them");
+// Mixed choice (Josiah, 23 October: "Send to all" and "Email 1 of them" doubled up): one email button naming who's
+// emailed, the new clients' first links only from their box, and a line saying which does what.
+ok("mixed choice: one email button naming the client, no Send to all, no Copy all", (await owner.textContent("[data-testid=send-email]")).trim() === "Email Client A" && (await owner.locator("[data-testid=send-all]").count()) === 0 && (await owner.locator("[data-testid=send-link]").count()) === 0);
+ok("it says who is emailed and that the new clients' links come from the box", norm(await owner.textContent("[data-testid=send-mixed-explained]")) === "Client A gets it by email. Client B and Client C are new, so their first links come from you, in the box above.", norm(await owner.textContent("[data-testid=send-mixed-explained]")));
 await owner.screenshot({ path: `${shots}/fx-send-chosen.png`, fullPage: true });
-await owner.click("[data-testid=send-all]");
-await owner.waitForSelector("text=/Sent to all 3/");
+await owner.click("[data-testid=send-email]");
+await owner.waitForSelector("[data-testid=send-status] >> text=/Emailed 1 client/");
 const status = norm(await owner.textContent("[data-testid=send-status]"));
-ok("status: emailed the reached client, copied the others' links, says why links differ", status.includes("Emailed Client A") && status.includes("Copied the links for Client B, Client C") && status.includes("Each link is different"), status);
+ok("status: emailed the reached client, and the new clients' first videos come from you", status.includes("Emailed 1 client") && status.includes("First videos for 2 clients come from you"), status);
+await owner.click("[data-testid=first-link-row]:has-text('Client B') [data-testid=first-link-copy]");
+await owner.waitForSelector("[data-testid=sent-row]:has-text('Client B')");
+// Client C is then the only new client left, so the box shows their buttons on their own.
+await owner.click("[data-testid=first-links] [data-testid=first-link-copy]");
+await owner.waitForSelector("[data-testid=sent-row]:has-text('Client C')");
 const mail = await waitFor(() => mailTo(aEmail).find((m) => /sent you a video/.test(m.subject)));
 ok("email subject has the title", mail?.subject.endsWith("sent you a video: Week 1 plan"), mail?.subject);
 ok("email is from 'Business A via SureFrame'", mail?.from.startsWith(`${business} via SureFrame <`), mail?.from);
@@ -216,8 +222,8 @@ ok("email shows the business name and title", mail?.html.includes(business) && m
 ok("email body names the video and says how long it is (C39)", /\nWeek 1 plan\n\d+ seconds?\n/.test(mail?.text ?? ""), mail?.text);
 ok("email explains the device rule plainly, in one short line (S50, C38)", mail?.text.includes("It's private to you. Doesn't open? Open the personal link") && mail.text.includes("on that phone or computer first, then the button works there too.") && !mail.text.includes("The button opens it on any phone or computer") && !mail.text.includes("use the personal link they gave you first"), mail?.text);
 await owner.waitForSelector("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-copy]");
-const both = await clip();
-ok("Send to all copies the first-timers' own conversations, not the emailed client's", /Client B: .*v=.*#k=/.test(both) && /Client C: .*v=.*#k=/.test(both) && !both.includes("Client A:"), both);
+const lastCopied = await clip();
+ok("the new client's box copies their own conversation link, with their key", lastCopied.includes("v=") && lastCopied.includes("#k=") && !lastCopied.includes(`v=${vid}`), lastCopied);
 ok("the emailed client's row says Emailed and Not opened yet", /Emailed\s*· Not opened yet/.test(norm(await owner.textContent("[data-testid=sent-row]:has-text('Client A')"))));
 ok("everyone is under Sent to, no separate waiting rows", (await owner.locator("[data-testid=sent-row]").count()) === 3 && (await owner.locator("[data-testid=waiting-row]").count()) === 0);
 ok("new clients' rows: just Send from your email and Copy link", (await owner.locator("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-email]").count()) === 1 && (await owner.locator("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-copy]").count()) === 1 && (await owner.locator("[data-testid=sent-row]:has-text('Client B') [data-testid=first-link-message]").count()) === 0);

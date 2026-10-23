@@ -145,7 +145,7 @@ const second = await record();
 ok("after Stop: the client the last video went to is already chosen, and it says so (D12)", (await owner.textContent("[data-testid=client-picker]")).includes("Zoe Park") && (await owner.textContent("[data-testid=preselected-note]")).includes("Zoe Park is chosen"));
 await choose("Zoe Park", `Ann Lee${stamp}`);
 await owner.screenshot({ path: `${process.argv[2] ?? "/tmp"}/first-link-chosen.png` });
-ok("mixed choice: only Zoe is offered email", (await owner.textContent("[data-testid=send-email]")).trim() === "Email 1 of them");
+ok("mixed choice: only Zoe is offered email, by name", (await owner.textContent("[data-testid=send-email]")).trim() === "Email Zoe Park" && (await owner.locator("[data-testid=send-all]").count()) === 0);
 await owner.click("[data-testid=send-email]");
 const note = await waitFor(async () => {
   const t = await owner.textContent("[data-testid=send-status]").catch(() => "");

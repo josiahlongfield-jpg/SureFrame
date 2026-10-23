@@ -127,11 +127,12 @@ export default function SendPanel({
   const chosen = picked.map((id) => byId.get(id)!).filter(Boolean);
   const chosenEmail = chosen.filter(canEmail);
   const chosenFirst = chosen.filter((c) => !reached(c));
-  // Several chosen, some we can email and some we can't: one "Send to all" emails those it can and copies the others' links.
+  // Several chosen, some we can email and some we can't: the email button emails those it can, new clients' first links go
+  // from their own box above, and anyone else gets a copy button of their own, so no two buttons do the same job.
   const mixed = chosen.length > 1 && chosenEmail.length > 0 && chosenEmail.length < chosen.length;
   const copyWords = canShare ? "Copy link or Share" : "Copy link";
-  // Chosen clients we can't email, said beside Copy link so it's clear why Send by email isn't there.
-  const unemailable = mixed ? [] : chosen.filter((c) => reached(c) && !c.emailable);
+  // Chosen clients who've had a link but can't be emailed, said beside Copy link so it's clear why Send by email isn't there.
+  const unemailable = chosen.filter((c) => reached(c) && !c.emailable);
 
   // Each recipient's personal link for their conversation, worked out ahead so Copy and Share work in one tap.
   const [links, setLinks] = useState<Record<string, string>>({});
@@ -261,8 +262,7 @@ export default function SendPanel({
     }
   }
 
-  async function sendByLink() {
-    const list = chosen;
+  async function sendByLink(list = chosen) {
     setBusy("link");
     setNote(undefined);
     try {
@@ -290,37 +290,6 @@ export default function SendPanel({
   async function linesFor(added: Recipient[]) {
     const lines = await Promise.all(added.map(async (r) => `${byId.get(r.clientId)!.name}: ${await linkFor(byId.get(r.clientId)!, r.convId)}`));
     return lines.join("\n");
-  }
-
-  /** Everyone chosen in one go: emails those who can open it from an email, and copies the others' links to send yourself. */
-  async function sendAll() {
-    const list = chosen;
-    const others = list.filter((c) => !canEmail(c));
-    setBusy("all");
-    setNote(undefined);
-    try {
-      let emailed = 0;
-      await writeClipboard(
-        deliver(list, true).then(async (r) => {
-          emailed = r.emailed;
-          return linesFor(r.added.filter((a) => others.some((c) => c.id === a.clientId)));
-        }),
-      );
-      others.forEach((c) => void markLinkSent(c.id));
-      setRows((cur) => ({ ...cur, ...Object.fromEntries(others.map((c) => [c.id, "copied" as const])) }));
-      const names = (l: ClientOption[]) => (l.length <= 3 ? l.map((c) => c.name).join(", ") : `${l.length} clients`);
-      setNote({
-        text: [
-          emailed ? `Sent to all ${list.length}. Emailed ${emailed === 1 ? chosenEmail[0]?.name ?? "1 client" : `${emailed} clients`}.` : `Sent to all ${list.length}.`,
-          `Copied the links for ${names(others)}, one per line with each name: paste each client only their own link, for example by text or message.`,
-          OWN_LINKS,
-        ].join(" "),
-      });
-    } catch (err) {
-      setNote({ text: (err as Error).message || "Couldn't send it. Try again.", error: true });
-    } finally {
-      setBusy(null);
-    }
   }
 
   /** A chosen client getting their first video: gives them this video, then its link, which sets them up (the buttons say what's done with it). */
@@ -731,24 +700,29 @@ export default function SendPanel({
               )}
               {/* Nothing chosen yet: no greyed Send/Copy pair under the picker (O35). */}
               {picked.length > 0 && <div className="mt-3 flex flex-wrap gap-2">
-                {mixed && (
-                  <button onClick={sendAll} disabled={!!busy} data-testid="send-all" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
-                    {busy === "all" ? "Sending…" : `Send to all ${chosen.length}`}
-                  </button>
-                )}
                 {chosenEmail.length > 0 && (
                   <button
                     onClick={sendByEmail}
                     disabled={!chosenEmail.length || !!busy}
                     data-testid="send-email"
-                    className={mixed ? "rounded-xl border border-line-strong px-4 py-2 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50" : "rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"}
+                    className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
                   >
-                    {busy === "email" ? "Sending…" : mixed ? `Email ${chosenEmail.length} of them` : "Send by email"}
+                    {busy === "email" ? "Sending…" : mixed ? `Email ${chosenEmail.length <= 2 ? names(chosenEmail) : `${chosenEmail.length} clients`}` : "Send by email"}
+                  </button>
+                )}
+                {mixed && unemailable.length > 0 && (
+                  <button
+                    onClick={() => sendByLink(unemailable)}
+                    disabled={!!busy}
+                    data-testid="send-link"
+                    className="rounded-xl border border-line-strong px-4 py-2 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50"
+                  >
+                    {busy === "link" ? "Copying…" : unemailable.length === 1 ? `Copy ${unemailable[0].name}'s link` : `Copy ${unemailable.length} links`}
                   </button>
                 )}
                 {!mixed && !soloFirst && (
                   <button
-                    onClick={sendByLink}
+                    onClick={() => sendByLink()}
                     disabled={!picked.length || !!busy}
                     data-testid="send-link"
                     className="rounded-xl border border-line-strong px-4 py-2 text-sm font-medium text-ink hover:bg-hover disabled:opacity-50"
@@ -758,9 +732,10 @@ export default function SendPanel({
                 )}
               </div>}
               {mixed && (
-                <p className="mt-2 text-sm text-muted" data-testid="send-all-explained">
-                  Send to all {chosen.length} emails {chosenEmail.length === 1 ? chosenEmail[0].name : `${chosenEmail.length} of them`}, and copies the {chosen.length - chosenEmail.length === 1 ? "link" : "links"} for{" "}
-                  {chosen.filter((c) => !canEmail(c)).map((c) => c.name).join(", ")} for you to send yourself.
+                // What each part does, in the order it's done: the email button, then the boxes and buttons for the rest.
+                <p className="mt-2 text-sm text-muted" data-testid="send-mixed-explained">
+                  {`${names(chosenEmail)} ${chosenEmail.length === 1 ? "gets" : "get"} it by email.`}
+                  {chosenFirst.length > 0 && ` ${names(chosenFirst)} ${chosenFirst.length === 1 ? "is" : "are"} new, so ${chosenFirst.length === 1 ? "their first link comes" : "their first links come"} from you, in the box above.`}
                 </p>
               )}
               {!many && primary === null && sendMany === undefined && (
