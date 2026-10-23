@@ -161,6 +161,30 @@ export default async function Watch({ params, searchParams }: Props) {
   // The reaction this viewer left (the latest, for an older conversation with several), highlighted so a second tap takes it back.
   const myReactions = (await db.reaction.findMany({ where: { videoId: id, ...reactionsBy(viewer.kind === "member" ? { kind: "member", userId: viewer.userId } : { kind: "client" }) }, orderBy: { createdAt: "asc" }, select: { emoji: true } })).map((r) => r.emoji);
   const who = replyViewer(viewer);
+  // Every client this recording went to, each with their own conversation, for the list beside the video
+  // (Josiah, 23 October 2026): the original's client first, then the copies in the order they were sent.
+  const conversations = access
+    ? await (async () => {
+        const root = video.sourceId ?? video.id;
+        const group = await db.video.findMany({
+          where: { OR: [{ id: root }, { sourceId: root }], clientId: { not: null }, client: clientScopeWhere(access) },
+          select: { id: true, sourceId: true, createdAt: true, client: { select: { id: true, name: true } } },
+        });
+        group.sort((a, b) => (a.sourceId ? 1 : 0) - (b.sourceId ? 1 : 0) || a.createdAt.getTime() - b.createdAt.getTime());
+        const said = await db.reply.findMany({ where: { videoId: { in: group.map((g) => g.id) }, ...visibleReplies }, select: { videoId: true, createdAt: true, authorUserId: true } });
+        return group.map((g) => {
+          const mine = said.filter((r) => r.videoId === g.id);
+          return {
+            id: g.id,
+            clientId: g.client!.id,
+            name: g.client!.name,
+            count: mine.length,
+            // When the other side said something, for the new-reply dot (this viewer's own messages never count).
+            theirs: mine.filter((r) => r.authorUserId !== access.userId).map((r) => r.createdAt.toISOString()),
+          };
+        });
+      })()
+    : undefined;
   const held = await db.reply.findMany({ where: { videoId: id, ...heldRepliesOf(who) }, orderBy: { createdAt: "asc" }, include: { media: true } });
   // Who a client's reply is to (S52): the team member who sent this, when they're also the one looking after this
   // client (their replies are emailed to them, lib/teamNotify.ts), as "Sam at Business"; otherwise the business.
@@ -272,6 +296,7 @@ export default async function Watch({ params, searchParams }: Props) {
             aiPlaceholder={isMember && !aiOn && !insight ? (workspace.plan === "FREE" ? "free" : access?.role === "OWNER" ? "owner" : "staff") : undefined}
             justRecorded={justRecorded}
             initialReplies={replies.map((r) => replyDTO(r, video.ownerId, who))}
+            conversations={conversations}
             reactions={reactions}
             hasThumb={hasThumb}
             sourceId={video.sourceId}

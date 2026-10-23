@@ -207,8 +207,8 @@ export default function SendPanel({
     }
     setRecipients((cur) => [...cur, ...added]);
     setRows((cur) => ({ ...cur, ...states }));
-    // The rest of the page (the conversation panel) shows who this video is with.
-    if (first && added.length) router.refresh();
+    // The rest of the page (the conversation panel, and its list of every client's conversation) shows who this video is with.
+    if (added.length) router.refresh();
     setPicked((cur) => cur.filter((id) => !list.some((c) => c.id === id)));
     return added;
   }
@@ -310,10 +310,9 @@ export default function SendPanel({
       delete next[r.clientId];
       return next;
     });
-    if (own) {
-      setPrimary(null);
-      router.refresh();
-    }
+    if (own) setPrimary(null);
+    // Their conversation leaves the list beside the video.
+    router.refresh();
     setNote({ text: `${c?.name ?? "That client"} can no longer open this video.` });
   }
 

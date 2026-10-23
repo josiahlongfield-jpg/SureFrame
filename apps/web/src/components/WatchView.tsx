@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { REACTIONS } from "@/lib/reactions";
 import type { ReplyDTO } from "@/lib/replies";
@@ -84,6 +84,9 @@ export type SendMany = {
   copies: { id: string; clientId: string; opened?: boolean; emailed?: boolean }[];
 };
 
+/** Members only: one client's conversation about this recording (theirs is a private copy), for the list beside the video. */
+export type Conversation = { id: string; clientId: string; name: string; count: number; theirs: string[] };
+
 export type WatchViewer = { kind: "member"; workspaceId: string; fingerprint: string | null } | { kind: "client"; clientId: string };
 
 type Props = {
@@ -112,6 +115,8 @@ type Props = {
   initialReplies: ReplyDTO[];
   /** The viewer's own video and voice replies that were uploaded but never sent (a closed browser, say). */
   initialHeld?: ReplyDTO[];
+  /** Members only: every client this recording went to, each with their own conversation. */
+  conversations?: Conversation[];
   sendMany?: SendMany;
   /** AI summaries add-on: the encrypted transcript/summary, whether this viewer may make one, and whether to tell a client AI is used. */
   ai?: { insight: SealedInsight; canMake: boolean; notice: boolean };
@@ -218,6 +223,16 @@ const fmt = (ms: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
+/** Where this device remembers when a conversation was last on screen. */
+const seenKeyOf = (videoId: string) => `sureframe:seen-at:${videoId}`;
+const seenOn = (videoId: string) => {
+  try {
+    return localStorage.getItem(seenKeyOf(videoId)) ?? "";
+  } catch {
+    return "";
+  }
+};
+
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { dateStyle: "medium" });
 
 /** A file name from its parts: no characters a phone or computer would refuse. */
@@ -240,6 +255,7 @@ function WatchBody({
   sentToId,
   initialReplies,
   initialHeld = [],
+  conversations,
   sendMany,
   ai,
   reactions: clientReactions,
@@ -267,11 +283,26 @@ function WatchBody({
   );
   const [title, setTitle] = useState(video.title);
   const recipient = clients.find((c) => c.id === sentToId);
+  // Sent to several clients: a list of their conversations beside the video, each opening in this same box
+  // (Josiah, 23 October 2026). Every client still only ever sees their own.
+  const convs = useMemo(() => (canEdit ? conversations ?? [] : []), [canEdit, conversations]);
+  const listed = convs.some((c) => c.id !== video.id);
+  // The conversation on screen: this video's own, another client's copy, or none while the list shows. The
+  // recording's own page starts on the list; a client's copy starts on that client's conversation.
+  const [convId, setConvId] = useState<string | null>(() => (listed && !sourceId ? null : video.id));
+  const conv = convId ?? video.id;
+  const convRef = useRef(conv);
+  convRef.current = conv;
+  const other = convId && convId !== video.id ? convs.find((c) => c.id === convId) : undefined;
+  const talkingTo = other ? other.name : recipient?.name ?? null;
   // Who the conversation is with: the business, for a client; the client, for the team (none until it's sent).
-  const counterpart = canEdit ? recipient?.name ?? null : replyTo ?? business;
+  const counterpart = canEdit ? talkingTo : replyTo ?? business;
   const unsent = canEdit && !sentToId;
   const [replies, setReplies] = useState(initialReplies);
   const [held, setHeld] = useState(initialHeld);
+  // Whose replies are in `replies` (another client's are fetched when their conversation opens).
+  const [loadedFor, setLoadedFor] = useState(video.id);
+  const [loadFailed, setLoadFailed] = useState(false);
   const listBox = useRef<HTMLDivElement>(null);
   const listContent = useRef<HTMLUListElement>(null);
   const stick = useRef(true);
@@ -296,15 +327,9 @@ function WatchBody({
   // The floating Reply button only shows while the reply card and reactions are scrolled out of sight, so it never covers them.
   const [bubbleShown, setBubbleShown] = useState(false);
   const [ended, setEnded] = useState(false);
-  // When this viewer last had the conversation on screen (remembered per device), for the new-reply dot.
-  const seenKey = `sureframe:seen-at:${video.id}`;
-  const [seenAt, setSeenAt] = useState(() => {
-    try {
-      return localStorage.getItem(seenKey) ?? "";
-    } catch {
-      return "";
-    }
-  });
+  // When this viewer last had each conversation on screen (remembered per device), for the new-reply dots.
+  const [seen, setSeen] = useState<Record<string, string>>(() => Object.fromEntries([video.id, ...convs.map((c) => c.id)].map((id) => [id, seenOn(id)])));
+  const seenAt = seen[conv] ?? seenOn(conv);
 
   // On wide screens the conversation sits beside the video, tall enough to show a video reply, and stays in view.
   useLayoutEffect(() => {
@@ -462,18 +487,46 @@ function WatchBody({
   }, [wide, unsent]);
 
   // Messages from the other side count as seen while the conversation is on screen; the viewer's own never count.
-  const showing = wide || sheet;
+  const showing = (wide || sheet) && convId !== null && loadedFor === conv;
   const latest = replies.reduce((max, r) => (r.createdAt > max ? r.createdAt : max), "");
   useEffect(() => {
     if (!showing || !latest) return;
-    setSeenAt(latest);
+    setSeen((cur) => (cur[conv] === latest ? cur : { ...cur, [conv]: latest }));
     try {
-      localStorage.setItem(seenKey, latest);
+      localStorage.setItem(seenKeyOf(conv), latest);
     } catch {
       /* storage blocked: the dot just resets next visit */
     }
-  }, [showing, latest, seenKey]);
-  const unread = replies.filter((r) => !r.mine && r.createdAt > seenAt).length;
+  }, [showing, latest, conv]);
+  // New messages in one client's conversation: counted live for the one loaded here, from the page for the rest.
+  const live = (id: string) => id === loadedFor;
+  const newIn = (c: Conversation) =>
+    live(c.id) ? replies.filter((r) => !r.mine && r.createdAt > (seen[c.id] ?? "")).length : c.theirs.filter((t) => t > (seen[c.id] ?? "")).length;
+  const unread = convId === null ? convs.reduce((n, c) => n + newIn(c), 0) : replies.filter((r) => !r.mine && r.createdAt > seenAt).length;
+
+  /** Opens one client's conversation in this box, or (null) goes back to the list of them. */
+  function showConv(id: string | null) {
+    setConfirming(null);
+    setLoadFailed(false);
+    stick.current = true;
+    if (id !== null && id !== loadedFor) {
+      setReplies([]);
+      setHeld([]);
+    }
+    setConvId(id);
+  }
+  // Mid-recording, or with a recorded reply waiting to be sent, the conversation stays put.
+  const stuck = recording || draftWaiting;
+  // The list changes as the video is sent to more clients or stopped for one: a conversation that's gone closes,
+  // and sending to a second client shows the list.
+  const wasListed = useRef(listed);
+  useEffect(() => {
+    if (convId && convId !== video.id && !convs.some((c) => c.id === convId)) showConv(listed ? null : video.id);
+    else if (convId === null && !listed) showConv(video.id);
+    else if (listed && !wasListed.current && !recordingNow.current && !draftWaiting) showConv(null);
+    wasListed.current = listed;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [convs, listed]);
 
   const [burst, setBurst] = useState<{ id: number; emoji: string }[]>([]);
   // One reaction at a time (an older conversation may have several; the latest shows).
@@ -561,33 +614,46 @@ function WatchBody({
   }
 
   const refresh = useCallback(async () => {
-    const res = await fetch(`/api/videos/${video.id}/replies`).catch(() => null);
-    if (!res?.ok) return;
+    const id = conv;
+    const res = await fetch(`/api/videos/${id}/replies`).catch(() => null);
+    // Another conversation was opened meanwhile: this answer is no longer wanted.
+    if (convRef.current !== id) return;
+    if (!res?.ok) return setLoadFailed(true);
     const data = (await res.json()) as { replies: ReplyDTO[]; held: ReplyDTO[] };
+    if (convRef.current !== id) return;
     setReplies(data.replies);
     setHeld(data.held);
-  }, [video.id]);
+    setLoadedFor(id);
+    setLoadFailed(false);
+  }, [conv]);
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  // Another client's conversation, fetched as it opens.
+  useEffect(() => {
+    if (convId !== null && convId !== loadedFor) void refresh();
+  }, [convId, loadedFor, refresh]);
 
   // A reply recording interrupted by a crash or closed tab finishes uploading here, then waits for its
   // author to send or delete it (it's never sent by itself).
   const [recovering, setRecovering] = useState<number | null>(null);
   useEffect(() => {
     recoverInterrupted((_id, s) => {
-      if (s.replyTo === video.id) void refresh();
+      if (s.replyTo === convRef.current) void refreshRef.current();
     }, setRecovering).catch(() => {});
-  }, [video.id, refresh]);
+  }, [video.id]);
 
   // Keep the conversation fresh while the page is open.
   useEffect(() => {
     const t = setInterval(async () => {
-      if (document.hidden) return;
-      const res = await fetch(`/api/videos/${video.id}/replies`, { headers: { "x-sf-background": "1" } }).catch(() => null);
-      if (!res?.ok) return;
+      if (document.hidden || convId === null || loadedFor !== conv) return;
+      const res = await fetch(`/api/videos/${conv}/replies`, { headers: { "x-sf-background": "1" } }).catch(() => null);
+      if (!res?.ok || convRef.current !== conv) return;
       const { replies } = (await res.json()) as { replies: ReplyDTO[] };
+      if (convRef.current !== conv) return;
       setReplies((cur) => (replies.length !== cur.length || replies.at(-1)?.id !== cur.at(-1)?.id ? replies : cur));
     }, 15_000);
     return () => clearInterval(t);
-  }, [video.id]);
+  }, [conv, convId, loadedFor]);
 
   function addReply(r: ReplyDTO) {
     stick.current = true;
@@ -621,7 +687,7 @@ function WatchBody({
 
   async function removeReply(r: ReplyDTO) {
     setReplyBusy(r.id);
-    const done = await deleteReply(video.id, r.id);
+    const done = await deleteReply(conv, r.id);
     setReplyBusy(null);
     if (!done) return setReplyError({ id: r.id, text: "Couldn't delete it. Check your connection and try again." });
     setConfirming(null);
@@ -633,7 +699,7 @@ function WatchBody({
   async function sendHeld(r: ReplyDTO) {
     setReplyError(null);
     setReplyBusy(r.id);
-    const { reply, error } = await sendHeldReply(video.id, r.id);
+    const { reply, error } = await sendHeldReply(conv, r.id);
     setReplyBusy(null);
     if (!reply) return setReplyError({ id: r.id, text: error ?? "Couldn't send your reply. Check your connection and try again." });
     setHeld((cur) => cur.filter((x) => x.id !== r.id));
@@ -691,13 +757,13 @@ function WatchBody({
   // True to the server: a client's reply emails the team (unless they turned that off); the team's replies email nobody.
   const sentNote = !canEdit
     ? `${business} can see it now, and they're emailed that you replied (unless they've turned those emails off).`
-    : recipient
-      ? `${recipient.name} sees it next time they open this video.`
+    : talkingTo
+      ? `${talkingTo} sees it next time they open this video.`
       : "Your team can see it here, and so will the client you send this video to.";
   const emptyNote = !canEdit
     ? `Only you and ${business} can see this conversation.`
-    : recipient
-      ? `Only ${recipient.name} and your team can see this conversation.`
+    : talkingTo
+      ? `Only ${talkingTo} and your team can see this conversation.`
       : "Not sent to a client yet. Anything you add here will be seen by the client you send this video to.";
   const isWebm = !video.mimeType.includes("mp4");
   const saveName = `${fileName(business, title)}.${isWebm ? "webm" : "mp4"}`;
@@ -991,10 +1057,14 @@ function WatchBody({
         <div ref={inline} data-testid="chat-inline" className="mt-4 rounded-2xl border border-line bg-surface p-4 lg:hidden">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate font-semibold text-ink">{counterpart ? `Conversation with ${counterpart}` : "Conversation"}</p>
+              <p className="truncate font-semibold text-ink">{convId === null ? `Conversations (${convs.length})` : counterpart ? `Conversation with ${counterpart}` : "Conversation"}</p>
               <p className="text-xs text-dim">
-                {replies.length === 0 ? "No messages yet" : `${replies.length} ${replies.length === 1 ? "message" : "messages"}`}
-                {unread > 0 && <span className="font-medium text-accent"> · {unread} new</span>}
+                {convId === null
+                  ? unread === 0 && "No new messages"
+                  : replies.length === 0
+                    ? "No messages yet"
+                    : `${replies.length} ${replies.length === 1 ? "message" : "messages"}`}
+                {unread > 0 && <span className="font-medium text-accent">{convId === null ? `${unread} new` : ` · ${unread} new`}</span>}
               </p>
               {/* A reply recorded but never sent waits inside the conversation; say so before it's forgotten. */}
               {(held.length > 0 || (draftWaiting && !sheet)) && (
@@ -1011,7 +1081,7 @@ function WatchBody({
             {unread > 0 && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" aria-hidden data-testid="inline-unread" />}
           </div>
           <button onClick={openSheet} data-testid="chat-open" className="mt-3 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover">
-            {canEdit ? "Open conversation" : `Reply to ${counterpart}`}
+            {convId === null ? "Open conversations" : canEdit ? "Open conversation" : `Reply to ${counterpart}`}
           </button>
         </div>
 
@@ -1050,7 +1120,7 @@ function WatchBody({
         data-sheet={sheet || undefined}
         role={expanded || sheet ? "dialog" : undefined}
         aria-modal={expanded || sheet || undefined}
-        aria-label={expanded || sheet ? "Conversation" : undefined}
+        aria-label={expanded || sheet ? (convId === null ? "Conversations" : "Conversation") : undefined}
         className={
           sheet
             ? "fixed inset-0 z-[60] flex h-[100dvh] flex-col bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
@@ -1061,9 +1131,28 @@ function WatchBody({
         }
       >
         <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
+          <div className="flex min-w-0 items-start gap-1.5">
+          {listed && convId !== null && (
+            // Back to every client's conversation; not mid-recording, or with a recorded reply waiting.
+            <button
+              type="button"
+              onClick={() => showConv(null)}
+              disabled={stuck}
+              title={stuck ? "Send or delete your reply first" : undefined}
+              aria-label="All conversations"
+              data-testid="conv-back"
+              className="-ml-2 shrink-0 rounded-lg p-1.5 text-muted hover:bg-hover hover:text-ink disabled:opacity-40"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M15 6l-6 6 6 6" /></svg>
+            </button>
+          )}
           <div className="min-w-0">
-            <h2 className="font-semibold text-ink [overflow-wrap:anywhere]" data-testid="conversation-title">{counterpart ? `Conversation with ${counterpart}` : "Conversation"}</h2>
-            <p className="text-xs text-dim">Reply with a video, a voice note or a message. End-to-end encrypted.</p>
+            <h2 className="font-semibold text-ink [overflow-wrap:anywhere]" data-testid="conversation-title">
+              {convId === null ? `Conversations (${convs.length})` : counterpart ? `Conversation with ${counterpart}` : "Conversation"}
+            </h2>
+            <p className="text-xs text-dim">
+              {convId === null ? "Each client only sees their own conversation." : "Reply with a video, a voice note or a message. End-to-end encrypted."}
+            </p>
             {sheet && askDiscard && (
               <div role="alert" className="mt-2 rounded-lg bg-warn-bg p-2 text-xs text-warn-fg" data-testid="discard-ask">
                 <p className="font-medium">You&apos;re still recording. Discard this recording and close?</p>
@@ -1073,6 +1162,7 @@ function WatchBody({
                 </div>
               </div>
             )}
+          </div>
           </div>
           {sheet ? (
             <button
@@ -1084,7 +1174,7 @@ function WatchBody({
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
             </button>
-          ) : (replies.length === 0 && !expanded) ? null : (
+          ) : ((convId === null || replies.length === 0) && !expanded) ? null : (
           // Only once there's something to read: an empty conversation's larger view showed nothing more (O68).
           <button
             onClick={() => setExpanded((v) => !v)}
@@ -1101,9 +1191,47 @@ function WatchBody({
           </button>
           )}
         </div>
-        <div ref={listBox} className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        {convId === null && (
+          <ul className="min-h-0 flex-1 divide-y divide-line overflow-y-auto px-3 py-2 text-sm" data-testid="conv-list">
+            {convs.map((c) => {
+              const count = live(c.id) ? replies.length : c.count;
+              const fresh = newIn(c);
+              return (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => showConv(c.id)}
+                    data-testid="conv-item"
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-3 text-left hover:bg-hover"
+                  >
+                    <span className="min-w-0">
+                      <span className="block font-medium text-ink [overflow-wrap:anywhere]" data-testid="conv-name">{c.name}</span>
+                      <span className="block text-xs text-dim">
+                        {count === 0 ? "No messages yet" : `${count} ${count === 1 ? "message" : "messages"}`}
+                        {fresh > 0 && <span className="font-medium text-accent"> · {fresh} new</span>}
+                      </span>
+                    </span>
+                    {fresh > 0 && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" aria-hidden data-testid="conv-unread" />}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <div ref={listBox} className={`min-h-0 flex-1 overflow-y-auto px-5 py-4 ${convId === null ? "hidden" : ""}`}>
           <ul ref={listContent} className="space-y-4 text-sm">
-            {replies.length === 0 && <li className="text-dim" data-testid="conversation-empty">{emptyNote}</li>}
+            {loadedFor !== conv ? (
+              <li className="text-dim" data-testid="conversation-loading">
+                {loadFailed ? (
+                  <>
+                    Couldn&apos;t load this conversation.{" "}
+                    <button type="button" onClick={() => void refresh()} className="font-medium text-accent hover:underline">Try again</button>
+                  </>
+                ) : (
+                  "Loading the conversation…"
+                )}
+              </li>
+            ) : replies.length === 0 && <li className="text-dim" data-testid="conversation-empty">{emptyNote}</li>}
             {replies.map((r) => (
               // Your own messages sit on the right, in colour; the other side's on the left.
               <li key={r.id} className={`flex flex-col ${r.mine ? "items-end" : "items-start"}`} data-mine={r.mine || undefined}>
@@ -1167,7 +1295,7 @@ function WatchBody({
             <li aria-hidden />
           </ul>
         </div>
-        {held.map((r) => (
+        {convId !== null && held.map((r) => (
           <div key={r.id} data-testid="held-reply" className="border-t border-line bg-warn-bg px-4 py-3 text-sm text-warn-fg">
             <p className="font-medium">Send or delete your unfinished reply?</p>
             <p className="mt-0.5 text-xs">
@@ -1212,9 +1340,12 @@ function WatchBody({
             <p className="mt-0.5 text-xs text-muted">It&rsquo;ll appear here {readyIn(recovering)}, ready to send. There&rsquo;s no need to record it again.</p>
           </div>
         )}
+        {/* Hidden, not unmounted, while the list shows; a new one for each client's conversation. */}
+        <div className={convId === null ? "hidden" : "contents"}>
         <ReplyComposer
+          key={conv}
           ref={composer}
-          videoId={video.id}
+          videoId={conv}
           conversationKey={rootKey}
           currentTimeMs={momentMs}
           onReplied={addReply}
@@ -1224,6 +1355,7 @@ function WatchBody({
           onAsk={() => setConfirming(null)}
           onReviewChange={setDraftWaiting}
         />
+        </div>
       </aside>
     </div>
   );
