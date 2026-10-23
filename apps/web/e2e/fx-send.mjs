@@ -270,9 +270,11 @@ await owner.click("header nav a[href='/todos']");
 await owner.waitForURL("**/todos");
 ok("To-dos/Reminders: the To-dos tab says how many are due", (await owner.textContent("[data-testid=tab-todos]")).includes("(1 due)"));
 ok("to-dos page: the due list names the client", norm(await owner.textContent("[data-testid=due-todos]")).includes("1 to-do is overdue or due within a day") && (await owner.locator(`[data-testid=due-todos] a[href="/clients/${clientB.id}"]`).count()) === 1);
-// Opening the conversation counts Client A's reply as seen on this device; Client B's copy still has one new.
+// Opening Client A's conversation counts their reply as seen on this device; Client B's copy still has one new. Sent to
+// two clients, the box beside the video lists both conversations first (Josiah, 23 October 2026).
 await owner.goto(`${BASE}/v/${vid}`);
-await owner.waitForSelector("[data-testid=reply-composer], aside", { timeout: 20000 }).catch(() => {});
+await owner.locator("[data-testid=conv-item]").filter({ has: owner.locator(`[data-testid=conv-name]:text-is("Client A")`) }).click({ timeout: 20000 });
+await owner.waitForSelector("[data-testid=conversation] [data-testid=conv-back]", { timeout: 15000 });
 await owner.waitForTimeout(1000);
 await owner.goto(BASE + "/library");
 await card.waitFor({ state: "visible", timeout: 15000 });
