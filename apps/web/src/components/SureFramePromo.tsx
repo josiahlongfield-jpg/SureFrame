@@ -3,9 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import LogoMark from "./LogoMark";
 
-/** Seconds before the intro can be skipped. */
-const WAIT_SECONDS = 3;
-
 /** Remembered per business on this device, so a client sees the intro once, not on every video or visit. */
 export const introSeenKey = (workspaceId: string) => `sureframe:intro-seen:${workspaceId}`;
 
@@ -18,7 +15,6 @@ export const introSeenKey = (workspaceId: string) => `sureframe:intro-seen:${wor
 export default function SureFramePromo({ workspaceId, business, onWatch }: { workspaceId: string; business: string; onWatch: () => void }) {
   // Unknown until this device's storage is checked, so a returning viewer never sees it flash.
   const [open, setOpen] = useState<boolean | null>(null);
-  const [left, setLeft] = useState(WAIT_SECONDS);
   const box = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
 
@@ -30,20 +26,12 @@ export default function SureFramePromo({ workspaceId, business, onWatch }: { wor
     setOpen(!seen);
   }, [workspaceId]);
 
-  useEffect(() => {
-    if (!open || left <= 0) return;
-    const t = setTimeout(() => setLeft((n) => n - 1), 1000);
-    return () => clearTimeout(t);
-  }, [open, left]);
-
-  // The keyboard starts in the card, and lands on Watch now once it can be pressed.
+  // Watch now works at once (Decision 2, 22 October 2026: no wait), so the keyboard starts on it.
   useEffect(() => {
     if (!open) return;
-    const inCard = box.current?.contains(document.activeElement) && document.activeElement !== box.current;
-    if (inCard) return;
-    if (left > 0) box.current?.focus();
-    else button.current?.focus();
-  }, [open, left]);
+    if (box.current?.contains(document.activeElement)) return;
+    button.current?.focus();
+  }, [open]);
 
   if (!open) return null;
   const watch = () => {
@@ -102,14 +90,12 @@ export default function SureFramePromo({ workspaceId, business, onWatch }: { wor
           <button
             ref={button}
             onClick={watch}
-            disabled={left > 0}
             className="mt-5 w-full rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover disabled:bg-line-strong disabled:text-muted"
           >
             Watch now
           </button>
-          {/* A countdown on a greyed-out button reads like a fault, so the short wait is said in words. */}
           <p id="promo-wait" className="mt-2 text-xs text-muted" data-testid="promo-wait">
-            {left > 0 ? `You can start watching in ${left} ${left === 1 ? "second" : "seconds"}. ` : ""}This short intro only shows once on this device.
+            This short intro only shows once on this device.
           </p>
           <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-dim">
             <LogoMark size={14} tone="mono" />

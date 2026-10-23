@@ -16,7 +16,7 @@ import { aiAssistActive, PLANS } from "@/lib/plans";
 import { db } from "@/lib/db";
 import { clientBlock, clientCookie, clientGate, type Viewer } from "@/lib/access";
 import { loadVideo } from "./load";
-import { agreePath, currentUser } from "@/lib/session";
+import { agreePath, currentUser, withoutBusiness } from "@/lib/session";
 import { keyHeldCookie } from "@/lib/e2e/keyHeld";
 import { auth } from "@/auth";
 import { reactionsBy } from "@/lib/reactions";
@@ -396,17 +396,19 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
         </CantOpenShell>
       );
     }
-    // Taken off the team that owns it: the same plain words as on their other pages (components/RemovedNotice.tsx).
-    const former = membership ? null : (await formerTeams(me.user.id)).find((t) => t.id === video.workspaceId);
-    if (former) {
-      return (
-        <CantOpenShell brand={null} team>
-          <CantOpen title={`You're no longer on ${former.name}'s team`} testId="video-former-member">
-            <p>An owner or admin removed you, so you can&apos;t open that team&apos;s videos or clients any more. If that&apos;s a mistake, ask them for a new invite link.</p>
-          </CantOpen>
-        </CantOpenShell>
-      );
-    }
+  }
+  // Taken off the team that owns it: the same plain words as on their other pages (components/RemovedNotice.tsx). Also
+  // for a login left with no team and no business of its own (Decision 4), for whom `me` is null.
+  const formerUserId = me ? (me.user.memberships.some((m) => m.workspaceId === video.workspaceId) ? null : me.user.id) : ((await withoutBusiness())?.id ?? null);
+  const former = formerUserId ? (await formerTeams(formerUserId)).find((t) => t.id === video.workspaceId) : null;
+  if (former) {
+    return (
+      <CantOpenShell brand={null} team>
+        <CantOpen title={`You're no longer on ${former.name}'s team`} testId="video-former-member">
+          <p>An owner or admin removed you, so you can&apos;t open that team&apos;s videos or clients any more. If that&apos;s a mistake, ask them for a new invite link.</p>
+        </CantOpen>
+      </CantOpenShell>
+    );
   }
 
   // Anyone else: a client on a device that hasn't opened their link, a different client, or someone with just the address.

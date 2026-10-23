@@ -8,7 +8,7 @@ import { safeNext } from "@/lib/secrets";
 import { forClaude } from "@/lib/signInLink";
 import { db } from "@/lib/db";
 import { DELETION_GRACE_DAYS } from "@/lib/accountDeletion";
-import { pendingDeletion } from "@/lib/session";
+import { pendingDeletion, withoutBusiness } from "@/lib/session";
 import { isEmailBlocked } from "@/lib/blockedEmail";
 import KeepSignedIn from "@/components/KeepSignedIn";
 import AuthLinks from "@/components/AuthLinks";
@@ -25,8 +25,10 @@ export const metadata: Metadata = { title: "Sign in" };
  * /login?next=%2Fpricing%3Fplan%3DSOLO comes back to /pricing?plan=SOLO,
  * through the email link, /agree and /welcome.
  */
-export default async function Login({ searchParams }: { searchParams: Promise<{ next?: string; callbackUrl?: string; error?: string; deleted?: string; closed?: string; signup?: string }> }) {
-  const { next, callbackUrl, error, deleted, closed, signup } = await searchParams;
+export default async function Login({ searchParams }: { searchParams: Promise<{ next?: string; callbackUrl?: string; error?: string; deleted?: string; closed?: string; signup?: string; everywhere?: string }> }) {
+  const { next, callbackUrl, error, deleted, closed, signup, everywhere: allOut } = await searchParams;
+  // After "Sign out everywhere" on Settings > Account (Decision 8): say why this browser was signed out too.
+  const everywhere = allOut === "1";
   const redirectTo = safeNext(next ?? (callbackUrl ? relative(callbackUrl) : undefined));
   // "Start free" (it opens /record) and a plan picked on the pricing page: say an account is being made.
   const creating = signup === "1" || /^\/(record|pricing)(\/|\?|$)/.test(redirectTo);
@@ -40,6 +42,10 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   // Checked against the database: a sign-in left over from a deleted account must not bounce back and forth.
   const userId = (await auth())?.user?.id;
   const signedInAs = userId ? await db.user.findUnique({ where: { id: userId }, select: { deleteAt: true } }) : null;
+  // Signed in with no business and no Free one to be made (Decision 4): app pages would only send them back here, so
+  // they go to /start (with the plan they picked, if any) unless they're on their way to join a team or agree.
+  if (signedInAs && !signedInAs.deleteAt && !/^\/(join\/|start|agree|help|legal)/.test(redirectTo) && (await withoutBusiness()))
+    redirect(picked ? `/start?plan=${new URL(redirectTo, "http://x").searchParams.get("plan") ?? ""}` : "/start");
   if (signedInAs && !signedInAs.deleteAt) redirect(redirectTo);
   // A closed account: a sign-in made since closing it is offered to keep it; an older one signs in again here.
   if (signedInAs?.deleteAt && (await pendingDeletion())?.fresh) redirect("/account/restore");
@@ -88,7 +94,12 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
             Your account stays closed and will be deleted on the date in our email. Changed your mind? Sign in before then to keep it.
           </p>
         )}
-        {signedOut && (
+        {everywhere && !deleted && (
+          <p role="status" className="mt-3 rounded-lg bg-ok-bg px-3 py-2 text-sm text-ok-fg" data-testid="everywhere-note">
+            You signed out everywhere, so every device signed in to your account is now signed out, this one included. Sign in again to carry on.
+          </p>
+        )}
+        {signedOut && !everywhere && (
           <p className="mt-3 rounded-lg bg-surface-2 px-3 py-2 text-sm text-muted" data-testid="signed-out-note">
             For your security you were signed out because the browser was closed or the page was left unused. Please sign in again.
           </p>

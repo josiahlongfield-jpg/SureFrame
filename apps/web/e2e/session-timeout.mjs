@@ -137,6 +137,46 @@ ok("signing in again unticked: not kept", !(await keptCtx.cookies()).some((c) =>
 ok("and the activity cookie is a browser-session cookie again", (await keptCtx.cookies()).find((c) => c.name === "sf_active")?.expires === -1);
 await keptCtx.close();
 
+// "Sign out everywhere" on Settings > Account > This device (Decision 8): asks first, then every sign-in ends, this one
+// included, and the sign-in page says why. Signing in again works straight away.
+const signIn = async (ctx, viewport) => {
+  const p = await ctx.newPage();
+  if (viewport) await p.setViewportSize(viewport);
+  await p.goto(BASE + "/login?next=%2Flibrary");
+  await p.fill('input[name="email"]', loginEmail);
+  await p.click("text=Continue");
+  await p.waitForURL("**/library");
+  return p;
+};
+const here = await browser.newContext();
+const elsewhere = await browser.newContext();
+const ep = await signIn(here, { width: 320, height: 700 });
+const other = await signIn(elsewhere);
+await ep.goto(BASE + "/settings/account#device");
+ok("sign out everywhere: under This device", (await ep.textContent("[data-testid=keep-device]")).includes("Sign out everywhere"));
+await ep.click("[data-testid=sign-out-everywhere]");
+const confirmText = await ep.textContent("[data-testid=sign-out-everywhere-confirm]").catch(() => "");
+ok("sign out everywhere: asks first, saying this device is included", confirmText.includes("Sign out on every device?") && confirmText.includes("this one included"), confirmText);
+ok("sign out everywhere: the question fits 320px", await ep.evaluate(() => document.documentElement.scrollWidth <= 320));
+await ep.click("[data-testid=sign-out-everywhere-confirm] >> text=Cancel");
+await other.goto(BASE + "/library");
+ok("sign out everywhere: Cancel signs nobody out", new URL(other.url()).pathname === "/library" && (await ep.locator("[data-testid=sign-out-everywhere-confirm]").count()) === 0);
+await ep.click("[data-testid=sign-out-everywhere]");
+await ep.click("[data-testid=sign-out-everywhere-yes]");
+await ep.waitForURL("**/login**", { timeout: 15000 }).catch(() => {});
+const why = await ep.textContent("[data-testid=everywhere-note]").catch(() => "");
+ok("sign out everywhere: this browser is signed out and told why", new URL(ep.url()).pathname === "/login" && why.includes("You signed out everywhere") && why.includes("this one included"), why || ep.url());
+// The page streams in, so its redirect to the sign-in page can land a moment after it opens.
+const lands = (p) => p.waitForURL((u) => u.pathname === "/login", { timeout: 30000 }).then(() => true, () => false);
+await ep.goto(BASE + "/library");
+ok("sign out everywhere: this browser stays signed out", await lands(ep), ep.url());
+await other.goto(BASE + "/library");
+ok("sign out everywhere: the other browser is signed out too", await lands(other), other.url());
+const backIn = await signIn(here);
+ok("sign out everywhere: signing in again works at once", new URL(backIn.url()).pathname === "/library");
+await here.close();
+await elsewhere.close();
+
 await browser.close();
 console.log(failed ? `${failed} failed` : "all passed");
 process.exit(failed ? 1 : 0);

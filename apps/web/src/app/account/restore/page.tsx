@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { LEGAL } from "@/lib/legal";
 import { PLANS } from "@/lib/plans";
 import { purgeDate, RETENTION_DAYS } from "@/lib/retention";
-import { currentUser, HttpError, pendingDeletion } from "@/lib/session";
+import { currentUser, HttpError, pendingDeletion, withoutBusiness } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Keep your account", robots: { index: false } };
 
@@ -35,6 +35,8 @@ export default async function Restore() {
       if (err instanceof HttpError && (err.status === 410 || err.status === 403)) redirect("/account/restore");
       throw err;
     }
+    // Staff from an invite who are on no team now have no business to open (Decision 4): Start says it's kept.
+    if (await withoutBusiness()) redirect("/start?restored=1");
     redirect(planEnded ? "/library?restored=ended" : "/library?restored=1");
   }
 

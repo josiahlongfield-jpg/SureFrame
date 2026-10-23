@@ -317,7 +317,7 @@ await staff.click("[data-testid=menu-button]");
 const staffMenu = await staff.locator("[data-testid=app-menu] a").evaluateAll((els) => els.map((e) => e.getAttribute("href")));
 ok("staff menu: no Billing or Branding", !staffMenu.includes("/settings/billing") && !staffMenu.includes("/settings/branding") && staffMenu.includes("/settings/account"), staffMenu.join("|"));
 ok("staff menu has a Settings section", await staff.isVisible("[data-testid=menu-settings]"));
-// The empty Free workspace the sign-in made for them isn't a business: no "Switch business" (S31).
+// Signing in from the invite made no business for them (Decision 4), so there's nothing to switch to (S31).
 ok("no Switch business with only one real business", !staffMenu.includes("/settings/team"), staffMenu.join("|"));
 ok("the name given on joining is kept", (await prisma.user.findUnique({ where: { id: staffUser.id } })).name === "Team member 1");
 // The menu drops from the bar itself, over any banner.
@@ -360,7 +360,8 @@ await owner.waitForSelector("[data-testid=key-reset]", { timeout: 30000 });
 ok("their new link to copy, right there", (await owner.textContent("[data-testid=key-reset]")).includes("Client B") && (await owner.isVisible("[data-testid=key-reset] >> text=Copy new link")));
 
 await staff.goto(`${BASE}/library`);
-await staff.waitForURL((u) => u.pathname === "/welcome", { timeout: 15000 }).catch(() => {});
+// With no business of their own (Decision 4: none is made for staff from an invite), they land on /start.
+await staff.waitForURL((u) => u.pathname === "/start", { timeout: 15000 }).catch(() => {});
 ok("removed staff are told plainly", !!(await staff.waitForSelector("[data-testid=removed-from-team]", { timeout: 15000 }).catch(() => null)) && (await staff.textContent("[data-testid=removed-from-team]")).includes("Business A"));
 await staff.screenshot({ path: `${shots}/fx-shell-removed-320.png`, fullPage: true });
 

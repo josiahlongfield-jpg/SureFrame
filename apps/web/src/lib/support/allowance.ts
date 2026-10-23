@@ -11,10 +11,12 @@ import { qldTime } from "@/lib/support/when";
  * and the AI gives them brief answers to general questions only (lib/support/assistant.ts). Paying
  * businesses (and plans the team gave free) keep the usual limits and can talk to a person any time.
  *
- * Every AI answer and new hand-over by a non-paying person is a SupportUse row, counted by account and by a one-way
- * fingerprint of their network (IP) and email address, so a new conversation, a new free account or a new browser
- * doesn't reset it. Site-wide ceilings stop a crowd of visitors (or one person hopping networks) from crowding out
- * paying customers. Rows are deleted after 31 days (pruneSupportUse, from the daily purge job).
+ * Every AI answer and new hand-over by a non-paying person is a SupportUse row. Who it counts against (Decision 3,
+ * Josiah, 22 October 2026): a signed-in Free account is counted by its business only, so a new account isn't refused
+ * because someone else on the same Wi-Fi used the allowance (O79); a website visitor is counted by a one-way
+ * fingerprint of their network (IP), and for Talk to a person also by their email address, so a new conversation or a
+ * new browser doesn't reset it. Site-wide ceilings stop a crowd of visitors (or one person hopping networks, or making
+ * accounts) from crowding out paying customers. Rows are deleted after 31 days (pruneSupportUse, from the daily purge job).
  */
 export const SUPPORT_LIMITS = {
   visitor: { aiPerDay: 8, aiPerWeek: 20, personEveryDays: 30, newChatsPerDay: 3, messagesPerChat: 20 },
@@ -56,8 +58,11 @@ async function freeFrom(key: string, kind: string, limit: number, ms: number) {
 }
 const latest = (dates: (Date | null)[]) => dates.reduce<Date | null>((a, d) => (d && (!a || d > a) ? d : a), null);
 
+/** The key a person's own allowance is counted on: their business when signed in, their network when not. */
+const ownKey = (a: Asker) => (a.tier === "visitor" || !a.workspaceId ? netKey(a) : `ws:${a.workspaceId}`);
+
 async function record(kind: string, a: Asker, extra: (string | null | undefined)[] = []) {
-  const keys = [netKey(a), everyone(a.tier), a.workspaceId ? `ws:${a.workspaceId}` : null, ...extra].filter((k): k is string => !!k);
+  const keys = [ownKey(a), everyone(a.tier), ...extra].filter((k): k is string => !!k);
   await db.supportUse.createMany({ data: [...new Set(keys)].map((key) => ({ kind, key })) });
 }
 
@@ -72,22 +77,15 @@ export async function aiRefusal(a: Asker): Promise<Refusal | null> {
   if (a.tier === "paying" || limitsOff) return null;
   const L = SUPPORT_LIMITS[a.tier];
   const S = SUPPORT_LIMITS.siteWide;
-  // Each key on its own, so the message can say whose use it was: this business's, or someone else's on the same network.
-  const [netDay, wsDay, netWeek, wsWeek] = await Promise.all([
-    freeFrom(netKey(a), "ai", L.aiPerDay, DAY),
-    a.workspaceId ? freeFrom(`ws:${a.workspaceId}`, "ai", L.aiPerDay, DAY) : null,
-    freeFrom(netKey(a), "ai", L.aiPerWeek, 7 * DAY),
-    a.workspaceId ? freeFrom(`ws:${a.workspaceId}`, "ai", L.aiPerWeek, 7 * DAY) : null,
-  ]);
-  const day = latest([netDay, wsDay]);
-  const week = latest([netWeek, wsWeek]);
+  // One key: a Free business's own use, or a visitor's network.
+  const key = ownKey(a);
+  const [day, week] = await Promise.all([freeFrom(key, "ai", L.aiPerDay, DAY), freeFrom(key, "ai", L.aiPerWeek, 7 * DAY)]);
   const upsell = a.tier === "free" ? " Paid plans get full help in the chat, and can talk to a person any time." : "";
   if (week || day) {
     const until = latest([day, week])!;
     const used = week ? `${L.aiPerWeek} answers a week` : `${L.aiPerDay} answers a day`;
-    // A visitor is only counted by network; a Free business by its own use too. Say "you" only when it was theirs.
-    const theirs = !!(week ? wsWeek : wsDay);
-    const who = theirs ? "you've used them" : `they've been used on your network (${NETWORK})`;
+    // A business's allowance is its own; a visitor's is shared by everyone on the network, so it isn't "you" for sure.
+    const who = key === netKey(a) ? `they've been used on your network (${NETWORK})` : "you've used them";
     return { until, message: `The help chat gives ${a.tier === "free" ? "Free plans" : "website visitors"} ${used}, and ${who}. ${askAgain(until)} Most questions are answered in the FAQ.${upsell}` };
   }
   const visitorsBusy = a.tier === "visitor" ? await freeFrom(everyone("visitor"), "ai", S.visitorAiPerDay, DAY) : null;
@@ -108,7 +106,7 @@ export async function recordAi(a: Asker) {
 /**
  * Whether this person can be passed to a person now (a new hand-over, not a message added to one already handed
  * over). Paying businesses always can. Website visitors once every 30 days (by network and email, and they must
- * give an email address), Free plans once a week (by workspace and network), with site-wide daily ceilings.
+ * give an email address), Free plans once a week (by business only), with site-wide daily ceilings.
  */
 export async function personRefusal(a: Asker): Promise<Refusal | null> {
   if (a.tier === "paying") return null;
@@ -116,15 +114,13 @@ export async function personRefusal(a: Asker): Promise<Refusal | null> {
   if (limitsOff) return null;
   const L = SUPPORT_LIMITS[a.tier];
   const window = L.personEveryDays * DAY;
-  const [byNet, byWs, byEmail] = await Promise.all([
-    freeFrom(netKey(a), "handover", 1, window),
-    a.workspaceId ? freeFrom(`ws:${a.workspaceId}`, "handover", 1, window) : null,
-    a.email ? freeFrom(emailKey(a.email), "handover", 1, window) : null,
-  ]);
-  const mine = latest([byNet, byWs, byEmail]);
+  const visitor = a.tier === "visitor" || !a.workspaceId;
+  const [byOwn, byEmail] = await Promise.all([freeFrom(ownKey(a), "handover", 1, window), visitor && a.email ? freeFrom(emailKey(a.email), "handover", 1, window) : null]);
+  const mine = latest([byOwn, byEmail]);
   if (mine) {
     // Refused only because someone else on the same network (an office, a shared connection) used it: say so, rather than "you".
-    const network = !byWs && !byEmail;
+    // Only a visitor is counted by network; a Free business only by its own use.
+    const network = visitor && !byEmail;
     const done =
       a.tier === "free"
         ? network

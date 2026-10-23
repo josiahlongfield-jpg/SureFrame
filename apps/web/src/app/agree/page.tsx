@@ -39,7 +39,8 @@ async function signedIn(to: string) {
  * join a team (no workspace of their own is wanted then), and never for staff.
  */
 async function needsWelcomeNext(userId: string, to: string) {
-  if (to.startsWith("/join/")) return false;
+  // Joining a team, or starting a business of their own on a paid plan (app/start): no welcome step yet.
+  if (to.startsWith("/join/") || to.startsWith("/start")) return false;
   const user = await db.user.findUnique({ where: { id: userId }, select: { onboardedAt: true, activeWorkspaceId: true, memberships: { select: { role: true, workspaceId: true }, orderBy: { id: "asc" } } } });
   if (!user || user.onboardedAt) return false;
   const active = user.memberships.find((m) => m.workspaceId === user.activeWorkspaceId) ?? user.memberships[0];

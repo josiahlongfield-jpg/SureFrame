@@ -15,6 +15,7 @@ import { signOut } from "@/auth";
 import { DELETION_GRACE_DAYS, deletionDate, requestAccountDeletion } from "@/lib/accountDeletion";
 import { leaveTeam, leaverName } from "@/lib/account";
 import LeaveTeamButton from "@/components/LeaveTeamButton";
+import SignOutEverywhereButton from "@/components/SignOutEverywhereButton";
 import { zoned } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { LEGAL } from "@/lib/legal";
@@ -68,6 +69,16 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
     redirect("/settings/account?saved=device#device");
   }
 
+  // "Sign out everywhere" (Decision 8): every sign-in made before now stops working (src/auth.ts), this one included,
+  // and the sign-in page says why. Support's user page tells it apart from support's own button (P50).
+  async function signOutEverywhere() {
+    "use server";
+    const { user } = await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: "existing" });
+    await db.user.update({ where: { id: user.id }, data: { sessionsValidAfter: new Date() } });
+    console.log("[account] signed out everywhere", JSON.stringify({ user: user.id }));
+    await signOut({ redirectTo: "/login?everywhere=1" });
+  }
+
   async function rename(form: FormData) {
     "use server";
     const { user } = await requirePageUser("/settings/account", { allowPaused: true });
@@ -111,8 +122,8 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
     if (!m || m.role === "OWNER") redirect("/settings/account?error=leave#leave-result");
     await leaveTeam(user.id, m.workspace, leaverName(user), { chose: true });
     revalidatePath("/", "layout");
-    // With no business of their own yet, the next page is the welcome step for one, which says they've left.
-    if (!user.onboardedAt && !(await db.membership.count({ where: { userId: user.id } }))) redirect("/welcome?left=1");
+    // On no team now and with no business of their own: /start says they've left, and offers one on a paid plan (Decision 4).
+    if (!(await db.membership.count({ where: { userId: user.id } }))) redirect("/start?left=1");
     redirect("/settings/account?saved=left#leave-result");
   }
 
@@ -245,6 +256,13 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
             </button>
             {saved === "device" && <span className="ml-3 text-sm text-ok-fg" role="status">Saved.</span>}
           </form>
+          <div className="mt-5 border-t border-line pt-4" data-testid="sign-out-everywhere-block">
+            <h3 className="text-sm font-semibold text-ink">Lost a phone, or left a computer signed in?</h3>
+            <p className="mt-1 text-sm text-muted">Sign out on every device at once, this one included. Then sign in again here.</p>
+            <form action={signOutEverywhere} className="mt-3">
+              <SignOutEverywhereButton />
+            </form>
+          </div>
         </section>
 
         {!limited && (
@@ -307,6 +325,19 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
                 <LeaveTeamButton team={t.workspace.name} />
               </form>
             ))}
+          </section>
+        )}
+
+        {!limited && !mine.some((m) => m.role === "OWNER") && (
+          <section id="own-business" className="mt-6 rounded-2xl border border-line bg-surface p-6" data-testid="own-business">
+            <h2 className="font-semibold text-ink">Your own business</h2>
+            <p className="mt-1 text-sm text-muted">
+              Want {LEGAL.product} for a business of your own? It&apos;s separate from {workspace.name}, with its own clients, plan and recovery key. Staff logins
+              don&apos;t come with a Free plan of their own, so it starts on a paid plan.
+            </p>
+            <Link href="/start" className="mt-3 inline-block text-sm font-semibold text-accent hover:underline" data-testid="own-business-link">
+              Start your own business
+            </Link>
           </section>
         )}
 
