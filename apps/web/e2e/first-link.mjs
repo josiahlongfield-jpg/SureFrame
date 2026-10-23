@@ -82,19 +82,16 @@ async function record() {
   return owner.url().split("/v/")[1].split("?")[0];
 }
 const choose = async (...names) => {
-  // After Stop, the client the last video went to is already chosen (D12): start from exactly these names.
-  const suggested = await owner.getAttribute("[data-testid=client-picker]", "data-preselected");
+  // The box always starts with nobody chosen.
   await owner.click("[data-testid=client-picker]");
-  const multi = (await owner.locator("[role=listbox] input[type=checkbox]").count()) > 0;
-  if (suggested && multi && !names.includes(suggested)) await owner.click(`[role=listbox] >> text=${suggested}`);
-  for (const n of names) if (n !== suggested) await owner.click(`[role=listbox] >> text=${n}`);
+  for (const n of names) await owner.click(`[role=listbox] >> text=${n}`);
   if (await owner.isVisible("[role=listbox]")) await owner.click("[data-testid=send-panel] >> button:has-text('Done')");
 };
 
 // First video: private until sent. Copy link puts Zoe's personal link on the clipboard and emails nobody.
 const first = await record();
 ok("nothing chosen yet: no greyed Send or Copy buttons under the picker (O35)", (await owner.locator("[data-testid=send-email]").count()) === 0 && (await owner.locator("[data-testid=send-link]").count()) === 0);
-ok("first recording: nobody chosen for you", (await owner.locator("[data-testid=preselected-note]").count()) === 0);
+ok("first recording: nobody chosen for you", (await owner.textContent("[data-testid=client-picker]")).includes("Choose"));
 ok("unsent: no extra notes in the Send box", (await owner.locator("[data-testid=send-private]").count()) === 0);
 await owner.click("[data-testid=client-picker]");
 ok("new clients are marked in the picker", (await owner.locator("[role=listbox] li:has-text('Zoe Park') [data-testid=needs-first-link]").count()) === 1);
@@ -142,7 +139,8 @@ ok("opening the link is recorded", !!(await waitFor(async () => (await prisma.cl
 
 // Second video to Zoe (has opened a link) and Ann (new): Zoe is emailed, Ann's first video goes from you.
 const second = await record();
-ok("after Stop: the client the last video went to is already chosen, and it says so (D12)", (await owner.textContent("[data-testid=client-picker]")).includes("Zoe Park") && (await owner.textContent("[data-testid=preselected-note]")).includes("Zoe Park is chosen"));
+// Josiah, 23 October 2026: the box never remembers who the last video went to; it always starts on "Choose a client".
+ok("after Stop: nobody is chosen, though the last video went to Zoe", (await owner.textContent("[data-testid=client-picker]")).includes("Choose") && !(await owner.textContent("[data-testid=client-picker]")).includes("Zoe Park"));
 await choose("Zoe Park", `Ann Lee${stamp}`);
 await owner.screenshot({ path: `${process.argv[2] ?? "/tmp"}/first-link-chosen.png` });
 ok("mixed choice: only Zoe is offered email, by name", (await owner.textContent("[data-testid=send-email]")).trim() === "Email Zoe Park" && (await owner.locator("[data-testid=send-all]").count()) === 0);

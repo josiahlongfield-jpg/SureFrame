@@ -127,8 +127,6 @@ type Props = {
   hasThumb?: boolean;
   /** Members only: this page was opened by Stop, straight after recording (/v/<id>?new=1). */
   justRecorded?: boolean;
-  /** Members only, just recorded: the client the person's last video went to, chosen already in the Send box. */
-  lastClientId?: string | null;
   /** Members only, without the AI add-on: where transcripts and summaries would be, and how to get them. */
   aiPlaceholder?: "free" | "owner" | "staff";
 };
@@ -249,7 +247,6 @@ function WatchBody({
   hasThumb = true,
   sourceId = null,
   justRecorded = false,
-  lastClientId = null,
   aiPlaceholder,
   rootKey,
   teamKey,
@@ -985,7 +982,6 @@ function WatchBody({
             rootKey={rootKey}
             teamKey={teamKey}
             onTitle={(t) => (titles.adopt(t), setTitle(t))}
-            preselect={justRecorded ? lastClientId : null}
           />
         )}
 

@@ -139,12 +139,8 @@ export default async function Watch({ params, searchParams }: Props) {
   // AI summaries add-on. Copies sent to other clients share the original recording's transcript.
   const aiOn = aiAssistActive(workspace);
   const insight = await db.videoInsight.findUnique({ where: { videoId: video.sourceId ?? video.id }, select: { transcript: true, summary: true } });
-  // Opened by Stop (?new=1) on the recorder's own video: it says it's saved, and the Send box has the client their
-  // last video went to chosen already (D12).
+  // Opened by Stop (?new=1) on the recorder's own video: it says it's saved.
   const justRecorded = viewer.kind === "member" && (await searchParams).new === "1" && video.ownerId === viewer.userId && !video.clientId && !video.sourceId;
-  const lastClientId = justRecorded
-    ? (await db.video.findFirst({ where: { workspaceId: video.workspaceId, ownerId: video.ownerId, id: { not: video.id }, replyToId: null, clientId: { not: null }, sentAt: { not: null } }, orderBy: { sentAt: "desc" }, select: { clientId: true } }))?.clientId ?? null
-    : null;
   // Someone on this business's team whose browser also holds this client's personal link, on a video their own
   // access doesn't open (say, a client looked after by someone else): the page is the client's view, so it says so (S41).
   const signedInId = viewer.kind === "client" ? (await auth())?.user?.id : null;
@@ -275,7 +271,6 @@ export default async function Watch({ params, searchParams }: Props) {
             // Still no offer box; just one line for the team saying where transcripts and summaries would show (O67, O87).
             aiPlaceholder={isMember && !aiOn && !insight ? (workspace.plan === "FREE" ? "free" : access?.role === "OWNER" ? "owner" : "staff") : undefined}
             justRecorded={justRecorded}
-            lastClientId={lastClientId}
             initialReplies={replies.map((r) => replyDTO(r, video.ownerId, who))}
             reactions={reactions}
             hasThumb={hasThumb}

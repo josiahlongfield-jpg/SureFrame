@@ -13,6 +13,7 @@ import { isEmailBlocked } from "@/lib/blockedEmail";
 import KeepSignedIn from "@/components/KeepSignedIn";
 import AuthLinks from "@/components/AuthLinks";
 import { emailLink } from "./actions";
+import SendButton from "./SendButton";
 import { JOINING_COOKIE } from "@/lib/joining";
 import { errorText } from "./errors";
 import { BRAND } from "@/lib/brand";
@@ -134,7 +135,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
                 <input name="email" type="email" required autoFocus autoComplete="email" placeholder="you@company.com" className="rounded-lg border border-line-strong px-3 py-2" />
               </label>
               {keepAt === "email" && keep}
-              <button className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover">{claude ? "Email me a code" : "Email me a sign-in link"}</button>
+              <SendButton label={claude ? "Email me a code" : "Email me a sign-in link"} busy={claude ? "Sending your code…" : "Sending your link…"} />
               <p className="text-xs text-dim">
                 {claude ? "No password needed. We'll email you a 6-digit code to type in this window." : "No password needed. We'll email you a link that signs you in."}
               </p>

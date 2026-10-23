@@ -44,6 +44,7 @@ await agreed(email);
 const ctx = await browser.newContext();
 const page = await ctx.newPage();
 await page.goto(`${BASE}/login?next=${encodeURIComponent(CLAUDE)}`);
+await page.waitForSelector("text=Email me a code", { timeout: 5000 }).catch(() => {});
 ok("from Claude: the sign-in page says Connect Claude and that a code is emailed (D4)", (await page.textContent("[data-testid=login-heading]")).trim() === "Connect Claude" && (await page.isVisible("text=Email me a code")) && (await page.isVisible("text=/6-digit code/")));
 await ask(page, email);
 const code = codeFor(email);
