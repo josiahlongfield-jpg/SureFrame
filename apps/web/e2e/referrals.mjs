@@ -220,8 +220,10 @@ const codeG = squash(await G.page.textContent('[data-testid="referral-code"]')).
 const mateEmail = `refmate${stamp}@example.com`;
 const matePage = await signIn(mateEmail);
 const mateUser = await prisma.user.findUnique({ where: { email: mateEmail } });
+// Their own business first (made as their first page renders), then they join G's team.
+const mateOwn = await workspaceOf(mateEmail);
 await prisma.membership.create({ data: { workspaceId: G.w.id, userId: mateUser.id, role: "MEMBER" } });
-await prisma.user.update({ where: { id: mateUser.id }, data: { activeWorkspaceId: (await workspaceOf(mateEmail)).id } });
+await prisma.user.update({ where: { id: mateUser.id }, data: { activeWorkspaceId: mateOwn.id } });
 res = await api(matePage, "/api/billing/code", { code: codeG });
 ok("a teammate can't use their team's code for their own business", res.status() === 400 && /your own business/.test((await res.json()).error));
 
