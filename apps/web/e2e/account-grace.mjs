@@ -106,7 +106,7 @@ await owner.goto(BASE + "/settings/account");
 const explainer = norm(await owner.textContent("[data-testid=delete-explainer]"));
 const roughly = longDay(new Date(Date.now() + 30 * D), TZ);
 ok("explainer: closed now, deleted on the date, sign in to keep it", explainer.includes(`Nothing is scheduled yet. If you delete your account, it's closed straight away and permanently deleted 30 days later (on ${roughly} if you delete it today). Until then, you can sign in to keep it with everything as it was.`), explainer);
-ok("explainer: workspace goes with it, links stop, expiry carries on", explainer.includes("Your workspace goes with it") && explainer.includes("links stop working now") && explainer.includes("still expire on their usual dates") && explainer.includes("removed clients are still deleted on their dates") && !explainer.includes("won't renew"), explainer);
+ok("explainer: workspace goes with it, links stop, expiry carries on", explainer.includes("Your workspace goes with it") && explainer.includes("links stop working now") && explainer.includes("still expire on their usual dates") && !explainer.includes("removed clients") && !explainer.includes("won't renew"), explainer);
 ok("explainer: sooner on request", explainer.includes("Want it deleted sooner? Email support@sureframe.app."), explainer);
 await owner.screenshot({ path: `${shots}/account-grace-settings.png`, fullPage: true });
 
@@ -128,7 +128,7 @@ ok("emailed: subject has the date in the business's time zone", !!closedMail, JS
 const ct = closedMail?.text ?? "";
 ok("email: deleted for good with the workspace, sign in to keep it", ct.includes(`It will be deleted for good on ${deleteDay}, with ${business} and its recordings, clients, to-dos and notes.`) && ct.includes("Sign in before then to keep your account with everything as it was."), ct);
 ok("email: what happens now", ct.includes("You're signed out on every device.") && ct.includes(`Your clients can't open their links, and they aren't sent reminders or new-video emails from ${business}.`), ct);
-ok("email: recordings still expire; no plan line on Free", ct.includes("Recordings without cloud backup still expire on their usual dates") && ct.includes("removed clients are still deleted on their dates") && !ct.includes("plan won't renew"), ct);
+ok("email: recordings still expire; no plan line on Free", ct.includes("Recordings without cloud backup still expire on their usual dates") && !ct.includes("removed clients") && !ct.includes("plan won't renew"), ct);
 ok("email: Keep my account button, and 'didn't ask for this'", ct.includes("Keep my account: http") && ct.includes("/account/restore") && ct.includes("Didn't ask for this? Sign in, keep your account and contact support@sureframe.app."), ct);
 ok("email: plain SureFrame email", !!closedMail && closedMail.from.startsWith("SureFrame"));
 
@@ -200,7 +200,7 @@ await prisma.workspace.update({ where: { id: ws }, data: { renewalStoppedAt: new
 const backedUp = await prisma.video.create({ data: { id: `agb${Date.now().toString(36)}`, mimeType: "video/webm", storageKey: `test/grace-backed-${Date.now()}`, status: "UPLOADED", workspaceId: ws, ownerId: ownerUser.id } });
 const keeper = await signIn(ownerEmail, "/clients", "/account/restore");
 ok("restore page: says the subscription ended", norm(await keeper.textContent("main")).includes("Your subscription has ended. Choose a plan in Settings > Billing"));
-ok("restore page: says removed clients due meanwhile are gone", norm(await keeper.textContent("[data-testid=restore-removed-clients]").catch(() => "")) === "Removed clients whose 30 days ended while it was closed have been deleted and can't be restored.");
+ok("restore page: no line about removed clients", (await keeper.locator("[data-testid=restore-removed-clients]").count()) === 0);
 const waitingNote = norm(await keeper.textContent("[data-testid=restore-backup-ended]").catch(() => ""));
 ok("restore page: says backed-up recordings get 30 days once kept", /^Cloud backup ended while it was closed\. Keep it and our copies of \d+ recordings? are deleted 30 days later, on /.test(waitingNote), waitingNote);
 await keeper.click("button:text-is('Keep my account')");

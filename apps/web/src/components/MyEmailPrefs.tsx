@@ -52,7 +52,6 @@ export default function MyEmailPrefs({ initial, owner = false }: { initial: { re
           <p>These always come, as they&apos;re about losing something or about your account:</p>
           <ul className="mt-1 list-disc space-y-0.5 pl-5">
             <li>about 24 hours before a recording is deleted from our servers (without cloud backup)</li>
-            <li>about 3 days before a removed client is deleted for good</li>
             <li>when a client asks you for their personal link again</li>
             <li>sign-in links, and notices about your account, plan and our Terms</li>
           </ul>

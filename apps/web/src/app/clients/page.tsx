@@ -6,14 +6,13 @@ import { clientLink, seatUsage } from "@/lib/clients";
 import { EXTRA_SEAT_PRICE, EXTRA_SEAT_PRICE_YEARLY, PLANS } from "@/lib/plans";
 import { followTeamLink, requirePageUser } from "@/lib/session";
 import { accessOf, clientScopeWhere, effectivePerms } from "@/lib/permissions";
-import { CLIENT_KEEP_DAYS, restorableWhere } from "@/lib/clientRemoval";
 import { clientConvs } from "@/lib/clientReplies";
 
 export const metadata: Metadata = { title: "Clients" };
 
-export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ ws?: string; removed?: string; seats?: string }> }) {
-  const { ws, removed, seats: seatsParam } = await searchParams;
-  await followTeamLink(ws, removed ? "/clients?removed=1" : "/clients");
+export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ ws?: string; seats?: string }> }) {
+  const { ws, seats: seatsParam } = await searchParams;
+  await followTeamLink(ws, "/clients");
   const me = await requirePageUser("/clients");
   const { user, workspace, role } = me;
   const access = accessOf(me);
@@ -21,7 +20,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   const plan = PLANS[workspace.plan];
   const yearly = workspace.billingInterval === "year";
   const canManage = role !== "MEMBER";
-  const [clients, seats, members, removedClients] = await Promise.all([
+  const [clients, seats, members] = await Promise.all([
     db.client.findMany({
       where: { ...clientScopeWhere(access), removedAt: null },
       orderBy: { name: "asc" },
@@ -33,10 +32,6 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
     }),
     seatUsage(workspace),
     db.membership.findMany({ where: { workspaceId: workspace.id }, include: { user: true }, orderBy: { id: "asc" } }),
-    // Owners and admins can restore removed clients until they're deleted.
-    canManage
-      ? db.client.findMany({ where: { workspaceId: workspace.id, ...restorableWhere() }, orderBy: { removedAt: "desc" }, select: { id: true, name: true, email: true, removedAt: true, purgeAt: true } })
-      : Promise.resolve([]),
   ]);
   const convs = await clientConvs(clients.map((c) => c.id));
 
@@ -91,11 +86,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
             convs: convs.get(c.id) ?? [],
             replaced: c.replacedLinks[0] ? { at: c.replacedLinks[0].createdAt.toISOString(), emailed: c.replacedLinks[0].emailed } : null,
           }))}
-          initialRemoved={removedClients.map((c) => ({ id: c.id, name: c.name, email: c.email, removedAt: c.removedAt!.toISOString(), purgeAt: c.purgeAt?.toISOString() ?? null }))}
-          keepDays={CLIENT_KEEP_DAYS}
-          openRemoved={!!removed}
           timezone={workspace.timezone}
-          cloudBackup={workspace.cloudBackup}
           seatsAdded={Math.max(0, Math.min(1000, Number(seatsParam) || 0)) || undefined}
           initialSeats={seats}
           includedSeats={plan.clientSeats}

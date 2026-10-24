@@ -64,7 +64,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // By title, or by who it was sent to (the copies sent to other clients count too).
   const contains = { contains: q, mode: "insensitive" as const };
   const search: Prisma.VideoWhereInput[] = [
-    ...(q ? [{ OR: [{ title: contains }, { client: { name: contains } }, { copies: { some: { client: { name: contains } } } }] }] : []),
+    ...(q ? [{ OR: [{ title: contains }, { client: { name: contains, removedAt: null } }, { copies: { some: { client: { name: contains, removedAt: null } } } }] }] : []),
     ...(clientId ? [{ OR: [{ clientId }, { copies: { some: { clientId } } }] }] : []),
   ];
   const [found, soonCount, allowance] = await Promise.all([
@@ -73,8 +73,9 @@ export default async function Library({ searchParams }: { searchParams: Promise<
       where: { AND: [soon ? soonWhere : scope, ...search] },
       orderBy: soon ? { purgeAt: "asc" } : { createdAt: "desc" },
       include: {
-        copies: { select: { id: true, viewCount: true, client: { select: { id: true, name: true, assignedToId: true, removedAt: true } } } },
-        client: { select: { id: true, name: true, removedAt: true, purgeAt: true } },
+        // A deleted client leaves no trace (Josiah, 24 October 2026): not their name, nor their conversation.
+        copies: { where: { OR: [{ clientId: null }, { client: { removedAt: null } }] }, select: { id: true, viewCount: true, client: { select: { id: true, name: true, assignedToId: true } } } },
+        client: { select: { id: true, name: true, removedAt: true } },
         thumb: { select: { videoId: true } },
         source: { select: { thumb: { select: { videoId: true } } } },
       },
@@ -82,7 +83,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
     db.video.count({ where: soonWhere }),
     plan.maxVideos !== null ? videosUsed(workspace.id) : null,
   ]);
-  const videos = found;
+  // A recording also sent to others stays while its deleted client's conversation is erased: shown as not sent to them.
+  const videos = found.map((v) => (v.client?.removedAt ? { ...v, client: null } : v));
   // The client's replies in each conversation (the team's own aren't news), newest first, with when they came,
   // so each device can tell which it hasn't seen (components/LibraryTools.tsx). Held and uploading replies don't count yet.
   const convIds = videos.flatMap((v) => [v.id, ...v.copies.map((c) => c.id)]);
@@ -165,11 +167,6 @@ export default async function Library({ searchParams }: { searchParams: Promise<
       ) : (
         // Search results have no folder row to carry the date; inside a folder, its row says it once (O63).
         !grouped && !workspace.cloudBackup && v.purgeAt && v.status !== "RECORDING" && <p className="text-xs text-dim" data-testid="card-deletes">Deletes from our servers {dates.shortDay(v.purgeAt)}</p>
-      )}
-      {v.client?.removedAt && (
-        <p className="text-xs text-warn-fg" data-testid="client-removed-badge">
-          Client removed{v.client.purgeAt && v.client.purgeAt > now ? ` · conversation deleted ${dates.shortDay(v.client.purgeAt)}` : ""}
-        </p>
       )}
     </>
   );
@@ -316,7 +313,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // aren't shown folders for the others.
   const byClient = pickedView === "client" && !soon && !searching && clients.length > 0;
   const clientFolders = () => {
-    const map = new Map<string, { id: string; name: string; removed: boolean; items: Item[]; convs: Conv[] }>();
+    const map = new Map<string, { id: string; name: string; items: Item[]; convs: Conv[] }>();
     const unsent: Item[] = [];
     for (const v of videos) {
       const to = [
@@ -326,14 +323,12 @@ export default async function Library({ searchParams }: { searchParams: Promise<
       if (!to.length) unsent.push(v);
       for (const { c, conv } of to) {
         let g = map.get(c.id);
-        if (!g) map.set(c.id, (g = { id: c.id, name: c.name, removed: !!c.removedAt, items: [], convs: [] }));
+        if (!g) map.set(c.id, (g = { id: c.id, name: c.name, items: [], convs: [] }));
         if (g.items[g.items.length - 1] !== v) g.items.push(v);
         g.convs.push({ id: conv, fromClient: fromClients.get(conv) ?? [] });
       }
     }
-    // Removed clients after the current ones.
-    const all = [...map.values()];
-    return { clients: [...all.filter((g) => !g.removed), ...all.filter((g) => g.removed)], unsent };
+    return { clients: [...map.values()], unsent };
   };
   // Inside a client's folder: a long run of videos is split by month.
   const clientContents = (key: string, items: Item[]) => {
@@ -361,8 +356,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             kind="client"
             compact={layout === "list"}
             defaultOpen={i === 0}
-            summary={summary("client", g.name, g.items, 0, { strip: true, convs: g.convs, note: `${g.removed ? " · client removed" : ""} · latest ${dates.shortDay(g.items[0].createdAt)}` })}
-            tile={tiles ? tileCard("client", g.name, g.items, { convs: g.convs, note: g.removed ? " · client removed" : "" }) : undefined}
+            summary={summary("client", g.name, g.items, 0, { strip: true, convs: g.convs, note: ` · latest ${dates.shortDay(g.items[0].createdAt)}` })}
+            tile={tiles ? tileCard("client", g.name, g.items, { convs: g.convs }) : undefined}
           >
             {clientContents(`c${g.id}`, g.items)}
           </DayFolder>

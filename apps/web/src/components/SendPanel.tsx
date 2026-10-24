@@ -108,7 +108,7 @@ export default function SendPanel({
   const byId = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients]);
   const has = new Set(recipients.map((r) => r.clientId));
   // Who can be chosen: active clients with a key, who don't have it yet.
-  const available = clients.filter((c) => c.link && c.teamKeyWrap && !c.removed && !c.paused && !c.linkOff && !has.has(c.id));
+  const available = clients.filter((c) => c.link && c.teamKeyWrap && !c.paused && !c.linkOff && !has.has(c.id));
   // Several clients at once needs the permission, and the upload to have finished.
   const many = !!sendMany && !uploading && video.encrypted;
   const canPick = !isCopy && (many || !primary);
@@ -317,7 +317,7 @@ export default function SendPanel({
   }
 
   const label = picked.length === 0 ? (many ? "Choose clients" : "Choose a client") : picked.length === 1 ? byId.get(picked[0])?.name : `${picked.length} clients chosen`;
-  const isBlocked = (c: ClientOption) => !!(c.removed || c.paused || c.linkOff || !c.link);
+  const isBlocked = (c: ClientOption) => !!(c.paused || c.linkOff || !c.link);
   const sentLink = (c: ClientOption) => c.linkSent || rows[c.id] === "copied" || rows[c.id] === "own-email";
   const sent = recipients.filter((r) => byId.has(r.clientId));
   const inSection = (s: Section) => sent.filter((r) => sectionOf(byId.get(r.clientId)!) === s);
@@ -414,16 +414,12 @@ export default function SendPanel({
                 Copy link
               </button>
             )}
-            {!c.removed && (
-              <button onClick={() => setStopping(stopping === r.convId ? null : r.convId)} data-testid="stop-sharing" className="rounded-lg px-2 py-1 text-xs text-dim hover:text-danger-fg">
-                Stop sharing
-              </button>
-            )}
+            <button onClick={() => setStopping(stopping === r.convId ? null : r.convId)} data-testid="stop-sharing" className="rounded-lg px-2 py-1 text-xs text-dim hover:text-danger-fg">
+              Stop sharing
+            </button>
           </span>
         </div>
-        {c.removed ? (
-          <p className="mt-1 text-xs text-warn-fg">{c.name} was removed from your clients, so their link no longer opens this.</p>
-        ) : c.linkOff ? (
+        {c.linkOff ? (
           <p className="mt-1 text-xs text-warn-fg">SureFrame support turned off {c.name}&apos;s link, so they can&apos;t open this. Contact support@sureframe.app.</p>
         ) : c.paused ? (
           <p className="mt-1 text-xs text-warn-fg">{c.name} is paused because your plan covers fewer clients, so they can&apos;t open this until they&apos;re restored.</p>

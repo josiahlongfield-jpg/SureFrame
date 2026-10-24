@@ -38,11 +38,12 @@ export function DialogShell({
       role={role}
       aria-modal="true"
       aria-labelledby={id}
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-solid/40 p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-solid/40 p-4"
       onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}
       data-testid={testId}
     >
-      <div ref={box} className="w-full max-w-md rounded-2xl bg-surface p-6 text-left shadow-xl">
+      {/* my-auto centres it, and a tall one scrolls from its top instead of being cut off. */}
+      <div ref={box} className="my-auto w-full max-w-md rounded-2xl bg-surface p-6 text-left shadow-xl">
         <h2 id={id} className="text-lg font-semibold text-ink">
           {title}
         </h2>

@@ -2,7 +2,7 @@ import { BRAND } from "@/lib/brand";
 import { MAX_REPLY_MINUTES } from "@/lib/plans";
 import { RETENTION_DAYS } from "@/lib/retention";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
-import { CLIENT_KEEP_DAYS, CLIENT_QUESTION_KEEP_DAYS, DELETION_GRACE_DAYS } from "@/lib/periods";
+import { CLIENT_QUESTION_KEEP_DAYS, DELETION_GRACE_DAYS } from "@/lib/periods";
 import { REACTIONS } from "@/lib/reactions";
 import { BROWSER_FORGETS } from "@/lib/support/browser";
 
@@ -75,7 +75,7 @@ A business (a coach, tutor, consultant and so on) uses ${BRAND.name} to send its
 
 ## When a link stops working
 The page says which of these applies. Explain only what the page says, and never guess why it happened or whether or when it will change.
-- "Your access has ended": the business removed them as a client. Their details and conversations with that business are deleted for good ${CLIENT_KEEP_DAYS} days later unless the business restores their access first. If it's a mistake, contact the business.
+- "Your access has ended", or an old link that no longer works: the business may have removed them as a client, which deletes their details, videos, messages and shared to-dos with that business for good, straight away. It can't be undone; if it's a mistake, contact the business, who can add them again as a new client with a new personal link.
 - "Your access is paused": the business changed its ${BRAND.name} plan. Nothing is deleted by the pause, but videos are only kept for a limited time, so contact the business soon.
 - "This link no longer opens your videos": the business closed its ${BRAND.name} account. Their details and conversations with it are deleted ${DELETION_GRACE_DAYS} days later unless the business keeps its account. Contact the business directly.
 - "Your link was replaced": the business replaced their personal link to keep their videos secure, so the old one no longer opens them. Nothing has been deleted. If the page says the business has emailed them their new link, open that link on this device. Otherwise press "Ask for my link again", or ask the business for the new link, then open it on this device.

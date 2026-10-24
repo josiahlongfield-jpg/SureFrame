@@ -25,7 +25,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
     return Response.redirect(new URL("/inbox?invalid=1", url), 302);
   }
   switch (clientBlock(client)) {
-    // The business ended their access; it can still be restored for a while (lib/clientRemoval.ts).
+    // The business deleted them, and that's still finishing (lib/clientRemoval.ts). Once done the link is unknown.
     case "removed":
       await note();
       return Response.redirect(new URL("/inbox?removed=1", url), 302);

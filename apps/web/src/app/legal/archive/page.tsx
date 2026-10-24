@@ -26,7 +26,7 @@ export default function Page() {
       <h2 id="versions">Versions</h2>
       <p>The versions people have agreed to, newest first.</p>
       <ul>
-        {LEGAL_VERSIONS.map((v) => {
+        {LEGAL_VERSIONS.map((v, i) => {
           const current = v.terms === LEGAL.termsVersion && v.privacy === LEGAL.privacyVersion;
           return (
             <li key={`${v.terms}-${v.privacy}`} data-testid={`version-${v.terms}`}>
@@ -37,7 +37,7 @@ export default function Page() {
                   (current: <Link href="/legal/terms">Terms of Service</Link>, <Link href="/legal/privacy">Privacy Policy</Link>)
                 </>
               ) : null}
-              . What changed from the earlier versions, which weren&rsquo;t numbered:
+              . What changed {i === LEGAL_VERSIONS.length - 1 ? <>from the earlier versions, which weren&rsquo;t numbered</> : "from the version before"}:
               <ul>
                 {v.changes.map((c) => (
                   <li key={c}>{c}</li>
@@ -58,7 +58,7 @@ export default function Page() {
 
       <h2 id="wording-updates">Wording updates</h2>
       <p>
-        Changes since the current versions took effect, newest first. None of them needed a new agreement. The current wording was last updated on{" "}
+        Smaller changes that kept the version in effect at the time, newest first. None of them needed a new agreement. The current wording was last updated on{" "}
         {LEGAL.termsUpdated} (Terms of Service), {LEGAL.privacyUpdated} (Privacy Policy) and {LEGAL.dpaUpdated} (Data Processing Agreement).
       </p>
       <ul data-testid="wording-updates">

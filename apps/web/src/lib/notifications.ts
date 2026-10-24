@@ -11,7 +11,7 @@ export type NotificationKind =
   | "TODO" // a to-do's reminder for the team
   | "STAFF_REMINDER" // a reminder from the owner to a staff member
   | "EXPIRING" // recordings deleted from our servers in 24 hours
-  | "CLIENT_DELETING" // removed clients about to be deleted for good
+  | "CLIENT_DELETING" // removed clients about to be deleted for good (not sent since 24 October 2026; old rows only)
   | "LINK_REQUEST" // a client asking for their personal link
   | "PAUSED" // clients or staff paused by the plan's limits
   | "BACKUP_ENDED" // cloud backup ended

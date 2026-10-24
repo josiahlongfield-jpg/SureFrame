@@ -4,8 +4,7 @@ import { deletedEmail, LEGAL_HOLD_DELETE, onLegalHold, purgeAccountNow, restoreA
 import { ACTIVE_STATUSES } from "@/lib/billing";
 import { isEmailBlocked } from "@/lib/blockedEmail";
 import { BRAND } from "@/lib/brand";
-import { CLIENT_KEEP_DAYS, purgeClient, restoreClient } from "@/lib/clientRemoval";
-import { seatUsage } from "@/lib/clients";
+import { purgeClient } from "@/lib/clientRemoval";
 import { qldDay } from "@/lib/support/when";
 import { db, type Workspace } from "@/lib/db";
 import { LEGAL } from "@/lib/legal";
@@ -38,18 +37,17 @@ import { videosUsed } from "@/lib/videoAllowance";
  * The support console's other powers (the rest are in lib/support/admin.ts,
  * with the same rules): deleting an account now or cancelling its scheduled
  * deletion (both on a verified request from the account's own address),
- * removed clients (restore, keep 30 more days, delete now), correcting the
+ * finishing a client deletion, correcting the
  * Free plan's count of videos, re-syncing billing from Stripe, re-running the
  * seat check, and unblocking an address with a notice.
  */
 
 /** What the admin types to confirm deleting an account now. */
 export const deleteConfirmation = (email: string) => `DELETE ${email}`;
-/** What the admin types to confirm deleting a removed client now. */
+/** What the admin types to confirm finishing a client's deletion now. */
 export const clientDeleteConfirmation = (c: { name: string; email: string | null }) => `DELETE ${c.email ?? c.name}`;
 const typed = (got: string, want: string) => got.trim().toLowerCase() === want.toLowerCase();
 
-const D = 86_400_000;
 
 async function mergeDetails(id: string, extra: Prisma.InputJsonObject) {
   const row = await db.adminAction.findUnique({ where: { id }, select: { details: true } });
@@ -206,117 +204,9 @@ async function loadClient(clientId: string) {
 }
 
 /**
- * Brings a removed client back (the business asked). Their link works again,
- * or they get a new one if the team's keys were reset meanwhile. With
- * `ignoreSeatLimit`, the newest clients over the plan's seats are paused.
- */
-export async function restoreRemovedClient(actor: SupportAdmin, o: { clientId: string; reason: string; ignoreSeatLimit?: boolean; notify?: boolean }) {
-  const reason = reasonOf(o.reason);
-  const notify = o.notify ?? true;
-  const c = await loadClient(o.clientId);
-  const ws = c.workspace;
-  guard(actor, { workspaceId: ws.id });
-  if (!c.removedAt) throw new HttpError(409, "This client hasn't been removed.");
-  if (c.purgeAt && c.purgeAt <= new Date()) throw new HttpError(410, "This client's 30 days are up, so they're being deleted and can't be restored.");
-  if (ws.deleteAt || ws.closedAt) throw new HttpError(409, "This account is closed, so its clients can't be restored. The account has to be kept or reopened first.");
-  if (!o.ignoreSeatLimit) {
-    // Checked again, under the seat lock, by restoreClient.
-    const seats = await seatUsage(ws);
-    if (seats.used >= seats.limit)
-      throw new HttpError(402, `All ${seats.limit} client seats are in use. Tick "Restore even if every seat is in use", or ask the business to free a seat.`);
-  }
-  const own = await owner(ws.id);
-  const { row, out } = await tracked(
-    actor,
-    {
-      action: "client.restore",
-      workspaceId: ws.id,
-      clientId: c.id,
-      userId: own?.user.id,
-      target: clientLabel(c, ws),
-      reason,
-      details: { notify, ignoreSeatLimit: !!o.ignoreSeatLimit, before: { removedAt: c.removedAt.toISOString(), purgeAt: c.purgeAt?.toISOString() ?? null } },
-    },
-    () => restoreClient(ws, c.id, { ignoreSeatLimit: !!o.ignoreSeatLimit }),
-    (r) => ({ after: { removedAt: null }, newLink: r.newLink, clientEmailed: r.emailed, paused: r.client.paused, seats: r.seats }),
-  );
-  let emailed = false;
-  if (notify) {
-    const over = out.seats.used > out.seats.limit;
-    emailed = await sendNotice(
-      row.id,
-      own?.user.email,
-      notice({
-        subject: `${c.name} is one of your clients again`,
-        lead: `We've restored ${c.name} to ${ws.name}'s clients on ${BRAND.name}.`,
-        lines: [
-          {
-            text: !out.newLink
-              ? "Their personal link works again."
-              : out.emailed
-                ? "Your team's keys were reset while they were removed, so they have a new personal link, which we've emailed to them."
-                : "Your team's keys were reset while they were removed, so they have a new personal link. Copy it from the Clients page and send it to them.",
-          },
-          ...(over
-            ? [{ text: `You now have ${out.seats.used} clients and your plan covers ${out.seats.limit}, so the newest ones over that are paused until a seat is free.` }]
-            : []),
-        ],
-        button: { label: "Open Clients", link: clientsPath(ws.id) },
-        footer: QUESTIONS,
-      }),
-    );
-  }
-  return { actionId: row.id, emailed, newLink: out.newLink, clientEmailed: out.emailed, paused: out.client.paused, seats: out.seats };
-}
-
-/** Keeps a removed client CLIENT_KEEP_DAYS longer before they're deleted, so the business has more time to restore them. */
-export async function keepRemovedClientLonger(actor: SupportAdmin, o: { clientId: string; reason: string; notify?: boolean }) {
-  const reason = reasonOf(o.reason);
-  const notify = o.notify ?? true;
-  const c = await loadClient(o.clientId);
-  const ws = c.workspace;
-  guard(actor, { workspaceId: ws.id });
-  if (!c.removedAt) throw new HttpError(409, "This client hasn't been removed.");
-  // Undated removals get their date (and the owner a notice) from the clean-up job: nothing to extend yet.
-  if (!c.purgeAt) throw new HttpError(409, "This client has no deletion date yet. The clean-up job gives them one, and tells the owner, on its next run.");
-  if (c.purgeAt <= new Date()) throw new HttpError(410, "This client's 30 days are up, so they're being deleted.");
-  const purgeAt = new Date(c.purgeAt.getTime() + CLIENT_KEEP_DAYS * D);
-  const own = await owner(ws.id);
-  const row = await db.$transaction(async (tx) => {
-    const res = await tx.client.updateMany({ where: { id: c.id, removedAt: { not: null }, purgeAt: c.purgeAt }, data: { purgeAt, purgeWarnedAt: null } });
-    if (!res.count) throw new HttpError(409, "This client changed meanwhile. Reload and try again.");
-    return logAdmin(tx, actor, {
-      action: "client.keep_longer",
-      workspaceId: ws.id,
-      clientId: c.id,
-      userId: own?.user.id,
-      target: clientLabel(c, ws),
-      reason,
-      details: { notify, before: { purgeAt: c.purgeAt!.toISOString() }, after: { purgeAt: purgeAt.toISOString() } },
-    });
-  });
-  let emailed = false;
-  if (notify) {
-    const until = qldDay(purgeAt);
-    emailed = await sendNotice(
-      row.id,
-      own?.user.email,
-      notice({
-        subject: `${c.name} will be kept until ${until}`,
-        lead: `We'll keep ${c.name}, a client removed from ${ws.name}, until ${until}.`,
-        lines: [{ text: "Until then you can restore them from Clients > Removed clients. After that their details, videos and messages with you are deleted for good." }],
-        button: { label: "Open Clients", link: clientsPath(ws.id) },
-        footer: QUESTIONS,
-      }),
-    );
-  }
-  return { actionId: row.id, emailed, purgeAt };
-}
-
-/**
- * Deletes a removed client for good now, as the clean-up job would at the end
- * of their 30 days (lib/clientRemoval.ts purgeClient). If their files can't be
- * deleted yet, they stay due and the job finishes it within minutes.
+ * Finishes deleting a client the business deleted, as the clean-up job would
+ * (lib/clientRemoval.ts purgeClient): for one whose files wouldn't delete yet.
+ * If they still can't, the job finishes it within minutes.
  */
 export async function deleteRemovedClientNow(actor: SupportAdmin, o: { clientId: string; reason: string; confirm: string; notify?: boolean }) {
   const reason = reasonOf(o.reason);
@@ -342,7 +232,7 @@ export async function deleteRemovedClientNow(actor: SupportAdmin, o: { clientId:
       details: { notify, status: "started", before: { removedAt: c.removedAt!.toISOString(), purgeAt: c.purgeAt?.toISOString() ?? null }, after: { purgeAt: now.toISOString() } },
     });
   });
-  const result = await purgeClient(c.id, now).catch((err) => {
+  const result = await purgeClient(c.id).catch((err) => {
     console.error(JSON.stringify({ level: "error", message: "[support-console] client delete failed; the clean-up job retries", client: c.id, error: String(err) }));
     return "failed" as const;
   });

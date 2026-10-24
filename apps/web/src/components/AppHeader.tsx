@@ -46,11 +46,12 @@ export default async function AppHeader({ email, plan, widget = true }: { email:
         bellCount(me.user.id, me.workspace.id),
       ])
     : [1, null, [], [], 0, null];
-  // This month's wording updates (decision 6): owners and admins who agreed before them, until the note's end date, and
-  // not while the banner asking them to agree to new versions is showing.
+  // This month's wording updates (decision 6): owners and admins whose latest agreement was before them, until the note's
+  // end date, and not while the banner asking them to agree to new versions is showing. Agreeing to a newer version
+  // since (24 October 2026) covers them, so the note's "nothing new to agree to" never follows it.
   const changesNotice =
     !!me && manager && me.agreed && !me.termsNotice && Date.now() < MONTHLY_CHANGES.until.getTime() &&
-    !!(await db.termsAcceptance.findFirst({ where: { userId: me.user.id, acceptedAt: { lt: MONTHLY_CHANGES.since } }, select: { id: true } }));
+    ((await db.termsAcceptance.findFirst({ where: { userId: me.user.id }, orderBy: { acceptedAt: "desc" }, select: { acceptedAt: true } }))?.acceptedAt ?? new Date()) < MONTHLY_CHANGES.since;
   // A team plan keeps its Team pages while the owner is on their own; a business of one on another plan has none.
   const teamPages = teamSize > 1 || (manager && TEAM_PLANS.includes(me.workspace.plan));
   // Clients come first: a business adds them before sending anything.

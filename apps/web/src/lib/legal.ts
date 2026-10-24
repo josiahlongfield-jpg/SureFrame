@@ -1,9 +1,7 @@
 import { BRAND } from "@/lib/brand";
 import {
   ADMIN_ACTION_KEEP_YEARS,
-  CLIENT_KEEP_DAYS,
   CLOSURE_DELETE_DAYS,
-  CLIENT_PURGE_WARN_DAYS,
   DELETION_GRACE_DAYS,
   DELETION_WARN_DAYS,
   REVIEW_DAYS,
@@ -36,10 +34,6 @@ export const LEGAL = {
   retentionDays: RETENTION_DAYS,
   /** Unsent video and voice replies are deleted this many days after they were recorded. */
   heldReplyDays: HELD_REPLY_DAYS,
-  /** A removed client is kept this long, so the business can restore them, then deleted. */
-  removedClientDays: CLIENT_KEEP_DAYS,
-  /** The business is warned about this long before a removed client is deleted. */
-  removedClientWarningDays: CLIENT_PURGE_WARN_DAYS,
   /** A deleted account is kept this long, so it can be reactivated, then permanently deleted. */
   deletionGraceDays: DELETION_GRACE_DAYS,
   /** An account we close is kept this long (the review time plus two weeks), then permanently deleted. */
@@ -63,12 +57,12 @@ export const LEGAL = {
    * people should agree to again, add the new version to LEGAL_VERSIONS, and keep the old text (git history,
    * and on request).
    */
-  termsVersion: "2026-10-11",
-  privacyVersion: "2026-10-11",
-  dpaVersion: "1.0",
+  termsVersion: "2026-10-24",
+  privacyVersion: "2026-10-24",
+  dpaVersion: "1.1",
   /** When the DPA's current version took effect (it has its own numbering, not the dated versions in LEGAL_VERSIONS). */
-  dpaSince: "11 October 2026",
-  updated: "11 October 2026",
+  dpaSince: "24 October 2026",
+  updated: "24 October 2026",
   /**
    * The Terms page's own "last updated" date. A change that only adds to what customers get (founding prices and
    * discount offers, 13 October 2026) isn't one to agree to again, so it keeps termsVersion and moves only this.
@@ -99,8 +93,9 @@ export const LEGAL = {
    * Also 22 October 2026 (Josiah's decisions): section 13 says client help chat questions may be read to improve the help chat,
    * and that the weekly list of them emailed to our support inbox is kept for up to 12 months (decision 7). It describes what we
    * already do and sets a limit where there was none, so it keeps termsVersion.
+   * 24 October 2026: new version 2026-10-24 (Josiah): removing a client deletes them permanently, straight away (section 4).
    */
-  termsUpdated: "22 October 2026",
+  termsUpdated: "24 October 2026",
   /**
    * The Data Processing Agreement's own "last updated" date: "Keep me signed in" added to its security measures (17 October 2026).
    * Google sign-in taken out of its security measures, since only email sign-in links are offered, and file storage's location
@@ -121,8 +116,9 @@ export const LEGAL = {
    * representative is appointed (Article 27(2), decision 21). They describe what we already do or promise, so they keep dpaVersion.
    * Also 22 October 2026: the section 8 notice goes to the workspace's admins as well as its owner (G10), more notice than before,
    * so it keeps dpaVersion.
+   * 24 October 2026: version 1.1: a removed client is deleted straight away, with no copy kept to restore them from.
    */
-  dpaUpdated: "22 October 2026",
+  dpaUpdated: "24 October 2026",
   /**
    * The Privacy Policy page's own "last updated" date. Describing discount codes, referrals and the sf_offer cookie
    * (16 October 2026) only explains more of what we already do, so it keeps privacyVersion. So do a short section for
@@ -166,8 +162,9 @@ export const LEGAL = {
    * region "as far as Cloudflare allows us to choose" (decision 12); and "Contacting us" says why no EU or UK representative is
    * appointed: the Article 27(2) exemption (decision 21). They describe what we already do, set a limit where there was none,
    * or say less firmly where data is kept, so they keep privacyVersion.
+   * 24 October 2026: new version 2026-10-24 (Josiah): a removed client is deleted straight away, and no warning email beforehand.
    */
-  privacyUpdated: "22 October 2026",
+  privacyUpdated: "24 October 2026",
 };
 
 /**
@@ -176,6 +173,18 @@ export const LEGAL = {
  * that version, so its numbers are written out rather than read from today's settings.
  */
 export const LEGAL_VERSIONS = [
+  {
+    // Josiah, 24 October 2026: removing a client deletes them permanently, straight away (lib/clientRemoval.ts), with a new version to agree to.
+    // DPA 1.1 the same day: section on deletion says the same.
+    terms: "2026-10-24",
+    privacy: "2026-10-24",
+    date: "24 October 2026",
+    changes: [
+      "Removing a client now deletes them permanently, straight away: their details, every conversation with them (with all replies and reactions), their to-dos, notes and reminders, and the videos sent only to them. There’s no longer a 30-day period to restore them, and we can’t restore them either.",
+      "Before you confirm, you can save the videos sent only to that client to your device. Videos you also sent to other clients stay with those clients.",
+      "A client you add again starts as a new client, with a new personal link. A removed client is emailed that their access has ended, unless they’ve turned your emails off.",
+    ],
+  },
   {
     terms: "2026-10-11",
     privacy: "2026-10-11",

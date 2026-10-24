@@ -246,7 +246,7 @@ ok("privacy: a table of contents linking to the For clients section", await seen
 // The page's own "last updated" date (lib/legal.ts), which moves when wording that needs no new agreement changes.
 const legalTs = readFileSync(new URL("../src/lib/legal.ts", import.meta.url), "utf8");
 const updatedOf = (key) => legalTs.match(new RegExp(`${key}: "([^"]+)"`))?.[1];
-ok("privacy: version, when it took effect, last updated, versions and changes", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 2026-10-11 (in effect from 11 October 2026) · Last updated ${updatedOf("privacyUpdated")} · Versions and changes`, await visitor.textContent("[data-testid=legal-version]"));
+ok("privacy: version, when it took effect, last updated, versions and changes", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 2026-10-24 (in effect from 24 October 2026) · Last updated ${updatedOf("privacyUpdated")} · Versions and changes`, await visitor.textContent("[data-testid=legal-version]"));
 const privacy = norm(await visitor.textContent("main"));
 for (const bit of ["Keep me signed in", "the short SureFrame intro is shown once per device for each business; your browser remembers this", "Clients can delete their own replies", "The business can see"]) {
   ok(`privacy says: ${bit}`, privacy.includes(bit));
@@ -260,9 +260,9 @@ await visitor.click("[data-testid=legal-toc] a[href='#for-clients']");
 ok("contents links jump to the section", await visitor.evaluate(() => location.hash === "#for-clients" && document.getElementById("for-clients").getBoundingClientRect().top < 200));
 await visitor.goto(BASE + "/legal/terms");
 ok("terms: contents, and the cancel link goes to Billing", (await seen(visitor, "[data-testid=legal-toc]")) && (await visitor.$$("main a[href='/settings/billing']")).length >= 1);
-ok("terms: the same version line", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 2026-10-11 (in effect from 11 October 2026) · Last updated ${updatedOf("termsUpdated")} · Versions and changes`);
+ok("terms: the same version line", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 2026-10-24 (in effect from 24 October 2026) · Last updated ${updatedOf("termsUpdated")} · Versions and changes`);
 await visitor.goto(BASE + "/legal/dpa");
-ok("DPA: the same version line", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 1.0 (in effect from 11 October 2026) · Last updated ${updatedOf("dpaUpdated")} · Versions and changes`, await visitor.textContent("[data-testid=legal-version]"));
+ok("DPA: the same version line", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 1.1 (in effect from 24 October 2026) · Last updated ${updatedOf("dpaUpdated")} · Versions and changes`, await visitor.textContent("[data-testid=legal-version]"));
 ok("DPA: no Google sign-in", !norm(await visitor.textContent("main")).includes("Google (verified"));
 // Round 3 legal wording (Checker C L1-L11, K7, G5-G17; visitor V43-V49).
 const dpaText = norm(await visitor.textContent("main"));

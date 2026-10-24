@@ -3,13 +3,18 @@ import { db } from "@/lib/db";
 import { BRAND } from "@/lib/brand";
 import { hasAgreed, noticePeriod } from "@/lib/terms";
 
+/** The Terms version that brought the 25-in-total rule (versions are dates, so later ones sort after it). */
+const FREE_TOTAL_SINCE = "2026-10-11";
+
 /**
  * Until the 25-in-total rule takes effect for the workspace's owner (the notice period of the Terms that brought it,
  * lib/terms.ts), the Free plan counts the original videos it has now, as it did before: deleting one frees a place.
+ * An owner who agreed to that version or a later one is under it, even during a newer version's notice period.
  */
 async function underOldFreeRule(workspaceId: string) {
   const owner = await db.membership.findFirst({ where: { workspaceId, role: "OWNER" }, select: { user: { select: { id: true, createdAt: true } } } });
   if (!owner || (await hasAgreed(owner.user.id))) return false;
+  if (await db.termsAcceptance.count({ where: { userId: owner.user.id, termsVersion: { gte: FREE_TOTAL_SINCE } } })) return false;
   return !!(await noticePeriod(owner.user));
 }
 

@@ -150,7 +150,7 @@ export default function Page() {
           To provide {LEGAL.product}: storing and delivering your videos, and sending clients new-video emails, reminders and replacement links after a key
           reset, as well as sign-in emails, team emails (such as a client
           replying, or a staff member sending videos), a warning before a recording is deleted from our servers, and notices about accounts, such as when a
-          client&rsquo;s access ends, about {LEGAL.removedClientWarningDays} days before a removed client is deleted for good, about{" "}
+          client&rsquo;s access ends, about{" "}
           {LEGAL.deletionWarningDays} days before an account you deleted is deleted for good, when an account is closed, kept or deleted, or when we take action
           on an account.
         </li>
@@ -322,12 +322,12 @@ export default function Page() {
           cloud backup. Until then only the person who recorded it can see it, send it or delete it.
         </li>
         <li>Text replies, to-dos and notes are kept until they&rsquo;re deleted, the client they belong to is deleted (see below), or the account is permanently deleted.</li>
-        <li>
-          When a business removes a client, the client&rsquo;s personal link stops working straight away. We keep the client&rsquo;s details and conversations for{" "}
-          {LEGAL.removedClientDays} days in case the business restores them, then delete them for good, even with cloud backup: the client&rsquo;s name and email
-          address, the recordings sent only to them, their to-dos and notes, and their conversations, including the team&rsquo;s replies in them. Recordings the
-          business also sent to other clients stay with those clients. We try to email the business about {LEGAL.removedClientWarningDays} days before. At the
-          business&rsquo;s request, we can restore a removed client, keep them for longer, or delete them sooner.
+        <li id="removed-clients" className="scroll-mt-24">
+          When a business removes a client, we delete that client for good straight away, even with cloud backup: their name and email address, their personal
+          link (it stops working on every device), the recordings sent only to them, their to-dos, notes and reminders, and their conversations, including every
+          reply and reaction, the team&rsquo;s too. Recordings the business also sent to other clients stay with those clients, without the removed client. We
+          don&rsquo;t keep a copy, so a removed client can&rsquo;t be restored; if the business adds them again, they start as a new client. Where a legal hold
+          applies, we may finish the deletion when it ends.
         </li>
         <li>
           Your business&rsquo;s referral code and its record are kept while your account is open, and deleted with it. If your business used another
@@ -349,8 +349,7 @@ export default function Page() {
           Account details are kept while your account is open. When you delete your account, it&rsquo;s closed straight away: you&rsquo;re signed out on every
           device, your clients&rsquo; links stop working, emails in your business&rsquo;s name stop, pending team invites are cancelled and your plan won&rsquo;t
           renew. You then have {LEGAL.deletionGraceDays} days to change your mind: sign in within that time to reactivate your account, with your workspace and
-          content as they were, except that recordings without cloud backup still leave our servers on their usual schedule and removed clients whose{" "}
-          {LEGAL.removedClientDays} days end in the meantime are still deleted. We email you a reminder about {LEGAL.deletionWarningDays} days before the date.
+          content as they were, except that recordings without cloud backup still leave our servers on their usual schedule. We email you a reminder about {LEGAL.deletionWarningDays} days before the date.
           After {LEGAL.deletionGraceDays} days we permanently delete your account, workspace and content, and ask our payment provider to delete your customer
           record and saved cards. If you&rsquo;re on someone else&rsquo;s team, deleting your account takes you off that team straight away, and the recordings and replies you
           made for it stay with the team, shown as &ldquo;Former team member&rdquo;.
@@ -477,9 +476,9 @@ export default function Page() {
         them first about your information. You can also email us and we&rsquo;ll help.
       </p>
       <p>
-        If a business removes you as a client, your link stops working straight away, and the business may email you to let you know. Your details and
-        conversations with that business are deleted for good {LEGAL.removedClientDays} days later, unless the business restores your access before then. The
-        business can also ask us to restore your access, keep your details for longer, or delete them sooner.
+        If a business removes you as a client, your link stops working straight away, and your details, videos, messages and shared to-dos with that business
+        are deleted for good at the same time. It can&rsquo;t be undone. Unless you&rsquo;ve turned that business&rsquo;s emails off, we email you to let you
+        know. If the business works with you again, they&rsquo;ll send you a new personal link.
       </p>
       <p>
         If a business deletes its {LEGAL.product} account, your link stops working and says the business has closed its account. Your details and conversations

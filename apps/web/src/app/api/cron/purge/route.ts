@@ -7,7 +7,7 @@ import { unlessPaused } from "@/lib/maintenance";
 import { pruneTeamNotifications } from "@/lib/teamNotify";
 import { warnExpiring } from "@/lib/expiryWarning";
 import { reconcileSubscriptions } from "@/lib/subscription";
-import { purgeRemovedClients, warnClientPurge } from "@/lib/clientRemoval";
+import { purgeRemovedClients } from "@/lib/clientRemoval";
 import { purgeScheduledAccounts, warnScheduledDeletions } from "@/lib/accountDeletion";
 import { pruneAdminActions } from "@/lib/support/admin";
 import { pruneTermsAcceptances } from "@/lib/terms";
@@ -21,7 +21,7 @@ import { pruneNotifications } from "@/lib/notifications";
 
 export const maxDuration = 300;
 
-const JOBS = ["purged", "rateLimits", "supportUse", "staleUploads", "teamNotifications", "leftovers", "expiryWarnings", "clientsPurged", "clientWarnings", "accountWarnings", "accountsPurged", "adminActionsPruned", "agreementsPruned", "termsNotices", "unsentReplies", "clientQuestionDigest", "clientQuestionsPruned", "connectorsPruned", "signInCodesPruned", "notificationsPruned"] as const;
+const JOBS = ["purged", "rateLimits", "supportUse", "staleUploads", "teamNotifications", "leftovers", "expiryWarnings", "clientsPurged", "accountWarnings", "accountsPurged", "adminActionsPruned", "agreementsPruned", "termsNotices", "unsentReplies", "clientQuestionDigest", "clientQuestionsPruned", "connectorsPruned", "signInCodesPruned", "notificationsPruned"] as const;
 
 /** Run daily (e.g. Vercel Cron) with Authorization: Bearer $CRON_SECRET. */
 export async function GET(req: Request) {
@@ -43,9 +43,8 @@ export async function GET(req: Request) {
     pruneLeftovers(),
     // Normally sent by the 5-minute reminders job; this catches anything it missed.
     unlessPaused(() => warnExpiring()),
-    // Removed clients whose 30 days are up, and the business's warning 3 days before (also every 5 minutes).
-    unlessPaused(() => purgeRemovedClients(new Date(), 120_000)),
-    unlessPaused(() => warnClientPurge()),
+    // Deleted clients a deletion couldn't finish at once (also every 5 minutes).
+    unlessPaused(() => purgeRemovedClients(120_000)),
     // Closed accounts: the reminder 3 days before, and deletion once the date comes (also every 5 minutes).
     unlessPaused(() => warnScheduledDeletions()),
     unlessPaused(() => purgeScheduledAccounts(new Date(), 120_000)),
@@ -74,6 +73,6 @@ export async function GET(req: Request) {
       console.error(JSON.stringify({ level: "error", message: `[cron/purge] ${JOBS[i]} failed`, error: String(r.reason) }));
     }
   });
-  const { purged, expiryWarnings, clientsPurged, clientWarnings, accountWarnings, accountsPurged, adminActionsPruned, agreementsPruned, termsNotices, unsentReplies, clientQuestionDigest, clientQuestionsPruned } = out;
-  return Response.json({ purged, expiryWarnings, clientsPurged, clientWarnings, accountWarnings, accountsPurged, adminActionsPruned, agreementsPruned, termsNotices, unsentReplies, clientQuestionDigest, clientQuestionsPruned });
+  const { purged, expiryWarnings, clientsPurged, accountWarnings, accountsPurged, adminActionsPruned, agreementsPruned, termsNotices, unsentReplies, clientQuestionDigest, clientQuestionsPruned } = out;
+  return Response.json({ purged, expiryWarnings, clientsPurged, accountWarnings, accountsPurged, adminActionsPruned, agreementsPruned, termsNotices, unsentReplies, clientQuestionDigest, clientQuestionsPruned });
 }

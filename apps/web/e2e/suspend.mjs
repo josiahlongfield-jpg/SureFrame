@@ -171,7 +171,7 @@ const st = norm(suspMail?.text);
 ok("suspension email: why, what it means, nothing deleted", st.includes(`We've suspended ${business} on SureFrame because of suspected fraud, including payment fraud or false information.`) && st.includes("Nothing has been deleted.") && st.includes("your clients see that your videos are unavailable right now"), st);
 ok("suspension email: renewal stopped, the note, how to ask for a review", st.includes("Your subscription won't renew, so it ends on") && st.includes(note) && st.includes("If you think this is a mistake, reply to this email or email support@sureframe.app within 30 days and we'll review it."), st);
 ok("suspension email: no internal reason", !st.includes("Chargeback"), st);
-ok("suspension email: deletion schedules line is always the same (gives nothing away about a legal hold)", st.includes("The usual deletion schedules in our Terms carry on: recordings without cloud backup still leave our servers, and removed clients are deleted when their 30 days end."), st);
+ok("suspension email: deletion schedules line is always the same (gives nothing away about a legal hold)", st.includes("The usual deletion schedules in our Terms carry on: recordings without cloud backup still leave our servers."), st);
 
 // The team's side.
 await owner.goto(BASE + "/library");

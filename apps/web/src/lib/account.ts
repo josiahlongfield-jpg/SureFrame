@@ -184,8 +184,9 @@ export async function exportAccount(userId: string, { wraps = false } = {}) {
       const mineOnly = { OR: [{ ownerId: userId }, { client: { assignedToId: userId } }, { asReply: { video: { OR: [{ ownerId: userId }, { client: { assignedToId: userId } }] } } }] };
       const [clients, videos, items, notices] = await Promise.all([
         db.client.findMany({
-          where: clientScopeWhere(access),
-          select: { id: true, name: true, email: true, createdAt: true, removedAt: true, purgeAt: true, remindersOff: true, teamKeyWrap: wraps },
+          // A deleted client is gone at once (lib/clientRemoval.ts), even while the deletion finishes.
+          where: { ...clientScopeWhere(access), removedAt: null },
+          select: { id: true, name: true, email: true, createdAt: true, remindersOff: true, teamKeyWrap: wraps },
         }),
         db.video.findMany({
           where: { workspaceId: w.id, ...(all ? {} : mineOnly) },

@@ -4,13 +4,13 @@ import { flushTeamNotifications } from "@/lib/teamNotify";
 import { cronAuthorized } from "@/lib/secrets";
 import { unlessPaused } from "@/lib/maintenance";
 import { warnExpiring } from "@/lib/expiryWarning";
-import { purgeRemovedClients, warnClientPurge } from "@/lib/clientRemoval";
+import { purgeRemovedClients } from "@/lib/clientRemoval";
 import { purgeScheduledAccounts, warnScheduledDeletions } from "@/lib/accountDeletion";
 import { applyReferralRewards } from "@/lib/referrals";
 
 export const maxDuration = 300;
 
-const JOBS = ["reminders", "digests", "expiryWarnings", "purged", "clientWarnings", "clientsPurged", "accountWarnings", "accountsPurged", "referralRewards"] as const;
+const JOBS = ["reminders", "digests", "expiryWarnings", "purged", "clientsPurged", "accountWarnings", "accountsPurged", "referralRewards"] as const;
 
 /** Run every few minutes (e.g. Vercel Cron) with Authorization: Bearer $CRON_SECRET. */
 export async function GET(req: Request) {
@@ -25,9 +25,8 @@ export async function GET(req: Request) {
     unlessPaused(() => warnExpiring()),
     // Copies are deleted close to the time shown, not just once a day.
     unlessPaused(() => purgeExpired(new Date(), 20_000)),
-    // Removed clients: the business hears ~3 days ahead, and they're deleted close to the date shown.
-    unlessPaused(() => warnClientPurge()),
-    unlessPaused(() => purgeRemovedClients(new Date(), 20_000)),
+    // Deleted clients a deletion couldn't finish at once.
+    unlessPaused(() => purgeRemovedClients(20_000)),
     // Closed accounts: reminded ~3 days ahead, and deleted close to the date shown.
     unlessPaused(() => warnScheduledDeletions()),
     unlessPaused(() => purgeScheduledAccounts(new Date(), 20_000)),
@@ -43,5 +42,5 @@ export async function GET(req: Request) {
     }
   });
   const reminders = out.reminders;
-  return Response.json({ ...(typeof reminders === "object" && reminders ? reminders : { reminders }), digests: out.digests, expiryWarnings: out.expiryWarnings, purged: out.purged, clientWarnings: out.clientWarnings, clientsPurged: out.clientsPurged, accountWarnings: out.accountWarnings, accountsPurged: out.accountsPurged, referralRewards: out.referralRewards });
+  return Response.json({ ...(typeof reminders === "object" && reminders ? reminders : { reminders }), digests: out.digests, expiryWarnings: out.expiryWarnings, purged: out.purged, clientsPurged: out.clientsPurged, accountWarnings: out.accountWarnings, accountsPurged: out.accountsPurged, referralRewards: out.referralRewards });
 }

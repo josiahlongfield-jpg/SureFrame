@@ -92,12 +92,16 @@ export default function Page() {
           details with us.
         </li>
         <li>Keep client links private. Anyone with a client&rsquo;s link can see what was shared with that client.</li>
-        <li>
-          When you remove a client, their link stops working straight away. We keep their details and conversations for {LEGAL.removedClientDays} days in case you
-          restore them, then delete them for good, even with cloud backup, including the recordings sent only to them and your team&rsquo;s replies to them.
-          Recordings you also sent to other clients stay with those clients. We try to email the owner, and whoever removed them, about{" "}
-          {LEGAL.removedClientWarningDays} days before. You can choose to email the client that their access has ended; where the law requires you to tell them,
-          that&rsquo;s your responsibility. At your request, we can also restore a removed client, keep them for longer or delete them sooner (see section 9).
+        <li id="removing-clients" className="scroll-mt-24">
+          <strong>Removing a client deletes them permanently, straight away.</strong> Their personal link stops working on every device, and we delete, even
+          with cloud backup: their details, every conversation with them (including all replies and reactions, your team&rsquo;s too), their to-dos, notes and
+          reminders, and the recordings you sent only to them. Recordings you also sent to other clients stay with those clients, without the removed client. This
+          can&rsquo;t be undone, by you or by us: we don&rsquo;t keep a copy to restore. Before you confirm, you can save the recordings sent only to that client
+          to your device; anything you don&rsquo;t save is gone. You can add the same person again later, but they start as a new client with a new personal
+          link, and nothing from before comes back. Unless they&rsquo;ve turned your emails off, or another of your clients uses the same email address, we email
+          the client that their access has ended. Where the law requires you to keep records of your dealings with a client, or to tell them before deleting
+          their information, that&rsquo;s your responsibility, so save what you need first. If a legal hold applies (section 9), we may finish the deletion when
+          it ends; the client is removed from your account straight away either way.
         </li>
         <li>
           Clients under 18 may use a client link only with a parent&rsquo;s or guardian&rsquo;s permission, which the business is responsible for getting.
@@ -204,8 +208,8 @@ export default function Page() {
         stays on the device it was made on only until its upload finishes. To keep your own copy, open the video and choose Save
         to device. With cloud backup, other content is kept until you delete it or your account is permanently deleted (see section 17). If cloud backup ends (you switch
         it off, cancel, or your paid plan ends), our copies are deleted {LEGAL.retentionDays} days later; if it ends while your account is suspended or
-        closed, those {LEGAL.retentionDays} days start when it&rsquo;s unsuspended, reopened or kept. Removing a client also deletes their conversations after{" "}
-        {LEGAL.removedClientDays} days, even with cloud backup (see section 4). We may pause these deletions where we need to keep information for legal reasons (see section 9). Please
+        closed, those {LEGAL.retentionDays} days start when it&rsquo;s unsuspended, reopened or kept. Removing a client deletes their conversations straight away,
+        even with cloud backup (see <a href="#removing-clients">section 4</a>). We may pause these deletions where we need to keep information for legal reasons (see section 9). Please
         keep your own copies of anything important.
       </p>
       <p>
@@ -278,8 +282,8 @@ export default function Page() {
           <strong>Suspending an account:</strong> your team can&rsquo;t use the workspace, apart from getting help, downloading their data, switching to another
           workspace they&rsquo;re on and, for the owner, managing or cancelling the subscription. Your clients&rsquo; links show that your videos are unavailable
           for now, and nobody new can join the team. Reminders and other emails stop, and reminders that come due meanwhile aren&rsquo;t sent later. Nothing is
-          deleted because of a suspension, but the usual schedules carry on: recordings without cloud backup still leave our servers, and removed clients are
-          still deleted when their {LEGAL.removedClientDays} days end, unless there&rsquo;s a legal hold. A suspension lasts until we lift it or close the account.
+          deleted because of a suspension, but the usual schedules carry on: recordings without cloud backup still leave our servers, and clients you
+          removed are still deleted, unless there&rsquo;s a legal hold. A suspension lasts until we lift it or close the account.
           We may also suspend a single team member&rsquo;s login in the same way: it can&rsquo;t use any workspace or join a team, and the rest of its team carries
           on.
         </li>
@@ -310,8 +314,7 @@ export default function Page() {
         We also use these support tools to keep accounts secure, to correct errors and to act on requests. For example, we can sign a login out on every device;
         correct the number of Free plan videos used; re-check a subscription with our payment provider and re-apply plan limits (which can pause or restore
         clients and staff); give or end a complimentary plan or add-on; stop an email address being used to sign in or sign up, or lift that block; and reopen an
-        account we closed, after a review. When a business asks, we can restore a removed client (even beyond its plan&rsquo;s client seats, in which case the
-        newest clients over the limit are paused), keep a removed client for longer, or delete them sooner. When an account holder asks from the account&rsquo;s
+        account we closed, after a review. We can&rsquo;t restore a client you removed: nothing is kept to restore them from. When an account holder asks from the account&rsquo;s
         email address, we can delete the account straight away, or cancel its scheduled deletion (except for an account we closed).
       </p>
 
@@ -435,8 +438,7 @@ export default function Page() {
       </p>
       <p>
         We keep your workspace and content for {LEGAL.deletionGraceDays} days in case you change your mind: sign in within that time to reactivate your account
-        with everything as it was, except that recordings without cloud backup still leave our servers on their usual schedule, and removed clients whose{" "}
-        {LEGAL.removedClientDays} days end meanwhile are still deleted. A browser that was still signed in when you deleted your account can&rsquo;t reactivate
+        with everything as it was, except that recordings without cloud backup still leave our servers on their usual schedule. A browser that was still signed in when you deleted your account can&rsquo;t reactivate
         it: sign in again first. If your paid period ends during those days, your workspace moves to the Free plan, and you can subscribe again after
         reactivating. After {LEGAL.deletionGraceDays} days, your account, workspace and content are permanently deleted and can&rsquo;t be recovered, so save
         anything you want to keep first: download a readable copy of your clients, messages, replies, to-dos and notes from Settings &gt; Account (it&rsquo;s

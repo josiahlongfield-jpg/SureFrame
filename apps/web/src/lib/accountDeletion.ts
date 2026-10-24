@@ -372,7 +372,7 @@ function scheduledEmail(o: { deleteAt: Date; tz?: string | null; workspace: { na
     } else if (b.result === "ending") {
       lines.push({ text: `Your ${w.plan} plan was already set to end${ends ? ` on ${ends}` : ""}, and it won't renew.` });
     }
-    lines.push({ text: "Recordings without cloud backup still expire on their usual dates in the meantime, removed clients are still deleted on their dates, and reminders due while your account is closed aren't sent." });
+    lines.push({ text: "Recordings without cloud backup still expire on their usual dates in the meantime, and reminders due while your account is closed aren't sent." });
   }
   if (o.teamsLeft.length) {
     lines.push({ text: `You've left ${list(o.teamsLeft)}. Keeping your account won't put you back on ${o.teamsLeft.length === 1 ? "that team" : "those teams"}; ask them for a new invite.` });

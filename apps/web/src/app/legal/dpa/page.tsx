@@ -162,8 +162,9 @@ export default function Page() {
           A video or voice reply that was recorded but never sent is deleted {LEGAL.heldReplyDays} days after it was recorded, with or without cloud backup.
         </li>
         <li>
-          When you remove a client, their link stops working straight away, and we delete their details and conversations {LEGAL.removedClientDays} days later,
-          even with cloud backup, unless you restore them first. Recordings you also sent to other clients stay with those clients.
+          When you remove a client, their link stops working straight away and we delete their details, conversations, to-dos and notes, and the recordings
+          sent only to them, at the same time, even with cloud backup. We keep no copy to restore them from. Recordings you also sent to other clients stay with
+          those clients.
         </li>
         <li>
           When you delete your account, we keep Customer Personal Data for {LEGAL.deletionGraceDays} days so you can reactivate it, then delete it. If we close your

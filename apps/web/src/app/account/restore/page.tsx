@@ -118,7 +118,6 @@ export default async function Restore() {
                 <li>Your subscription has ended. Choose a plan in Settings &gt; Billing to get your paid features back; until then, clients your plan doesn&apos;t cover stay paused.</li>
               ))}
             {ws && !ws.cloudBackup && <li>Recordings that expired from our servers while it was closed can&apos;t be brought back.</li>}
-            {ws && <li data-testid="restore-removed-clients">Removed clients whose 30 days ended while it was closed have been deleted and can&apos;t be restored.</li>}
             {waiting > 0 && (
               <li data-testid="restore-backup-ended">
                 Cloud backup ended while it was closed. Keep it and our copies of {waiting === 1 ? "1 recording" : `${waiting} recordings`} are deleted{" "}

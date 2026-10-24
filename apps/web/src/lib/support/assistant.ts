@@ -6,7 +6,6 @@ import { summaryUsage } from "@/lib/ai/summary";
 import { zoned } from "@/lib/dates";
 import { PLANS, replyMaxMinutes, staffSeatLimit } from "@/lib/plans";
 import { videosUsed } from "@/lib/videoAllowance";
-import { restorableWhere } from "@/lib/clientRemoval";
 import { SUPPORT_GUIDE } from "@/lib/support/knowledge";
 import { handToHuman } from "@/lib/support/tickets";
 import { appUrl } from "@/lib/stripe";
@@ -115,11 +114,6 @@ async function accountOverview(ticket: SupportTicket) {
   }
   const p = PLANS[workspace.plan];
   const day = zoned(workspace.timezone).longDay;
-  // Only owners and admins see and restore removed clients.
-  const removed =
-    membership.role === "MEMBER"
-      ? null
-      : await db.client.aggregate({ where: { workspaceId: workspace.id, ...restorableWhere() }, _count: { _all: true }, _min: { purgeAt: true } });
   const ai = workspace.aiAssist && workspace.plan !== "FREE";
   const overview = {
     signedIn: true,
@@ -129,10 +123,6 @@ async function accountOverview(ticket: SupportTicket) {
     // linkTurnedOff: clients whose link the SureFrame team turned off (the Clients page shows "Link off"); they still use a seat.
     clients: { used: clients, limit: p.clientSeats + workspace.extraClientSeats, paused: pausedClients, ...(linksOff ? { linkTurnedOff: linksOff } : {}) },
     staffLogins: { used: staff, limit: staffSeatLimit(workspace), paused: pausedStaff },
-    // Removed clients can be restored (Clients > Removed clients, uses a seat) until they're deleted.
-    ...(removed?._count._all
-      ? { removedClients: { waitingToBeDeleted: removed._count._all, nextDeletionOn: removed._min.purgeAt ? day(removed._min.purgeAt) : null } }
-      : {}),
     // Free's limit is for the life of the workspace: every finished recording counts, on any plan, deleted ones too.
     videos:
       p.maxVideos === null

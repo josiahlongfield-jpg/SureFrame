@@ -143,23 +143,16 @@ const ana = await mkClient(wsA, `Ana ${stamp}`, `con-ana${stamp}@example.com`);
 const aVideo = await prisma.video.create({ data: { id: `cna${stamp.toString(36)}`, mimeType: "video/webm", storageKey: `test/${stamp}/con-a`, status: "UPLOADED", workspaceId: wsA, ownerId: aUser.id, clientId: ana.id } });
 putFile(aVideo.storageKey);
 
-// B: Free (3 client seats), three active clients and three removed ones.
+// B: Free (3 client seats), three active clients (and, in section 9, one being deleted).
 const bEmail = `con-b${stamp}@example.com`;
 const bOwner = await signIn(bEmail);
 const bUser = await prisma.user.findUnique({ where: { email: bEmail } });
 const wsB = await ownWorkspace(bUser.id);
 const bName = `Console B ${stamp}`;
 await prisma.workspace.update({ where: { id: wsB }, data: { name: bName, videosRecorded: 7 } });
-const removedAt = new Date(Date.now() - 2 * D);
-// Cy was a client before the others, so restoring them puts the newest client over the plan's seats.
-const cy = await mkClient(wsB, `Cy ${stamp}`, `con-cy${stamp}@example.com`, { removedAt, purgeAt: new Date(Date.now() + 10 * D), createdAt: new Date(Date.now() - 9 * D) });
-const b1 = await mkClient(wsB, `Bea ${stamp}`, null, { createdAt: new Date(Date.now() - 8 * D) });
-const b2 = await mkClient(wsB, `Bob ${stamp}`, null, { createdAt: new Date(Date.now() - 7 * D) });
+await mkClient(wsB, `Bea ${stamp}`, null, { createdAt: new Date(Date.now() - 8 * D) });
+await mkClient(wsB, `Bob ${stamp}`, null, { createdAt: new Date(Date.now() - 7 * D) });
 const b3 = await mkClient(wsB, `Bix ${stamp}`, null, { createdAt: new Date(Date.now() - 6 * D) });
-const dee = await mkClient(wsB, `Dee ${stamp}`, null, { removedAt, purgeAt: new Date(Date.now() + 5 * D) });
-const eve = await mkClient(wsB, `Eve ${stamp}`, `con-eve${stamp}@example.com`, { removedAt, purgeAt: new Date(Date.now() + 20 * D) });
-const eveVideo = await prisma.video.create({ data: { id: `cne${stamp.toString(36)}`, mimeType: "video/webm", storageKey: `test/${stamp}/con-eve`, status: "UPLOADED", workspaceId: wsB, ownerId: bUser.id, clientId: eve.id } });
-putFile(eveVideo.storageKey);
 
 // C closes their own account; D asks for theirs to be deleted now; E is closed by support (with a staff member, Fay).
 const cEmail = `con-c${stamp}@example.com`;
@@ -402,28 +395,14 @@ await prisma.video.delete({ where: { id: uploadingB.id } });
 await prisma.workspace.update({ where: { id: wsB }, data: { videosRecorded: 4 } });
 
 // =====================================================================================================
-// 9. Removed clients: restore, keep 30 more days, delete now
+// 9. A client being deleted (the business deleted them; the clean-up job hasn't finished): Finish deleting now
 // =====================================================================================================
-ok("removed clients listed with their deletion dates", (await text(`[data-testid=removed-${dee.id}]`)).includes(`Deleted for good on ${qldDay(dee.purgeAt)}`));
-r = await power(`power-restoreClient-${cy.id}`, { reason: "Owner removed the wrong client" });
-ok("restore: refused while every seat is in use", !r.done && r.message.includes("All 3 client seats are in use"), r.message);
-ok("restore: the refusal changed nothing and logged nothing", !!(await prisma.client.findUnique({ where: { id: cy.id } })).removedAt && !(await prisma.adminAction.findFirst({ where: { clientId: cy.id } })));
-r = await power(`power-restoreClient-${cy.id}`, { reason: "Owner removed the wrong client", checks: { ignoreSeatLimit: true } });
-ok("restore over the limit: done", r.done && r.message.includes("Removed client restored") && r.message.includes("Seat limit ignored"), r.message);
-let cyRow = await prisma.client.findUnique({ where: { id: cy.id } });
-ok("restore: back, with no deletion date", !cyRow.removedAt && !cyRow.purgeAt && !cyRow.pausedAt);
-ok("restore: the newest client over the plan's seats is paused", !!(await prisma.client.findUnique({ where: { id: b3.id } })).pausedAt && !(await prisma.client.findUnique({ where: { id: b1.id } })).pausedAt && !(await prisma.client.findUnique({ where: { id: b2.id } })).pausedAt);
-mail = await waitMail(bEmail, (m) => m.subject === `Cy ${stamp} is one of your clients again`);
-ok("restore: owner emailed (link works again, the newest over the plan are paused)", !!mail && norm(mail.text).includes("Their personal link works again.") && norm(mail.text).includes("your plan covers 3, so the newest ones over that are paused"), mail?.text);
-row = await lastAction({ clientId: cy.id, action: "client.restore" });
-ok("restore: logged as done", row?.details?.status === "done" && row.details.ignoreSeatLimit === true && row.details.emailedTo === bEmail);
-
-const deeUntil = new Date(dee.purgeAt.getTime() + 30 * D);
-r = await power(`power-keepClient-${dee.id}`, { reason: "Owner is on leave and asked for more time" });
-ok("keep 30 more days: done", r.done && r.message.includes("Removed client kept 30 more days") && r.message.includes(`from ${qldDay(dee.purgeAt)} to ${qldDay(deeUntil)}`), r.message);
-ok("keep 30 more days: new date, warning reset", (await prisma.client.findUnique({ where: { id: dee.id } })).purgeAt.getTime() === deeUntil.getTime());
-ok("keep 30 more days: owner emailed the date", !!(await waitMail(bEmail, (m) => m.subject === `Dee ${stamp} will be kept until ${qldDay(deeUntil)}`)));
-
+// Made just before, as any job run (another suite's included) finishes a deleted client (lib/clientRemoval.ts).
+const eve = await mkClient(wsB, `Eve ${stamp}`, `con-eve${stamp}@example.com`, { removedAt: new Date(Date.now() - 60000), purgeAt: new Date(Date.now() - 60000) });
+const eveVideo = await prisma.video.create({ data: { id: `cne${stamp.toString(36)}`, mimeType: "video/webm", storageKey: `test/${stamp}/con-eve`, status: "UPLOADED", workspaceId: wsB, ownerId: bUser.id, clientId: eve.id } });
+putFile(eveVideo.storageKey);
+await open(`/support/workspaces/${wsB}`);
+ok("clients being deleted are listed, with no restore or keep", (await text(`[data-testid=removed-${eve.id}]`)).includes("Deleted by the business") && !(await admin.locator("[data-testid^=power-restoreClient-], [data-testid^=power-keepClient-]").count()));
 r = await power(`power-deleteClientNow-${eve.id}`, { reason: "Client asked the business to erase their data", confirm: "DELETE eve" });
 ok("delete client now: the wrong confirmation is refused", !r.done && r.message.includes(`Type DELETE ${eve.email} to confirm.`) && !!(await prisma.client.findUnique({ where: { id: eve.id } })), r.message);
 r = await power(`power-deleteClientNow-${eve.id}`, { reason: "Client asked the business to erase their data", confirm: `DELETE ${eve.email}` });
@@ -436,8 +415,8 @@ ok("delete client now: logged as done, survives the client", row?.details?.statu
 // =====================================================================================================
 // 11. Seat check
 // =====================================================================================================
-// Drift: Bix lost their pause (say a bug), so four clients can use a 3-seat plan.
-await prisma.client.update({ where: { id: b3.id }, data: { pausedAt: null } });
+// Drift: a fourth client got in without a pause (say a bug), so four clients can use a 3-seat plan.
+await mkClient(wsB, `Cy ${stamp}`, null, { createdAt: new Date(Date.now() - 9 * D) });
 const pauseMails = mailTo(bEmail).filter((m) => m.subject === "Some of your clients or staff are paused").length;
 await open(`/support/workspaces/${wsB}`);
 r = await power("power-seatCheck", { reason: "Four clients active on Free" });
@@ -623,7 +602,7 @@ ok("own business: ended again", !(await prisma.workspace.findUnique({ where: { i
 // =====================================================================================================
 await open("/support/log");
 const log = await text("[data-testid=history]");
-ok("log: newest first, with every kind of action", log.indexOf("Complimentary plan changed") < log.indexOf("Account deleted now") && ["Warning sent", "Workspace suspended", "Legal hold on", "Client's link turned off", "Signed out everywhere", "Free videos used set", "Removed client restored", "Removed client deleted now", "Seat check re-run", "Account closed permanently", "Scheduled deletion cancelled", "Email address unblocked", "Billing re-synced from Stripe"].every((l) => log.includes(l)), log.slice(0, 400));
+ok("log: newest first, with every kind of action", log.indexOf("Complimentary plan changed") < log.indexOf("Account deleted now") && ["Warning sent", "Workspace suspended", "Legal hold on", "Client's link turned off", "Signed out everywhere", "Free videos used set", "Removed client deleted now", "Seat check re-run", "Account closed permanently", "Scheduled deletion cancelled", "Email address unblocked", "Billing re-synced from Stripe"].every((l) => log.includes(l)), log.slice(0, 400));
 ok("log: reasons and who did it", log.includes("Reason: Used to send threats") && log.includes(`By ${ADMIN}`));
 ok("log: no link to a deleted account", (await admin.locator(`a[href="/support/users/${dUser.id}"]`).count()) === 0 && (await admin.locator(`a[href="/support/users/${eUser.id}"]`).count()) > 0);
 await admin.screenshot({ path: `${shots}/log-phone.png` });

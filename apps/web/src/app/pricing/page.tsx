@@ -281,7 +281,7 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
                 <li>Covers your videos and everyone&rsquo;s video and voice replies. Text replies, to-dos and notes are always kept until they&rsquo;re deleted.</li>
                 <li>If you switch it off or your paid plan ends, our copies are deleted {RETENTION_DAYS} days later.</li>
                 <li>
-                  Unsent replies are still deleted after {LEGAL.heldReplyDays} days, and a removed client&rsquo;s conversations after {LEGAL.removedClientDays} days.
+                  Unsent replies are still deleted after {LEGAL.heldReplyDays} days, and removing a client deletes their conversations straight away.
                 </li>
               </ul>
               <p className="mt-4 text-sm text-muted">US${CLOUD_BACKUP_PRICE}/month or US${CLOUD_BACKUP_PRICE_YEARLY}/year on any paid plan</p>

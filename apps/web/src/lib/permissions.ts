@@ -60,14 +60,21 @@ export function canSeeClient(a: Access, client: { workspaceId: string; assignedT
 }
 
 /**
+ * A conversation with a client who is being deleted (lib/clientRemoval.ts), which goes with them: hidden from the
+ * moment they're deleted. A recording also sent to someone else stays.
+ */
+const deletedClientsOnly: Prisma.VideoWhereInput = { client: { removedAt: { not: null } }, copies: { none: { OR: [{ clientId: null }, { client: { removedAt: null } }] } } };
+
+/**
  * The library list: originals, plus (for restricted staff) the copies sent to
  * their clients when they can't open the original itself.
  */
 export function libraryWhere(a: Access): Prisma.VideoWhereInput {
-  if (seesAllClients(a)) return { workspaceId: a.workspaceId, replyToId: null, sourceId: null };
+  if (seesAllClients(a)) return { workspaceId: a.workspaceId, replyToId: null, sourceId: null, NOT: deletedClientsOnly };
   return {
     workspaceId: a.workspaceId,
     replyToId: null,
+    NOT: deletedClientsOnly,
     OR: [
       { ownerId: a.userId, sourceId: null },
       { ownerId: { not: a.userId }, client: { assignedToId: a.userId } },

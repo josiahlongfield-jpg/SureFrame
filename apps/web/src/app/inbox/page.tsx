@@ -15,7 +15,6 @@ import ForgetDevice from "@/components/ForgetDevice";
 import { AskForLink, ClientKeyGate } from "@/components/LostKey";
 import { db } from "@/lib/db";
 import { unsubscribeUrl } from "@/lib/reminders";
-import { zoned } from "@/lib/dates";
 import { clientCookie, REMOVED_COOKIE, usableClientWhere } from "@/lib/access";
 import { visibleReplies } from "@/lib/replies";
 import { askForLink } from "@/lib/askForLink";
@@ -60,12 +59,11 @@ export default async function Inbox({
   // no client cookie), or links this device already had.
   const justOpened = jar.get(REMOVED_COOKIE)?.value;
   const removedTokens = justOpened ? [...tokens, justOpened] : tokens;
-  const now = new Date();
   // Support suspended or closed the business's workspace (never called that here), or turned this link off (lib/support/admin.ts).
   const live = { suspendedAt: null, closedAt: null } as const;
   const [removedBy, closedBy, unavailableBy, offBy] = removedTokens.length
     ? await Promise.all([
-        db.client.findMany({ where: { token: { in: removedTokens }, removedAt: { not: null } }, select: { purgeAt: true, workspace: { select: { name: true, timezone: true } } } }),
+        db.client.findMany({ where: { token: { in: removedTokens }, removedAt: { not: null } }, select: { workspace: { select: { name: true } } } }),
         db.client.findMany({ where: { token: { in: removedTokens }, removedAt: null, workspace: { ...live, deleteAt: { not: null } } }, select: { workspace: { select: { name: true } } } }),
         db.client.findMany({ where: { token: { in: removedTokens }, removedAt: null, workspace: { OR: [{ suspendedAt: { not: null } }, { closedAt: { not: null } }] } }, select: { workspace: { select: { name: true } } } }),
         db.client.findMany({ where: { token: { in: removedTokens }, removedAt: null, linkDisabledAt: { not: null }, workspace: { ...live, deleteAt: null } }, select: { workspace: { select: { name: true } } } }),
@@ -169,9 +167,6 @@ export default async function Inbox({
       text: (
         <>
           {r.workspace.name} has ended your access to your videos from them. If that&rsquo;s a mistake, contact them.
-          {r.purgeAt && r.purgeAt > now && (
-            <> They can restore it until {zoned(r.workspace.timezone).longDay(r.purgeAt)}, after which your videos, messages and shared to-dos with them are deleted.</>
-          )}
         </>
       ),
     })),

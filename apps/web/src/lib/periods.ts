@@ -4,10 +4,6 @@
  * an import cycle.
  */
 
-/** A removed client is kept this long, so the business can restore them, then deleted (lib/clientRemoval.ts). */
-export const CLIENT_KEEP_DAYS = 30;
-/** The business is warned this long before a removed client is deleted. */
-export const CLIENT_PURGE_WARN_DAYS = 3;
 /**
  * A deleted or closed account is kept this long, then deleted for good (lib/accountDeletion.ts).
  * Fixed on purpose: not RETENTION_DAYS, which can be changed per deployment.

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isEmailBlocked } from "@/lib/blockedEmail";
-import { CLIENT_KEEP_DAYS } from "@/lib/clientRemoval";
 import { seatUsage } from "@/lib/clients";
 import { db } from "@/lib/db";
 import { PLANS, staffSeatLimit } from "@/lib/plans";
@@ -16,7 +15,6 @@ import { supportTitle } from "../../_console/meta";
 export const generateMetadata = supportTitle("Workspace (support)", "admin", { robots: { index: false } });
 
 const field = "w-full rounded-xl border border-line-strong px-3 py-2 text-sm";
-const D = 86_400_000;
 
 /** Support admins: one workspace's status, members and clients, the support powers for it, and its support log. */
 export default async function SupportWorkspace({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ done?: string }> }) {
@@ -74,7 +72,6 @@ export default async function SupportWorkspace({ params, searchParams }: { param
   const removed = clients.filter((c) => c.removedAt);
   const free = PLANS.FREE.maxVideos!;
   const emailOwner = ownerEmail ? `Email the owner (${ownerEmail})` : "Email the owner";
-  const now = new Date();
 
   return (
     <div>
@@ -285,7 +282,7 @@ export default async function SupportWorkspace({ params, searchParams }: { param
                 power="suspendWorkspace"
                 hidden={{ workspaceId: w.id }}
                 title="Suspend workspace"
-                intro="Members see the suspended page and can't use it, clients see that its videos are unavailable right now, and reminders and emails in its name stop. Nothing is deleted because of it, but recordings without cloud backup still expire and removed clients are still deleted on their dates, unless legal hold is on. Billing carries on unless you stop renewal. If cloud backup ends meanwhile (the plan ends), backed-up recordings wait until it's lifted, then get 30 days."
+                intro="Members see the suspended page and can't use it, clients see that its videos are unavailable right now, and reminders and emails in its name stop. Nothing is deleted because of it, but recordings without cloud backup still expire and deleted clients are still erased, unless legal hold is on. Billing carries on unless you stop renewal. If cloud backup ends meanwhile (the plan ends), backed-up recordings wait until it's lifted, then get 30 days."
                 category
                 notify={emailOwner}
                 submit="Suspend"
@@ -450,65 +447,30 @@ export default async function SupportWorkspace({ params, searchParams }: { param
         )}
       </Section>
 
-      <Section title={`Removed clients (${removed.length})`} id="removed">
+      {/* Deleting a client is immediate (lib/clientRemoval.ts): one is only listed here while the clean-up job is
+          finishing it (files that wouldn't delete yet) or while a legal hold keeps it. */}
+      <Section title={`Clients being deleted (${removed.length})`} id="removed">
         {removed.length === 0 ? (
           <p className="text-sm text-muted">None.</p>
         ) : (
           <ul className="grid gap-3">
             {removed.map((c) => {
-              const due = !!c.purgeAt && c.purgeAt <= now;
               return (
                 <li key={c.id} id={`client-${c.id}`} className="rounded-2xl border border-line bg-surface p-4" data-testid={`removed-${c.id}`}>
                   <p className="break-words font-medium text-ink">{c.name}</p>
                   {c.email && <p className="break-all text-sm text-muted">{c.email}</p>}
                   <p className="mt-1 text-sm text-muted">
-                    Removed {qldDay(c.removedAt)}.{" "}
-                    {c.purgeAt
-                      ? due
-                        ? "Being deleted now."
-                        : `Deleted for good on ${qldDay(c.purgeAt)}${w.legalHoldAt ? " (held while legal hold is on)" : ""}.`
-                      : "No deletion date yet (the clean-up job gives one and tells the owner)."}
+                    Deleted by the business {qldDay(c.removedAt)}. {w.legalHoldAt ? "Kept while legal hold is on, then erased." : "The clean-up job is finishing it."}
                   </p>
-                  {c.linkDisabledAt && <p className="mt-1 text-xs text-dim">Their link was turned off by support before they were removed.</p>}
-                  {!mine && !due && (
+                  {!mine && (
                     <div className="mt-3 grid gap-2">
-                      {w.deleteAt ? (
-                        <p className="text-sm text-muted">The account is closed, so they can&rsquo;t be restored until it&rsquo;s kept or reopened.</p>
-                      ) : (
-                        <PowerForm
-                          power="restoreClient"
-                          hidden={{ clientId: c.id }}
-                          testId={`power-restoreClient-${c.id}`}
-                          title="Restore"
-                          intro="They're a client again. Their link works again, unless the team's keys were reset while they were removed: then they get a new one, emailed to them if they have an address. Needs a free client seat unless you tick below."
-                          notify={emailOwner}
-                          submit="Restore"
-                        >
-                          <Check
-                            name="ignoreSeatLimit"
-                            label="Restore even if every seat is in use"
-                            hint="The newest clients over the plan's seats are then paused, which may be someone else."
-                          />
-                        </PowerForm>
-                      )}
-                      {c.purgeAt && (
-                        <PowerForm
-                          power="keepClient"
-                          hidden={{ clientId: c.id }}
-                          testId={`power-keepClient-${c.id}`}
-                          title={`Keep ${CLIENT_KEEP_DAYS} more days`}
-                          intro={`Moves their deletion from ${qldDay(c.purgeAt)} to ${qldDay(new Date(c.purgeAt.getTime() + CLIENT_KEEP_DAYS * D))}, so the business has longer to restore them.`}
-                          notify={emailOwner}
-                          submit={`Keep ${CLIENT_KEEP_DAYS} more days`}
-                        />
-                      )}
                       {!w.legalHoldAt && (
                         <PowerForm
                           power="deleteClientNow"
                           hidden={{ clientId: c.id }}
                           testId={`power-deleteClientNow-${c.id}`}
-                          title="Delete now"
-                          intro="Deletes them for good now, as the clean-up job would on their date: their details, the videos sent only to them, their conversations (with the team's replies), to-dos and notes. Recordings also sent to other clients stay with those clients. Can't be undone."
+                          title="Finish deleting now"
+                          intro="Tries the deletion again now, as the clean-up job would: their details, the videos sent only to them, their conversations (with the team's replies), to-dos and notes. Recordings also sent to other clients stay with those clients. Can't be undone."
                           confirm={clientDeleteConfirmation(c)}
                           notify={emailOwner}
                           submit="Delete for good"

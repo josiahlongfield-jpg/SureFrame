@@ -146,19 +146,20 @@ ok("filter: not opened a video yet", (await owner.locator("main ul > li a[href^=
 await owner.selectOption("[data-testid=clients-filter]", "all");
 ok("Client B: copied in the list, so marked not opened yet", (await owner.textContent("li:has-text('Client B') [data-testid=needs-first-link]"))?.includes("Not opened yet"));
 
-// A duplicate made before Add refused them: removing it emails nobody, and it can't be restored while the other is there.
+// A duplicate made before Add refused them: deleting it emails nobody, as the real client still uses the address.
 const twin = await prisma.client.create({ data: { name: "Client A (old)", email: aEmail, token: `fxs-${stamp}-twin-${"x".repeat(20)}`, workspaceId: ws, teamKeyWrap: clientA.teamKeyWrap } });
 await owner.reload();
 await owner.click(`li:has-text("Client A (old)") >> button:text-is("Remove client")`);
-const box = norm(await owner.textContent("[data-testid=remove-client-confirm]"));
-ok("removing a duplicate: says nobody is emailed, no email box", box.includes(`Client A also uses ${aEmail}, so nobody is emailed about this`) && (await owner.locator("[data-testid=remove-client-email]").count()) === 0, box);
+await owner.waitForSelector("[data-testid=remove-client-sure]");
+ok("deleting a duplicate: no line about emailing them", (await owner.locator("[data-testid=remove-client-email-note]").count()) === 0);
 const mailsBefore = mailTo(aEmail).length;
-await owner.click("[data-testid=remove-client-confirm] >> button:text-is('Remove Client A (old)')");
+await owner.check("[data-testid=remove-client-sure]");
+await owner.click("[data-testid=remove-client-yes]");
 await owner.waitForSelector("[data-testid=clients-notice]");
-ok("restoring the duplicate is refused (409)", (await owner.request.post(`${BASE}/api/clients/${twin.id}/restore`)).status() === 409);
+ok("deleting a duplicate: says so, without 'emailed'", norm(await owner.textContent("[data-testid=clients-notice]")) === "Client A (old) was deleted permanently.");
 await owner.waitForTimeout(1500);
 ok("the real client wasn't told their access ended", mailTo(aEmail).length === mailsBefore);
-ok("Restore is off for the duplicate, saying why", (await owner.isDisabled(`[data-testid=removed-clients] li:has-text("Client A (old)") >> [data-testid=restore-client]`)) && (await owner.isVisible("[data-testid=restore-duplicate]")));
+ok("the real client is still there", !!(await prisma.client.findUnique({ where: { id: clientA.id } })) && !(await prisma.client.findUnique({ where: { id: twin.id } })));
 
 // Rename on the client's page.
 await owner.goto(`${BASE}/clients/${clientA.id}`);

@@ -297,7 +297,7 @@ export async function warn(actor: SupportAdmin, o: { workspaceId?: string; userI
  * 403 ACCOUNT_SUSPENDED, so unfinished uploads stay on their devices), its
  * clients see that its videos are unavailable, and nothing is emailed in its
  * name (reminders stay unsent). Nothing is deleted because of it; recordings
- * still expire and removed clients are still deleted on their dates, unless
+ * still expire and clients the business deleted are still erased, unless
  * the workspace is on legal hold. Billing carries on unless `stopRenewal`.
  */
 export async function suspendWorkspace(
@@ -336,7 +336,7 @@ export async function suspendWorkspace(
       { text: "Nobody on your team can use it while it's suspended, and your clients see that your videos are unavailable right now. Nothing has been deleted." },
       { text: "Reminders and other emails from SureFrame to you, your team and your clients are paused." },
       // The same whatever else is going on (a legal hold is never given away by what's left out).
-      { text: "The usual deletion schedules in our Terms carry on: recordings without cloud backup still leave our servers, and removed clients are deleted when their 30 days end." },
+      { text: "The usual deletion schedules in our Terms carry on: recordings without cloud backup still leave our servers." },
       ...(ending
         ? [
             { text: `Your subscription won't renew${ends ? `, so it ends on ${ends}` : ""}. You can still manage it when you sign in.` },

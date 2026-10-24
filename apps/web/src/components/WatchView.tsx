@@ -67,8 +67,6 @@ export type ClientOption = {
   emailsOff?: boolean;
   /** For a copy sent to another client: that client's own conversation. */
   copyId?: string;
-  /** Removed by the business: deleted for good on `until` (null once due or before it's set) unless restored. */
-  removed?: { until: string | null; keepsRecording: boolean; recordingFirst?: boolean };
   /** Paused because the business's plan covers fewer clients. */
   paused?: boolean;
   /** Link turned off by SureFrame support. */
@@ -1043,17 +1041,6 @@ function WatchBody({
         )}
         {canEdit && <MessageEditor videoId={video.id} rootKey={rootKey} sealed={sealedMessage} to={recipient?.name ?? null} />}
 
-        {canEdit && recipient?.removed && (
-          <p data-testid="recipient-removed" className="mt-5 rounded-2xl border border-warn-line bg-warn-bg p-4 text-sm text-warn-fg">
-            {recipient.name} was removed from your clients, so their link no longer opens this.
-            {recipient.removed.until &&
-              (recipient.removed.keepsRecording
-                ? ` Their conversation here will be deleted on ${recipient.removed.until} unless ${recipient.name} is restored on the Clients page. The recording itself stays, as you also sent it to other clients.`
-                : recipient.removed.recordingFirst || expired
-                  ? ` This conversation will be deleted on ${recipient.removed.until} unless ${recipient.name} is restored on the Clients page.`
-                  : ` This conversation and recording will be deleted on ${recipient.removed.until} unless ${recipient.name} is restored on the Clients page.`)}
-          </p>
-        )}
         {canEdit && teamKey && !expired && (
           <SendPanel
             video={{ id: video.id, title, status: video.status, encrypted: video.encrypted, sourceId, viewCount: video.viewCount, emailed: video.emailed }}

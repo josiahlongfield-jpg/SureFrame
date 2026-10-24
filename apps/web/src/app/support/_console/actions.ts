@@ -27,9 +27,7 @@ import {
   cancelScheduledDeletion,
   deleteAccountNow,
   deleteRemovedClientNow,
-  keepRemovedClientLonger,
   rerunSeatCheck,
-  restoreRemovedClient,
   resyncBilling,
   setFreeVideosUsed,
   unblockEmailAndTell,
@@ -73,8 +71,6 @@ const Power = z.discriminatedUnion("power", [
   z.object({ power: z.literal("signOutEverywhere"), userId: id, reason, notify: box }),
   z.object({ power: z.literal("deleteAccountNow"), userId: id, reason, confirm, notify: box }),
   z.object({ power: z.literal("cancelDeletion"), userId: id, reason, notify: box }),
-  z.object({ power: z.literal("restoreClient"), clientId: id, reason, notify: box, ignoreSeatLimit: box }),
-  z.object({ power: z.literal("keepClient"), clientId: id, reason, notify: box }),
   z.object({ power: z.literal("deleteClientNow"), clientId: id, reason, confirm, notify: box }),
   z.object({
     power: z.literal("setVideosRecorded"),
@@ -153,14 +149,6 @@ async function dispatch(a: SupportAdmin, p: Power): Promise<{ actionId: string; 
       return { actionId: (await deleteAccountNow(a, p)).actionId, back: "/support/log" };
     case "cancelDeletion":
       return { actionId: (await cancelScheduledDeletion(a, p)).actionId, back: userPage(p.userId) };
-    case "restoreClient": {
-      const back = await clientPage(p.clientId);
-      return { actionId: (await restoreRemovedClient(a, p)).actionId, back };
-    }
-    case "keepClient": {
-      const back = await clientPage(p.clientId);
-      return { actionId: (await keepRemovedClientLonger(a, p)).actionId, back };
-    }
     case "deleteClientNow": {
       const back = await clientPage(p.clientId);
       return { actionId: (await deleteRemovedClientNow(a, p)).actionId, back };

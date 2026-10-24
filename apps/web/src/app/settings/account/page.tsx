@@ -360,7 +360,7 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
             {(ownsAlone || teamNames.length > 0) && (
               <ul className="list-disc space-y-1 pl-5">
                 {ownsAlone && (
-                  <li data-testid="delete-own"> Your workspace goes with it: its recordings, clients, to-dos and notes. Your clients&apos; links stop working now{ownWorkspace.stripeSubscriptionId ? <>, your plan won&apos;t renew</> : null}, recordings without cloud backup still expire on their usual dates, and removed clients are still deleted on their dates.</li>
+                  <li data-testid="delete-own"> Your workspace goes with it: its recordings, clients, to-dos and notes. Your clients&apos; links stop working now{ownWorkspace.stripeSubscriptionId ? <>, your plan won&apos;t renew</> : null}, and recordings without cloud backup still expire on their usual dates.</li>
                 )}
                 {teamNames.length > 0 && (
                   <li data-testid="delete-team"> You leave {teamNames.join(" and ")} straight away, and keeping your account won&apos;t put you back. Recordings you made for {teamNames.length === 1 ? "that team" : "those teams"} stay with {teamNames.length === 1 ? "it" : "them"}, and {teamNames.length === 1 ? "its" : "their"} clients aren&apos;t affected.</li>

@@ -117,25 +117,19 @@ export default async function Watch({ params, searchParams }: Props) {
     // Quick picks by staff member only help someone who can see everyone's clients.
     access && perms?.seeAllClients ? db.membership.findMany({ where: { workspaceId: video.workspaceId }, include: { user: true }, orderBy: { id: "asc" } }) : Promise.resolve([]),
     // The other clients this recording went to, each with their own conversation.
-    access && !video.sourceId ? db.video.findMany({ where: { sourceId: video.id, client: clientScopeWhere(access) }, select: { id: true, clientId: true, viewCount: true, emailedAt: true }, orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
+    access && !video.sourceId ? db.video.findMany({ where: { sourceId: video.id, client: { ...clientScopeWhere(access), removedAt: null } }, select: { id: true, clientId: true, viewCount: true, emailedAt: true }, orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
   ]);
   // Staff can open a video they recorded that went to someone else's client: show who, nothing more.
-  // So do removed and paused clients, and those whose link support turned off, who can't open it.
-  const recipient = access && video.clientId && !clients.some((c) => c.id === video.clientId)
-    ? await db.client.findUnique({ where: { id: video.clientId }, select: { id: true, name: true, removedAt: true, purgeAt: true, pausedAt: true, linkDisabledAt: true } })
+  // So do paused clients, and those whose link support turned off, who can't open it.
+  const sentTo = access && video.clientId && !clients.some((c) => c.id === video.clientId)
+    ? await db.client.findUnique({ where: { id: video.clientId }, select: { id: true, name: true, removedAt: true, pausedAt: true, linkDisabledAt: true } })
     : null;
+  // A deleted client leaves no trace (Josiah, 24 October 2026): their conversation goes with them, so its page is gone
+  // from the moment they're deleted. A recording also sent to other clients stays, shown as not sent to them.
+  if (sentTo?.removedAt && (video.sourceId || !(await db.video.count({ where: { sourceId: video.id, OR: [{ clientId: null }, { client: { removedAt: null } }] } })))) notFound();
+  const recipient = sentTo?.removedAt ? null : sentTo;
   const expired = !!video.expiresAt && video.expiresAt < new Date();
   const workspace = await db.workspace.findUniqueOrThrow({ where: { id: video.workspaceId } });
-  // A removed client's conversations are deleted with them. The recording stays when it was also sent to
-  // other clients: this is a copy of it, or an original with copies (lib/clientRemoval.ts).
-  const removed = recipient?.removedAt
-    ? {
-        until: recipient.purgeAt && recipient.purgeAt > new Date() ? zoned(workspace.timezone).longDay(recipient.purgeAt) : null,
-        keepsRecording: !!video.sourceId || (await db.video.count({ where: { sourceId: video.id, OR: [{ clientId: null }, { clientId: { not: recipient.id } }] } })) > 0,
-        // Without cloud backup the recording can expire before the client is deleted; the page gives its own date.
-        recordingFirst: !!video.purgeAt && (!recipient.purgeAt || video.purgeAt <= recipient.purgeAt),
-      }
-    : undefined;
   // AI summaries add-on. Copies sent to other clients share the original recording's transcript.
   const aiOn = aiAssistActive(workspace);
   const insight = await db.videoInsight.findUnique({ where: { videoId: video.sourceId ?? video.id }, select: { transcript: true, summary: true } });
@@ -275,7 +269,7 @@ export default async function Watch({ params, searchParams }: Props) {
             }
             clients={[
               ...clients.map((c) => ({ id: c.id, name: c.name, email: c.email, link: clientLink(c.token, video.id), teamKeyWrap: c.teamKeyWrap, assignedToId: c.assignedToId, hasLink: !!c.linkOpenedAt, linkSent: !!c.linkSentAt, mine: c.assignedToId === access?.userId || (!c.assignedToId && access?.role === "OWNER"), emailable: !!c.email && !c.remindersOff, emailsOff: !!c.email && c.remindersOff })),
-              ...(recipient ? [{ id: recipient.id, name: recipient.name, link: "", teamKeyWrap: null, assignedToId: null, removed, paused: !!recipient.pausedAt, linkOff: !!recipient.linkDisabledAt }] : []),
+              ...(recipient ? [{ id: recipient.id, name: recipient.name, link: "", teamKeyWrap: null, assignedToId: null, paused: !!recipient.pausedAt, linkOff: !!recipient.linkDisabledAt }] : []),
             ]}
             sendMany={
               viewer.kind === "member" && perms?.sendToMany
