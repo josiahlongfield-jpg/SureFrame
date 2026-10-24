@@ -7,7 +7,8 @@ export const metadata = { title: "Versions and changes" };
 const DOC_NAMES = { terms: "Terms of Service", privacy: "Privacy Policy", dpa: "Data Processing Agreement" } as const;
 
 /** The latest of the documents' "last updated" dates, for this page's own date (L8, V44). */
-const latestUpdate = () => WORDING_UPDATES[0]?.date ?? LEGAL.updated;
+const latestUpdate = () =>
+  [WORDING_UPDATES[0]?.date, LEGAL_VERSIONS[0]?.date].filter((d): d is string => !!d).sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? LEGAL.updated;
 
 /**
  * Every version of the Terms of Service and Privacy Policy people have agreed to (LEGAL_VERSIONS in lib/legal.ts), and the
@@ -50,6 +51,9 @@ export default function Page() {
       <p>
         Our <Link href="/legal/dpa">Data Processing Agreement</Link> has its own version numbers. Version {LEGAL.dpaVersion}, in effect from {LEGAL.dpaSince}, is
         the current one.
+        {LEGAL_VERSIONS.filter((v) => "dpa" in v && v.date === LEGAL.dpaSince).flatMap((v) => ("dpa" in v ? v.dpa : [])).map((c) => (
+          <span key={c}> What changed from the version before: {c}</span>
+        ))}
       </p>
       <p>
         Earlier versions, including those from before we numbered them, are kept and are available on request. For a copy of any earlier version, or of the

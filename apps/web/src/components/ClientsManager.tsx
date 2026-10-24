@@ -198,6 +198,13 @@ function Manager({
   // Each row's Remove client button, so focus goes back to it when its dialog closes.
   const removeButtons = useRef(new Map<string, HTMLButtonElement>());
   const noticeLine = useRef<HTMLParagraphElement>(null);
+  const focusNotice = useRef(false);
+  useEffect(() => {
+    if (notice && focusNotice.current) {
+      focusNotice.current = false;
+      noticeLine.current?.focus();
+    }
+  }, [notice]);
   const dates = zoned(timezone);
   const left = Math.max(0, seats.limit - seats.used);
   const typed = route === "email" ? email.trim().toLowerCase() : "";
@@ -307,8 +314,8 @@ function Manager({
     setJustAdded((list) => list.filter((x) => x.id !== c.id));
     setConfirming(null);
     setNotice(`${c.name} was deleted permanently.${emailed ? " We've emailed them that their access has ended." : ""}`);
-    // Their row (and its button) is gone: the line saying what happened takes focus instead.
-    setTimeout(() => noticeLine.current?.focus(), 0);
+    // Their row (and its button) is gone: the line saying what happened takes focus instead, once it's on the page.
+    focusNotice.current = true;
   }
 
   /** Closes the Delete box without deleting, back to the button that opened it. */

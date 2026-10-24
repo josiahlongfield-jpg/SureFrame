@@ -184,6 +184,8 @@ export const LEGAL_VERSIONS = [
       "Before you confirm, you can save the videos sent only to that client to your device. Videos you also sent to other clients stay with those clients.",
       "A client you add again starts as a new client, with a new personal link. A removed client is emailed that their access has ended, unless they’ve turned your emails off.",
     ],
+    // Shown under the DPA's title (version 1.1); the DPA isn't agreed to on /agree, so it isn't in `changes`.
+    dpa: ["Section 10: when you remove a client, we delete their details, conversations, to-dos, notes and the recordings sent only to them straight away, and keep no copy to restore them from."],
   },
   {
     terms: "2026-10-11",

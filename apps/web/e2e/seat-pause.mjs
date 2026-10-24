@@ -100,7 +100,7 @@ const send = await boss.request.patch(`${BASE}/api/videos/${v.id}`, { data: { cl
 ok("sending to a paused client refused", send.status() === 400, String(send.status()));
 
 // Removing a covered client frees a seat: the longest-standing paused one comes back.
-ok("owner removes a client", (await boss.request.delete(`${BASE}/api/clients/${clients[1].id}`)).status() === 204);
+ok("owner removes a client", (await boss.request.delete(`${BASE}/api/clients/${clients[1].id}`)).status() === 200);
 const dan = await prisma.client.findUnique({ where: { id: clients[3].id } });
 const eve2 = await prisma.client.findUnique({ where: { id: clients[4].id } });
 ok("Dan restored when a seat frees up", !dan.pausedAt && !!eve2.pausedAt);

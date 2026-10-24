@@ -92,7 +92,7 @@ await page.waitForSelector("button[aria-label^='Copy link for']:not([disabled])"
 const removeB = page.locator("button[aria-label='Remove client Client B']");
 await removeB.focus();
 await page.keyboard.press("Enter");
-await page.waitForSelector("[role=dialog][data-testid=remove-client-confirm]");
+await page.waitForSelector("[role=alertdialog][data-testid=remove-client-confirm]");
 ok("Remove client opens a dialog", (await page.getAttribute("[data-testid=remove-client-confirm]", "aria-modal")) === "true");
 ok("focus moves into it", await page.evaluate(() => !!document.activeElement?.closest("[data-testid=remove-client-confirm]")));
 await page.keyboard.press("Escape");

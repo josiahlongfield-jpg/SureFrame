@@ -186,8 +186,9 @@ await owner.check("[data-testid=remove-client-sure]");
 await owner.click("[data-testid=remove-client-yes]");
 await owner.waitForSelector("[data-testid=clients-notice]", { timeout: 30000 });
 ok("after: says deleted permanently, and that we emailed them", norm(await owner.textContent("[data-testid=clients-notice]")) === `Ana ${stamp} was deleted permanently. We've emailed them that their access has ended.`);
-ok("after: gone from the list, no Removed clients section", !(await owner.textContent("main")).includes(`Ana ${stamp}`) && (await owner.locator("[data-testid=removed-clients]").count()) === 0);
-ok("after: focus on the notice", await owner.evaluate(() => document.activeElement?.getAttribute("data-testid") === "clients-notice"));
+ok("after: gone from the list, no Removed clients section", (await owner.locator(`main a:text-is('Ana ${stamp}'), main button[aria-label='Remove client Ana ${stamp}']`).count()) === 0 && (await owner.locator("[data-testid=removed-clients]").count()) === 0);
+const noticeFocused = await owner.waitForFunction(() => document.activeElement?.getAttribute("data-testid") === "clients-notice", null, { timeout: 5000 }).then(() => true).catch(() => false);
+ok("after: focus on the notice", noticeFocused, await owner.evaluate(() => document.activeElement?.outerHTML.slice(0, 160)));
 await owner.screenshot({ path: `${shots}/client-delete-after.png`, fullPage: true });
 
 ok("erased: the client", !(await prisma.client.findUnique({ where: { id: ana.id } })));
@@ -313,8 +314,10 @@ ok("before the job: their conversation's page is gone", (await status(owner2.got
 ok("before the job: their copy of a shared recording too", (await status(owner2.goto(`${BASE}/v/${c2.id}`))) === 404);
 await owner2.goto(`${BASE}/v/${o1.id}`);
 await owner2.waitForSelector("main", { timeout: 30000 });
-const o1Page = await owner2.textContent("main");
-ok("before the job: a recording also sent to Bea opens, without Xan", !o1Page.includes(`Xan ${stamp}`) && o1Page.includes(`Bea ${stamp}`), o1Page.slice(0, 300));
+// The whole page as sent, props included: Bea's conversation is listed, and Xan's name isn't anywhere in it.
+const o1Page = await owner2.content();
+ok("before the job: a recording also sent to Bea opens, without Xan", !o1Page.includes(`Xan ${stamp}`) && o1Page.includes(`Bea ${stamp}`));
+ok("before the job: none of Xan's conversation on it from the API", (await (await owner2.request.get(`${BASE}/api/videos/${o1.id}/replies`)).json()).replies.length === 0);
 await owner2.goto(`${BASE}/library`);
 await owner2.$$eval("[data-testid=day-folder]", (els) => els.forEach((e) => (e.open = true)));
 const lib2 = await owner2.textContent("main");

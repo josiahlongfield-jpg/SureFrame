@@ -70,7 +70,10 @@ export default function LegalPage({
   children: ReactNode;
 }) {
   const { toc, body } = withContents(children);
-  const latest = doc ? WORDING_UPDATES.find((u) => u.date === updated)?.[doc] : undefined;
+  // What changed on the last-updated date: a wording update, or a new version people agree to (LEGAL_VERSIONS).
+  const wording = doc ? WORDING_UPDATES.find((u) => u.date === updated)?.[doc] : undefined;
+  const release = doc && !wording ? LEGAL_VERSIONS.find((v) => v.date === updated) : undefined;
+  const latest = wording ?? (release && (doc === "dpa" ? ("dpa" in release ? release.dpa : undefined) : release.changes));
   const since = version ? (LEGAL_VERSIONS.find((v) => v.terms === version || v.privacy === version)?.date ?? (version === LEGAL.dpaVersion ? LEGAL.dpaSince : undefined)) : undefined;
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
@@ -103,12 +106,21 @@ export default function LegalPage({
                 </li>
               ))}
             </ul>
-            <p className="mt-1.5">
-              These clarify what we already do or add to what you get, so there&rsquo;s nothing new to agree to.{" "}
-              <Link href="/legal/archive#wording-updates" className="text-accent underline">
-                Earlier changes
-              </Link>
-            </p>
+            {wording ? (
+              <p className="mt-1.5">
+                These clarify what we already do or add to what you get, so there&rsquo;s nothing new to agree to.{" "}
+                <Link href="/legal/archive#wording-updates" className="text-accent underline">
+                  Earlier changes
+                </Link>
+              </p>
+            ) : (
+              <p className="mt-1.5">
+                This is a new version, so account holders are asked to agree to it.{" "}
+                <Link href="/legal/archive#versions" className="text-accent underline">
+                  Earlier versions
+                </Link>
+              </p>
+            )}
           </details>
         )}
         {toc.length >= 4 && (

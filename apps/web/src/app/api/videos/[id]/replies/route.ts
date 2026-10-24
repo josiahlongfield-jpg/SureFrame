@@ -22,6 +22,8 @@ export const GET = handle(async (_req: Request, ctx: { params: Promise<{ id: str
   const { id } = await ctx.params;
   const { video: root, viewer } = await viewableVideo(id);
   const who = replyViewer(viewer);
+  // A deleted client's conversation isn't shown, even on a recording kept for the other clients it went to (app/v/[id]).
+  if (root.clientId && (await db.client.count({ where: { id: root.clientId, removedAt: { not: null } } }))) return Response.json({ replies: [], held: [] });
   const [replies, held] = await Promise.all([
     db.reply.findMany({ where: { videoId: id, ...visibleReplies }, orderBy: { createdAt: "asc" }, include: { media: true } }),
     // The viewer's own unsent video and voice replies (e.g. recorded before the browser closed): only they see these.

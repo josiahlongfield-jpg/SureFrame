@@ -297,7 +297,8 @@ for (const bit of [
 }
 ok("terms: no stale export line or re-agree-on-every-update promise (L1, L4)", !terms.includes("text in the data export stays encrypted") && !terms.includes("When we update them, we’ll ask you"));
 await visitor.click("[data-testid=legal-latest] summary");
-ok("terms: what changed on the last-updated date, linking to earlier changes (V43)", (await seen(visitor, "[data-testid=legal-latest] li")) && (await visitor.$$("[data-testid=legal-latest] a[href='/legal/archive#wording-updates']")).length === 1);
+// 24 October 2026 is a new version (removing a client deletes them): the box says so and links to the earlier versions.
+ok("terms: what changed on the last-updated date, linking to earlier versions (V43)", (await seen(visitor, "[data-testid=legal-latest] li")) && norm(await visitor.textContent("[data-testid=legal-latest]")).includes("This is a new version, so account holders are asked to agree to it.") && (await visitor.$$("[data-testid=legal-latest] a[href='/legal/archive#versions']")).length === 1);
 ok("terms: Back to contents is hidden at the top (V55)", (await visitor.$eval("[data-testid=back-to-contents]", (a) => getComputedStyle(a).opacity)) === "0");
 await visitor.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
 ok("terms: Back to contents shows once the contents are scrolled away (V55)", await waitFor(() => visitor.$eval("[data-testid=back-to-contents]", (a) => getComputedStyle(a).opacity === "1")));

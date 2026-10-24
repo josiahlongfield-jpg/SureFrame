@@ -110,8 +110,11 @@ export default async function Watch({ params, searchParams }: Props) {
   const isMember = viewer.kind === "member";
   const access = viewer.kind === "member" ? viewer.access : null;
   const perms = access ? effectivePerms(access) : null;
+  // A recording kept because it also went to other clients, whose own client was deleted (before the clean-up job has
+  // finished: a legal hold, or an error it retries): their conversation on it isn't shown, as if already gone.
+  const goneClient = !!video.client?.removedAt;
   const [replies, clients, staff, copies] = await Promise.all([
-    db.reply.findMany({ where: { videoId: id, ...visibleReplies }, orderBy: { createdAt: "asc" }, include: { media: true } }),
+    goneClient ? Promise.resolve([]) : db.reply.findMany({ where: { videoId: id, ...visibleReplies }, orderBy: { createdAt: "asc" }, include: { media: true } }),
     // Only the clients this person may see (lib/permissions.ts).
     access ? db.client.findMany({ where: { ...clientScopeWhere(access), removedAt: null, pausedAt: null, linkDisabledAt: null }, orderBy: { name: "asc" } }) : Promise.resolve([]),
     // Quick picks by staff member only help someone who can see everyone's clients.
@@ -124,9 +127,7 @@ export default async function Watch({ params, searchParams }: Props) {
   const sentTo = access && video.clientId && !clients.some((c) => c.id === video.clientId)
     ? await db.client.findUnique({ where: { id: video.clientId }, select: { id: true, name: true, removedAt: true, pausedAt: true, linkDisabledAt: true } })
     : null;
-  // A deleted client leaves no trace (Josiah, 24 October 2026): their conversation goes with them, so its page is gone
-  // from the moment they're deleted. A recording also sent to other clients stays, shown as not sent to them.
-  if (sentTo?.removedAt && (video.sourceId || !(await db.video.count({ where: { sourceId: video.id, OR: [{ clientId: null }, { client: { removedAt: null } }] } })))) notFound();
+  // A deleted client's own conversation is already a 404 (load.ts); a recording also sent to others shows as not sent to them.
   const recipient = sentTo?.removedAt ? null : sentTo;
   const expired = !!video.expiresAt && video.expiresAt < new Date();
   const workspace = await db.workspace.findUniqueOrThrow({ where: { id: video.workspaceId } });
@@ -147,7 +148,7 @@ export default async function Watch({ params, searchParams }: Props) {
   const [reactions, copyViews] = isMember
     ? await Promise.all([
         // The client's (older reactions didn't say who left them, and were all theirs in practice).
-        db.reaction.findMany({ where: { videoId: id, OR: [{ byClient: true }, { authorUserId: null }] }, orderBy: { createdAt: "asc" }, take: 500, select: { emoji: true, timestampMs: true } }),
+        db.reaction.findMany({ where: { videoId: goneClient ? "" : id, OR: [{ byClient: true }, { authorUserId: null }] }, orderBy: { createdAt: "asc" }, take: 500, select: { emoji: true, timestampMs: true } }),
         video.sourceId ? Promise.resolve(0) : db.video.aggregate({ where: { sourceId: video.id }, _sum: { viewCount: true } }).then((a) => a._sum.viewCount ?? 0),
       ])
     : [undefined, 0];
@@ -161,7 +162,7 @@ export default async function Watch({ params, searchParams }: Props) {
     ? await (async () => {
         const root = video.sourceId ?? video.id;
         const group = await db.video.findMany({
-          where: { OR: [{ id: root }, { sourceId: root }], clientId: { not: null }, client: clientScopeWhere(access) },
+          where: { OR: [{ id: root }, { sourceId: root }], clientId: { not: null }, client: { ...clientScopeWhere(access), removedAt: null } },
           select: { id: true, sourceId: true, createdAt: true, client: { select: { id: true, name: true } } },
         });
         group.sort((a, b) => (a.sourceId ? 1 : 0) - (b.sourceId ? 1 : 0) || a.createdAt.getTime() - b.createdAt.getTime());
@@ -179,7 +180,7 @@ export default async function Watch({ params, searchParams }: Props) {
         });
       })()
     : undefined;
-  const held = await db.reply.findMany({ where: { videoId: id, ...heldRepliesOf(who) }, orderBy: { createdAt: "asc" }, include: { media: true } });
+  const held = await db.reply.findMany({ where: { videoId: goneClient ? "" : id, ...heldRepliesOf(who) }, orderBy: { createdAt: "asc" }, include: { media: true } });
   // Who a client's reply is to (S52): the team member who sent this, when they're also the one looking after this
   // client (their replies are emailed to them, lib/teamNotify.ts), as "Sam at Business"; otherwise the business.
   const staffSender =
@@ -250,7 +251,7 @@ export default async function Watch({ params, searchParams }: Props) {
           <WatchView
             // Only the team sees how often the client opened it; clients aren't sent the count at all.
             // Clients see "A video from Business A" until it has a real title (Decision 10); the team sees the title as it is.
-            video={{ ...publicVideo(video), title: isMember ? video.title : clientTitle(video.title, workspace.name), viewCount: isMember ? video.viewCount + copyViews : 0, emailed: isMember ? (video.emailedAt ? "sent" : video.emailClientWhenReady ? "when-ready" : null) : null }}
+            video={{ ...publicVideo(video), title: isMember ? video.title : clientTitle(video.title, workspace.name), viewCount: isMember ? (goneClient ? 0 : video.viewCount) + copyViews : 0, emailed: isMember ? (video.emailedAt ? "sent" : video.emailClientWhenReady ? "when-ready" : null) : null }}
             // Clients see "Team member 1 from Business A" (never an email); the team sees the name or email (lib/team.ts).
             ownerName={senderName(video, workspace.name, isMember ? "team" : "client")}
             ownerNote={!isMember && video.formerStaffAt ? `Recorded by someone who has since left ${workspace.name}. Your replies still reach ${workspace.name}.` : undefined}
@@ -282,7 +283,7 @@ export default async function Watch({ params, searchParams }: Props) {
                 : undefined
             }
             canAddClients={!!perms?.addClients}
-            sentToId={video.clientId}
+            sentToId={goneClient ? null : video.clientId}
             // No offer box without the AI summaries add-on (Josiah 2026-10-21). A transcript and summary made while it was on stay
             // readable, and removable by the team, as the Terms promise; no new ones.
             ai={aiOn || insight ? { insight, canMake: isMember && aiOn, notice: !isMember } : undefined}

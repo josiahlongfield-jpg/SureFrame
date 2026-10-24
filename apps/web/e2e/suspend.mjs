@@ -369,7 +369,7 @@ await blocked.fill('input[name="email"]', ownerEmail);
 await blocked.click("text=Continue");
 await blocked.waitForURL((u) => u.searchParams.get("error") === "blocked", { timeout: 30000 }).catch(() => null);
 const blockedNote = await blocked.waitForSelector("p.text-danger-fg[role=alert]", { timeout: 15000 }).then((e) => e.textContent()).catch(() => "");
-ok("sign-in page: blocked address told why", norm(blockedNote) === "This email address can't be used with SureFrame. Contact support@sureframe.app.", `${blocked.url()} ${blockedNote}`);
+ok("sign-in page: blocked address told why", norm(blockedNote) === "This email address can't be used with SureFrame. Contact support@sureframe.app.", `${blocked.url()} ${blockedNote} ${blockedNote ? "" : ((await blocked.content()).match(/role="alert"[^>]*>[^<]{0,200}/g) ?? []).join(" | ")}`);
 await blocked.goto(`${BASE}/login?next=/library`);
 await blocked.fill('input[name="email"]', ownerEmail.replace("@", "+again@").toUpperCase());
 await blocked.click("text=Continue");
