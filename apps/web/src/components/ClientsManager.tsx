@@ -199,6 +199,14 @@ function Manager({
   const removeButtons = useRef(new Map<string, HTMLButtonElement>());
   const noticeLine = useRef<HTMLParagraphElement>(null);
   const focusNotice = useRef(false);
+  // The Remove client button to go back to once the Delete box has closed without deleting.
+  const refocus = useRef<string | null>(null);
+  useEffect(() => {
+    if (confirming === null && refocus.current) {
+      removeButtons.current.get(refocus.current)?.focus();
+      refocus.current = null;
+    }
+  }, [confirming]);
   useEffect(() => {
     if (notice && focusNotice.current) {
       focusNotice.current = false;
@@ -320,9 +328,8 @@ function Manager({
 
   /** Closes the Delete box without deleting, back to the button that opened it. */
   function cancelRemove() {
-    const id = confirming;
+    refocus.current = confirming;
     setConfirming(null);
-    if (id) setTimeout(() => removeButtons.current.get(id)?.focus(), 0);
   }
 
   async function assign(c: Client, assignedToId: string | null) {
