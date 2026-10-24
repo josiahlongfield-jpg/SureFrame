@@ -184,6 +184,12 @@ ok("untitled: the client's heading is 'A video from Business A' (Decision 10)", 
 ok("untitled: the date it was sent still shows under it", / · \w{3} \d{1,2}, \d{4}/.test(await phone.textContent("[data-testid=video-meta]")), await phone.textContent("[data-testid=video-meta]"));
 ok("untitled: the tab says it once", /^A video from Business A( · SureFrame)?$/.test(await phone.title()), await phone.title());
 ok("untitled: the date-made title isn't on the client's page", !(await phone.textContent("main")).includes("Recording Oct 22"));
+// Newer browsers write the date with "at" (Josiah's email, 24 October 2026): still the date-made title.
+await prisma.video.update({ where: { id: videoId }, data: { title: "Recording Oct 22, 2026 at 3:26\u202fPM" } });
+await phone.reload();
+await phone.waitForSelector("[data-testid=video-title]", { timeout: 20000 });
+ok("untitled: an 'Oct 22, 2026 at 3:26 PM' title is the date-made one too", (await phone.textContent("[data-testid=video-title]")) === "A video from Business A");
+await prisma.video.update({ where: { id: videoId }, data: { title: "Recording Oct 22, 2026, 3:26 PM" } });
 await phone.goto(`${BASE}/inbox`);
 await phone.waitForSelector("[data-testid=inbox-for]", { timeout: 20000 });
 ok("untitled: All my videos lists it as 'A video from Business A'", (await phone.textContent("main")).includes("A video from Business A") && !(await phone.textContent("main")).includes("Recording Oct 22"));
