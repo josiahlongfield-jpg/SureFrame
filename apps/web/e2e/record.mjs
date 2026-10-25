@@ -129,4 +129,17 @@ await phone.goto(BASE + "/record");
 await phone.waitForSelector("[data-testid=mode-camera]", { timeout: 20000 });
 ok("phone: screen modes greyed, camera chosen", (await phone.getAttribute("[data-testid=mode-screen]", "aria-disabled")) === "true" && (await phone.isChecked("[data-testid=mode-camera] input")));
 ok("phone: says why", await phone.isVisible("[data-testid=screen-modes-note]"));
+
+// A Mac that hasn't allowed the browser to record the screen: Chrome refuses "by system" after the picker closes.
+// The recorder says how to fix it rather than going back to the start with nothing said.
+const macPage = await ctx.newPage();
+await macPage.addInitScript(() => {
+  Object.defineProperty(navigator, "userAgent", { get: () => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36" });
+  navigator.mediaDevices.getDisplayMedia = () => Promise.reject(new DOMException("Permission denied by system", "NotAllowedError"));
+});
+await macPage.goto(BASE + "/record");
+await macPage.click("text=Screen only");
+await macPage.click("text=Start recording");
+const blockedNote = await macPage.waitForSelector("text=/didn't let this browser share your screen/", { timeout: 20000 }).then((e) => e.textContent()).catch(() => "");
+ok("screen blocked by the Mac's settings: says where to turn it on", blockedNote.includes("Screen & System Audio Recording"), blockedNote);
 await browser.close();

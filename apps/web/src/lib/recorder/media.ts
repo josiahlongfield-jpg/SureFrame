@@ -65,10 +65,29 @@ export async function getMic(deviceId: string | undefined) {
 
 export async function getScreen(q: Quality) {
   const { width, height } = dims(q);
-  return navigator.mediaDevices.getDisplayMedia({
-    video: { width: { ideal: width }, height: { ideal: height }, frameRate: { ideal: 30, max: 30 } },
-    audio: true, // tab/system audio where the browser supports it
-  });
+  return navigator.mediaDevices
+    .getDisplayMedia({
+      video: { width: { ideal: width }, height: { ideal: height }, frameRate: { ideal: 30, max: 30 } },
+      audio: true, // tab/system audio where the browser supports it
+    })
+    .catch((err: Error) => {
+      // The computer itself refused (Chrome says "Permission denied by system"), not the person cancelling the
+      // picker: most often a Mac where the browser hasn't been allowed to record the screen. Say how to fix it.
+      if (err.name === "NotAllowedError" && /system/i.test(err.message)) throw new Error(blockedBySystem("screen"));
+      throw err;
+    });
+}
+
+/** What to do when the computer's own settings stop the browser using the screen, camera or microphone. */
+export function blockedBySystem(what: "screen" | "camera or microphone") {
+  const mac = /Mac/.test(navigator.userAgent);
+  if (what === "screen")
+    return mac
+      ? "Your Mac didn't let this browser share your screen. Open System Settings, then Privacy & Security, then Screen & System Audio Recording, and turn on your browser. Quit and reopen the browser, then try again."
+      : "Your computer didn't let this browser share your screen. Check your computer's privacy settings for screen recording, then try again.";
+  return mac
+    ? "Your Mac didn't let this browser use your camera or microphone. Open System Settings, then Privacy & Security, then Camera and Microphone, and turn on your browser. Quit and reopen the browser, then try again."
+    : "Your computer didn't let this browser use your camera or microphone. Check your computer's privacy settings for the camera and microphone, then try again.";
 }
 
 /** Mix mic and screen audio into one track so neither is lost. */

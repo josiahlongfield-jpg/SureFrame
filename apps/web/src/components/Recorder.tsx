@@ -13,6 +13,7 @@ import { ChunkedUploader, FatalUploadError, lockName, mayRecover, readyIn, recov
 import {
   bitrateFor,
   getCamera,
+  blockedBySystem,
   getCameraAndMic,
   getMic,
   getScreen,
@@ -602,8 +603,10 @@ export default function Recorder({
         made.releaseLock();
       }
       setPhase("setup");
-      const name = (err as Error).name;
-      if (name !== "NotAllowedError" && name !== "AbortError") setError((err as Error).message);
+      const { name, message } = err as Error;
+      // A refusal by the computer's own settings, not the person: say so rather than nothing happening (see getScreen).
+      if (name === "NotAllowedError" && /system/i.test(message)) setError(blockedBySystem("camera or microphone"));
+      else if (name !== "NotAllowedError" && name !== "AbortError") setError(message);
     }
   }
 
