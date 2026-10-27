@@ -77,7 +77,7 @@ async function emailOwner(workspaceId: string, business: string, planName: strin
     lines,
     button: { label: "Choose a plan", link: appUrl(teamPath("/settings/billing", workspaceId)) },
     footer:
-      "Pausing doesn't delete anything, though recordings still expire on the usual schedule. Upgrade, or remove clients or staff you no longer need, and the others are restored straight away. Please let anyone affected know about the change. " +
+      "Pausing doesn't delete anything, though recordings still expire on the usual schedule. Upgrade, or delete clients or remove staff you no longer need, and the others are restored straight away. Please let anyone affected know about the change. " +
       RECEIPTS_NOTE,
   });
   await addToBell([{ userId: owner.userId, workspaceId, kind: "PAUSED", text: mail.subject, href: "/settings/billing" }]);

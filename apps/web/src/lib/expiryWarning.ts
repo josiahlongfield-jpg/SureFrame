@@ -36,6 +36,8 @@ export async function warnExpiring(now = new Date()) {
       // Nothing is emailed while the owner's account is closed (lib/accountDeletion.ts) or support has the workspace
       // suspended (lib/support/admin.ts); the recordings still expire. Under legal hold they don't, so no warning.
       workspace: { cloudBackup: false, deleteAt: null, suspendedAt: null, closedAt: null, legalHoldAt: null },
+      // Not a deleted client's conversation, while that deletion finishes (lib/clientRemoval.ts).
+      NOT: { client: { removedAt: { not: null } } },
     },
     select: { id: true, ownerId: true, workspaceId: true, sourceId: true, createdAt: true, purgeAt: true, title: true, source: { select: { title: true } }, client: { select: { name: true } } },
     orderBy: { purgeAt: "asc" },

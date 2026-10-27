@@ -29,7 +29,7 @@ export const PUT = handle(async (req: Request, ctx: { params: Promise<{ id: stri
   const me = await requireUser();
   const video = await visibleVideo(accessOf(me), id);
   if (video.replyToId) throw new HttpError(404, "Video not found");
-  if (!aiAssistActive(me.workspace)) throw new HttpError(403, "AI summaries aren't switched on for this workspace");
+  if (!aiAssistActive(me.workspace)) throw new HttpError(403, "AI summaries aren't switched on for this business");
   const body = Body.safeParse(await req.json());
   if (!body.success) throw new HttpError(400, "Transcripts must be encrypted before saving");
   const videoId = recordingId(video);

@@ -47,6 +47,7 @@ export default function SendPanel({
   business,
   canAddClient,
   sentToId,
+  originalHeld,
   sendMany,
   hasReplies,
   rootKey,
@@ -60,6 +61,8 @@ export default function SendPanel({
   /** May add a new client from here (lib/permissions.ts addClients). */
   canAddClient?: boolean;
   sentToId: string | null;
+  /** The video itself stays with a client being deleted until that finishes: everyone chosen gets their own copy. */
+  originalHeld?: boolean;
   /** Set when this person may send one recording to several clients. */
   sendMany?: SendMany;
   hasReplies: boolean;
@@ -174,42 +177,49 @@ export default function SendPanel({
     const added: Recipient[] = [];
     const states: Record<string, RowState> = {};
     let rest = list;
-    const first = !primaryRef.current;
-    if (first && list.length) {
-      // The first client gets this video itself.
-      const c = list[0];
-      rest = list.slice(1);
-      const res = await fetch(`/api/videos/${video.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId: c.id, clientKeyWrap: await wrapFor(c), keyFingerprint, notify: canEmail(c) }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? `Couldn't send it to ${c.name}. Try again.`);
-      setPrimary(c.id);
-      added.push({ clientId: c.id, convId: video.id });
-      if (data.emailed) states[c.id] = data.emailed === "when-ready" ? "when-ready" : "emailed";
+    let finished = false;
+    try {
+      const first = !primaryRef.current && !originalHeld;
+      if (first && list.length) {
+        // The first client gets this video itself.
+        const c = list[0];
+        rest = list.slice(1);
+        const res = await fetch(`/api/videos/${video.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId: c.id, clientKeyWrap: await wrapFor(c), keyFingerprint, notify: canEmail(c) }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? `Couldn't send it to ${c.name}. Try again.`);
+        setPrimary(c.id);
+        added.push({ clientId: c.id, convId: video.id });
+        if (data.emailed) states[c.id] = data.emailed === "when-ready" ? "when-ready" : "emailed";
+      }
+      // Everyone else gets their own copy: one request for those we email, one for the rest.
+      for (const notify of [true, false]) {
+        const group = rest.filter((c) => canEmail(c) === notify);
+        if (!group.length) continue;
+        const res = await fetch(`/api/videos/${video.id}/send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recipients: await Promise.all(group.map(async (c) => ({ clientId: c.id, clientKeyWrap: await wrapFor(c) }))), notify, keyFingerprint }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? "Couldn't send it. Try again.");
+        const sent = data.sent as { id: string; clientId: string; emailed?: boolean }[];
+        added.push(...sent.map((s) => ({ clientId: s.clientId, convId: s.id })));
+        for (const s of sent) if (s.emailed) states[s.clientId] = "emailed";
+      }
+      finished = true;
+    } finally {
+      // Whoever did get it shows as sent (and is no longer ticked), even when a later request failed.
+      setRecipients((cur) => [...cur, ...added]);
+      setRows((cur) => ({ ...cur, ...states }));
+      // The rest of the page (the conversation panel, and its list of every client's conversation) shows who this video is with.
+      if (added.length) router.refresh();
+      const done = finished ? list.map((c) => c.id) : added.map((a) => a.clientId);
+      setPicked((cur) => cur.filter((id) => !done.includes(id)));
     }
-    // Everyone else gets their own copy: one request for those we email, one for the rest.
-    for (const notify of [true, false]) {
-      const group = rest.filter((c) => canEmail(c) === notify);
-      if (!group.length) continue;
-      const res = await fetch(`/api/videos/${video.id}/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipients: await Promise.all(group.map(async (c) => ({ clientId: c.id, clientKeyWrap: await wrapFor(c) }))), notify, keyFingerprint }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Couldn't send it. Try again.");
-      const sent = data.sent as { id: string; clientId: string; emailed?: boolean }[];
-      added.push(...sent.map((s) => ({ clientId: s.clientId, convId: s.id })));
-      for (const s of sent) if (s.emailed) states[s.clientId] = "emailed";
-    }
-    setRecipients((cur) => [...cur, ...added]);
-    setRows((cur) => ({ ...cur, ...states }));
-    // The rest of the page (the conversation panel, and its list of every client's conversation) shows who this video is with.
-    if (added.length) router.refresh();
-    setPicked((cur) => cur.filter((id) => !list.some((c) => c.id === id)));
     return added;
   }
 

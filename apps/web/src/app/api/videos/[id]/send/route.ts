@@ -47,7 +47,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
     db.client.findMany({ where: { ...clientScopeWhere(access), id: { in: wanted.map((r) => r.clientId) }, removedAt: null, pausedAt: null }, select: { id: true, name: true, email: true, token: true, remindersOff: true, linkDisabledAt: true } }),
     db.video.findMany({ where: { sourceId: id }, select: { clientId: true } }),
   ]);
-  if (clients.length !== wanted.length) throw new HttpError(400, "One of those clients isn't in your workspace");
+  if (clients.length !== wanted.length) throw new HttpError(400, "One of those clients isn't one of your clients");
   // Turned off by support (lib/support/admin.ts): nothing is sent to them.
   const off = clients.find((c) => c.linkDisabledAt);
   if (off) throw new HttpError(409, linkOffMessage(off.name));
@@ -77,7 +77,14 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
     createdAt: video.createdAt,
     sentAt: new Date(),
   }));
-  if (copies.length) await db.video.createMany({ data: copies });
+  if (copies.length) {
+    await db.$transaction(async (tx) => {
+      // Waits for a client deletion that has this recording (lib/clientRemoval.ts purgeClient), then sees whether it's still here.
+      const [still] = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Video" WHERE id = ${video.id} FOR UPDATE`;
+      if (!still) throw new HttpError(404, "This video has been deleted");
+      await tx.video.createMany({ data: copies });
+    });
+  }
   const sends = copies.map((c) => ({ videoId: c.id, clientId: c.clientId }));
   after(() => notifyVideosSent(workspace.id, me.user.id, sends));
 

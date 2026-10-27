@@ -8,6 +8,7 @@ import { sendMail } from "@/lib/mail";
 import { PLANS, RECEIPTS_NOTE, type Interval, type PaidPlan } from "@/lib/plans";
 import { appUrl } from "@/lib/appUrl";
 import { teamEmail } from "@/lib/teamEmail";
+import { teamPath } from "@/lib/teamLink";
 
 type Item = Pick<Stripe.SubscriptionItem, "price">;
 /** The paid plan and billing period a subscription's items are for. */
@@ -57,7 +58,7 @@ async function claim(event: Stripe.Event) {
 }
 const unclaim = (event: Stripe.Event) => db.rateLimit.deleteMany({ where: { key: `plan-email:${event.id}` } });
 
-export function planConfirmationEmail(o: { business: string; kind: "started" | "changed"; plan: PaidPlan; interval: Interval; renews: string | null; ends: string | null }) {
+export function planConfirmationEmail(o: { business: string; workspaceId?: string; kind: "started" | "changed"; plan: PaidPlan; interval: Interval; renews: string | null; ends: string | null }) {
   const name = PLANS[o.plan].name;
   const period = o.interval === "year" ? "yearly" : "monthly";
   const when = o.ends ? `It's set to end on ${o.ends}, so it won't renew.` : o.renews ? `It renews on ${o.renews}.` : "";
@@ -69,7 +70,8 @@ export function planConfirmationEmail(o: { business: string; kind: "started" | "
         ? `Thanks for subscribing. ${o.business} is now on ${BRAND.name} ${name}, billed ${period}. ${when}`.trim()
         : `${o.business} has moved to ${BRAND.name} ${name}, billed ${period}. ${when}`.trim(),
     lines: [{ text: RECEIPTS_NOTE }],
-    button: { label: "Open Billing", link: appUrl("/settings/billing") },
+    // Opens this business's billing, for someone on more than one.
+    button: { label: "Open Billing", link: appUrl(o.workspaceId ? teamPath("/settings/billing", o.workspaceId) : "/settings/billing") },
     footer: `You're getting this because you own ${o.business} on ${BRAND.name}. Questions? Email ${LEGAL.email}.`,
   });
 }
@@ -88,7 +90,7 @@ export async function sendPlanConfirmation(event: Stripe.Event, sub: Stripe.Subs
   if (!workspaceId) return false;
   const workspace = await db.workspace.findUnique({
     where: { id: workspaceId },
-    select: { name: true, timezone: true, closedAt: true, deleteAt: true, stripeSubscriptionId: true, members: { where: { role: "OWNER" }, select: { user: { select: { email: true } } } } },
+    select: { id: true, name: true, timezone: true, closedAt: true, deleteAt: true, stripeSubscriptionId: true, members: { where: { role: "OWNER" }, select: { user: { select: { email: true } } } } },
   });
   const to = workspace?.members[0]?.user.email;
   // Not for a second subscription the workspace doesn't use (lib/subscription.ts tells a person about that instead).
@@ -99,7 +101,7 @@ export async function sendPlanConfirmation(event: Stripe.Event, sub: Stripe.Subs
   const day = (d: Date) => zoned(workspace.timezone).longDay(d);
   const ending = sub.cancel_at ? new Date(sub.cancel_at * 1000) : sub.cancel_at_period_end ? end : null;
   try {
-    await sendMail({ to, ...planConfirmationEmail({ business: workspace.name, ...what, renews: end ? day(end) : null, ends: ending ? day(ending) : null }) });
+    await sendMail({ to, ...planConfirmationEmail({ business: workspace.name, workspaceId: workspace.id, ...what, renews: end ? day(end) : null, ends: ending ? day(ending) : null }) });
     return true;
   } catch (err) {
     await unclaim(event).catch(() => {});

@@ -21,7 +21,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
   const me = await requireUser();
   const video = await visibleVideo(accessOf(me), id);
   if (video.replyToId) throw new HttpError(404, "Video not found");
-  if (!aiAssistActive(me.workspace)) throw new HttpError(403, "AI summaries aren't switched on for this workspace");
+  if (!aiAssistActive(me.workspace)) throw new HttpError(403, "AI summaries aren't switched on for this business");
   if (!aiConfigured()) throw new HttpError(503, "AI summaries aren't available right now. Please try again later.");
   await rateLimit(`ai-summary:${me.workspace.id}`, 30, 600);
   const body = Body.safeParse(await req.json());

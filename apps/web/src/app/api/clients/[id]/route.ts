@@ -6,6 +6,9 @@ import { rateLimit } from "@/lib/rateLimit";
 import { accessOf, clientScopeWhere } from "@/lib/permissions";
 import { NAME_MAX } from "@/lib/clients";
 
+// Deleting a client erases their recordings' files, and can wait out a team key reset (lib/clientRemoval.ts).
+export const maxDuration = 120;
+
 const Patch = z.object({
   name: z.string().trim().min(1).max(NAME_MAX).optional(),
   email: z.union([z.string().trim().email().max(200), z.literal("")]).optional(),

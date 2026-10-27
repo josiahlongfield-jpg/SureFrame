@@ -5,7 +5,8 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 /**
  * The in-page dialog box billing uses instead of the browser's own confirm():
  * dimmed page, a card in the middle, Escape or the background closes it.
- * Buttons don't wrap mid-word, and stack on a phone.
+ * Buttons stack on a phone (wrapping a long label there) and don't wrap on a computer. Tab stays inside the box, and
+ * focus goes back to what opened it once it closes.
  */
 export function DialogShell({
   title,
@@ -24,8 +25,30 @@ export function DialogShell({
   const id = useId();
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
     // Focus the first button, so the keyboard starts inside the dialog.
     box.current?.querySelector<HTMLElement>("button, a[href], input, select")?.focus();
+    // Tab and Shift+Tab go round the box, not out to the page behind it.
+    const trap = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || !box.current) return;
+      const all = [...box.current.querySelectorAll<HTMLElement>("button, a[href], input, select, textarea, [tabindex]:not([tabindex='-1'])")].filter((el) => !(el as HTMLButtonElement).disabled && el.offsetParent !== null);
+      if (!all.length) return;
+      const first = all[0];
+      const last = all[all.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !box.current.contains(document.activeElement))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !box.current.contains(document.activeElement))) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", trap);
+    return () => {
+      document.removeEventListener("keydown", trap);
+      // Back where the keyboard was, if that's still on the page.
+      if (opener?.isConnected) opener.focus();
+    };
   }, []);
   useEffect(() => {
     if (!onClose) return;
@@ -55,7 +78,7 @@ export function DialogShell({
 
 /** A row of dialog buttons: the main one last in the markup is shown first on a phone and on the right on a computer. */
 export function DialogButtons({ children }: { children: ReactNode }) {
-  return <div className="mt-6 flex flex-col gap-2 sm:flex-row-reverse sm:flex-wrap [&>*]:whitespace-nowrap">{children}</div>;
+  return <div className="mt-6 flex flex-col gap-2 sm:flex-row-reverse sm:flex-wrap sm:[&>*]:whitespace-nowrap">{children}</div>;
 }
 
 export const primaryButton = "rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60";

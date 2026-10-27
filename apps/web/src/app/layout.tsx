@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { appUrl } from "@/lib/appUrl";
 import { BRAND } from "@/lib/brand";
 import { TZ_COOKIE } from "@/lib/dates";
 import SkipLink from "@/components/SkipLink";
@@ -9,7 +10,7 @@ const description =
   "Record it once, send it privately, and keep every client on track. End-to-end encrypted video messages between your business and your clients, who never pay.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.APP_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(appUrl()),
   title: { default: `${BRAND.name}: ${BRAND.tagline}`, template: `%s · ${BRAND.name}` },
   description,
   openGraph: {

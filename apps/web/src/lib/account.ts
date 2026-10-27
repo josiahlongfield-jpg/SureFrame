@@ -189,7 +189,8 @@ export async function exportAccount(userId: string, { wraps = false } = {}) {
           select: { id: true, name: true, email: true, createdAt: true, remindersOff: true, teamKeyWrap: wraps },
         }),
         db.video.findMany({
-          where: { workspaceId: w.id, ...(all ? {} : mineOnly) },
+          // Nothing of a deleted client's, even while the deletion finishes: not their conversations, nor the replies in them.
+          where: { workspaceId: w.id, ...(all ? {} : mineOnly), NOT: [{ client: { removedAt: { not: null } } }, { asReply: { video: { client: { removedAt: { not: null } } } } }] },
           select: {
             id: true, title: true, status: true, durationMs: true, sizeBytes: true, createdAt: true, clientId: true,
             encrypted: true, purgeAt: true, replyToId: true, viewCount: true, message: true, teamKeyWrap: wraps,
@@ -198,7 +199,7 @@ export async function exportAccount(userId: string, { wraps = false } = {}) {
           },
         }),
         db.item.findMany({
-          where: { workspaceId: w.id, ...(all ? {} : { OR: [{ clientId: null }, { client: { assignedToId: userId } }] }) },
+          where: { workspaceId: w.id, NOT: { client: { removedAt: { not: null } } }, ...(all ? {} : { OR: [{ clientId: null }, { client: { assignedToId: userId } }] }) },
           select: {
             kind: true, body: true, done: true, dueAt: true, shared: true, repeat: true, reminders: true,
             remindClient: true, remindTeam: true, authorName: true, createdAt: true, clientId: true,

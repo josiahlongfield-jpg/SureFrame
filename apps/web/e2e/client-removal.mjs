@@ -119,7 +119,7 @@ const anaOnly = await video({ title: "Ana only", clientId: ana.id, encrypted: tr
 // Also sent only to Ana, but already deleted from our servers: counted, not saveable.
 const anaExpired = await video({ title: "Old one", clientId: ana.id, status: "EXPIRED", sentAt: new Date(Date.now() - 40 * D) });
 // Sent to Ana and copied to Ben: stays, without Ana.
-const shared = await video({ title: "For both", clientId: ana.id, sentAt: new Date() });
+const shared = await video({ title: "For both", clientId: ana.id, sentAt: new Date(), message: "sealed-note-to-ana-".padEnd(40, "x") });
 const benCopy = await video({ title: "For both", clientId: ben.id, sourceId: shared.id, storageKey: shared.storageKey, sentAt: new Date() });
 await prisma.reply.create({ data: { kind: "TEXT", body: "sealed", encrypted: true, authorName: "Ana", videoId: anaOnly.id } });
 await prisma.reply.create({ data: { kind: "TEXT", body: "sealed", encrypted: true, authorName: "Ana", videoId: shared.id } });
@@ -128,6 +128,8 @@ await prisma.reaction.create({ data: { emoji: "👍", videoId: shared.id } });
 const benReply = await prisma.reply.create({ data: { kind: "TEXT", body: "sealed", encrypted: true, authorName: "Ben", videoId: benCopy.id } });
 const anaItem = await prisma.item.create({ data: { kind: "TASK", body: "t".repeat(40), dueAt: new Date(Date.now() + 5 * D), shared: true, remindClient: true, authorName: "Owner", workspaceId: ws, clientId: ana.id } });
 await prisma.reminder.create({ data: { itemId: anaItem.id, sendAt: new Date(Date.now() + 4 * D), to: "CLIENT" } });
+// A teammate's reminder linking to Ana: it stays in the bell, opening the Library instead.
+const staffBell = await prisma.notification.create({ data: { kind: "STAFF_REMINDER", userId: ownerUser.id, workspaceId: ws, text: "Reminder from Sam: call Ana", href: `/clients/${ana.id}` } });
 const bell = await prisma.notification.create({ data: { kind: "REPLY", userId: ownerUser.id, workspaceId: ws, clientId: ana.id, videoId: shared.id, groupKey: `reply:${shared.id}`, text: `Ana ${stamp} replied`, href: `/v/${shared.id}?conv=1#reply` } });
 
 // Ana has opened her link on her own device before.
@@ -167,6 +169,7 @@ ok("box: says we'll email them", norm(await owner.textContent("[data-testid=remo
 const save = norm(await owner.textContent("[data-testid=remove-client-save]"));
 ok("save box: the one that can be saved, and the one already gone", save.includes(`Save the 1 video sent only to Ana ${stamp} to this device before deleting.`) && save.includes("1 other has already left our servers and can't be saved.") && save.includes("Ana only") && !save.includes("Old one"), save);
 ok("delete button off until the tick", await owner.isDisabled("[data-testid=remove-client-yes]"));
+ok("delete button: short label that fits (the title names them)", norm(await owner.textContent("[data-testid=remove-client-yes]")) === "Delete permanently");
 await owner.setViewportSize({ width: 320, height: 640 });
 ok("box fits 320px", await owner.evaluate(() => document.documentElement.scrollWidth <= 320));
 await owner.screenshot({ path: `${shots}/client-delete-box-320.png` });
@@ -197,6 +200,9 @@ ok("erased: to-dos and reminders", (await prisma.item.count({ where: { id: anaIt
 ok("erased: the bell's notification about her", !(await prisma.notification.findUnique({ where: { id: bell.id } })));
 const sharedAfter = await prisma.video.findUnique({ where: { id: shared.id }, include: { replies: true, reactions: true } });
 ok("kept: the recording also sent to Ben, without Ana's conversation", !!sharedAfter && sharedAfter.clientId === null && sharedAfter.replies.length === 0 && sharedAfter.reactions.length === 0 && has(shared.storageKey));
+ok("kept: the note written to Ana goes, so whoever gets it next doesn't see it", sharedAfter?.message === null);
+const staffBellAfter = await prisma.notification.findUnique({ where: { id: staffBell.id } });
+ok("bell: a teammate's reminder about her stays, opening the Library", staffBellAfter?.href === "/library" && staffBellAfter.text.includes("call Ana"), JSON.stringify(staffBellAfter));
 ok("kept: Ben's own conversation", (await prisma.video.findUnique({ where: { id: benCopy.id } }))?.clientId === ben.id && !!(await prisma.reply.findUnique({ where: { id: benReply.id } })));
 const seats = (await (await owner.request.get(BASE + "/api/clients")).json()).seats;
 ok("seat freed", seats.used === 2 && seats.limit === 3, JSON.stringify(seats));
@@ -280,7 +286,7 @@ const mediaFor = async (conv, data = {}) => {
   return media;
 };
 // O1: sent to Xan and copied to Bea (stays with Bea).
-const o1 = await vid({ clientId: xan.id, clientKeyWrap: "k".repeat(60), sentAt: ago(9), viewCount: 3 });
+const o1 = await vid({ clientId: xan.id, clientKeyWrap: "k".repeat(60), sentAt: ago(9), viewCount: 3, message: "sealed-note-to-xan-".padEnd(40, "x") });
 const c1 = await vid({ clientId: bea.id, sourceId: o1.id, storageKey: o1.storageKey, clientKeyWrap: "k".repeat(60) }, false);
 await reply(o1.id, { authorName: "Xan" });
 const m1 = await mediaFor(o1);
@@ -325,6 +331,9 @@ ok("before the job: the library shows nothing of Xan", !lib2.includes(`Xan ${sta
 await owner2.goto(`${BASE}/clients`);
 await owner2.waitForSelector(`text=Bea ${stamp}`, { timeout: 30000 }).catch(() => null);
 ok("before the job: Clients doesn't list them", !(await owner2.textContent("main")).includes(`Xan ${stamp}`) && (await owner2.locator("[data-testid=removed-clients]").count()) === 0);
+// The recording stays with Xan until the deletion finishes: the Send box gives everyone a copy instead (originalHeld).
+ok("before the job: the recording can't be moved off Xan yet", (await status(owner2.request.patch(`${BASE}/api/videos/${o1.id}`, { data: { clientId: null } }))) === 409);
+ok("before the job: the page's Send box sends copies, not the recording itself", o1Page.includes('"originalHeld":true') || o1Page.includes('originalHeld\\":true'));
 ok("before the job: can't be restored", (await status(owner2.request.post(`${BASE}/api/clients/${xan.id}/restore`))) === 404);
 const recordedBefore = (await prisma.workspace.findUnique({ where: { id: ws2 } })).videosRecorded;
 
@@ -340,7 +349,7 @@ const leftIds = new Set(left.map((v) => v.id));
 ok("purge: conversations sent only to them, copies and every reply recording are gone", ![d1, md1, mr, c2, mc2, e1, m1].some((v) => leftIds.has(v.id)), JSON.stringify([...leftIds]));
 ok("purge: their files are deleted", !has(d1.storageKey) && !has(md1.storageKey) && !has(m1.storageKey) && !has(mc2.storageKey) && !has(`${mr.storageKey}.parts`));
 const o1After = await prisma.video.findUnique({ where: { id: o1.id }, include: { replies: true, reactions: true, insight: true } });
-ok("purge: a recording also sent to another client stays, detached", !!o1After && o1After.clientId === null && o1After.clientKeyWrap === null && o1After.sentAt === null && o1After.viewCount === 0);
+ok("purge: a recording also sent to another client stays, detached", !!o1After && o1After.clientId === null && o1After.clientKeyWrap === null && o1After.sentAt === null && o1After.viewCount === 0 && o1After.message === null);
 ok("purge: without the removed client's conversation, keeping its transcript", !!o1After && o1After.replies.length === 0 && o1After.reactions.length === 0 && !!o1After.insight);
 const c1After = await prisma.video.findUnique({ where: { id: c1.id } });
 ok("purge: the other client's copy, conversation and file are intact", c1After?.clientId === bea.id && !!(await prisma.reply.findUnique({ where: { id: c1Reply.id } })) && has(o1.storageKey));

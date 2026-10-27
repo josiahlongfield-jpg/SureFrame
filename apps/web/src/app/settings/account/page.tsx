@@ -131,7 +131,7 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
     "use server";
     const { user } = await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: "existing" });
     const typed = String(form.get("confirm") ?? "").trim().toLowerCase();
-    if (typed !== user.email.toLowerCase()) redirect("/settings/account?error=confirm");
+    if (typed !== user.email.toLowerCase()) redirect("/settings/account?error=confirm#delete");
     let refused: "team" | "failed" | null = null;
     try {
       // Closed now (signed out everywhere, clients' links stop), deleted for good 30 days later unless kept.
@@ -141,7 +141,7 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
       refused = err instanceof HttpError && err.status === 409 ? "team" : "failed";
       if (refused === "failed") console.log("[account] close failed", JSON.stringify({ user: user.id, error: String(err) }));
     }
-    if (refused) redirect(`/settings/account?error=${refused}`);
+    if (refused) redirect(`/settings/account?error=${refused}#delete`);
     await signOut({ redirectTo: "/login?deleted=1" });
   }
 
@@ -349,7 +349,7 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
           </section>
         )}
 
-        <section className="mt-6 rounded-2xl border border-danger-line bg-surface p-6">
+        <section id="delete" className="mt-6 scroll-mt-6 rounded-2xl border border-danger-line bg-surface p-6">
           <h2 className="font-semibold text-danger-fg">Delete account</h2>
           {/* Short paragraphs, one per thing affected, so your own workspace and a team you work for don't run together (S40). */}
           <div className="mt-1 grid gap-2 text-sm text-muted" data-testid="delete-explainer">
@@ -360,7 +360,7 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
             {(ownsAlone || teamNames.length > 0) && (
               <ul className="list-disc space-y-1 pl-5">
                 {ownsAlone && (
-                  <li data-testid="delete-own"> Your workspace goes with it: its recordings, clients, to-dos and notes. Your clients&apos; links stop working now{ownWorkspace.stripeSubscriptionId ? <>, your plan won&apos;t renew</> : null}, and recordings without cloud backup still expire on their usual dates.</li>
+                  <li data-testid="delete-own"> Your business goes with it: its recordings, clients, to-dos and notes. Your clients&apos; links stop working now{ownWorkspace.stripeSubscriptionId ? <>, your plan won&apos;t renew</> : null}, and recordings without cloud backup still expire on their usual dates.</li>
                 )}
                 {teamNames.length > 0 && (
                   <li data-testid="delete-team"> You leave {teamNames.join(" and ")} straight away, and keeping your account won&apos;t put you back. Recordings you made for {teamNames.length === 1 ? "that team" : "those teams"} stay with {teamNames.length === 1 ? "it" : "them"}, and {teamNames.length === 1 ? "its" : "their"} clients aren&apos;t affected.</li>

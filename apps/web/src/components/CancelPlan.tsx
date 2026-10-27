@@ -45,7 +45,7 @@ export default function CancelPlan({
     setDone(
       keep
         ? `Your ${planName} plan will keep renewing${periodEnd ? `. The next bill is on ${periodEnd}` : ""}.`
-        : `Cancelled. Your ${planName} plan stays active ${until}, then your workspace moves to Free. Changed your mind? Choose Keep my plan.`,
+        : `Cancelled. Your ${planName} plan stays active ${until}, then your business moves to the Free plan. Changed your mind? Choose Keep my plan.`,
     );
     router.refresh();
   }
@@ -65,7 +65,7 @@ export default function CancelPlan({
       {ending ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted">
-            Your {planName} plan is cancelled. It stays active until <span className="font-medium text-ink">{ending}</span>, then your workspace moves to Free.
+            Your {planName} plan is cancelled. It stays active until <span className="font-medium text-ink">{ending}</span>, then your business moves to the Free plan.
           </p>
           <button onClick={() => send(true)} disabled={busy} className="shrink-0 whitespace-nowrap rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60" data-testid="keep-plan">
             {busy ? "One moment…" : "Keep my plan"}

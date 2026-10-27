@@ -8,12 +8,23 @@ import { emailDocument } from "@/lib/emailLook";
  * SureFrame"). Emails to the business itself, its staff or anyone signing in
  * come from plain "SureFrame": a business shouldn't get mail from its own name.
  */
-export type Mail = { to: string; subject: string; text: string; html: string; fromName?: string; replyTo?: string | null };
+export type Mail = {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  fromName?: string;
+  replyTo?: string | null;
+  /** The page that turns these emails off, for the mail app's own Unsubscribe (a List-Unsubscribe header). */
+  unsubscribe?: string;
+};
 
 /** Sends an email through Resend when RESEND_API_KEY is set, or to the local outbox without it. */
 export async function sendMail(mail: Mail) {
   const key = process.env.RESEND_API_KEY;
   if (!key) return toOutbox(mail);
+  // Without it every send is refused (sign-in links too): say why, loudly.
+  if (!process.env.MAIL_FROM) console.error("[mail] MAIL_FROM isn't set, so Resend refuses every email");
   await resend(key, "/emails", resendBody(mail));
 }
 
@@ -44,7 +55,15 @@ export async function sendMails(mails: Mail[]) {
 /** A business's emails read "Business A via SureFrame", from our one sending address. */
 const fromOf = (mail: Mail) => `${displayName(senderName(mail.fromName))} <${process.env.MAIL_FROM ?? "reminders@example.com"}>`;
 // Every email goes out as a whole document with a viewport tag, so phones show it at their own width.
-const resendBody = (mail: Mail) => ({ from: fromOf(mail), to: [mail.to], subject: mail.subject, text: mail.text, html: emailDocument(mail.html, mail.subject), reply_to: mail.replyTo ?? undefined });
+const resendBody = (mail: Mail) => ({
+  from: fromOf(mail),
+  to: [mail.to],
+  subject: mail.subject,
+  text: mail.text,
+  html: emailDocument(mail.html, mail.subject),
+  reply_to: mail.replyTo ?? undefined,
+  headers: mail.unsubscribe ? { "List-Unsubscribe": `<${mail.unsubscribe}>` } : undefined,
+});
 
 async function resend(key: string, path: string, payload: unknown) {
   const body = JSON.stringify(payload);

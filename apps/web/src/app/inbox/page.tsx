@@ -342,7 +342,7 @@ export default async function Inbox({
               {c.email && (
                 <div className="mt-2 flex flex-wrap items-center gap-x-1 text-xs text-dim" data-testid="inbox-emails">
                   <span>
-                    Reminder and new-video emails are {c.remindersOff ? "off" : "on"} <span className="whitespace-nowrap">(to {masked(c.email)})</span>.
+                    Reminder and new-video emails are {c.remindersOff ? "off" : "on"} <span className="[overflow-wrap:anywhere]">(to {masked(c.email)})</span>.
                   </span>
                   {c.remindersOff ? (
                     <form action={turnOn}>

@@ -12,7 +12,9 @@ export const POST = handle(async (req: Request) => {
   await limitByIp("billing", 20, 600);
   const me = await requireUser();
   requireRole(me, "OWNER");
-  const { back } = Body.parse(await req.json().catch(() => ({})));
+  const body = Body.safeParse(await req.json().catch(() => ({})));
+  if (!body.success) throw new HttpError(400, "Invalid request");
+  const { back } = body.data;
   // A customer deleted in Stripe (or from test mode) is forgotten rather than failing here.
   const customer = await currentCustomer(me.workspace);
   if (!customer) throw new HttpError(400, "No subscription yet");

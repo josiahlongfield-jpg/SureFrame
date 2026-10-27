@@ -105,8 +105,10 @@ export default function DeleteClientDialog({
     const res = await fetch(`/api/clients/${clientId}`, { method: "DELETE" }).catch(() => null);
     const data = (await res?.json().catch(() => null)) ?? {};
     setDeleting(false);
+    // Already gone (an earlier try that timed out, or a teammate): the list just needs to catch up.
+    if (res?.status === 404) return onDeleted({ emailed: false });
     if (!res?.ok) return setError(data.error ?? `Couldn't delete ${name}. Check your connection and try again.`);
-    onDeleted({ emailed: !!preview?.willEmail });
+    onDeleted({ emailed: !!data.emailed });
   }
 
   const busy = deleting || savingNow;
@@ -190,7 +192,7 @@ export default function DeleteClientDialog({
       <DialogButtons>
         {preview && (
           <button onClick={remove} disabled={!sure || busy} className={dangerButton} data-testid="remove-client-yes">
-            {deleting ? "Deleting…" : `Delete ${name} permanently`}
+            {deleting ? "Deleting…" : "Delete permanently"}
           </button>
         )}
         <button onClick={onClose} disabled={busy} className={quietButton}>

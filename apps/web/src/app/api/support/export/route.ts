@@ -10,7 +10,8 @@ export const POST = handle(async (req: Request) => {
   if (site && site !== "same-origin" && site !== "none") throw new HttpError(404, "Not found");
   const admin = await currentSupportAdmin();
   if (!admin) throw new HttpError(404, "Not found");
-  const form = await req.formData();
+  const form = await req.formData().catch(() => null);
+  if (!form) throw new HttpError(400, "Invalid request");
   const { data } = await exportUserData(admin, { userId: String(form.get("userId") ?? ""), reason: String(form.get("reason") ?? "") });
   return new Response(JSON.stringify(data, null, 2), {
     headers: {

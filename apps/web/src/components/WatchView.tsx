@@ -111,6 +111,8 @@ type Props = {
   /** Members only: may add a new client from the Send box. */
   canAddClients?: boolean;
   sentToId: string | null;
+  /** The video itself still belongs to a client being deleted (lib/clientRemoval.ts): everyone it's sent to gets a copy. */
+  originalHeld?: boolean;
   initialReplies: ReplyDTO[];
   /** The viewer's own video and voice replies that were uploaded but never sent (a closed browser, say). */
   initialHeld?: ReplyDTO[];
@@ -254,6 +256,7 @@ function WatchBody({
   clients,
   canAddClients,
   sentToId,
+  originalHeld,
   initialReplies,
   initialHeld = [],
   conversations,
@@ -1048,6 +1051,7 @@ function WatchBody({
             business={business}
             canAddClient={canAddClients}
             sentToId={sentToId}
+            originalHeld={originalHeld}
             sendMany={sendMany}
             hasReplies={replies.length > 0}
             rootKey={rootKey}
@@ -1649,7 +1653,7 @@ function HowThisWorks({ business, purgeAt, expired, webm = false }: { business: 
     [
       "When are this video and my replies deleted?",
       expired
-        ? `This video's recording has already been deleted from SureFrame. You can still reply here. Written replies stay until ${business} deletes this video or stops sharing it with you.`
+        ? `This video's recording has already been deleted from SureFrame. You can still reply here. Written replies stay until ${business} deletes this video, stops sharing it with you, or removes you as a client.`
         : purgeAt
           ? `This video will be deleted from SureFrame on ${day(purgeAt)}. There's no deadline to reply: you can reply before or after that date. Video and voice replies are kept for the same length of time as the video, counted from when each was sent. Written replies stay until ${business} deletes this video or stops sharing it with you. Save anything you want to keep.`
           : `${business} keeps this video until they delete it, and there's no deadline to reply. Your replies are deleted along with the video, or if ${business} stops sharing it with you.`,

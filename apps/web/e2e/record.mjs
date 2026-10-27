@@ -142,4 +142,15 @@ await macPage.click("text=Screen only");
 await macPage.click("text=Start recording");
 const blockedNote = await macPage.waitForSelector("text=/didn't let this browser share your screen/", { timeout: 20000 }).then((e) => e.textContent()).catch(() => "");
 ok("screen blocked by the Mac's settings: says where to turn it on", blockedNote.includes("Screen & System Audio Recording"), blockedNote);
+
+// The Mac's settings blocking the camera: said as soon as the preview asks, not "allow it in the address bar".
+const camBlocked = await ctx.newPage();
+await camBlocked.addInitScript(() => {
+  Object.defineProperty(navigator, "userAgent", { get: () => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36" });
+  const real = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+  navigator.mediaDevices.getUserMedia = (c) => (c?.video ? Promise.reject(new DOMException("Permission denied by system", "NotAllowedError")) : real(c));
+});
+await camBlocked.goto(BASE + "/record");
+const camNote = await camBlocked.waitForSelector("text=/didn't let this browser use your camera/", { timeout: 20000 }).then((e) => e.textContent()).catch(() => "");
+ok("camera blocked by the Mac's settings: the preview says where to turn it on", camNote.includes("Privacy & Security") && !camNote.includes("address bar"), camNote);
 await browser.close();

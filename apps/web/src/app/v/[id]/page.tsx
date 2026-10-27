@@ -284,6 +284,7 @@ export default async function Watch({ params, searchParams }: Props) {
             }
             canAddClients={!!perms?.addClients}
             sentToId={goneClient ? null : video.clientId}
+            originalHeld={goneClient}
             // No offer box without the AI summaries add-on (Josiah 2026-10-21). A transcript and summary made while it was on stay
             // readable, and removable by the team, as the Terms promise; no new ones.
             ai={aiOn || insight ? { insight, canMake: isMember && aiOn, notice: !isMember } : undefined}

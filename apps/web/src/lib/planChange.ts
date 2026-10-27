@@ -40,7 +40,7 @@ export async function assertFits(workspace: Workspace, plan: PaidPlan) {
   if (staffLimit < staff) {
     throw new HttpError(
       400,
-      `${name} has ${staffLimit} ${staffLimit === 1 ? "login" : "logins"}, and your team has ${staff} people. Remove ${staff - staffLimit} on the Team page, then try again.`,
+      `${name} has ${staffLimit} ${staffLimit === 1 ? "login" : "logins"}, and your team has ${staff} people. Remove ${staff - staffLimit} in Settings > Team and staff, then try again.`,
       "TOO_MANY_STAFF",
     );
   }

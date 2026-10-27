@@ -149,6 +149,26 @@ await owner.goto(videoUrl);
 await owner.waitForSelector("[data-testid=sec-link]", { timeout: 20000 });
 ok("back on the video: Client A is under Copy link to", (await owner.locator("[data-testid=sec-link] [data-testid=sent-row]").filter({ has: owner.locator('[data-testid=row-name]:text-is("Client A")') }).count()) === 1);
 
+// A send that only partly works: whoever did get it shows as sent, and isn't left ticked to be sent again.
+const first = await prisma.video.findUnique({ where: { id } });
+const partId = `${id.slice(0, 10)}p${stamp.toString(36)}`;
+await prisma.video.create({
+  data: { id: partId, title: "Partly sent", status: "UPLOADED", mimeType: first.mimeType, storageKey: first.storageKey, encrypted: true, teamKeyWrap: first.teamKeyWrap, ownerId: first.ownerId, workspaceId: ws, durationMs: first.durationMs },
+});
+await owner.route("**/api/videos/*/send", (r) => r.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "Couldn't send it to the others." }) }));
+await owner.goto(`${BASE}/v/${partId}`);
+await chooseClients(owner, "Client L", "Client G");
+await owner.click("[data-testid=send]");
+await owner.waitForSelector("[data-testid=send-status]:has-text(\"Couldn't send it to the others.\")", { timeout: 15000 });
+const gotIt = (await prisma.video.findUnique({ where: { id: partId } })).clientId;
+const gotName = gotIt && (await prisma.client.findUnique({ where: { id: gotIt } })).name;
+ok("partly sent: the one who got it is listed as sent", !!gotName && (await sentRow(owner, gotName).count()) === 1, gotName);
+await owner.click("[data-testid=client-picker]");
+const stillTicked = await owner.$$eval("[role=listbox] input:checked", (els) => els.map((e) => e.closest("label")?.textContent?.trim()));
+ok("partly sent: only the one it didn't reach is still ticked", stillTicked.length === 1 && !stillTicked[0].includes(gotName), JSON.stringify(stillTicked));
+await owner.keyboard.press("Escape");
+await owner.unroute("**/api/videos/*/send");
+
 // The Clients page's add form asks the same question.
 await owner.goto(`${BASE}/clients`);
 await owner.fill('input[aria-label="Client name"]', "Client Z");

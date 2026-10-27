@@ -41,7 +41,12 @@ export const PATCH = handle(async (req: Request, ctx: { params: Promise<{ id: st
   if (body.data.clientKeyWrap) await requireCurrentKey(workspace, body.data.keyFingerprint);
   if (body.data.notify) await limitByIp("notify", 60, 600);
   // Replies belong to the client they came from; moving the video would show them to someone else.
-  if (body.data.clientId !== undefined && current.clientId && body.data.clientId !== current.clientId) {
+  const leaving = body.data.clientId !== undefined && !!current.clientId && body.data.clientId !== current.clientId;
+  if (leaving) {
+    // A client being deleted keeps it until the deletion finishes (lib/clientRemoval.ts); others get copies (the Send box does that).
+    if (await db.client.count({ where: { id: current.clientId!, removedAt: { not: null } } })) {
+      throw new HttpError(409, "This video is still being removed from a deleted client. Reload the page and send it again.");
+    }
     if (await db.reply.count({ where: { videoId: id } })) {
       throw new HttpError(409, "This client has already replied, so the video stays with them. Use Send to more clients to share it with someone else.");
     }
@@ -65,8 +70,12 @@ export const PATCH = handle(async (req: Request, ctx: { params: Promise<{ id: st
       clientId: body.data.clientId,
       ...(body.data.clientId !== undefined ? { clientKeyWrap: body.data.clientId ? body.data.clientKeyWrap : null, emailClientWhenReady: false } : {}),
       ...(body.data.clientId !== undefined && body.data.clientId !== current.clientId ? { sentAt: body.data.clientId ? new Date() : null, emailedAt: null } : {}),
+      // The note above the video was written to the client it leaves, so it doesn't go to whoever gets it next.
+      ...(leaving ? { message: null } : {}),
     },
   });
+  // Nor do that client's reactions.
+  if (leaving) await db.reaction.deleteMany({ where: { videoId: id, byClient: true } });
   // Tell the client by email, now or once the upload has finished.
   let emailed: "sent" | "when-ready" | null = null;
   if (body.data.notify && body.data.clientId && body.data.clientId !== current.clientId && !video.replyToId) {

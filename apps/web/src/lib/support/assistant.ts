@@ -46,7 +46,7 @@ ${SUPPORT_GUIDE}
 const ACCOUNT_TOOL: Anthropic.Beta.BetaTool = {
   name: "account_overview",
   description:
-    "The signed-in customer's own workspace: plan, billing status and renewal date, clients and staff used against the plan's limits (and any client links the team turned off), free videos used (a lifetime total, not per month), removed clients waiting to be deleted (owners and admins), cloud backup, AI transcripts and summaries, their role, whether they've agreed to the current Terms of Service and Privacy Policy, and whether the team suspended or closed the account. Use it for questions about their plan, limits, billing state or why something is blocked. Contains no video, reply or to-do content.",
+    "The signed-in customer's own workspace: plan, billing status and renewal date, clients and staff used against the plan's limits (and any client links the team turned off), free videos used (a lifetime total, not per month), cloud backup, AI transcripts and summaries, their role, whether they've agreed to the current Terms of Service and Privacy Policy, and whether the team suspended or closed the account. Use it for questions about their plan, limits, billing state or why something is blocked. Contains no video, reply or to-do content.",
   input_schema: { type: "object", properties: {}, additionalProperties: false },
   strict: true,
 };

@@ -40,7 +40,7 @@ class BillingError extends Error {
 /** Where to fix what stopped a switch (and, when the API's own words don't fit beside the button, what to say). */
 const FIX: Record<string, { href: string; label: string; message?: string }> = {
   TOO_MANY_CLIENTS: { href: "/clients", label: "Go to Clients" },
-  TOO_MANY_STAFF: { href: "/settings/team", label: "Go to Team" },
+  TOO_MANY_STAFF: { href: "/settings/team", label: "Go to Team and staff" },
   // The API's TERMS_REQUIRED says to reload the page; here the button takes them straight there (D12d).
   TERMS_REQUIRED: {
     href: `/agree?next=${encodeURIComponent("/pricing")}`,

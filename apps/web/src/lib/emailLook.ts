@@ -41,7 +41,8 @@ export const emailMark = (margin = "0 0 20px") =>
 
 /** The business's logo on branded emails, otherwise the SureFrame mark, so every email has a recognisable top. */
 export const emailLogo = (logoUrl: string | null | undefined, alt: string) =>
-  logoUrl ? `<p style="margin:0 0 20px"><img src="${esc(logoUrl)}" alt="${esc(alt)}" style="max-height:40px;max-width:200px"></p>` : emailMark();
+  // A height attribute too: Outlook on Windows ignores the CSS and would show a large logo at full size.
+  logoUrl ? `<p style="margin:0 0 20px"><img src="${esc(logoUrl)}" alt="${esc(alt)}" height="40" style="display:block;height:40px;width:auto;max-width:200px;border:0"></p>` : emailMark();
 
 /**
  * A whole HTML document around an email, with a viewport tag, so a phone
@@ -51,7 +52,7 @@ export const emailLogo = (logoUrl: string | null | undefined, alt: string) =>
 export const emailDocument = (html: string, title: string) =>
   /^\s*<!doctype/i.test(html)
     ? html
-    : `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title></head><body style="margin:0;padding:0">${html}</body></html>`;
+    : `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light only"><title>${esc(title)}</title></head><body style="margin:0;padding:0">${html}</body></html>`;
 
 /** Wraps an email's content in the page and card (topped with the button colour), with a small line of text underneath ("Sent with SureFrame" unless given). */
 export function emailShell(inner: string, footer = "Sent with SureFrame", accent = "#ff6f61") {

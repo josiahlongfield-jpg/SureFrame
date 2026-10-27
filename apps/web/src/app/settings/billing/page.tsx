@@ -145,7 +145,7 @@ function WhatYouPay({ workspace, discount }: { workspace: Workspace; discount: s
         <Link href="/clients#buy-seats" className="font-medium text-accent hover:underline">Clients page</Link>
         {TEAM_PLANS.includes(workspace.plan) && (
           <>
-            , extra staff logins on the <Link href="/settings/team" className="font-medium text-accent hover:underline">Team page</Link>
+            , extra staff logins on the <Link href="/settings/team" className="font-medium text-accent hover:underline">Team and staff</Link> page
           </>
         )}
         , and add-ons below.

@@ -153,7 +153,7 @@ export default async function Connections({ searchParams }: { searchParams: Prom
         <section className="mt-6 rounded-2xl border border-line bg-surface p-5" data-testid="desktop-setup">
           <h2 className="text-lg font-semibold text-ink">Claude Desktop, with your notes and conversations</h2>
           <p className="mt-1 text-sm text-muted">
-            Also reads your to-dos, notes, messages, replies and AI summaries. They&apos;re unlocked on your own computer with your team&apos;s key, so
+            Also reads your to-dos, notes, messages, replies, and AI transcripts and summaries (with our AI add-on). They&apos;re unlocked on your own computer with your team&apos;s key, so
             SureFrame still can&apos;t read them. Needs the Claude Desktop app on a Mac or Windows computer.
           </p>
           <ol className="mt-3 grid list-decimal gap-1 pl-5 text-sm text-ink">

@@ -94,8 +94,10 @@ export const LEGAL = {
    * and that the weekly list of them emailed to our support inbox is kept for up to 12 months (decision 7). It describes what we
    * already do and sets a limit where there was none, so it keeps termsVersion.
    * 24 October 2026: new version 2026-10-24 (Josiah): removing a client deletes them permanently, straight away (section 4).
+   * 27 October 2026: section 24 says the extension comes from the Chrome Web Store, in Microsoft Edge too (there's no Edge
+   * Add-ons listing). A correction, so it keeps termsVersion.
    */
-  termsUpdated: "24 October 2026",
+  termsUpdated: "27 October 2026",
   /**
    * The Data Processing Agreement's own "last updated" date: "Keep me signed in" added to its security measures (17 October 2026).
    * Google sign-in taken out of its security measures, since only email sign-in links are offered, and file storage's location
@@ -163,8 +165,10 @@ export const LEGAL = {
    * appointed: the Article 27(2) exemption (decision 21). They describe what we already do, set a limit where there was none,
    * or say less firmly where data is kept, so they keep privacyVersion.
    * 24 October 2026: new version 2026-10-24 (Josiah): a removed client is deleted straight away, and no warning email beforehand.
+   * 27 October 2026: the client help chat section says it gives the business's contact details (or reply-to address) and a
+   * button to reply on the video, as it already does. Describes what we already do, so it keeps privacyVersion.
    */
-  privacyUpdated: "24 October 2026",
+  privacyUpdated: "27 October 2026",
 };
 
 /**
@@ -182,7 +186,8 @@ export const LEGAL_VERSIONS = [
     changes: [
       "Removing a client now deletes them permanently, straight away: their details, every conversation with them (with all replies and reactions), their to-dos, notes and reminders, and the videos sent only to them. There’s no longer a 30-day period to restore them, and we can’t restore them either.",
       "Before you confirm, you can save the videos sent only to that client to your device. Videos you also sent to other clients stay with those clients.",
-      "A client you add again starts as a new client, with a new personal link. A removed client is emailed that their access has ended, unless they’ve turned your emails off.",
+      "A client you add again starts as a new client, with a new personal link. A removed client with an email address is emailed that their access has ended, unless they’ve turned your emails off or another of your clients uses the same address.",
+      "This change to removing clients applies from 24 October 2026.",
     ],
     // Shown under the DPA's title (version 1.1); the DPA isn't agreed to on /agree, so it isn't in `changes`.
     dpa: ["Section 10: when you remove a client, we delete their details, conversations, to-dos, notes and the recordings sent only to them straight away, and keep no copy to restore them from."],
@@ -207,6 +212,11 @@ export const LEGAL_VERSIONS = [
  */
 export type WordingUpdate = { date: string; terms?: string[]; privacy?: string[]; dpa?: string[] };
 export const WORDING_UPDATES: WordingUpdate[] = [
+  {
+    date: "27 October 2026",
+    terms: ["Section 24: the extension is installed from the Chrome Web Store, in Microsoft Edge too."],
+    privacy: ["The help chat on client pages gives the business’s contact details (or its reply-to email address) and, where the page has a reply box, a button to reply to the business."],
+  },
   {
     date: "22 October 2026",
     terms: [

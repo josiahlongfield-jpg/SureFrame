@@ -105,13 +105,18 @@ export async function deleteClient(workspace: Workspace, id: string, actorId: st
   const now = new Date();
   const res = await db.client.updateMany({ where: { id, workspaceId: workspace.id, removedAt: null }, data: { removedAt: now, purgeAt: now, removedById: actorId } });
   if (res.count === 0) throw new HttpError(404, "Client not found");
-  // A freed seat restores a paused client.
-  await enforceSeatLimits(workspace.id);
+  // Sent before the slow part: the clean-up job never sends it, so a purge that times out mustn't lose it.
+  if (goodbye) await sendMail(goodbye).catch((err) => console.error("client goodbye email failed", err));
+  // Gone from the bell and queued team emails at once, even if the purge below has to wait (a legal hold, or files that won't delete yet).
+  await Promise.all([db.notification.deleteMany({ where: { clientId: id } }), db.teamNotification.deleteMany({ where: { clientId: id, sentAt: null } })]).catch((err) =>
+    console.error("[client-delete] couldn't clear notifications", err),
+  );
+  // A freed seat restores a paused client. The deletion has happened: neither of these can undo it, so neither fails it.
+  await enforceSeatLimits(workspace.id).catch((err) => console.error("[client-delete] seat check failed", err));
   const result = await purgeClient(id).catch((err) => {
     console.error(JSON.stringify({ level: "error", message: "[client-delete] couldn't finish; the clean-up job retries", client: id, error: String(err) }));
     return "failed" as const;
   });
-  if (goodbye) await sendMail(goodbye).catch((err) => console.error("client goodbye email failed", err));
   return { deleted: result === "purged", emailed: !!goodbye };
 }
 
@@ -156,6 +161,9 @@ export async function purgeClient(id: string): Promise<"purged" | "skipped" | "f
       const client = await tx.client.findFirst({ where: { id, ...dueWhere() }, select: { id: true, workspaceId: true } });
       if (!client) return "skipped";
 
+      // Their conversations, locked: a send to someone else (api/videos/[id]/send, which locks its original FOR UPDATE) waits,
+      // so a copy made now isn't lost with its original. KEY SHARE, so a team key reset updating them doesn't wait on this.
+      await tx.$queryRaw`SELECT id FROM "Video" WHERE "clientId" = ${id} AND "replyToId" IS NULL FOR KEY SHARE`;
       const pick = { id: true, sourceId: true, storageKey: true, uploadId: true, status: true } as const;
       const convs = await tx.video.findMany({ where: { clientId: id, replyToId: null }, select: pick });
       const originals = convs.filter((v) => !v.sourceId).map((v) => v.id);
@@ -199,7 +207,7 @@ export async function purgeClient(id: string): Promise<"purged" | "skipped" | "f
       if (detach.length) {
         await tx.reply.deleteMany({ where: { videoId: { in: detach } } });
         await tx.reaction.deleteMany({ where: { videoId: { in: detach } } });
-        await tx.video.updateMany({ where: { id: { in: detach } }, data: { clientId: null, clientKeyWrap: null, sentAt: null, emailedAt: null, emailClientWhenReady: false, viewCount: 0 } });
+        await tx.video.updateMany({ where: { id: { in: detach } }, data: { clientId: null, clientKeyWrap: null, message: null, sentAt: null, emailedAt: null, emailClientWhenReady: false, viewCount: 0 } });
       }
       // Replies, reactions, transcripts and upload parts go with their videos.
       if (deleteIds.length) await tx.video.deleteMany({ where: { id: { in: deleteIds } } });
@@ -207,10 +215,10 @@ export async function purgeClient(id: string): Promise<"purged" | "skipped" | "f
       // The bell's notifications that name them (lib/notifications.ts).
       await tx.notification.deleteMany({ where: { OR: [{ clientId: id }, { videoId: { in: [...deleteIds, ...detach] } }] } });
       // The label is the client's name or the video's title.
-      await tx.staffNotice.updateMany({
-        where: { workspaceId: client.workspaceId, link: { in: [`/clients/${id}`, ...drop.map((v) => `/v/${v.id}`)] } },
-        data: { link: null, linkLabel: null },
-      });
+      const links = [`/clients/${id}`, ...drop.map((v) => `/v/${v.id}`)];
+      await tx.staffNotice.updateMany({ where: { workspaceId: client.workspaceId, link: { in: links } }, data: { link: null, linkLabel: null } });
+      // Bell items that only link to them (a staff reminder, a recording deleting soon) stay, opening the Library instead.
+      await tx.notification.updateMany({ where: { workspaceId: client.workspaceId, href: { in: links } }, data: { href: "/library" } });
       // To-dos, notes, their reminders and key history go with the client.
       const gone = await tx.client.deleteMany({ where: { id, ...dueWhere() } });
       if (gone.count !== 1) throw new Error("client changed while being deleted");

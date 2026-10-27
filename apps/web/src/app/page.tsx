@@ -21,7 +21,7 @@ const PRIVACY = [
   // What clients experience when a key reset replaces their link (V9): lib/rekey.ts and lib/newLinkEmail.ts.
   [
     "Staff who leave are locked out",
-    `Remove someone from your team and we reset your team's keys and every client's link, so they can't open anything through ${BRAND.name} again. Clients who've opened their link are emailed a new one that works on the device they used before; nothing they have is lost.`,
+    `Remove someone from your team and we reset your team's keys and every client's link, so they can't open anything through ${BRAND.name} again. Clients who've opened their link and have an email address are emailed a new one that works on the device they used before; for anyone else, you copy their new link. Nothing they have is lost.`,
   ],
 ];
 
@@ -30,7 +30,7 @@ const STEPS: [string, string, { href: string; text: string }?][] = [
   ["Record", "Pick screen, camera, or both. Press start."],
   [
     "Send",
-    "Pick a client, or several. Send a new client's first video from your own email or texts. After that, Send by email does it for you.",
+    "Pick a client, or several, and press Send. A new client's first video comes from you, from your email or a copied link. After that, we email clients set to Email; for the rest, copy their link.",
     { href: "/faq#first-email", text: "Why the first one comes from you" },
   ],
   ["Reply", "Clients answer with their own video, a voice note or a message. No account needed."],

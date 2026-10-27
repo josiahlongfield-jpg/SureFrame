@@ -57,7 +57,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         {clients.some((c) => c.pausedAt) && (
           <p className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="paused-clients-note">
             Your plan covers {seats.limit} {seats.limit === 1 ? "client" : "clients"}, so the clients marked Paused can&apos;t open their videos or be sent new ones.
-            Pausing doesn&apos;t delete anything, though recordings still expire on the usual schedule. Upgrade or add seats, or remove clients you no longer need, and they&apos;re restored straight away (longest-standing first).
+            Pausing doesn&apos;t delete anything, though recordings still expire on the usual schedule. Upgrade or add seats, or delete clients you no longer work with, and they&apos;re restored straight away (longest-standing first).
             Please let them know about the change.
           </p>
         )}

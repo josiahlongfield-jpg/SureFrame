@@ -576,7 +576,7 @@ export default function Page() {
 
       <h2 id="extension">24. Our browser extension and Claude Desktop connector</h2>
       <p>
-        Both are optional and free. The extension is installed from the Chrome Web Store or Edge Add-ons under that store&rsquo;s terms; the Claude Desktop
+        Both are optional and free. The extension is installed from the Chrome Web Store (in Microsoft Edge too) under that store&rsquo;s terms; the Claude Desktop
         connector is installed in Claude Desktop under Anthropic&rsquo;s terms for Claude Desktop. You may use them only with {LEGAL.product}, you can remove them at
         any time, and we may change or withdraw them. They&rsquo;re provided as part of {LEGAL.product} under these terms, including sections 14 and 16. The
         extension never records, stores or sends your camera or the pages you visit (see our <Link href="/legal/privacy#extension">privacy policy</Link>).

@@ -64,10 +64,10 @@ function Send() {
         <div className="f-row"><span className="f-btn pri">Send to 3 clients</span></div>
         {/* No room for the sent list in the phone-sized window: it would run out of the box. */}
         <div className="f-hr f-hide-sm" />
-        <p className="f-hide-sm" style={{ fontWeight: 500 }}>Sent to 1 client</p>
+        <p className="f-hide-sm" style={{ fontWeight: 500 }}>Emailed to</p>
         <div className="f-sent f-hide-sm">
           <span>Client A <span className="f-ok">Emailed · Opened</span></span>
-          <span className="f-row"><span className="f-btn sec sm">Email again</span><span className="f-btn sec sm">Copy link</span><span className="f-link sm">Stop sharing</span></span>
+          <span className="f-row"><span className="f-btn sec sm">Send again</span><span className="f-link sm">Stop sharing</span></span>
         </div>
       </div>
     </div>

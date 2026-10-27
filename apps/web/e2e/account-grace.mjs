@@ -106,7 +106,7 @@ await owner.goto(BASE + "/settings/account");
 const explainer = norm(await owner.textContent("[data-testid=delete-explainer]"));
 const roughly = longDay(new Date(Date.now() + 30 * D), TZ);
 ok("explainer: closed now, deleted on the date, sign in to keep it", explainer.includes(`Nothing is scheduled yet. If you delete your account, it's closed straight away and permanently deleted 30 days later (on ${roughly} if you delete it today). Until then, you can sign in to keep it with everything as it was.`), explainer);
-ok("explainer: workspace goes with it, links stop, expiry carries on", explainer.includes("Your workspace goes with it") && explainer.includes("links stop working now") && explainer.includes("still expire on their usual dates") && !explainer.includes("removed clients") && !explainer.includes("won't renew"), explainer);
+ok("explainer: workspace goes with it, links stop, expiry carries on", explainer.includes("Your business goes with it") && explainer.includes("links stop working now") && explainer.includes("still expire on their usual dates") && !explainer.includes("removed clients") && !explainer.includes("won't renew"), explainer);
 ok("explainer: sooner on request", explainer.includes("Want it deleted sooner? Email support@sureframe.app."), explainer);
 await owner.screenshot({ path: `${shots}/account-grace-settings.png`, fullPage: true });
 

@@ -134,6 +134,8 @@ export default function Recorder({
   const [phone, setPhone] = useState(false);
   // Firefox can neither draw the camera into the video nor float it over other windows.
   const [cameraWithScreen, setCameraWithScreen] = useState(true);
+  // Safari floats the camera in a bubble but can't draw it into the video: it's only in the video when the whole screen is shared.
+  const [composes, setComposes] = useState(true);
   // Where the camera circle sits in a Screen + camera recording: bottom left unless the
   // person drags it or picks another corner, before or while recording. Remembered in this browser.
   const [corner, setCorner] = useState<CameraCorner>("bottom-left");
@@ -154,6 +156,7 @@ export default function Recorder({
   }, [corner]);
   useEffect(() => {
     setCameraWithScreen(canComposeCamera() || "documentPictureInPicture" in window || document.pictureInPictureEnabled === true);
+    setComposes(canComposeCamera());
   }, []);
   useEffect(() => {
     setFrontBack(hasFrontAndBack());
@@ -271,7 +274,7 @@ export default function Recorder({
         camStream.current = s;
         setPreviewKey((k) => k + 1);
         setPreviewMic(s.getAudioTracks().length ? s : null);
-        setError((e) => (e && CAMERA_ERRORS.includes(e) ? undefined : e));
+        setError((e) => (e && (CAMERA_ERRORS.includes(e) || e === blockedBySystem("camera or microphone")) ? undefined : e));
         await loadDevices();
       })
       .catch((err: Error) => {
@@ -288,7 +291,10 @@ export default function Recorder({
             ? NO_CAMERA
             : err.name === "NotReadableError" || err.name === "AbortError"
               ? CAMERA_BUSY
-              : CAMERA_PERMISSION,
+              : // The computer's own settings, not the browser's (macOS Privacy & Security): the address bar can't help.
+                err.name === "NotAllowedError" && /system/i.test(err.message)
+                ? blockedBySystem("camera or microphone")
+                : CAMERA_PERMISSION,
         );
       });
     return () => {
@@ -337,7 +343,13 @@ export default function Recorder({
     cameraAsk.current = ask.then(stopAll, () => {});
     ask
       .then(() => loadDevices())
-      .catch(() => setError("Microphone permission is needed to record. Allow it in your browser's address bar."));
+      .catch((err: Error) =>
+        setError(
+          err?.name === "NotAllowedError" && /system/i.test(err.message)
+            ? blockedBySystem("camera or microphone")
+            : "Microphone permission is needed to record. Allow it in your browser's address bar.",
+        ),
+      );
     return () => stopAll(camStream.current);
   }, [loadDevices]);
 
@@ -759,7 +771,9 @@ export default function Recorder({
                   ? mode === "screen+camera"
                     ? extension
                       ? "You\u2019ll pick a screen, window or tab when you start. Your camera floats in a bubble over your web pages, and that\u2019s how it shows in the video. Wherever the bubble can\u2019t go, or if you share just one window, it\u2019s in this circle instead: drag it to any corner."
-                      : "You\u2019ll pick a screen, window or tab when you start. Your camera goes in the circle: drag it to any corner."
+                      : composes
+                        ? "You\u2019ll pick a screen, window or tab when you start. Your camera goes in the circle: drag it to any corner."
+                        : "You\u2019ll pick a screen or window when you start. Your camera shows in a floating bubble, so it\u2019s only in the video when you share your whole screen."
                     : "You\u2019ll pick a screen, window or tab when you start."
                   : mode === "screen"
                     ? extension

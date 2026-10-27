@@ -32,7 +32,7 @@ export { DELETION_GRACE_DAYS };
 export const DELETION_WARN_MS = DELETION_WARN_DAYS * 86_400_000;
 export const deletionDate = (from = new Date()) => new Date(from.getTime() + DELETION_GRACE_DAYS * 86_400_000);
 /** An owner leaving would strand their staff in a workspace nobody pays for. */
-export const OWNER_WITH_STAFF = "You own a team with other staff. Remove them on the Team page first.";
+export const OWNER_WITH_STAFF = "You own a team with other staff. Remove them in Settings > Team and staff first.";
 
 /** One email per subject a day to the founder, however many runs hit it. */
 const once = (key: string) => rateLimit(`alert:${key}`, 1, 86_400).then(() => true, () => false);

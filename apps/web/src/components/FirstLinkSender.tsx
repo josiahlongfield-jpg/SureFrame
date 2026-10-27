@@ -99,9 +99,10 @@ export default function FirstLinkSender({
             a.click();
             a.remove();
           },
-          email
-            ? "Your email app should open with the message ready to send. Nothing opened? Use Copy link + message and paste it into an email."
-            : `Your email app should open with the message ready: add ${name}'s email address and send. Nothing opened? Use Copy link + message and paste it into an email.`,
+          // No "where to paste it": just the other button, when this row has it.
+          `${email ? "Your email app should open with the message ready to send." : `Your email app should open with the message ready: add ${name}'s email address and send.`} ${
+            only ? "Nothing opened? Check this device has an email app set up." : "Nothing opened? Use Copy link + message instead."
+          }`,
         )
       }
     >

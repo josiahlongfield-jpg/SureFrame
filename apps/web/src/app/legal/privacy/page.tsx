@@ -58,7 +58,8 @@ export default function Page() {
           you&rsquo;re on, which browser and device you&rsquo;re using (as your browser reports it, so its steps fit yours), and what that page already shows: whether your link works, whether the business&rsquo;s emails to you are on, whether the business uses
           AI summaries and, on a video page, whether that video&rsquo;s copy on our servers has been or will be deleted. It never receives your videos, their
           titles, messages, replies, to-dos or notes. Nobody from our team answers it, and it can&rsquo;t pass the conversation to the business or to us: for
-          anything it can&rsquo;t help with, it gives you the business&rsquo;s name and, if the business set one, its reply-to email address. We keep the text of
+          anything it can&rsquo;t help with, it gives you the business&rsquo;s contact details (or, if it set none, its reply-to email address) and, where the page has
+          a reply box, a button to reply to the business. We keep the text of
           each question you type (up to 500 characters), with the business&rsquo;s name and the page you asked on, but not who asked, for{" "}
           {LEGAL.clientQuestionDays} days. Once a week our team is emailed a list of these questions, grouped by business, so we can find and fix problems and improve
           the help chat; we may read them for that, and that email is kept in our support inbox for up to {LEGAL.clientQuestionDigestMonths} months. The rest of the conversation stays in your browser tab. Please don&rsquo;t type personal details there that you

@@ -546,10 +546,10 @@ function Manager({
           <p className="mt-2 text-sm text-warn-fg" data-testid="seats-full">
             All {seats.limit} client seats are in use.{" "}
             {!isOwner
-              ? "Ask the owner to add seats, or remove a client to add someone new."
+              ? "Ask the owner to add seats, or delete a client you no longer work with to add someone new."
               : canBuySeats
-                ? "Add seats below, or remove a client to add someone new."
-                : "Upgrade your plan, or remove a client to add someone new."}
+                ? "Add seats below, or delete a client you no longer work with to add someone new."
+                : "Upgrade your plan, or delete a client you no longer work with to add someone new."}
           </p>
         )}
         {error && <p role="alert" className="mt-2 text-sm text-danger-fg">{error}</p>}
@@ -766,12 +766,12 @@ function Manager({
 /** A client who hasn't opened a video yet: new (nothing sent yet), or sent one and not opened it. */
 export function LinkBadge({ sent }: { sent?: boolean }) {
   return sent ? (
-    <span className="ml-1 inline-block rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-dim" data-testid="needs-first-link" title="You've sent them a link, and they haven't opened it yet. Once they do, we can email them your videos.">
+    <span className="ml-1 inline-block rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-dim" data-testid="needs-first-link" title="You've sent them a link, and they haven't opened it yet. Once they do, we email them new videos if they're set to Email.">
       {/* Read out with its meaning, not run on from the name (R2-O18). */}
       <span className="sr-only">, </span>Not opened yet<span className="sr-only">: you&apos;ve sent them a link, and they haven&apos;t opened it yet</span>
     </span>
   ) : (
-    <span className="ml-1 inline-block rounded-full bg-primary-soft px-2 py-0.5 text-xs font-semibold text-accent" data-testid="needs-first-link" title="Their first video comes from you, by your own email, texts or chat. After that we can email them.">
+    <span className="ml-1 inline-block rounded-full bg-primary-soft px-2 py-0.5 text-xs font-semibold text-accent" data-testid="needs-first-link" title="Their first video comes from you, by your email or a copied link. After that we email them new videos if they're set to Email.">
       <span className="sr-only">, </span>New<span className="sr-only">: their first video comes from you</span>
     </span>
   );

@@ -52,7 +52,7 @@ function FirstLink({ clientId, name, email, business, link, teamKeyWrap, sent, t
         <LinkBadge sent={isSent} />
       </p>
       <p className="mt-1 text-muted" data-testid="needs-first-link-text">
-        Record a video and send it to {name} from its Send box: their first one goes from your own email or texts, and opening it sets them up.
+        Record a video and send it to {name} from its Send box: their first one goes from you, by your email or a copied link, and opening it sets them up.
         After that every video opens straight away{email ? ", and we can email them new ones" : ""}. Or send their link now, before any video:
       </p>
       <div className="mt-3">

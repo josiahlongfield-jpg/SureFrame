@@ -73,7 +73,7 @@ export function sentRecipients(members: Member[], o: { actorId: string; assigned
 export async function notifyClientReply(conversationId: string) {
   try {
     const video = await db.video.findUnique({ where: { id: conversationId }, include: { client: true } });
-    if (!video || video.replyToId || !video.client) return;
+    if (!video || video.replyToId || !video.client || video.client.removedAt) return;
     // Paused or suspended staff can't sign in: their clients' replies go to whoever else would hear (the owner at least).
     const members = await db.membership.findMany({ where: { workspaceId: video.workspaceId, ...activeMember }, orderBy: { id: "asc" } });
     const to = replyRecipients(members, { assignedToId: video.client.assignedToId, recorderId: video.ownerId });
@@ -170,7 +170,10 @@ export async function flushGroup(userId: string, kind: TeamNotificationKind, gro
   // the workspace or their login (lib/support/admin.ts): dropped, not sent later.
   if (!ws || !user || !membership || membership.pausedAt || ws.deleteAt || ws.suspendedAt || ws.closedAt || user.suspendedAt) return false;
   const brand = brandOf(ws, appUrl(""));
-  const clients = new Map((await db.client.findMany({ where: { id: { in: pending.map((p) => p.clientId!).filter(Boolean) } }, select: { id: true, name: true } })).map((c) => [c.id, c.name]));
+  const found = await db.client.findMany({ where: { id: { in: pending.map((p) => p.clientId!).filter(Boolean) } }, select: { id: true, name: true, removedAt: true } });
+  // A client deleted since (lib/clientRemoval.ts): nothing about them goes out.
+  if (kind === "CLIENT_REPLY" && found.some((c) => c.removedAt)) return false;
+  const clients = new Map(found.filter((c) => !c.removedAt).map((c) => [c.id, c.name]));
   const clientName = (id: string | null) => (id && clients.get(id)) || "A client";
 
   let mail;
@@ -198,14 +201,17 @@ export async function flushGroup(userId: string, kind: TeamNotificationKind, gro
       color: brand.color,
     });
   } else {
+    // Sends to a client deleted since aren't listed.
+    const shown = pending.filter((p) => !p.clientId || clients.has(p.clientId));
+    if (!shown.length) return false;
     const actor = await db.user.findUnique({ where: { id: pending[0].actorUserId ?? "" }, select: { name: true, email: true } });
     const who = actor?.name ?? actor?.email.split("@")[0] ?? "Someone on your team";
-    const n = pending.length;
+    const n = shown.length;
     mail = teamEmail({
       business: ws.name,
       subject: `${who} sent ${n === 1 ? "a video" : `${n} videos`} to clients`,
       lead: `${who} sent ${n === 1 ? "a video" : `${n} videos`} to clients:`,
-      lines: pending.map((p) => ({ text: clientName(p.clientId), link: p.videoId ? appUrl(`/v/${p.videoId}?team=1`) : undefined })),
+      lines: shown.map((p) => ({ text: clientName(p.clientId), link: p.videoId ? appUrl(`/v/${p.videoId}?team=1`) : undefined })),
       button: { label: "Open the Team overview", link: appUrl(teamPath("/team", ws.id)) },
       footer: "Choose which emails you get under Settings > Account, Emails to you.",
       logoUrl: brand.logoUrl,

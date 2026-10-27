@@ -58,7 +58,7 @@ ${emailButton(o.link, "Open your list", colors)}
 <p style="font-size:12px;color:${EMAIL.muted};margin:0">For privacy, the details are only shown in the app.</p>
 ${reach ? `<p style="font-size:12px;color:${EMAIL.muted};margin:8px 0 0">${esc(reach)}</p>` : ""}
 ${o.unsubscribe ? `<p style="font-size:12px;color:${EMAIL.muted};margin:8px 0 0"><a href="${esc(o.unsubscribe)}" style="color:${link}">Stop emails from ${esc(o.business)}</a></p>` : ""}`, undefined, colors.fill);
-  return { subject, text, html, when };
+  return { subject, text, html, when, unsubscribe: o.unsubscribe || undefined };
 }
 
 /** "today at 9am", "tomorrow at 6:30pm", "on Sun, Oct 12 at 9am". */

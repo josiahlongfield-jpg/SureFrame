@@ -27,7 +27,8 @@ export default function LeaveTeamButton({ team }: { team: string }) {
         <button disabled={pending} className="rounded-xl bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700 disabled:opacity-60" data-testid="leave-team-yes">
           {pending ? "Leaving…" : `Yes, leave ${team}`}
         </button>
-        <button type="button" disabled={pending} onClick={() => setSure(false)} className="rounded-xl border border-line-strong bg-surface px-4 py-2 font-medium text-ink hover:bg-hover">
+        {/* Focus moves here from the button that was replaced, the safe choice. */}
+        <button type="button" autoFocus disabled={pending} onClick={() => setSure(false)} className="rounded-xl border border-line-strong bg-surface px-4 py-2 font-medium text-ink hover:bg-hover">
           Cancel
         </button>
       </div>

@@ -12,8 +12,9 @@ export const POST = handle(async (req: Request) => {
 
   // Refuse an oversized upload before reading it.
   if (Number(req.headers.get("content-length") ?? 0) > MAX_LOGO_BYTES + 64 * 1024) throw new HttpError(413, "That image is too big. Use one under 300 KB.");
-  const form = await req.formData();
   await limitByIp("branding", 30, 600);
+  const form = await req.formData().catch(() => null);
+  if (!form) throw new HttpError(400, "Invalid request");
   const data: { brandColor?: string | null; brandLogo?: Uint8Array<ArrayBuffer> | null; brandLogoType?: string | null } = {};
 
   const color = String(form.get("color") ?? "").trim().toLowerCase();

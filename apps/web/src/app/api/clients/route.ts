@@ -72,7 +72,7 @@ export const POST = handle(async (req: Request) => {
     }
     const seats = await seatUsage(workspace, tx);
     const left = seats.limit - seats.used;
-    if (left <= 0) throw new HttpError(402, `All ${seats.limit} client seats are in use. Add more seats or remove a client first.`);
+    if (left <= 0) throw new HttpError(402, `All ${seats.limit} client seats are in use. Add more seats or delete a client first.`);
     if (wanted.length > left) throw new HttpError(402, `That's ${wanted.length} clients, but only ${left} client ${left === 1 ? "seat is" : "seats are"} left. Add more seats, or add fewer clients.`);
     const out = [];
     for (const c of wanted) {

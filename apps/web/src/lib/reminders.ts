@@ -216,7 +216,7 @@ export async function runReminders(now = new Date()) {
     let delivered = 0;
     for (const { to, m, replyTo, fromName } of mails) {
       try {
-        await sendMail({ to, subject: m.subject, text: m.text, html: m.html, fromName, replyTo });
+        await sendMail({ to, subject: m.subject, text: m.text, html: m.html, fromName, replyTo, unsubscribe: m.unsubscribe });
         delivered++;
       } catch (e) {
         failed.push(String(e).slice(0, 200));

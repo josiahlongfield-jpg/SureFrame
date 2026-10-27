@@ -62,9 +62,9 @@ export const BUSINESS_FAQ: Qa[] = [
     a: (
       <>
         <p>
-          Send a new client&rsquo;s first video from your own email, texts or chat: pick them in the video&rsquo;s Send box and use Send from your email, Copy link +
-          message, Share on a phone, or Copy link. They open it and watch, no account needed. That link also carries the key to their videos, so opening it sets
-          them up on that phone or computer, and after that Send by email works for them too.
+          Pick them in the video&rsquo;s Send box and press Send. Under &ldquo;First time client&rdquo;, use Send from your email (clients set to Email) or Copy
+          link (clients set to Copy link). They open it and watch, no account needed. That link also carries the key to their videos, so opening it sets them up
+          on that phone or computer. After that, we email new videos to clients set to Email; for the rest, you copy their link.
         </p>
         <p className="mt-2">
           Your videos are end-to-end encrypted, and only your team&rsquo;s devices have each client&rsquo;s key, so we can&rsquo;t email that first link without being
@@ -91,7 +91,7 @@ export const BUSINESS_FAQ: Qa[] = [
     a: (
       <p>
         Yes, in the browser, with nothing to install. On a phone or tablet you record with Camera only, choosing Front camera or Rear camera. Recording your
-        screen needs a computer. To put your camera in a screen recording (Screen + Camera), use Chrome, Edge or Brave; Firefox can&rsquo;t.
+        screen needs a computer. To put your camera in a screen recording (Screen + Camera), use Chrome, Edge or Brave. In Safari your camera shows in a floating bubble, so it&rsquo;s only in the video when you share your whole screen; Firefox can&rsquo;t.
       </p>
     ),
   },
