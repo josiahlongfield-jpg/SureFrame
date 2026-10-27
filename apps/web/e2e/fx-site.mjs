@@ -162,7 +162,7 @@ const claudeSection = norm(await visitor.textContent("[data-testid=home-claude]"
 ok("home: Claude is introduced as Anthropic's AI assistant (V3), in Josiah's words (decision 17)", claudeSection.includes("Already use Claude, Anthropic's AI assistant? Connect it to SureFrame free of charge and ask it for things to help streamline your service such as client reports, follow-up lists and more.") && !claudeSection.includes("Claude is an AI assistant made by Anthropic"));
 ok("home: no 'checklists' left in the Claude bonus lines (decision 17)", !/checklists/i.test(claudeSection) && !(await visitor.textContent("main")).includes("checklists"));
 ok("home: one line keeps the free connector apart from the paid AI add-on (V4)", norm(await visitor.textContent("[data-testid=home-claude-separate]")).includes("separate from our paid AI add-on"));
-ok("home: what clients experience when staff leave (V9)", norm(await visitor.textContent("main")).includes("Clients who've opened their link are emailed a new one"));
+ok("home: what clients experience when staff leave (V9)", norm(await visitor.textContent("main")).includes("Clients who've opened their link and have an email address are emailed a new one"));
 const homeLinks = await visitor.$$eval("main a[href^='/pricing']", (as) => as.map((a) => a.textContent.trim()));
 ok("home: every link to pricing says See plans (D12)", homeLinks.length >= 3 && homeLinks.every((t) => t === "See plans"), JSON.stringify(homeLinks));
 // The demo's tabs move with the arrow keys and show the site's one focus ring (V7, D7).
@@ -297,8 +297,11 @@ for (const bit of [
 }
 ok("terms: no stale export line or re-agree-on-every-update promise (L1, L4)", !terms.includes("text in the data export stays encrypted") && !terms.includes("When we update them, we’ll ask you"));
 await visitor.click("[data-testid=legal-latest] summary");
-// 24 October 2026 is a new version (removing a client deletes them): the box says so and links to the earlier versions.
-ok("terms: what changed on the last-updated date, linking to earlier versions (V43)", (await seen(visitor, "[data-testid=legal-latest] li")) && norm(await visitor.textContent("[data-testid=legal-latest]")).includes("This is a new version, so account holders are asked to agree to it.") && (await visitor.$$("[data-testid=legal-latest] a[href='/legal/archive#versions']")).length === 1);
+// The box says what the latest date was: a new version (24 October 2026, removing a client deletes them) links to the
+// earlier versions; a wording update since (27 October 2026, the extension's store) links to the wording updates.
+ok("terms: what changed on the last-updated date, linking to earlier versions (V43)", (await seen(visitor, "[data-testid=legal-latest] li")) &&
+  ((norm(await visitor.textContent("[data-testid=legal-latest]")).includes("This is a new version, so account holders are asked to agree to it.") && (await visitor.$$("[data-testid=legal-latest] a[href='/legal/archive#versions']")).length === 1) ||
+    (norm(await visitor.textContent("[data-testid=legal-latest]")).includes("so there’s nothing new to agree to.") && (await visitor.$$("[data-testid=legal-latest] a[href='/legal/archive#wording-updates']")).length === 1)));
 ok("terms: Back to contents is hidden at the top (V55)", (await visitor.$eval("[data-testid=back-to-contents]", (a) => getComputedStyle(a).opacity)) === "0");
 await visitor.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
 ok("terms: Back to contents shows once the contents are scrolled away (V55)", await waitFor(() => visitor.$eval("[data-testid=back-to-contents]", (a) => getComputedStyle(a).opacity === "1")));

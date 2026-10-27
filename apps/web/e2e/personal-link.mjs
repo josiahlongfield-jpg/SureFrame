@@ -48,7 +48,7 @@ ok("library start: the first video goes from you, said up front", norm(await own
 
 // Record first, with no clients.
 await owner.goto(BASE + "/record");
-ok("record page: says a new client's first video goes from you", norm(await owner.textContent("[data-testid=no-clients-note]")).includes("A new client's first video goes from your own email or texts"));
+ok("record page: says a new client's first video goes from you", norm(await owner.textContent("[data-testid=no-clients-note]")).includes("A new client's first video goes from you, by your email or a copied link"));
 await owner.click("text=Camera only");
 await owner.click("text=Start recording");
 await owner.waitForSelector("text=/Recording · \\d/", { timeout: 15000 });
