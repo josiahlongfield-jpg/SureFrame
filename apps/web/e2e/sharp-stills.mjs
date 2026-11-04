@@ -93,8 +93,34 @@ await ctx.close();
 await signIn(page);
 const big = await record(page, ws);
 const video = await prisma.video.findUnique({ where: { id: big }, select: { width: true } }).catch(() => null);
-const poster = await widthOf(page, "[data-testid=poster-cover] img");
+// The library still covers the player at once; the full-size frame replaces it once the recording has unlocked.
+const poster = await page
+  .waitForFunction(() => { const i = document.querySelector("[data-testid=poster-cover] img"); return i?.complete && i.naturalWidth === 1280 ? 1280 : 0; }, null, { timeout: 30000 })
+  .then((h) => h.jsonValue(), () => page.evaluate(() => document.querySelector("[data-testid=poster-cover] img")?.naturalWidth ?? 0));
 ok("the poster before playing is the recording's full size", poster === 1280, `${poster} (recording ${video?.width ?? "?"})`);
+const brightness = (sel) =>
+  page.evaluate((s) => {
+    const i = document.querySelector(s);
+    if (!i?.naturalWidth) return 0;
+    const c = document.createElement("canvas");
+    c.width = c.height = 16;
+    const x = c.getContext("2d");
+    x.drawImage(i, 0, 0, 16, 16);
+    const d = x.getImageData(0, 0, 16, 16).data;
+    let sum = 0;
+    for (let k = 0; k < d.length; k += 4) sum += (d[k] + d[k + 1] + d[k + 2]) / 3;
+    return Math.round(sum / 256);
+  }, sel);
+ok("the poster is a picture, not black", (await brightness("[data-testid=poster-cover] img")) > 20);
+
+// When the recording itself is slow to arrive (or a phone can't draw a frame from it), the library still covers the player.
+await page.route("**/api/videos/*/stream", () => {}); // held, never answered
+await page.goto(`${BASE}/v/${big}`);
+const early = await widthOf(page, "[data-testid=poster-cover] img");
+ok("before the recording arrives, the library still covers the player", early === 960, String(early));
+ok("that still is a picture, not black", (await brightness("[data-testid=poster-cover] img")) > 20);
+await page.screenshot({ path: `${shots}/sharp-stills-early-poster.png` });
+await page.unroute("**/api/videos/*/stream");
 
 await page.goto(BASE + "/library");
 const bigStill = await widthOf(page, `a[href="/v/${big}"] [data-testid=library-thumb]`);

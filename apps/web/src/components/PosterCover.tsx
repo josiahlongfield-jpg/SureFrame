@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { posterFrom } from "@/lib/thumb";
+import { useEffect, useRef, useState } from "react";
+import { loadThumb, posterFrom } from "@/lib/thumb";
 
 /** A still from the recording at `src`, made on this device, for showing before it plays (lib/thumb.ts). */
 export function usePoster(src: string | null | undefined) {
@@ -25,6 +25,34 @@ export function usePoster(src: string | null | undefined) {
     };
   }, [src]);
   return poster;
+}
+
+/**
+ * The recording's library still (made while recording, or the first time the team opened it), as an image URL,
+ * so there's a picture over the player straight away, before the whole recording has downloaded and unlocked.
+ * Tried again once `retry` turns true (a new recording's still may still be on its way when the page opens).
+ */
+export function useStoredStill(videoId: string, key: CryptoKey | null, enabled: boolean, retry: boolean) {
+  const [still, setStill] = useState<string | null>(null);
+  const have = useRef(false);
+  useEffect(() => {
+    if (!enabled || !key || have.current) return;
+    let cancelled = false;
+    loadThumb(videoId, key, retry).then(
+      (url) => {
+        if (!url) return;
+        if (cancelled || have.current) return URL.revokeObjectURL(url);
+        have.current = true;
+        setStill(url);
+      },
+      () => {},
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId, key, enabled, retry]);
+  useEffect(() => () => void (still && URL.revokeObjectURL(still)), [still]);
+  return still;
 }
 
 /**

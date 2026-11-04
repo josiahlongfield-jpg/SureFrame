@@ -17,7 +17,7 @@ const POSTER: Size = { width: 1920, quality: 0.9 };
 /** Stills narrower than this were made before they were sharpened, and are remade (LibraryThumb). */
 export const SHARP_WIDTH = 900;
 
-function waitFor(el: HTMLVideoElement, event: "loadeddata" | "seeked", ms: number) {
+function waitFor(el: HTMLVideoElement, event: "loadeddata" | "seeked" | "playing", ms: number) {
   return new Promise<boolean>((resolve) => {
     const done = (ok: boolean) => {
       el.removeEventListener(event, onEvent);
@@ -67,24 +67,65 @@ async function save(videoId: string, still: Blob, key: CryptoKey) {
   return !!res?.ok;
 }
 
-/** A still about a second in (past any countdown fade) from a playable recording URL. */
+/** True when the element's current frame is all but black (a fade-in, a covered camera, or a frame not drawn yet). */
+function looksBlack(el: HTMLVideoElement) {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 16;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return false;
+  try {
+    ctx.drawImage(el, 0, 0, 16, 16);
+    const px = ctx.getImageData(0, 0, 16, 16).data;
+    let sum = 0;
+    for (let i = 0; i < px.length; i += 4) sum += px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11;
+    return sum / (px.length / 4) < 10;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Makes the element load and decode a frame. iPhones ignore preload, and only load a video
+ * that's in the page and has played, so a muted, unseen play does it there (no tap needed).
+ */
+async function loadFrames(el: HTMLVideoElement) {
+  if (el.readyState >= 2 || (await waitFor(el, "loadeddata", 3_000))) return !!el.videoWidth;
+  const playing = waitFor(el, "playing", 15_000);
+  void el.play().catch(() => {});
+  const ok = (await playing) || el.readyState >= 2;
+  el.pause();
+  return ok && !!el.videoWidth;
+}
+
+/** A still about a second in (past any countdown fade) from a playable recording URL; later in if that frame is black. */
 async function stillFrom(src: string, size: Size = STILL) {
   const el = document.createElement("video");
-  el.muted = true;
+  el.muted = el.defaultMuted = true;
   el.playsInline = true;
+  el.setAttribute("playsinline", "");
+  el.setAttribute("muted", "");
   el.preload = "auto";
+  el.setAttribute("aria-hidden", "true");
+  el.style.cssText = "position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1";
   el.src = src;
+  document.body.appendChild(el);
   try {
-    if (!(await waitFor(el, "loadeddata", 20_000)) || !el.videoWidth) return null;
-    // Recordings straight from the browser often don't know their length; a second in is fine for those.
-    const at = Number.isFinite(el.duration) && el.duration > 0 ? Math.min(1, el.duration / 3) : 1;
-    el.currentTime = at;
-    // If seeking isn't possible, the first frame will do.
-    await waitFor(el, "seeked", 8_000);
+    if (!(await loadFrames(el))) return null;
+    // Recordings straight from the browser often don't know their length; a second or two in is fine for those.
+    const known = Number.isFinite(el.duration) && el.duration > 0;
+    const times = known ? [Math.min(1, el.duration / 3), el.duration / 2, (el.duration * 3) / 4] : [1, 2.5, 5];
+    for (const at of times) {
+      el.currentTime = at;
+      // If seeking isn't possible, the frame it's on will do.
+      await waitFor(el, "seeked", 8_000);
+      if (!looksBlack(el)) break;
+    }
     return await capture(el, size);
   } finally {
+    el.pause();
     el.removeAttribute("src");
     el.load();
+    el.remove();
   }
 }
 

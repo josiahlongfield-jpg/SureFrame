@@ -7,7 +7,7 @@ import type { ReplyDTO } from "@/lib/replies";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
 import { isDefaultTitle } from "@/lib/videoTitle";
 import MediaPlayer, { fixDuration } from "./MediaPlayer";
-import PosterCover, { usePoster } from "./PosterCover";
+import PosterCover, { usePoster, useStoredStill } from "./PosterCover";
 import ReplyComposer, { deleteReply, sendHeldReply, type ReplyComposerHandle } from "./ReplyComposer";
 import { NOTIFICATIONS_CHANGED } from "./NotificationBell";
 import SecureMedia, { useDecryptedUrl } from "./SecureMedia";
@@ -562,7 +562,10 @@ function WatchBody({
   );
   const playable = video.encrypted ? src : video.rawUrl;
   // A picture from the recording over the player until it's played: phones show it as a black box until then.
-  const poster = usePoster(playable);
+  // The library still shows at once; a full-size frame from the recording replaces it once that's unlocked here.
+  const stored = useStoredStill(video.id, rootKey, video.encrypted && !expired && video.status !== "RECORDING", !!playable);
+  const fullFrame = usePoster(playable);
+  const poster = fullFrame ?? stored;
   const [started, setStarted] = useState(false);
   // The first time the team opens a recording, its library still is made here (the server can't see the video).
   const thumbTried = useRef(false);
@@ -834,7 +837,7 @@ function WatchBody({
             />
           )}
           {showPlayer && !started && !unplayable && !playError && (
-            <PosterCover poster={poster} label={`Play ${video.title}`} onPlay={() => (setStarted(true), void player.current?.play().catch(() => {}))} />
+            <PosterCover poster={poster} label={`Play ${video.title}`} onPlay={() => (setStarted(true), watchNow())} />
           )}
           <div className="pointer-events-none absolute bottom-16 right-6 flex flex-col items-center">
             {burst.map((b) => (
