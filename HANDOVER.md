@@ -69,7 +69,7 @@ APP_DIR=$PWD bash e2e/run-all.sh                          # everything; results 
 APP_DIR=$PWD ONLY="record replies" bash e2e/run-all.sh    # just these suites
 ```
 
-It needs a local Postgres (`docker compose up -d` at the repository root, then set `DATABASE_URL` in `apps/web/.env`), Chromium (set `CHROMIUM` to its path), and `ffmpeg` for `sharp-stills`. Each suite prints `PASS`/`FAIL` lines and exits non-zero on failure. Known quirk: `fx-shell` in group E can fail on rate limits when rerun quickly; rerun it on its own.
+It needs a local Postgres (`docker compose up -d` at the repository root, then set `DATABASE_URL` in `apps/web/.env`), Chromium (`npx playwright install chromium`, or set `CHROMIUM` to a Chromium you already have), and `ffmpeg` for `sharp-stills`. Each suite prints `PASS`/`FAIL` lines and exits non-zero on failure. Known quirk: `fx-shell` in group E can fail on rate limits when rerun quickly; rerun it on its own.
 
 The most important suites guard the core promise, which is never losing a recording: `record`, `replies`, `multipart`, `server-backup`, `planner`.
 

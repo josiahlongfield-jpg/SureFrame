@@ -7,7 +7,7 @@
 # Results: $OUT/summary.txt (one line per suite: rc, PASS and FAIL counts) and $OUT/<group>/<suite>.log.
 set -u
 : "${APP_DIR:?set APP_DIR to the apps/web folder of your clone}"
-CHROMIUM=${CHROMIUM:-/opt/pw-browsers/chromium-1194/chrome-linux/chrome}
+CHROMIUM=${CHROMIUM:-}  # empty uses the Chromium Playwright installed (npx playwright install chromium)
 OUT=${OUT:-/tmp/claude-0/suites}; P=${P:-3130}; DB=${DB:-framecast_suites}
 mkdir -p "$OUT"; : > "$OUT/summary.txt"
 cd "$APP_DIR" || exit 1
@@ -38,7 +38,7 @@ group() { # name, build env, server env, suite env, suites...
 }
 
 # Group A: dev login, rate limits off. (ai-model needs huggingface.co for the speech model; skip it where that's blocked.)
-A="connectors account-grace agree-gate ai-assist ai-position branding-name branding bubble camera-fill camera-later client-help client-removal client-rows comp compose expiry extension first-link frames-fit free-limit fx-client fx-send fx-shell fx-site library-days library-groups link-off mic-level mobile-chat multipart no-email page-end personal-link phone-cameras phone-inputs phone-reply planner record recorder-notes referrals rekey reminders replies reply-composer seat-pause security sendmany server-backup session-timeout sharp-stills staff-access staff-self support-console suspend team-links team video-frame leftovers-a staff-own refresh-top"
+A="connectors account-grace agree-gate ai-assist ai-position branding-name branding bubble camera-fill camera-later client-help client-removal client-rows comp compose expiry extension first-link frames-fit free-limit fx-client fx-send fx-shell fx-site library-days library-groups link-off mic-level mobile-chat multipart page-end personal-link phone-cameras phone-inputs phone-reply planner record recorder-notes referrals rekey reminders replies reply-composer seat-pause security sendmany server-backup session-timeout sharp-stills staff-access staff-self support-console suspend team-links team video-frame leftovers-a staff-own refresh-top bell conversations send-group"
 if [ -n "${ONLY:-}" ]; then
   group A "" "RATE_LIMITS=off UPLOAD_JOIN_BYTES=65536 AUTH_DEV_LOGIN=true" "RATE_LIMITS=off" $ONLY
   exit 0
@@ -49,7 +49,7 @@ group B "" "AUTH_DEV_LOGIN=true" "" billing support
 # Group C: founding prices are only offered while FOUNDING_ENDS is in the future.
 group C "" "FOUNDING_ENDS=2099-12-31 AUTH_DEV_LOGIN=true" "" offers
 # Group D: the emailed sign-in link and the Claude sign-in code (no dev login).
-group D "" "RATE_LIMITS=off AUTH_EMAIL_LINKS=true AUTH_DEV_LOGIN=false" "RATE_LIMITS=off" signin-code keep-email keep-real key-stays
+group D "" "RATE_LIMITS=off AUTH_EMAIL_LINKS=true AUTH_DEV_LOGIN=false" "RATE_LIMITS=off" signin-code keep-email keep-real key-stays send-busy
 # Group E: sign-in limits need rate limits ON.
 group E "" "AUTH_EMAIL_LINKS=true AUTH_DEV_LOGIN=false" "" signin fx-shell
 # Group G: the before-recording "add the extension" prompt only exists when built with a store link.
