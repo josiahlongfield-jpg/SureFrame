@@ -28,7 +28,7 @@ import { setViewerZone, TZ_COOKIE, zoned } from "@/lib/dates";
 import { formerTeams, senderName } from "@/lib/team";
 import { nameWithBusiness } from "@/lib/senderLine";
 import { clientHelpLimitText } from "@/lib/support/clientHelp";
-import { replacedLinks } from "@/lib/replacedLinks";
+import { emailedNotHere, replacedLinks } from "@/lib/replacedLinks";
 import ClientContactLine from "@/components/ClientContactLine";
 import { contactOf } from "@/lib/clientContact";
 import { clientTitle, isDefaultTitle } from "@/lib/videoTitle";
@@ -398,11 +398,19 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
   // This device holds a link the business replaced when it reset its keys (someone left their team).
   const replaced = token && !mine && video.clientId ? (await replacedLinks([token])).find((r) => r.client.id === video.clientId) : undefined;
   if (replaced) {
+    // The emailed link has no key in it: it only opens on a device that already held this client's key.
+    const keyHere = !replaced.client.teamKeyWrap || !!(await cookies()).get(keyHeldCookie(replaced.client.id))?.value;
     return (
       <CantOpenShell brand={brandOf(replaced.client.workspace)}>
         <CantOpen title="Your link was replaced" testId="video-replaced" action={<AskForLink business={replaced.business} url={`/api/videos/${video.id}/ask-link`} />}>
           <p>{replaced.business} replaced your personal link to keep your videos secure, so the old one no longer opens them. Nothing has been deleted.</p>
-          <p>{replaced.emailed ? "They've emailed you your new link: open it on this device and this video opens here too." : `Ask ${replaced.business} for your new link, then open it on this device.`}</p>
+          <p>
+            {!replaced.emailed
+              ? `Ask ${replaced.business} for your new link, then open it on this device.`
+              : keyHere
+                ? "They've emailed you your new link: open it on this device and this video opens here too."
+                : emailedNotHere(replaced.business)}
+          </p>
         </CantOpen>
       </CantOpenShell>
     );

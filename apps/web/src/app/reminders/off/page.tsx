@@ -47,6 +47,9 @@ export default async function RemindersOff({ searchParams }: { searchParams: Pro
   const name = client?.workspace.name;
   // The business's contact line, but not while support has it unavailable (as on its video pages).
   const contact = client && clientBlock(client) !== "unavailable" ? contactOf(client.workspace) : null;
+  // "Your videos still open from your personal link" is only said while it's true: not once the business is
+  // unavailable or has closed its account, or their access has ended, been paused or turned off (an old email's link).
+  const opens = !!client && !clientBlock(client);
   return (
     <div data-theme="fresh" className="flex min-h-screen flex-col bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
       <ClientHeader brand={brand} allVideosLink help={client && s ? { for: [{ clientId: client.id, business: client.workspace.name, s, limits: clientHelpLimitText(client.workspace.plan), contact }], page: "emails" } : undefined} />
@@ -57,7 +60,7 @@ export default async function RemindersOff({ searchParams }: { searchParams: Pro
           <>
             <h1 className="text-2xl font-semibold text-ink [text-wrap:balance]">{done === "off" ? "Emails turned off" : `Emails from ${name} are off`}</h1>
             <p className="mt-2 text-muted" role={done === "off" ? "status" : undefined}>
-              You won&apos;t get to-do reminders or new-video emails from {name}. Your videos still open from your personal link.
+              You won&apos;t get to-do reminders or new-video emails from {name}.{opens && " Your videos still open from your personal link."}
             </p>
             <form action={turnOn} className="mt-6">
               <button className="rounded-xl border border-line-strong bg-surface px-4 py-2 text-sm font-medium hover:bg-hover">Turn them back on</button>
@@ -74,7 +77,9 @@ export default async function RemindersOff({ searchParams }: { searchParams: Pro
         ) : (
           <>
             <h1 className="text-2xl font-semibold text-ink [text-wrap:balance]">Stop emails from {name}?</h1>
-            <p className="mt-2 text-muted">You&apos;ll stop getting to-do reminders and new-video emails from them. Your videos still open from your personal link, and you can turn emails back on any time.</p>
+            <p className="mt-2 text-muted">
+              You&apos;ll stop getting to-do reminders and new-video emails from them. {opens ? "Your videos still open from your personal link, and you can turn emails back on any time." : "You can turn emails back on any time."}
+            </p>
             <form action={turnOff} className="mt-6">
               <button className="rounded-xl bg-solid px-4 py-2 text-sm font-medium text-white hover:bg-solid-hover">Stop emails</button>
             </form>

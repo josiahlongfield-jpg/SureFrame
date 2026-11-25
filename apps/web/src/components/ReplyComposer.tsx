@@ -37,6 +37,10 @@ const fmt = (ms: number) => {
 /** Discard or Re-record couldn't delete the recording from the server: it's still there unsent, where a reload shows it. */
 const NOT_DELETED = "The recording couldn't be deleted just now, so it's kept as an unsent reply. Reload this page to delete it.";
 
+/** Said when another reply tab is tapped mid-recording or mid-review. Each is about that step only (see the effect that clears them). */
+const STOP_FIRST = "Stop the recording first, then send or discard it.";
+const SEND_FIRST = "Send or discard this recording first.";
+
 /** Deletes one of the viewer's own replies (and its recording) from the conversation. */
 export async function deleteReply(videoId: string, replyId: string) {
   const res = await fetch(`/api/videos/${videoId}/replies/${replyId}`, { method: "DELETE" }).catch(() => null);
@@ -601,10 +605,14 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   const locked = phase === "recording" || phase === "review" || phase === "sending";
   const noun = mode === "VIDEO" ? "video" : "voice";
 
+  // "Stop the recording first" is over once they have stopped, and "Send or discard" once it's sent: neither stays
+  // under the next step (it used to sit under "Sent"). Other notices, such as a camera that stopped, are kept.
+  useEffect(() => setNotice((n) => (n === STOP_FIRST || n === SEND_FIRST ? undefined : n)), [phase]);
+
   function pickTab(id: Mode) {
     // Tapping another tab mid-recording says why nothing happens, rather than doing nothing.
     if (locked) {
-      if (id !== mode) setNotice(phase === "recording" ? "Stop the recording first, then send or discard it." : "Send or discard this recording first.");
+      if (id !== mode) setNotice(phase === "recording" ? STOP_FIRST : SEND_FIRST);
       return;
     }
     if (textBusy) return;
@@ -814,8 +822,9 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
           {/* Computers: which camera and microphone, under Record so it stays right below the picture (C54). */}
           {phase === "preview" && !frontBack && ((mode === "VIDEO" && cams.length > 1) || mics.length > 1) && (
             <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2" data-testid="reply-devices">
+              {/* A picker on its own takes the whole row, so its name isn't cut short beside an empty half. */}
               {mode === "VIDEO" && cams.length > 1 && (
-                <label className="grid min-w-0 gap-1">
+                <label className={`grid min-w-0 gap-1 ${mics.length > 1 ? "" : "sm:col-span-2"}`}>
                   <span className="font-medium text-muted">Camera</span>
                   <select
                     value={camId ?? ""}
@@ -829,7 +838,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
                 </label>
               )}
               {mics.length > 1 && (
-                <label className="grid min-w-0 gap-1">
+                <label className={`grid min-w-0 gap-1 ${mode === "VIDEO" && cams.length > 1 ? "" : "sm:col-span-2"}`}>
                   <span className="font-medium text-muted">Microphone</span>
                   <select
                     value={micId ?? ""}

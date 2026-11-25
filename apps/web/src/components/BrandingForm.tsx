@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { colorProblem, logoPath, type Brand } from "@/lib/branding";
 import { prepareLogo } from "@/lib/logoFile";
 import { FullPreview, PreviewStage, Segmented, VIEWS, type Device } from "./BrandPreview";
@@ -19,6 +20,7 @@ const SWATCHES = [
 ];
 
 export default function BrandingForm(props: { workspaceId: string; name: string; color: string | null; logoUrl: string | null }) {
+  const router = useRouter();
   const [saved, setSaved] = useState({ name: props.name, color: props.color ?? "", logoUrl: props.logoUrl });
   const [name, setName] = useState(props.name);
   const [color, setColor] = useState(props.color ?? "");
@@ -76,6 +78,8 @@ export default function BrandingForm(props: { workspaceId: string; name: string;
       }
       setSaved((v) => ({ ...v, name: d.name ?? trimmed }));
       setName(d.name ?? trimmed);
+      // The rest of the page names the business too ("Your clients see: Contact <name>" under How clients can reach you).
+      router.refresh();
     }
     const fd = new FormData();
     fd.set("color", color);
@@ -214,6 +218,7 @@ export default function BrandingForm(props: { workspaceId: string; name: string;
 
 /** The business name on its own, for the Free plan (custom logo and colour are part of paid plans). */
 export function BusinessNameForm({ name: initial }: { name: string }) {
+  const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [name, setName] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -232,6 +237,8 @@ export function BusinessNameForm({ name: initial }: { name: string }) {
     setSaved(d.name ?? trimmed);
     setName(d.name ?? trimmed);
     setMsg({ ok: true, text: "Saved. Your clients see this now." });
+    // The rest of the page names the business too (the contact line's preview, the note about the Free plan).
+    router.refresh();
   }
 
   return (

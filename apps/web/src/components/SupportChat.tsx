@@ -98,11 +98,14 @@ export function SupportChat({ signedIn, limits, className = "", suggestions = []
   const [touch, setTouch] = useState(false);
   useEffect(() => setTouch(window.matchMedia("(hover: none) and (pointer: coarse)").matches), []);
 
-  // Braces matter: newer Chrome returns a Promise from scrollIntoView, which
-  // React would otherwise try to call as the effect's cleanup.
+  // The newest message stays in view. Not before anything has been asked: on a phone that opened the Help page with
+  // the greeting already scrolled out of sight. Only the chat's own list moves, never the page around it.
+  const messageCount = ticket?.messages.length ?? 0;
   useEffect(() => {
-    end.current?.scrollIntoView({ block: "end" });
-  }, [ticket?.messages.length, busy]);
+    if (!messageCount && !busy) return;
+    const list = end.current?.parentElement;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [messageCount, busy]);
 
   async function send(body: string, person = false) {
     if (!body.trim() || busy) return;

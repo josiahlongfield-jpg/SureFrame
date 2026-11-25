@@ -635,8 +635,17 @@ function WatchBody({
     if (player.current?.src) void player.current.play().catch(() => {});
     else setWaiting(true);
   }, []);
+  // The cover was pressed from the keyboard: when it goes, focus moves to the player (it would otherwise drop to the
+  // page), so Space and the arrow keys work on the video straight away. Not if they've moved elsewhere meanwhile.
+  const focusPlayer = useRef(false);
+  useEffect(() => {
+    if (!started || !focusPlayer.current) return;
+    focusPlayer.current = false;
+    if (!document.activeElement || document.activeElement === document.body) player.current?.focus({ preventScroll: true });
+  }, [started]);
   /** A tap on the cover: plays at once when the recording is ready; before that, it waits under the cover. */
-  const playFromCover = () => {
+  const playFromCover = (fromKeyboard: boolean) => {
+    focusPlayer.current = fromKeyboard;
     const el = player.current;
     if (!el?.src) return watchNow();
     setStarted(true);
@@ -890,6 +899,9 @@ function WatchBody({
               ref={playerRef}
               controls
               playsInline
+              // Under the cover (PosterCover shows with a picture, or while the recording is still getting ready) the
+              // player's own controls are hidden, so the keyboard skips them until it has been played.
+              inert={!started && (!!poster || !playable)}
               onPlay={() => (setEnded(false), setStarted(true))}
               onEnded={() => setEnded(true)}
               onError={(e) => e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED && setUnplayable(true)}
@@ -1048,7 +1060,12 @@ function WatchBody({
         {video.purgeAt && !expired && (
           <p className="mt-3 flex items-start gap-2 px-1 text-xs text-dim" data-testid="purge-note">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-px shrink-0" aria-hidden><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
-            {canEdit ? (
+            {new Date(video.purgeAt).getTime() <= Date.now() ? (
+              // Past its date but still here until the daily clean-up reaches it: not "on" a day that has already gone.
+              <span>
+                End-to-end encrypted. {canEdit ? "This video is due to be deleted from SureFrame now. Save it to your device straight away if you want to keep a copy." : "Due to be deleted from SureFrame now, so save a copy straight away if you want to keep it."}
+              </span>
+            ) : canEdit ? (
               <span>End-to-end encrypted. This video will be deleted from SureFrame on {day(video.purgeAt)}. Save it to your device if you want to keep a copy.</span>
             ) : (
               // One line for clients (C13); replying after that date and the .webm detail are in How this works.

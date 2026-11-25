@@ -61,15 +61,19 @@ export const BUSINESS_FAQ: Qa[] = [
     q: "Why does a client's first video come from me, not SureFrame's email?",
     a: (
       <>
+        {/* The reason first (the question asks why), then how to send it. */}
         <p>
-          Pick them in the video&rsquo;s Send box and press Send. Under &ldquo;First time client&rdquo;, use Send from your email (clients set to Email) or Copy
-          link (clients set to Copy link). They open it and watch, no account needed. That link also carries the key to their videos, so opening it sets them up
-          on that phone or computer. After that, we email new videos to clients set to Email; for the rest, you copy their link.
+          Because a client&rsquo;s first link carries the key to their videos. Your videos are end-to-end encrypted, and only your team&rsquo;s devices have each
+          client&rsquo;s key, so we can&rsquo;t email that first link without being able to see their videos.
         </p>
         <p className="mt-2">
-          Your videos are end-to-end encrypted, and only your team&rsquo;s devices have each client&rsquo;s key, so we can&rsquo;t email that first link without being
-          able to see their videos. Every client also has a personal link to all their videos, on the Clients page, if you&rsquo;d rather send that first. Clients
-          who haven&rsquo;t opened a link yet are marked New, or Not opened yet once you&rsquo;ve sent one.
+          To send it, pick the client in the video&rsquo;s Send box and press Send. Under &ldquo;First time client&rdquo;, use Send from your email (clients set to
+          Email) or Copy link (clients set to Copy link). They open it and watch, no account needed, and opening it sets them up on that phone or computer. After
+          that, we email new videos to clients set to Email; for the rest, you copy their link.
+        </p>
+        <p className="mt-2">
+          Every client also has a personal link to all their videos, on the Clients page, if you&rsquo;d rather send that first. Clients who haven&rsquo;t opened a
+          link yet are marked New, or Not opened yet once you&rsquo;ve sent one.
         </p>
       </>
     ),

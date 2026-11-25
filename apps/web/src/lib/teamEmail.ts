@@ -27,7 +27,8 @@ export function teamEmail(o: {
     o.lead,
     o.note ? `\n${o.note}` : "",
     ...lines.map((l) => `- ${l.text}${l.link ? `: ${l.link}` : ""}`),
-    `\n${o.button.label}: ${o.button.link}`,
+    // A button that opens an email (support's notices): the plain-text part shows the bare address, not "mailto:…".
+    `\n${o.button.label}: ${o.button.link.replace(/^mailto:/, "")}`,
     o.footer ? `\n${o.footer}` : "",
     "\nSent with SureFrame",
   ].join("\n");

@@ -168,7 +168,7 @@ function Todos() {
               <b>Reminder from Your business name: a to-do is due tomorrow at 9am</b>
               <span className="f-hide-sm">Reply to this email if you need to reschedule.</span>
               <i>Open your list</i>
-              <span>For privacy, the details are only shown in the app.</span>
+              <span>For privacy, the details are only shown in your list.</span>
             </div>
           </div>
         </div>

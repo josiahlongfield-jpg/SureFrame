@@ -17,6 +17,8 @@ export type ClientVideo = {
   replied: boolean;
   /** They recorded a reply to it and haven't sent it yet. */
   unsent?: boolean;
+  /** Its recording has been deleted from SureFrame (past its date): the conversation still opens, the video doesn't play. */
+  expired?: boolean;
   /** "Sam from Business" (lib/team.ts), or null to say nothing. */
   from: string | null;
 };
@@ -37,7 +39,8 @@ export default function ClientVideos({ clientId, videos, timezone, layout }: { c
   const dates = zoned(timezone);
   const tiles = layout !== "list";
   const still = (v: ClientVideo) =>
-    v.encrypted ? (
+    // A deleted recording has nothing to play: a plain tile, with no play mark or length promising otherwise.
+    v.expired ? null : v.encrypted ? (
       <ClientThumb clientId={clientId} videoId={v.id} wrap={v.clientKeyWrap} has={v.hasThumb} />
     ) : (
       <video src={`/api/videos/${v.id}/stream#t=0.5`} preload="metadata" muted className="h-full w-full object-cover" />
@@ -47,6 +50,7 @@ export default function ClientVideos({ clientId, videos, timezone, layout }: { c
       {v.unwatched && <span className="rounded-full bg-primary-soft px-2 py-0.5 font-medium text-accent" data-testid="inbox-new">New</span>}
       {v.replied && <span className="rounded-full bg-surface-2 px-2 py-0.5 font-medium text-muted" data-testid="inbox-replied">You replied</span>}
       {v.unsent && <span className="rounded-full bg-warn-bg px-2 py-0.5 font-medium text-warn-fg" data-testid="inbox-unsent">Unsent reply</span>}
+      {v.expired && <span className="rounded-full bg-surface-2 px-2 py-0.5 font-medium text-muted" data-testid="inbox-deleted">Recording deleted</span>}
     </>
   );
   const when = (v: ClientVideo, inDay: boolean) => (inDay ? dates.time(v.createdAt) : dates.shortDayTime(v.createdAt));
@@ -58,7 +62,7 @@ export default function ClientVideos({ clientId, videos, timezone, layout }: { c
           <Link href={`/v/${v.id}`} className="group block" data-testid="inbox-video">
             <div className="relative aspect-video overflow-hidden rounded-xl bg-solid">
               {still(v)}
-              {v.durationMs ? <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">{length(v.durationMs)}</span> : null}
+              {v.durationMs && !v.expired ? <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">{length(v.durationMs)}</span> : null}
             </div>
             <h3 className={`mt-3 line-clamp-2 text-ink [overflow-wrap:anywhere] group-hover:text-accent ${v.unwatched ? "font-semibold" : "font-medium"}`}>{v.title}</h3>
             {/* Wraps onto a second line rather than cutting the sender off mid-word (C12). */}
@@ -79,7 +83,7 @@ export default function ClientVideos({ clientId, videos, timezone, layout }: { c
           <Link href={`/v/${v.id}`} className="group flex items-start gap-3 py-2" data-testid="inbox-video">
             <span className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-solid sm:w-28">
               {still(v)}
-              {v.durationMs ? <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-xs leading-4 text-white">{length(v.durationMs)}</span> : null}
+              {v.durationMs && !v.expired ? <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-xs leading-4 text-white">{length(v.durationMs)}</span> : null}
             </span>
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-sm text-ink group-hover:text-accent ${v.unwatched ? "font-semibold" : "font-medium"}`}>{v.title}</span>

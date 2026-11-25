@@ -34,7 +34,14 @@ const MediaPlayer = forwardRef<HTMLMediaElement | null, Props>(function MediaPla
   // A picture from the recording until it's played (phones show black), only where the page doesn't start it itself.
   const poster = usePoster(kind === "VIDEO" && !className ? src : null);
   const [started, setStarted] = useState(false);
-  const onError = (e: React.SyntheticEvent<HTMLMediaElement>) => e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED && setUnplayable(true);
+  // The cover was pressed from the keyboard: once it goes, focus moves to the player instead of dropping to the page.
+  const focusPlayer = useRef(false);
+  useEffect(() => {
+    if (!started || !focusPlayer.current) return;
+    focusPlayer.current = false;
+    if (!document.activeElement || document.activeElement === document.body) el.current?.focus({ preventScroll: true });
+  }, [started]);
+  const onError =(e: React.SyntheticEvent<HTMLMediaElement>) => e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED && setUnplayable(true);
   if (unplayable) {
     return (
       <p data-testid="unplayable" className="rounded-lg bg-surface-2 px-3 py-2 text-sm text-muted">
@@ -46,8 +53,9 @@ const MediaPlayer = forwardRef<HTMLMediaElement | null, Props>(function MediaPla
   if (className) return <video ref={el} src={src} controls playsInline preload="metadata" onError={onError} className={className} />;
   return (
     <div style={frame.style} className="relative mx-auto overflow-hidden rounded-lg bg-black">
-      <video ref={el} src={src} controls playsInline preload="metadata" onError={onError} onPlay={() => setStarted(true)} className="absolute inset-0 h-full w-full object-contain" />
-      {!started && <PosterCover poster={poster} onPlay={() => (setStarted(true), void el.current?.play().catch(() => {}))} />}
+      {/* Under the cover the player's own controls are hidden, so the keyboard skips them until it has been played. */}
+      <video ref={el} src={src} controls playsInline preload="metadata" inert={!started && !!poster} onError={onError} onPlay={() => setStarted(true)} className="absolute inset-0 h-full w-full object-contain" />
+      {!started && <PosterCover poster={poster} onPlay={(fromKeyboard) => ((focusPlayer.current = fromKeyboard), setStarted(true), void el.current?.play().catch(() => {}))} />}
     </div>
   );
 });

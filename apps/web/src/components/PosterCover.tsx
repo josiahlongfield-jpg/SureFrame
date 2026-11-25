@@ -60,11 +60,14 @@ export function useStoredStill(videoId: string, key: CryptoKey | null, enabled: 
  * especially) show a video as a black box until it plays. Tapping it starts the video; it goes once playing starts.
  * `busy`: the video isn't ready to play yet (still downloading and unlocking) and the viewer has asked for it, or
  * there's no picture to show meanwhile: a spinner and a line say so in place of the play button, picture or not.
+ * While it shows, the player under it is kept out of the keyboard's way (`inert`, by the caller): its hidden controls
+ * would otherwise take the Tab key several times before this button. `onPlay` is told when it was pressed from the
+ * keyboard (Enter or Space, a click with no pointer), so the caller can move focus on to the player.
  */
-export default function PosterCover({ poster, onPlay, label = "Play video", busy = false }: { poster: string | null; onPlay: () => void; label?: string; busy?: boolean }) {
+export default function PosterCover({ poster, onPlay, label = "Play video", busy = false }: { poster: string | null; onPlay: (fromKeyboard: boolean) => void; label?: string; busy?: boolean }) {
   if (!poster && !busy) return null;
   return (
-    <button type="button" onClick={onPlay} aria-label={busy ? undefined : label} data-testid="poster-cover" className="group absolute inset-0 z-10 block bg-black">
+    <button type="button" onClick={(e) => onPlay(e.detail === 0)} aria-label={busy ? undefined : label} data-testid="poster-cover" className="group absolute inset-0 z-10 block bg-black">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {poster && <img src={poster} alt="" className="h-full w-full object-contain" />}
       <span className="absolute inset-0 grid place-items-center">

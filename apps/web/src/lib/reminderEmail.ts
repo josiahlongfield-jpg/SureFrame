@@ -39,11 +39,13 @@ export function reminderEmail(o: {
     : o.clientName ? `A to-do on ${o.clientName}'s list is due ${whenZoned}.` : `A to-do on your list is due ${whenZoned}.`;
   const message = o.team ? "" : o.message?.trim();
   const reach = o.team ? null : clientEmailContact(o.business, o.contact, o.noReply);
+  // Never "in the app" to a client: they're told there's no app to get, only their own pages.
+  const privacy = o.team ? "For privacy, the details are only shown in SureFrame." : "For privacy, the details are only shown in your list.";
   const text = [
     lead,
     message ? `\n${message}` : "",
     `\nOpen your list: ${o.link}`,
-    "\nFor privacy, the details are only shown in the app.",
+    `\n${privacy}`,
     reach ? `\n${reach}` : "",
     o.unsubscribe ? `\nStop emails from ${o.business}: ${o.unsubscribe}` : "",
     "\nSent with SureFrame",
@@ -55,7 +57,7 @@ ${o.team ? `<p style="font-size:13px;font-weight:600;color:${EMAIL.muted};margin
 <p style="font-size:16px;line-height:1.5;margin:0 0 16px">${esc(lead)}</p>
 ${message ? `<p style="font-size:15px;line-height:1.5;white-space:pre-wrap;margin:0 0 16px;color:${EMAIL.body}">${esc(message)}</p>` : ""}
 ${emailButton(o.link, "Open your list", colors)}
-<p style="font-size:12px;color:${EMAIL.muted};margin:0">For privacy, the details are only shown in the app.</p>
+<p style="font-size:12px;color:${EMAIL.muted};margin:0">${privacy}</p>
 ${reach ? `<p style="font-size:12px;color:${EMAIL.muted};margin:8px 0 0">${esc(reach)}</p>` : ""}
 ${o.unsubscribe ? `<p style="font-size:12px;color:${EMAIL.muted};margin:8px 0 0"><a href="${esc(o.unsubscribe)}" style="color:${link}">Stop emails from ${esc(o.business)}</a></p>` : ""}`, undefined, colors.fill);
   return { subject, text, html, when, unsubscribe: o.unsubscribe || undefined };

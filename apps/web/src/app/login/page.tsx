@@ -92,6 +92,8 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
                   ? `Use the email your invite went to, if you were sent one. No ${BRAND.name} login yet? Signing in makes one for you.`
                   : `${opens ? `Sign in to see ${opens}. ` : ""}New to ${BRAND.name}? Entering your email creates your free account.`}
         </p>
+        {/* What went wrong (a used link, too many emails), above the box it tells them to use, as on "Check your email". */}
+        {error && <p role="alert" className="mt-3 text-sm text-danger-fg">{errorText(error)}</p>}
         {deleted && (
           <p role="status" className="mt-3 rounded-lg bg-ok-bg px-3 py-2 text-sm text-ok-fg" data-testid="deleted-note">
             Your account is closed and will be deleted in {DELETION_GRACE_DAYS} days. We&apos;ve emailed you the date. Changed your mind? Sign in before then to keep it.
@@ -170,7 +172,6 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
               <button className="rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover">Continue</button>
             </form>
           )}
-          {error && <p role="alert" className="text-sm text-danger-fg">{errorText(error)}</p>}
           {authProviders.length > 0 && keepAt === "end" && <div className="border-t border-line pt-4 short:pt-2">{keep}</div>}
           {authProviders.length === 0 && (
             <p className="text-sm text-muted">No sign-in method is configured. Set RESEND_API_KEY, AUTH_GOOGLE_ID or AUTH_DEV_LOGIN.</p>

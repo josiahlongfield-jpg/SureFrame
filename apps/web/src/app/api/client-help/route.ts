@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { handle, HttpError } from "@/lib/session";
-import { clientIp, rateLimit } from "@/lib/rateLimit";
+import { clientIp, giveBack, rateLimit } from "@/lib/rateLimit";
 import { assistantEnabled } from "@/lib/support/assistant";
 import { answerClient, CANT_HELP, CLIENT_HELP_LIMITS, contactBusiness, HELP_PAGES, helpClient } from "@/lib/support/clientHelp";
 import { recordClientQuestion } from "@/lib/support/clientQuestions";
@@ -57,7 +57,14 @@ export const POST = handle(async (req: Request) => {
   if (refused) return refused;
 
   const reply = (text: string, answered: boolean) => Response.json({ reply: text, answered });
+  // A question the chat couldn't even try to answer (it's off, or it broke) doesn't use up one of the day's questions:
+  // only the daily counts are given back, so the short-burst and per-address limits still slow a retry storm.
+  const notCounted = () =>
+    Promise.all([giveBack(`client-help-day:client:${client.id}`, 86400), free ? giveBack(`client-help-day:free-business:${client.workspaceId}`, 86400) : null]).catch((e) =>
+      console.error("[client-help] allowance not given back", e),
+    );
   if (!assistantEnabled() || !(await underDailyAiCap())) {
+    await notCounted();
     await recordClientQuestion(client.workspaceId, question.text, "OFF", page);
     return reply(`The help chat can't answer right now. ${contact}`, false);
   }
@@ -68,6 +75,7 @@ export const POST = handle(async (req: Request) => {
   } catch (e) {
     const err = e as { status?: number; message?: string };
     console.error("[client-help] assistant failed", JSON.stringify({ workspace: client.workspaceId, status: err.status, message: err.message?.slice(0, 500) }));
+    await notCounted();
     await recordClientQuestion(client.workspaceId, question.text, "FAILED", page);
     return reply(`Sorry, I hit a problem answering that. ${contact}`, false);
   }

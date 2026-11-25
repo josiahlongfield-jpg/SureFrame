@@ -33,6 +33,18 @@ export async function rateLimit(key: string, limit: number, windowSec: number, m
   if ((rows[0]?.count ?? 0) > limit) throw new HttpError(429, message ?? tooMany(windowSec));
 }
 
+/**
+ * Gives back one hit counted against `key` in the current window: for a try that failed through no fault of the
+ * caller's (the help chat couldn't answer), so it doesn't use up their allowance. Never below zero; a window that
+ * has since rolled over has nothing to give back.
+ */
+export async function giveBack(key: string, windowSec: number) {
+  if (limitsOff) return;
+  const windowMs = windowSec * 1000;
+  const windowStart = new Date(Math.floor(Date.now() / windowMs) * windowMs);
+  await db.$executeRaw`UPDATE "RateLimit" SET "count" = GREATEST("count" - 1, 0) WHERE "key" = ${key} AND "windowStart" = ${windowStart}`;
+}
+
 /** Whether `key` has already used up `limit` in the current window, without counting a hit. */
 export async function isLimited(key: string, limit: number, windowSec: number) {
   if (limitsOff) return false;

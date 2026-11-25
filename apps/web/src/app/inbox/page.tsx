@@ -18,7 +18,7 @@ import { unsubscribeUrl } from "@/lib/reminders";
 import { clientCookie, REMOVED_COOKIE, usableClientWhere } from "@/lib/access";
 import { visibleReplies } from "@/lib/replies";
 import { askForLink } from "@/lib/askForLink";
-import { replacedLinks } from "@/lib/replacedLinks";
+import { emailedNotHere, replacedLinks } from "@/lib/replacedLinks";
 import { keyHeldCookie } from "@/lib/e2e/keyHeld";
 import { helpForDevice } from "@/lib/support/clientHelp";
 import ClientContactLine from "@/components/ClientContactLine";
@@ -109,8 +109,14 @@ export default async function Inbox({
   const keyless = clients.filter((c) => c.teamKeyWrap && !jar.get(keyHeldCookie(c.id))?.value);
   const listed = clients.filter((c) => !keyless.includes(c));
   // Links a key reset replaced (lib/replacedLinks.ts): this device's old one, or the old link just opened. Not
-  // when that client's current link already works here.
-  const replacedBy = (await replacedLinks(removedTokens)).filter((r) => !clients.some((c) => c.id === r.client.id));
+  // when this device already holds that client's current link: either it works here, or it opens nothing for
+  // another reason (the business is unavailable or closed, their access is paused or turned off), and the notice
+  // for that reason is the true one. "Ask for my link again" would only email a business about a link they have.
+  const replacedAll = await replacedLinks(removedTokens);
+  const holdsCurrent = replacedAll.length
+    ? new Set((await db.client.findMany({ where: { id: { in: replacedAll.map((r) => r.client.id) }, token: { in: removedTokens } }, select: { id: true } })).map((c) => c.id))
+    : new Set<string>();
+  const replacedBy = replacedAll.filter((r) => !holdsCurrent.has(r.client.id));
 
   // Emails back on in one tap, landing on a page that says so (reminders/off).
   async function turnOn(formData: FormData) {
@@ -252,9 +258,11 @@ export default async function Inbox({
             >
               <p>{r.business} replaced your personal link to keep your videos secure, so the old one no longer opens them. Nothing has been deleted.</p>
               <p>
-                {r.emailed
-                  ? "They've emailed you your new link: open it on this device and your videos and replies are all here."
-                  : `Ask ${r.business} for your new link, then open it on this device.`}
+                {!r.emailed
+                  ? `Ask ${r.business} for your new link, then open it on this device.`
+                  : r.client.teamKeyWrap && !jar.get(keyHeldCookie(r.client.id))?.value
+                    ? emailedNotHere(r.business)
+                    : "They've emailed you your new link: open it on this device and your videos and replies are all here."}
               </p>
             </CantOpen>
           </div>
@@ -334,6 +342,7 @@ export default async function Inbox({
                       unwatched: v.viewCount === 0,
                       replied: v._count.replies > 0,
                       unsent: unsentIn.has(v.id),
+                      expired: v.status === "EXPIRED",
                       // Who sent it, never their email: "Sam from Business", or a former team member's (lib/team.ts).
                       from: v.owner.name || v.formerStaffAt ? senderName(v, c.workspace.name, "client") : null,
                     }))}

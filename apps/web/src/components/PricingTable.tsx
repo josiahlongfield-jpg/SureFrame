@@ -103,7 +103,8 @@ export default function PricingTable({
               {/* What it really costs with backup, the add-on most people want once they see the 30-day limit (V19). */}
               {price > 0 && (
                 <p className="mt-1 text-xs text-dim" data-testid="with-backup">
-                  With cloud backup: US${price + backup} a {interval}
+                  {/* With the thousands comma the A$ estimate above it has ("US$1,040"). */}
+                  With cloud backup: US${(price + backup).toLocaleString("en-US")} a {interval}
                 </p>
               )}
               <ul className="mt-6 flex-1 space-y-3 text-sm text-muted">

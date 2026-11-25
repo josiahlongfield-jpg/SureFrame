@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import ClientHeader from "./ClientHeader";
 import MadeWith from "./MadeWith";
 import { brandStyle, type Brand } from "@/lib/branding";
@@ -12,7 +13,19 @@ export type PreviewView = "video" | "inbox" | "email";
 /** Sample content for the branding preview. Nothing here is a real client or video. */
 const CLIENT = "Client A";
 const TITLE = "Weekly check-in";
-const today = () => new Date().toLocaleDateString("en-US", { dateStyle: "medium" });
+const dayOf = (ms: number) => new Date(ms).toLocaleDateString("en-US", { dateStyle: "medium" });
+
+/**
+ * The time now, once the page is in the browser (null before that). The sample's dates are written from it there
+ * only: the server's clock and time zone can be a day away from the visitor's, and a date written on both sides
+ * then disagrees, which the browser reports as a page error (on the public Example page for much of an Australian
+ * morning).
+ */
+function useNow() {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => setNow(Date.now()), []);
+  return now;
+}
 
 /**
  * What a client sees, with a business's branding: their video page, their
@@ -48,6 +61,7 @@ export default function ClientPreview({ brand, view, sender, origin }: { brand: 
 }
 
 function VideoPage({ business, sender }: { business: string; sender: string }) {
+  const now = useNow();
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_21.25rem]">
       <section>
@@ -66,7 +80,8 @@ function VideoPage({ business, sender }: { business: string; sender: string }) {
           <div className="min-w-0 sm:flex-1">
             <h1 className="text-2xl font-semibold text-ink">{TITLE}</h1>
             <p className="mt-1 px-1 text-sm text-dim">
-              {sender ? nameWithBusiness(sender, business, "from") : business} · {today()}
+              {sender ? nameWithBusiness(sender, business, "from") : business}
+              {now !== null && ` · ${dayOf(now)}`}
             </p>
           </div>
         </div>
@@ -120,6 +135,7 @@ function Bubble({ who, text, fromOwner = false, at }: { who: string; text: strin
 }
 
 function InboxPage({ business, sender }: { business: string; sender: string }) {
+  const now = useNow();
   const videos = [
     { title: TITLE, ago: 0 },
     { title: "Week 2 check-in", ago: 7 },
@@ -137,7 +153,7 @@ function InboxPage({ business, sender }: { business: string; sender: string }) {
                 <span className="block truncate font-medium text-ink">{v.title}</span>
                 <span className="block text-xs text-dim">{sender ? nameWithBusiness(sender, business, "from") : business}</span>
               </span>
-              <span className="shrink-0 pl-3 text-sm text-dim">{new Date(Date.now() - v.ago * 86_400_000).toLocaleDateString("en-US", { dateStyle: "medium" })}</span>
+              <span className="shrink-0 pl-3 text-sm text-dim">{now !== null && dayOf(now - v.ago * 86_400_000)}</span>
             </li>
           ))}
         </ul>
