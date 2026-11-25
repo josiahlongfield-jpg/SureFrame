@@ -190,8 +190,9 @@ export async function answer(ticketId: string, opts: AnswerOptions = {}): Promis
   const deadline = Date.now() + ANSWER_BUDGET_MS;
   // People who aren't paying get short answers and fewer tool turns.
   for (let turn = 0; turn < (tier === "paying" ? 5 : 3); turn++) {
-    // One deadline for the whole answer: each call gets only the time that's left, and a call that runs out of it
-    // isn't tried again (the signal ends it), so a slow answer fails in time for api/support to hand over.
+    // One deadline for the whole answer (the signal ends whatever is running when it passes), so a slow answer
+    // fails in time for api/support to hand over. Within it, one try gets 45 seconds, as before, so a try that
+    // hangs still leaves time for the client's one retry.
     const left = deadline - Date.now();
     if (left < 2_000) throw new Error("The assistant ran out of time");
     const response = await anthropic().beta.messages.create({

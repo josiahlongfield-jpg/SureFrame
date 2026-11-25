@@ -70,7 +70,7 @@ A business (a coach, tutor, consultant and so on) uses ${BRAND.name} to send its
 ## When videos and replies leave the servers
 - Some businesses keep videos until they delete them. Otherwise a video's encrypted copy on ${BRAND.name}'s servers is deleted ${RETENTION_DAYS} days after it was recorded, and the video page shows the date ("This video will be deleted from ${BRAND.name} on ..."). Save it to the device before then to keep a copy.
 - A video or voice reply's encrypted copy leaves the servers ${RETENTION_DAYS} days after it's recorded, unless the business keeps videos until it deletes them. One that was recorded but never sent is deleted ${HELD_REPLY_DAYS} days after it was recorded. Text replies stay until they're deleted or the conversation is deleted.
-- Once a video's server copy is deleted, its link says "This link has expired" and it can't be watched or brought back by ${BRAND.name}. Ask the business to send it again if it's still needed. A deleted video or voice reply shows "This reply has been deleted from ${BRAND.name}."
+- Once a video's server copy is deleted, its page says "This recording has been deleted from ${BRAND.name}. Ask the sender if they kept a copy." and it can't be watched or brought back by ${BRAND.name}. The business may still have a copy if it saved one, so ask the business if it's still needed. A deleted video or voice reply shows "This reply has been deleted from ${BRAND.name}."
 - If the business deletes a video, its conversation goes with it.
 
 ## When a link stops working

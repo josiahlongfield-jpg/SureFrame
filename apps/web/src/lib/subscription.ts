@@ -268,9 +268,10 @@ export async function reconcileSubscriptions(budgetMs = 120_000) {
       // so a day with nothing new changes nothing and emails nobody.
       else if (sub.metadata?.workspaceId === w.id && (!ACTIVE_STATUSES.has(sub.status) || sub.status !== w.subscriptionStatus)) {
         await syncSubscription(sub);
-        // The webhook's other step for one that ended: a referred business leaving stops its sharer's 10%.
-        // Loaded here because lib/referrals.ts imports this file.
-        if (!ACTIVE_STATUSES.has(sub.status)) await (await import("@/lib/referrals")).referredBusinessLeft(w.id);
+        // The webhook's other step for one that ended for good (not one only behind on payment, which can come
+        // back): a referred business leaving stops its sharer's 10%. Loaded here because lib/referrals.ts imports
+        // this file.
+        if (sub.status === "canceled" || sub.status === "incomplete_expired") await (await import("@/lib/referrals")).referredBusinessLeft(w.id);
       }
       else if (w.billingInterval !== intervalOf(sub)) await db.workspace.update({ where: { id }, data: { billingInterval: intervalOf(sub) } });
     } catch (err) {

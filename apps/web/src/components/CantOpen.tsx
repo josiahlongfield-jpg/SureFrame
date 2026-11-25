@@ -11,6 +11,7 @@ export default function CantOpen({
   children,
   action,
   signInNext,
+  signedIn,
   testId,
 }: {
   title: string;
@@ -18,6 +19,8 @@ export default function CantOpen({
   action?: ReactNode;
   /** Adds "Are you the business? Sign in", returning here. */
   signInNext?: string;
+  /** Already signed in to SureFrame: the small line leads to their Library rather than asking them to sign in again. */
+  signedIn?: boolean;
   testId?: string;
 }) {
   return (
@@ -31,7 +34,11 @@ export default function CantOpen({
       {signInNext && (
         <p className="mt-6 text-xs text-dim">
           Are you the business?{" "}
-          <a href={`/login?next=${encodeURIComponent(signInNext)}`} className="font-medium text-accent hover:underline">Sign in</a>
+          {signedIn ? (
+            <a href="/library" className="font-medium text-accent hover:underline">Go to your Library</a>
+          ) : (
+            <a href={`/login?next=${encodeURIComponent(signInNext)}`} className="font-medium text-accent hover:underline">Sign in</a>
+          )}
         </p>
       )}
     </div>

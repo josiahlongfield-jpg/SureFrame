@@ -84,7 +84,8 @@ export async function pruneConnectors(now = new Date()) {
   // Use records of a business on legal hold are kept until the hold is lifted.
   await db.connectorUse.deleteMany({ where: { createdAt: { lt: useCutoff }, grant: { workspace: { legalHoldAt: null } } } });
   await db.connectorGrant.deleteMany({
-    where: { OR: [{ revokedAt: { lt: useCutoff } }, { kind: "online", refreshExpiresAt: { lt: useCutoff } }] },
+    // Deleting a connection takes its use records with it, so a held business's connections wait too.
+    where: { workspace: { legalHoldAt: null }, OR: [{ revokedAt: { lt: useCutoff } }, { kind: "online", refreshExpiresAt: { lt: useCutoff } }] },
   });
   await db.oAuthCode.deleteMany({ where: { expiresAt: { lt: now } } });
   // Registrations nobody has a connection from (Claude registers afresh for each new connection): a day is

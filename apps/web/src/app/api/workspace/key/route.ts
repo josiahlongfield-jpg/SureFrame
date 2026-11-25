@@ -18,7 +18,11 @@ export const POST = handle(async (req: Request) => {
   }
   if (!workspace.keyFingerprint) {
     const res = await db.workspace.updateMany({ where: { id: workspace.id, keyFingerprint: null }, data: { keyFingerprint: body.data.fingerprint } });
-    if (res.count === 0) throw new HttpError(409, "Another device just set up this business's key. Enter your recovery key instead.");
+    if (res.count === 0) {
+      // Set a moment ago by another request. The same key (another tab of the same browser) is fine.
+      const now = await db.workspace.findUnique({ where: { id: workspace.id }, select: { keyFingerprint: true } });
+      if (now?.keyFingerprint !== body.data.fingerprint) throw new HttpError(409, "Another device just set up this business's key. Enter your recovery key instead.");
+    }
   }
   return Response.json({ ok: true });
 });

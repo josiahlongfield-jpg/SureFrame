@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { auth } from "@/auth";
 import ClientHeader from "@/components/ClientHeader";
 import RecoverUploads from "@/components/RecoverUploads";
 import MadeWith from "@/components/MadeWith";
@@ -276,7 +277,13 @@ export default async function Inbox({
                   business that sent it for your personal link.
                 </p>
               )}
-              {arrived === "replaced" && <p data-testid="client-replaced">The business that sent you this link replaced it to keep your videos secure. Ask them for your new link.</p>}
+              {arrived === "replaced" && (
+                <p data-testid="client-replaced">
+                  The business that sent you this link replaced it to keep your videos secure.{" "}
+                  {/* This device already holds the new link for every replaced one it knows of: nothing to ask for. */}
+                  {replacedAll.length > 0 ? "This device already has your new link, so there's nothing you need to do." : "Ask them for your new link."}
+                </p>
+              )}
               {inCard.map((n) => (
                 <p key={n.key} data-testid={n.testId}>{n.text}</p>
               ))}
@@ -301,7 +308,7 @@ export default async function Inbox({
         {clients.length === 0 ? (
           notices.length > 0 || arrived || replacedBy.length ? null : (
             <div className="mt-6">
-              <CantOpen title="No videos on this device yet" testId="inbox-empty" signInNext="/library">
+              <CantOpen title="No videos on this device yet" testId="inbox-empty" signInNext="/library" signedIn={!!(await auth())?.user?.id}>
                 <p>Open the personal link you were sent, and your videos show here on this device.</p>
               </CantOpen>
             </div>

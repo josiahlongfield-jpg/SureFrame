@@ -113,6 +113,18 @@ export function useTeamKey(workspaceId: string, fingerprint: string | null, onUn
         return;
       }
       if (fingerprint) {
+        // A key this browser made whose answer from the server never came back (createTeamKey): if it's the one the
+        // server registered, it's the business's key, kept now under its real name.
+        const waiting = local ? null : await loadKey(`${teamKeyName(workspaceId)}.waiting`);
+        if (waiting && (await keyFingerprint(waiting)) === fingerprint) {
+          await saveKey(teamKeyName(workspaceId), waiting);
+          dropKey(`${teamKeyName(workspaceId)}.waiting`);
+          if (cancelled) return;
+          setState({ kind: "ready", key: waiting });
+          // The header shows the new recovery key until it's saved (components/RecoveryKey.tsx).
+          window.dispatchEvent(new CustomEvent(KEY_CREATED, { detail: workspaceId }));
+          return;
+        }
         const updated = local ? await catchUp(workspaceId, local) : null;
         if (!cancelled) setState(updated ? { kind: "ready", key: updated } : { kind: "recover" });
         return;

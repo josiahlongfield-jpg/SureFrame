@@ -114,9 +114,12 @@ const STATE_NOTE: Record<NonNullable<ReturnType<typeof clientBlock>> | "ok", str
 /** What the page itself shows about the video they're on, if it's theirs: no title, message or replies. */
 async function videoNote(client: HelpClient, videoId: string | undefined) {
   if (!videoId) return null;
-  const video = await db.video.findUnique({ where: { id: videoId }, select: { clientId: true, replyToId: true, expiresAt: true, purgeAt: true } });
+  const video = await db.video.findUnique({ where: { id: videoId }, select: { clientId: true, replyToId: true, status: true, expiresAt: true, purgeAt: true } });
   if (!video || video.replyToId || video.clientId !== client.id) return null;
-  if (video.expiresAt && video.expiresAt < new Date()) return 'This video\'s server copy has been deleted: the page says "This link has expired".';
+  // A link given an end date (none are made now) shows its own page (app/v/[id]/page.tsx).
+  if (video.expiresAt && video.expiresAt < new Date()) return 'This video can no longer be opened: the page says "This link has expired".';
+  // The server copy went at the end of its keeping time (lib/retention.ts): the words on the video page (components/WatchView.tsx).
+  if (video.status === "EXPIRED") return `This video's server copy has been deleted: the page says "This recording has been deleted from ${BRAND.name}. Ask the sender if they kept a copy."`;
   return video.purgeAt ? "The page shows the date this video will be deleted from the servers." : "This video is kept until the business deletes it (no deletion date shown).";
 }
 
