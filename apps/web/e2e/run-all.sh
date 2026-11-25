@@ -9,6 +9,7 @@ set -u
 : "${APP_DIR:?set APP_DIR to the apps/web folder of your clone}"
 CHROMIUM=${CHROMIUM:-}  # empty uses the Chromium Playwright installed (npx playwright install chromium)
 OUT=${OUT:-/tmp/claude-0/suites}; P=${P:-3130}; DB=${DB:-framecast_suites}
+BUILD_FLAGS=${BUILD_FLAGS---turbopack}  # the same builder the live site uses ("npm run build"); BUILD_FLAGS= for the older one
 mkdir -p "$OUT"; : > "$OUT/summary.txt"
 # The fake Stripe keeps its state in a file. Give each run its own, so another test server on this machine
 # (which would otherwise share the default file in the temp folder) can never swap the price list under it.
@@ -28,7 +29,7 @@ group() { # name, build env, server env, suite env, suites...
   dropdb --maintenance-db="$MAINT" --if-exists $DB 2>/dev/null; createdb --maintenance-db="$MAINT" $DB || { echo "createdb failed"; exit 1; }
   npx prisma migrate deploy > "$L/migrate.log" 2>&1 || { echo "migrate failed"; exit 1; }
   if [ -n "$BUILDENV" ] || [ ! -f .next/BUILD_ID ] || [ -n "${REBUILD:-}" ]; then
-    env $COMMON $BUILDENV npx next build > "$L/build.log" 2>&1 || { echo "build failed: $L/build.log"; exit 1; }
+    env $COMMON $BUILDENV npx next build $BUILD_FLAGS > "$L/build.log" 2>&1 || { echo "build failed: $L/build.log"; exit 1; }
     REBUILD=$BUILDENV  # rebuild again after a group with special build settings
   fi
   env $COMMON $SERVENV setsid npx next start -p $P > "$L/server.log" 2>&1 < /dev/null &
