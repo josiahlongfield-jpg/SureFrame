@@ -31,7 +31,7 @@ group() { # name, build env, server env, suite env, suites...
   env $COMMON $SERVENV setsid npx next start -p $P > "$L/server.log" 2>&1 < /dev/null &
   for i in $(seq 1 60); do curl -s -o /dev/null --max-time 60 http://localhost:$P/login && break; sleep 2; done
   for s in "$@"; do
-    env BASE=http://localhost:$P PGDATABASE=$DB CHROMIUM=$CHROMIUM $RUNENV timeout 900 node e2e/$s.mjs "$L/shots" > "$L/$s.log" 2>&1; rc=$?
+    env BASE=http://localhost:$P PGDATABASE=$DB CHROMIUM=$CHROMIUM CRON_SECRET=test-cron-secret DEV_LOG="$L/server.log" $RUNENV timeout 900 node e2e/$s.mjs "$L/shots" > "$L/$s.log" 2>&1; rc=$?
     echo "$s rc=$rc pass=$(grep -c ^PASS "$L/$s.log") fail=$(grep -c ^FAIL "$L/$s.log")" | tee -a "$OUT/summary.txt"
   done
   fuser -k $P/tcp >/dev/null 2>&1
