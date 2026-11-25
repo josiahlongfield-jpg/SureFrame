@@ -81,7 +81,8 @@ export async function makeDesktopGrant(userId: string, workspaceId: string) {
 /** Daily clean-up: old use records, connections disconnected or unused past their sign-in, spent sign-in codes. */
 export async function pruneConnectors(now = new Date()) {
   const useCutoff = new Date(now.getTime() - USE_KEEP_DAYS * 86_400_000);
-  await db.connectorUse.deleteMany({ where: { createdAt: { lt: useCutoff } } });
+  // Use records of a business on legal hold are kept until the hold is lifted.
+  await db.connectorUse.deleteMany({ where: { createdAt: { lt: useCutoff }, grant: { workspace: { legalHoldAt: null } } } });
   await db.connectorGrant.deleteMany({
     where: { OR: [{ revokedAt: { lt: useCutoff } }, { kind: "online", refreshExpiresAt: { lt: useCutoff } }] },
   });

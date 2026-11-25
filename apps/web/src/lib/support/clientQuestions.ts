@@ -92,7 +92,8 @@ ${unansweredLines.length ? `<ul style="margin:0;padding-left:20px">${unansweredL
 /** Questions older than CLIENT_QUESTION_KEEP_DAYS, and digest records older than a year. */
 export async function pruneClientQuestions(now = new Date()) {
   const [questions] = await Promise.all([
-    db.clientQuestion.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - CLIENT_QUESTION_KEEP_DAYS * DAY_MS) } } }),
+    // Not those of a business on legal hold: they wait until the hold is lifted.
+    db.clientQuestion.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - CLIENT_QUESTION_KEEP_DAYS * DAY_MS) }, workspace: { legalHoldAt: null } } }),
     db.clientQuestionDigest.deleteMany({ where: { sentAt: { lt: new Date(now.getTime() - 365 * DAY_MS) } } }),
   ]);
   return questions.count;

@@ -91,6 +91,8 @@ export async function pruneNotifications(now = new Date()) {
   const day = 86_400_000;
   const { count } = await db.notification.deleteMany({
     where: {
+      // Nothing of a business on legal hold is cleaned up (as with its recordings and clients).
+      workspace: { legalHoldAt: null },
       OR: [
         { readAt: { lt: new Date(now.getTime() - READ_DAYS * day) } },
         { createdAt: { lt: new Date(now.getTime() - UNREAD_DAYS * day) } },
