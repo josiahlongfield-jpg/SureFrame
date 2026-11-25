@@ -266,11 +266,11 @@ const down = await owner.request.post(BASE + "/api/billing/checkout", { data: { 
 ok("downgrade to Solo blocked while staff remain", down.status() === 400);
 
 // An owner can't delete their account and strand their staff.
+// The page says so up front and the confirm box is switched off (WB-5), so there's nothing to type or press.
 await owner.goto(BASE + "/settings/account");
-await owner.fill('input[name="confirm"]', `owner${stamp}@example.com`);
-await owner.click("text=Delete my account");
-await owner.click("[data-testid=delete-account-yes]");
-await owner.waitForURL((u) => u.searchParams.get("error") === "team");
+await owner.waitForSelector('input[name="confirm"]');
+ok("owner with staff is told to remove them first", ((await owner.textContent("[data-testid=delete-owns-team]").catch(() => "")) ?? "").replace(/\s+/g, " ").includes("You own a team with other staff. Remove them in Settings > Team and staff first."));
+ok("and the delete box is switched off", await owner.isDisabled('input[name="confirm"]'));
 ok("owner with staff can't delete their account", !!(await prisma.user.findUnique({ where: { email: `owner${stamp}@example.com` } })));
 
 // Removing staff puts their clients back in the shared list.
