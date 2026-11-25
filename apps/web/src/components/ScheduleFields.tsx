@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { browserTimeZone, localParts, PRESET_REMINDERS, ruleLabel, sameRule, type ReminderRule, type Repeat } from "@/lib/schedule";
+import { browserTimeZone, localParts, PRESET_REMINDERS, reminderStillComing, ruleLabel, sameRule, type ReminderRule, type Repeat } from "@/lib/schedule";
 
 export type Schedule = {
   due: string; // datetime-local value, "" for none
@@ -48,6 +48,7 @@ export default function ScheduleFields({
   clientName,
   clientEmail,
   clientOptedOut,
+  clientLinkOpened,
   canShareReminders,
   teamLabel = "Email me",
   tz,
@@ -59,6 +60,8 @@ export default function ScheduleFields({
   clientName?: string;
   clientEmail?: string | null;
   clientOptedOut?: boolean;
+  /** False while the client has never opened their personal link: reminder emails wait until they have (lib/reminders.ts). */
+  clientLinkOpened?: boolean;
   /** The to-do is shared with a client, so the client can be reminded. */
   canShareReminders: boolean;
   /** What the team reminder checkbox says: "Email me", "Email the team"... */
@@ -67,6 +70,12 @@ export default function ScheduleFields({
   const set = (patch: Partial<Schedule>) => onChange({ ...value, ...patch });
   const first = clientName?.split(" ")[0] ?? "client";
   const zone = tz || browserTimeZone();
+  // Someone is to be emailed, the due time is still ahead, and yet none of the chosen reminders can go (each one's time
+  // has passed already, or falls too long after the due time): say so here, while it can still be changed.
+  const dueAt = value.due ? new Date(value.due) : null;
+  const emailing = value.remindTeam || (canShareReminders && value.remindClient && !!clientEmail);
+  const noneCanGo =
+    emailing && !!dueAt && dueAt.getTime() > Date.now() && value.reminders.length > 0 && !value.reminders.some((r) => reminderStillComing(dueAt, r, zone));
 
   return (
     <div className="grid gap-3 text-sm">
@@ -116,6 +125,17 @@ export default function ScheduleFields({
                   {teamLabel}
                 </label>
               </div>
+            )}
+            {/* The reminder email's link carries no key, so it only goes to a client who has opened their personal link. */}
+            {value.reminders.length > 0 && canShareReminders && value.remindClient && !!clientEmail && !clientOptedOut && clientLinkOpened === false && (
+              <p className="mt-1 text-xs text-warn-fg" data-testid="reminder-needs-link">
+                {first} gets reminder emails once they&apos;ve opened their personal link.
+              </p>
+            )}
+            {noneCanGo && (
+              <p className="mt-1 text-xs text-warn-fg" data-testid="reminder-too-soon">
+                This is due too soon for {value.reminders.length === 1 ? "that reminder" : "those reminders"}, so no reminder email will go. Choose a shorter one.
+              </p>
             )}
           </div>
         </div>

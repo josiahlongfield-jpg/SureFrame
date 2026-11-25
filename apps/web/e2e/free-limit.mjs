@@ -90,11 +90,11 @@ ok("and the video is finished", (await prisma.video.findUnique({ where: { id: v5
 const stream = await a.request.get(`${BASE}/api/videos/${v5}/stream`);
 ok("with its bytes intact", stream.ok() && (await stream.body()).length === 1000, `${stream.status()}`);
 
-// An upload refused at completion (too long for the plan) never uses a place.
+// An upload refused at completion (far too long for the plan: more than twice its length) never uses a place.
 const v6 = (await (await start()).json()).video.id;
 await part(v6);
-const long = await complete(v6, 6 * 60 * 1000);
-ok("a recording over 5 minutes is refused", long.status() === 413, String(long.status()));
+const long = await complete(v6, 11 * 60 * 1000);
+ok("a recording over twice the 5 minutes is refused", long.status() === 413, String(long.status()));
 ok("refused uploads don't count", (await counter(wsA)) === 11);
 ok("and aren't left holding a place", (await prisma.video.findUnique({ where: { id: v6 } })).status === "EXPIRED");
 
@@ -110,8 +110,13 @@ const mine = await (await startReply(a.request)).json();
 ok("a team video reply on Free is capped at 5 minutes", mine.maxDurationMin === 5, JSON.stringify(mine));
 const tok = { "x-upload-token": mine.uploadToken };
 await part(mine.mediaId, tok);
-const longReply = await complete(mine.mediaId, 6 * 60 * 1000, tok);
-ok("a 6-minute team reply on Free is refused", longReply.status() === 413, String(longReply.status()));
+const longReply = await complete(mine.mediaId, 11 * 60 * 1000, tok);
+ok("an 11-minute team reply on Free is refused (over twice its 5 minutes)", longReply.status() === 413, String(longReply.status()));
+// One that ran a little over is kept, not thrown away: the browser's own stop can come late in a background tab.
+const over = await (await startReply(a.request)).json();
+await part(over.mediaId, { "x-upload-token": over.uploadToken });
+const keptReply = await complete(over.mediaId, 6 * 60 * 1000, { "x-upload-token": over.uploadToken });
+ok("a team reply a minute over the limit is kept", keptReply.ok() && (await prisma.video.findUnique({ where: { id: over.mediaId } })).status === "UPLOADED", String(keptReply.status()));
 const voice = await (await startReply(a.request, "AUDIO")).json();
 await part(voice.mediaId, { "x-upload-token": voice.uploadToken });
 ok("a short team voice reply goes through", (await complete(voice.mediaId, 60_000, { "x-upload-token": voice.uploadToken })).ok());

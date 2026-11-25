@@ -2,7 +2,12 @@ import { db } from "@/lib/db";
 import { storage } from "@/lib/storage";
 import { viewerFor } from "@/lib/access";
 
-/** Serve the raw recording with HTTP Range support so players can seek. */
+/**
+ * Serves the stored recording. An encrypted one (every recording made in the browser) is never played from here: the
+ * watch page downloads the whole file, decrypts it on the device and plays that copy (components/SecureMedia.tsx
+ * useDecryptedUrl), so nothing seeks through this address. With object storage the request is sent on to the bucket;
+ * Range requests are answered here only when files are kept on this server's own disk (development).
+ */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const video = await db.video.findUnique({ where: { id } });

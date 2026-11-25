@@ -10,7 +10,11 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const dist = join(here, "dist");
 const bundle = join(dist, "bundle");
+// One version number: src/manifest.json's, which Claude Desktop shows. The server reads it from there when it runs
+// (server/index.js); package.json has to say the same.
 const { version } = JSON.parse(readFileSync(join(here, "src/manifest.json"), "utf8"));
+const pkg = JSON.parse(readFileSync(join(here, "src/package.json"), "utf8")).version;
+if (pkg !== version) throw new Error(`src/package.json says version ${pkg} but src/manifest.json says ${version}: make them the same, then build again.`);
 
 rmSync(dist, { recursive: true, force: true });
 cpSync(join(here, "src"), bundle, { recursive: true });

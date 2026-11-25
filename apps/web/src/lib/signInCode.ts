@@ -1,10 +1,10 @@
 import crypto from "node:crypto";
 import { db } from "@/lib/db";
 import { appSecret, safeEqual } from "@/lib/secrets";
-import { CODE_MINUTES, CODE_TRIES } from "@/lib/signInCodeRules";
+import { CODE_DIGITS, CODE_MINUTES, CODE_TRIES } from "@/lib/signInCodeRules";
 
 /**
- * The 6-digit code emailed instead of a link when someone signs in to connect Claude (lib/connector,
+ * The 8-digit code emailed instead of a link when someone signs in to connect Claude (lib/connector,
  * lib/signInLink.ts forClaude). Claude's sign-in window has to finish the connection itself, and an emailed link
  * would open in another browser, so the code is typed on the Check your email page in that window. Josiah
  * (22 October 2026): codes only for this; every other sign-in email has the link.
@@ -32,7 +32,9 @@ function open(sealed: string) {
 
 /** Makes the code for a sign-in email that links to `callbackUrl` (Auth.js's). Only the newest code for an address works. */
 export async function makeSignInCode(email: string, callbackUrl: string, now = new Date()) {
-  const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+  // Eight digits: with the tries allowed per code and per day (app/login/code/route.ts), guessing someone's code is
+  // about 1 chance in 10 million per address per day.
+  const code = crypto.randomInt(0, 10 ** CODE_DIGITS).toString().padStart(CODE_DIGITS, "0");
   const url = new URL(callbackUrl);
   await db.$transaction([
     db.signInCode.deleteMany({ where: { email } }),
@@ -48,7 +50,7 @@ export type CodeResult = { link: string } | { error: "code" | "wrong" | "expired
 /** Checks a typed code. A right one is used up and gives the sign-in link to send the browser to. */
 export async function redeemSignInCode(email: string, typed: string, now = new Date()): Promise<CodeResult> {
   const code = typed.replace(/\D/g, "");
-  if (code.length !== 6) return { error: "code" };
+  if (code.length !== CODE_DIGITS) return { error: "code" };
   const row = await db.signInCode.findFirst({ where: { email }, orderBy: { createdAt: "desc" } });
   if (!row || row.expiresAt <= now) return { error: "expired" };
   // Each try is counted in the database before the code is checked, so even tries sent all at once stop at the limit.

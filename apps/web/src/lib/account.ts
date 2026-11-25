@@ -2,6 +2,7 @@ import { db, type Workspace } from "@/lib/db";
 import { storage } from "@/lib/storage";
 import { stripe } from "@/lib/stripe";
 import { isMissing } from "@/lib/subscription";
+import { deleteUnusedNewBusinessCustomers } from "@/lib/newBusiness";
 import { clientScopeWhere, permsOf, seesAllClients } from "@/lib/permissions";
 import { enforceSeatLimits } from "@/lib/seatLimits";
 import { brandOf } from "@/lib/branding";
@@ -77,6 +78,8 @@ export async function deleteAccount(userId: string) {
   for (const w of own) await stopBilling(w);
 
   const user = await db.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
+  // Customers made in Stripe by Start your own business and never paid on carry their name and email, so they go too.
+  if (user) await deleteUnusedNewBusinessCustomers({ id: userId, email: user.email });
   const leaver = leaverName(user);
   // Normally done when they closed the account; anything left is finished here.
   for (const w of teams) await leaveTeam(userId, w, leaver);

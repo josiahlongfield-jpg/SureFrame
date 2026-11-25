@@ -3,13 +3,16 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import * as store from "@/lib/recorder/store";
 import { ChunkedUploader, FatalUploadError, lockName, mayRecover, type UploadState } from "@/lib/recorder/uploader";
-import { bitrateFor, getCameraAndMic, getMic, pickMimeType, stopAll, type CameraPick, type Facing } from "@/lib/recorder/media";
+import { useLeaveGuard } from "@/lib/recorder/leaving";
+import { reportClientError } from "@/lib/clientError";
+import { bitrateFor, canRecord, getCameraAndMic, getMic, pickMimeType, stopAll, type CameraPick, type Facing } from "@/lib/recorder/media";
 import { cameraSides, hasFrontAndBack } from "@/lib/recorder/cameras";
 import { encryptFrame, encryptText, generateKey, wrapKey } from "@/lib/e2e/crypto";
 import type { ReplyDTO } from "@/lib/replies";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
 import MicLevel from "./MicLevel";
 import MediaPlayer from "./MediaPlayer";
+import ConfirmDialog from "./ConfirmDialog";
 import { useVideoFrame } from "@/lib/videoFrame";
 
 type Mode = "TEXT" | "VIDEO" | "AUDIO";
@@ -30,6 +33,9 @@ const fmt = (ms: number) => {
   const s = Math.floor(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
+
+/** Discard or Re-record couldn't delete the recording from the server: it's still there unsent, where a reload shows it. */
+const NOT_DELETED = "The recording couldn't be deleted just now, so it's kept as an unsent reply. Reload this page to delete it.";
 
 /** Deletes one of the viewer's own replies (and its recording) from the conversation. */
 export async function deleteReply(videoId: string, replyId: string) {
@@ -77,10 +83,15 @@ type Props = {
   onAsk?: () => void;
   /** Told when a recorded reply is waiting to be sent or discarded, so the page can say so while the box is closed (C34). */
   onReviewChange?: (waiting: boolean) => void;
+  /**
+   * The longest video or voice reply this viewer can record, in minutes (lib/plans.ts replyMaxMinutes), so the note
+   * before recording is right from the start. Left out, it's a client's limit; the server's answer still decides.
+   */
+  maxMinutes?: number;
 };
 
 const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyComposer(
-  { videoId, conversationKey, currentTimeMs, onReplied, onBusyChange, offscreen = false, sentNote, onAsk, onReviewChange },
+  { videoId, conversationKey, currentTimeMs, onReplied, onBusyChange, offscreen = false, sentNote, onAsk, onReviewChange, maxMinutes = 15 },
   ref,
 ) {
   const [mode, setMode] = useState<Mode>("TEXT");
@@ -102,10 +113,13 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   const [upload, setUpload] = useState<UploadState>();
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
-  const [maxMs, setMaxMs] = useState(15 * 60_000);
+  const [maxMs, setMaxMs] = useState(maxMinutes * 60_000);
   const [session, setSession] = useState(0);
   // The recording under review: played back from this device's own copy while its upload finishes.
-  const [review, setReview] = useState<{ url: string; kind: "VIDEO" | "AUDIO"; uploaded: boolean } | null>(null);
+  // `failed`: the upload stopped for good or for now (the reason is shown), so there's nothing to send yet.
+  const [review, setReview] = useState<{ url: string; kind: "VIDEO" | "AUDIO"; uploaded: boolean; failed?: boolean } | null>(null);
+  // A link inside the app pressed while recording: asks before the page is left (lib/recorder/leaving.ts).
+  const [leaveAsk, setLeaveAsk] = useState(false);
   // A text reply just went: said under the box, like "Sent" for voice and video, until the next one is typed.
   const [textSent, setTextSent] = useState(false);
   // Discarding a reviewed recording asks first, in the page (as deleting an unsent reply does).
@@ -157,6 +171,8 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
     /** The upload finishing, once stopped: true when it's all on the server. */
     finishing?: Promise<boolean>;
     discarded?: boolean;
+    /** stop() has begun, so it runs once (also when the browser stopped the recorder by itself). */
+    stopping?: boolean;
   } | null>(null);
 
   // Live camera/mic preview while a media mode is selected.
@@ -218,6 +234,24 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
     stream.current = null;
     setLiveStream(null);
   }, []);
+
+  // Leaving the page from inside the app (a link in the header, the Back button) doesn't close the tab, so nothing
+  // else would finish a reply that's being recorded: it would sit unfinished, holding its lock. It's stopped and its
+  // upload finished the normal way, and it then waits unsent, as after a closed page. Declared before the effect that
+  // lets go of the camera, so this runs first and the recorder hands over its last piece.
+  const gone = useRef(false);
+  const stopNow = useRef(stop);
+  useEffect(() => {
+    stopNow.current = stop;
+  });
+  useEffect(() => {
+    gone.current = false;
+    return () => {
+      gone.current = true;
+      void stopNow.current();
+    };
+  }, []);
+  useLeaveGuard(phase === "recording", () => setLeaveAsk(true));
 
   // Release the camera when leaving media modes or unmounting.
   useEffect(() => {
@@ -292,10 +326,27 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
     onReplied(data.reply);
   }
 
+  // Record stays enabled until the phase changes, several awaits into begin(): a double press in that gap would
+  // start two recordings on one camera and leave a stray unsent reply. Only one start runs at a time.
+  const starting = useRef(false);
   async function start() {
+    if (starting.current) return;
+    starting.current = true;
+    try {
+      await begin();
+    } finally {
+      starting.current = false;
+    }
+  }
+
+  async function begin() {
     if (!stream.current) return;
     setError(undefined);
     setNotice(undefined);
+    setLeaveAsk(false);
+    // A browser without what recording needs (very old iPhones and iPads): said now, before a reply is made on the
+    // server that could never be recorded.
+    if (!canRecord()) return setError("This browser can't record a reply. Try another up-to-date browser, or send a text reply.");
     const kind = mode === "VIDEO" ? "VIDEO" : "AUDIO";
     const mimeType = kind === "VIDEO" ? pickMimeType() : pickAudioType();
     const mediaKey = await generateKey();
@@ -308,50 +359,88 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
     const data = await res?.json().catch(() => ({}));
     if (!res?.ok) return setError(data?.error ?? "Couldn't start your reply. Check your connection and try again.");
     setMaxMs(data.maxDurationMin * 60_000);
+    const limitMs: number = data.maxDurationMin * 60_000;
     const mediaId: string = data.mediaId;
 
-    await store.putSession({
-      videoId: mediaId,
-      title: "Reply",
-      mimeType,
-      startedAt: Date.now(),
-      nextPart: 1,
-      durationMs: 0,
-      stopped: false,
-      uploadToken: data.uploadToken,
-      replyTo: videoId,
-      pieces: true,
-    });
     let release = () => {};
-    await new Promise<void>((held) => {
-      navigator.locks.request(lockName(mediaId), () => new Promise<void>((r) => {
-        release = r;
-        held();
-      }));
-    });
+    try {
+      // The lock first, then the local record: another tab's recovery never sees this recording without its lock.
+      await new Promise<void>((held) => {
+        navigator.locks.request(lockName(mediaId), () => new Promise<void>((r) => {
+          release = r;
+          held();
+        }));
+      });
+      await store.putSession({
+        videoId: mediaId,
+        title: "Reply",
+        mimeType,
+        startedAt: Date.now(),
+        nextPart: 1,
+        durationMs: 0,
+        stopped: false,
+        uploadToken: data.uploadToken,
+        replyTo: videoId,
+        pieces: true,
+      });
+      // The camera or microphone may have been let go while the server answered.
+      const source = stream.current;
+      if (!source) throw new Error("The camera or microphone is no longer open");
 
-    const began = performance.now();
-    const uploader = new ChunkedUploader(mediaId, { uploadToken: data.uploadToken, duration: () => performance.now() - began }, setUpload);
-    const recorder = new MediaRecorder(stream.current, {
-      mimeType,
-      ...(kind === "VIDEO" ? { videoBitsPerSecond: bitrateFor(1080) } : { audioBitsPerSecond: 128_000 }),
-    });
-    recorder.ondataavailable = (e) => {
-      const l = live.current;
-      if (!l || l.discarded || e.data.size === 0) return;
-      l.raw.push(e.data);
-      // Encrypted on this device, in order, before it is saved or sent.
-      l.sealing = l.sealing
-        .then(() => encryptFrame(e.data, mediaKey))
-        .then((frame) => uploader.push(new Blob([frame as BlobPart])))
-        .catch((err) => {
-          // A gap would spoil the recording, so it ends here and what came before is kept.
-          console.error("Reply chunk failed", err);
-          void stop();
-        });
-    };
-    live.current = { recorder, uploader, mediaId, replyId: data.reply.id, startedAt: performance.now(), release, sealing: Promise.resolve(), raw: [] };
-    recorder.start(2000);
+      const began = performance.now();
+      const uploader = new ChunkedUploader(mediaId, { uploadToken: data.uploadToken, duration: () => performance.now() - began }, setUpload);
+      const recorder = new MediaRecorder(source, {
+        mimeType,
+        ...(kind === "VIDEO" ? { videoBitsPerSecond: bitrateFor(1080) } : { audioBitsPerSecond: 128_000 }),
+      });
+      recorder.ondataavailable = (e) => {
+        const l = live.current;
+        if (!l || l.discarded || e.data.size === 0) return;
+        l.raw.push(e.data);
+        // Encrypted on this device, in order, before it is saved or sent.
+        l.sealing = l.sealing
+          .then(() => encryptFrame(e.data, mediaKey))
+          .then((frame) => uploader.push(new Blob([frame as BlobPart])))
+          .catch((err) => {
+            // A gap would spoil the recording, so it ends here and what came before is kept.
+            console.error("Reply chunk failed", err);
+            void stop();
+          });
+        // The page's timer runs late in a background tab or on a locked phone, while pieces keep coming: the length
+        // limit is checked here too, so a reply can't run on well past it unnoticed.
+        if (performance.now() - l.startedAt >= limitMs) void stop();
+      };
+      // A camera or microphone that stops by itself mid-recording (unplugged, a flat battery, a phone call) ends the
+      // recording there and says why, instead of showing "Recording" with nothing going in. Turning them off
+      // ourselves doesn't fire these, and stop() and Discard are already under way when they stop the recorder.
+      const stoppedItself = `Your ${kind === "VIDEO" ? "camera or microphone" : "microphone"} stopped, so the recording ended here. What was recorded has been kept.`;
+      recorder.addEventListener("stop", () => {
+        const l = live.current;
+        if (!l || l.recorder !== recorder || l.stopping) return;
+        setNotice(stoppedItself);
+        void stop();
+      });
+      const lost = () => {
+        const l = live.current;
+        if (!l || l.recorder !== recorder || l.stopping) return;
+        setNotice(stoppedItself);
+        // A recorder already stopped (nothing left to record from) finishes from its own stop event, after its last piece.
+        if (recorder.state !== "inactive") void stop();
+      };
+      for (const t of source.getTracks()) t.addEventListener("ended", lost, { once: true });
+      live.current = { recorder, uploader, mediaId, replyId: data.reply.id, startedAt: performance.now(), release, sealing: Promise.resolve(), raw: [] };
+      recorder.start(2000);
+    } catch (err) {
+      // Couldn't start after all (the browser refused its storage, or the recording format): nothing half-made is
+      // left here or on the server, and the person is told, rather than Record seeming to do nothing.
+      console.error("Reply recording couldn't start", err);
+      reportClientError("reply-start", err);
+      live.current = null;
+      release();
+      await store.removeSession(mediaId).catch(() => {});
+      await deleteReply(videoId, data.reply.id);
+      return setError("Couldn't start recording on this device. Try another browser, or send a text reply.");
+    }
     setElapsed(0);
     focusNext.current = "stop";
     setPhase("recording");
@@ -360,17 +449,24 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   /** Stops recording and shows it for review; the upload finishes meanwhile. */
   async function stop() {
     const l = live.current;
-    if (!l || l.recorder.state === "inactive") return;
+    if (!l || l.stopping) return;
+    l.stopping = true;
     const durationMs = Math.round(performance.now() - l.startedAt);
-    const stopped = new Promise<void>((r) => l.recorder.addEventListener("stop", () => r(), { once: true }));
-    l.recorder.stop();
-    await stopped;
+    // A recorder the browser has already stopped by itself is finished off the same way.
+    if (l.recorder.state !== "inactive") {
+      const stopped = new Promise<void>((r) => l.recorder.addEventListener("stop", () => r(), { once: true }));
+      l.recorder.stop();
+      await stopped;
+    }
     await l.sealing;
     if (l.discarded) return;
     releaseCamera();
-    setReview({ url: URL.createObjectURL(new Blob(l.raw, { type: l.recorder.mimeType.split(";")[0] })), kind: mode === "VIDEO" ? "VIDEO" : "AUDIO", uploaded: false });
-    if (focusInside()) focusNext.current = "send";
-    setPhase("review");
+    // Not once the page has been left (stopped from the clean-up above): there's no review to show, only the upload to finish.
+    if (!gone.current) {
+      setReview({ url: URL.createObjectURL(new Blob(l.raw, { type: l.recorder.mimeType.split(";")[0] })), kind: mode === "VIDEO" ? "VIDEO" : "AUDIO", uploaded: false });
+      if (focusInside()) focusNext.current = "send";
+      setPhase("review");
+    }
     l.finishing = (async () => {
       try {
         await store.updateSession(l.mediaId, { durationMs, stopped: true }).catch(() => {});
@@ -379,10 +475,15 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
         return true;
       } catch (err) {
         if (!l.discarded) {
+          // Said under the player too, and Send is held back: there's nothing on the server to send (see send()).
+          if (live.current === l) setReview((r) => r && { ...r, failed: true });
           setError(
-            err instanceof FatalUploadError && !mayRecover(err)
-              ? (err as Error).message
-              : `${(err as Error).message}. Your recording is kept in this browser and finishes uploading next time you open this page here. You'll be asked then whether to send it.`,
+            // Too big for one reply. A client has no plan, so the server's wording about plans doesn't fit here.
+            err instanceof FatalUploadError && err.status === 413
+              ? "This reply is too large to upload. Record a shorter one, or send it in two parts."
+              : err instanceof FatalUploadError && !mayRecover(err)
+                ? (err as Error).message
+                : `${(err as Error).message}. Your recording is kept in this browser and finishes uploading next time you open this page here. You'll be asked then whether to send it.`,
           );
         }
         return false;
@@ -397,8 +498,9 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
     const l = live.current;
     if (!l?.finishing) return;
     setPhase("sending");
-    setError(undefined);
+    // An upload that failed has already said why (stop() above): that stays on screen, and there's nothing to send.
     if (!(await l.finishing)) return setPhase("review");
+    setError(undefined);
     const { reply, error: failed } = await sendHeldReply(videoId, l.replyId);
     if (!reply) {
       setError(failed);
@@ -415,7 +517,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   /** Throws the recording away: from the server, and from this device. */
   const throwAway = useCallback(async () => {
     const l = live.current;
-    if (!l) return;
+    if (!l) return true;
     l.discarded = true;
     live.current = null;
     if (l.recorder.state !== "inactive") {
@@ -426,7 +528,9 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
     setReview(null);
     setUpload(undefined);
     setError(undefined);
-    await deleteReply(videoId, l.replyId);
+    const deleted = await deleteReply(videoId, l.replyId);
+    // Deleted: nothing more of it is sent, and a piece that was on its way isn't reported as a failed upload.
+    if (deleted) l.uploader.cancel();
     // Any upload still going stops at its next part (the server no longer has it); then nothing is kept here.
     void (l.finishing ?? l.uploader.finish(0))
       .catch(() => {})
@@ -434,11 +538,14 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
         l.release();
         void store.removeSession(l.mediaId).catch(() => {});
       });
+    // False when the delete didn't get through (no connection, say): the recording is then still on the server,
+    // unsent, and whoever asked says so rather than "deleted".
+    return deleted;
   }, [videoId]);
 
   async function rerecord() {
     setPhase("sending");
-    await throwAway();
+    if (!(await throwAway())) setNotice(NOT_DELETED);
     focusNext.current = "record";
     setSession((n) => n + 1);
   }
@@ -446,8 +553,8 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   const discard = useCallback(async () => {
     setAskDiscard(false);
     setPhase("sending");
-    await throwAway();
-    setNotice("Recording deleted. Nothing was sent.");
+    const deleted = await throwAway();
+    setNotice(deleted ? "Recording deleted. Nothing was sent." : `Nothing was sent. ${NOT_DELETED}`);
     focusNext.current = "text";
     setMode("TEXT");
     setPhase("idle");
@@ -594,13 +701,15 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
           <p className="mt-2 text-xs text-dim" role="status">
             {review.uploaded
               ? "Ready to send."
-              : upload?.retrying
-                ? "Connection lost. It's saved on this device and keeps uploading when you're back online."
-                : "Uploading securely…"}
+              : review.failed
+                ? "This reply didn't finish uploading, so it can't be sent. The reason is below."
+                : upload?.retrying
+                  ? "Connection lost. It's saved on this device and keeps uploading when you're back online."
+                  : "Uploading securely…"}
           </p>
           <button
             onClick={send}
-            disabled={phase === "sending"}
+            disabled={phase === "sending" || !!review.failed}
             data-focus-target="send"
             className="mt-2 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
           >
@@ -745,6 +854,20 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
       )}
       {notice && <p role="status" className="mt-2 text-sm text-muted">{notice}</p>}
       {error && <p role="alert" className="mt-2 text-sm text-danger-fg">{error}</p>}
+      {leaveAsk && phase === "recording" && (
+        <ConfirmDialog
+          title="You're still recording"
+          body={<p>Leaving this page stops the recording. Stop it first, then play it back and send or discard it.</p>}
+          confirmLabel="Stop recording"
+          cancelLabel="Keep recording"
+          onConfirm={() => {
+            setLeaveAsk(false);
+            void stop();
+          }}
+          onCancel={() => setLeaveAsk(false)}
+          testId="reply-leave-confirm"
+        />
+      )}
     </div>
   );
 });

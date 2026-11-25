@@ -86,7 +86,7 @@ export async function markRead(userId: string, workspaceId: string, which: { id?
   return 0;
 }
 
-/** Old ones go (the reminders job, every 5 minutes). */
+/** Old ones go (the daily clean-up job, app/api/cron/purge). */
 export async function pruneNotifications(now = new Date()) {
   const day = 86_400_000;
   const { count } = await db.notification.deleteMany({

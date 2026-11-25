@@ -12,6 +12,10 @@ import { writeClipboard } from "@/lib/clipboard";
 /** Where the key can be shown again later, said wherever it's shown. */
 export const FIND_IT_LATER = "You can show it again any time under Settings > Account (Show recovery key) on a device that's already unlocked.";
 
+/** Where that is. The Record page sends people there instead of drawing the key, which a recording could capture. */
+const KEY_IN_SETTINGS = "/settings/account#recovery-key";
+const RECORD_PAGE = "/record";
+
 const groups = (value: string) => value.match(/.{1,4}/g) ?? [value];
 
 /**
@@ -174,9 +178,13 @@ export function useDeviceKey(workspaceId: string, fingerprint: string | null) {
   return { value };
 }
 
+/** Tells the server; false when it didn't get through, so the reminder comes back instead of quietly returning on the next page. */
 async function markSaved() {
-  await fetch("/api/workspace/key/saved", { method: "POST" }).catch(() => null);
+  const res = await fetch("/api/workspace/key/saved", { method: "POST" }).catch(() => null);
+  return !!res?.ok;
 }
+
+const NOT_NOTED = "Couldn't save that. Check your connection and try again.";
 
 /** Says at once that "I've saved it" registered, while the page catches up. */
 function SavedNote() {
@@ -196,6 +204,7 @@ export function RecoveryKeyBox({
   titled = true,
   shared = false,
   workspaceId,
+  masked = false,
 }: {
   value: string;
   business: string;
@@ -207,8 +216,11 @@ export function RecoveryKeyBox({
   shared?: boolean;
   /** For the gentle "not copied or downloaded yet" line (V69). */
   workspaceId?: string;
+  /** On the Record page: the key itself is never drawn, so a recording of the screen or of this tab can't show it. */
+  masked?: boolean;
 }) {
   const [saved, setSaved] = useState(false);
+  const [failed, setFailed] = useState(false);
   if (saved) return <SavedNote />;
   return (
     <div role="region" aria-label="Save your recovery key" className="rounded-2xl border border-warn-line bg-warn-bg p-5" data-testid="recovery-key-box">
@@ -224,8 +236,23 @@ export function RecoveryKeyBox({
           Your videos are end-to-end encrypted on this device. You&apos;ll need this key to open them on another computer, phone or browser. We can&apos;t recover it for you, so keep it somewhere private, like a password manager.
         </p>
       )}
-      <KeyText value={value} className="mt-3" />
-      <p className="mt-1 text-xs text-warn-fg">Numbers are in colour, so 0 (zero) and O, or 1 and l, can&apos;t be mixed up. Spaces don&apos;t matter.</p>
+      {masked ? (
+        <>
+          {/* Dots only: nothing of the key is drawn. (The attribute is not on screen; Copy and Download below still give the key.) */}
+          <p className="mt-3 rounded-lg bg-surface px-3 py-2 font-mono text-base tracking-wide text-ink" aria-label="Recovery key, hidden on this page" data-recovery-key={value} data-testid="recovery-key-hidden">
+            •••• •••• •••• ••••
+          </p>
+          <p className="mt-1 text-xs text-warn-fg">
+            Your key is hidden on this page, so it can&apos;t end up in a recording. Copy or download it here, or see it in Settings &gt; Account:{" "}
+            <a href={KEY_IN_SETTINGS} className="font-medium underline">Show recovery key</a>
+          </p>
+        </>
+      ) : (
+        <>
+          <KeyText value={value} className="mt-3" />
+          <p className="mt-1 text-xs text-warn-fg">Numbers are in colour, so 0 (zero) and O, or 1 and l, can&apos;t be mixed up. Spaces don&apos;t matter.</p>
+        </>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <KeyActions value={value} business={business} tone="warn" />
         <button
@@ -233,8 +260,13 @@ export function RecoveryKeyBox({
           onClick={async () => {
             // Answered straight away; the server is told in the background.
             noteIfNotKept(workspaceId);
+            setFailed(false);
             setSaved(true);
-            await markSaved();
+            if (!(await markSaved())) {
+              // Not noted: the box comes back and says so.
+              setSaved(false);
+              return setFailed(true);
+            }
             onSaved();
           }}
           className="rounded-lg bg-amber-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
@@ -247,6 +279,7 @@ export function RecoveryKeyBox({
           </button>
         )}
       </div>
+      {failed && <p role="alert" className="mt-2 text-sm font-medium text-danger-fg">{NOT_NOTED}</p>}
       <p className="mt-3 text-xs text-warn-fg">{FIND_IT_LATER}</p>
     </div>
   );
@@ -260,6 +293,7 @@ export function RecoveryKeyStep({ workspaceId, fingerprint, business }: { worksp
   const router = useRouter();
   const { value } = useDeviceKey(workspaceId, fingerprint);
   const [saved, setSaved] = useState(false);
+  const [failed, setFailed] = useState(false);
   // "Remind me later" here too, as on the banner other pages show (O8): folded to one line for this browser session.
   const [later, setLater] = useState(false);
   useEffect(() => {
@@ -292,9 +326,22 @@ export function RecoveryKeyStep({ workspaceId, fingerprint, business }: { worksp
     return (
       <div className="text-sm text-muted">
         <p>Your recovery key opens your encrypted videos on a new device. This browser doesn&apos;t hold it yet. {FIND_IT_LATER}</p>
-        <button type="button" onClick={async () => { setSaved(true); await markSaved(); router.refresh(); }} className="mt-2 rounded-lg border border-line-strong px-3 py-1.5 font-medium text-ink hover:bg-hover">
+        <button
+          type="button"
+          onClick={async () => {
+            setFailed(false);
+            setSaved(true);
+            if (!(await markSaved())) {
+              setSaved(false);
+              return setFailed(true);
+            }
+            router.refresh();
+          }}
+          className="mt-2 rounded-lg border border-line-strong px-3 py-1.5 font-medium text-ink hover:bg-hover"
+        >
           I&apos;ve saved it
         </button>
+        {failed && <p role="alert" className="mt-2 font-medium text-danger-fg">{NOT_NOTED}</p>}
       </div>
     );
   }
@@ -326,7 +373,9 @@ function bannerWidth(pathname: string | null) {
  * Under the header until its person presses "I've saved it", on every page, in
  * full: not lost after a reload or a recording. "Remind me later" folds it to
  * one line that opens it again, for the rest of this browser session. Asked
- * again after the team's keys are reset (`note` then says why).
+ * again after the team's keys are reset (`note` then says why). On the Record
+ * page the box is there but the key is drawn as dots, and "Show recovery key"
+ * goes to Settings > Account: what's on that page can end up in a recording.
  */
 export default function RecoveryKeyReminder({
   workspaceId,
@@ -372,17 +421,24 @@ export default function RecoveryKeyReminder({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (hidden || saved || !value) return null;
+  // The Record page never draws the key: a recording of the whole screen or of this tab would capture it, and the
+  // video then goes to a client. Copy, Download and "I've saved it" still work there; the key itself is shown in Settings.
+  const onRecordPage = pathname === RECORD_PAGE;
   return (
     <div className={`mx-auto ${bannerWidth(pathname)} px-4 pt-4 sm:px-6`} data-testid="recovery-key-reminder">
       {!later ? (
         <>
           {note && <p className="mb-2 text-sm font-medium text-warn-fg">{note}</p>}
-          <RecoveryKeyBox value={value} business={business} shared={shared} onSaved={() => { setSaved(true); router.refresh(); }} onLater={() => remindLater(true)} workspaceId={workspaceId} />
+          <RecoveryKeyBox value={value} business={business} shared={shared} onSaved={() => { setSaved(true); router.refresh(); }} onLater={() => remindLater(true)} workspaceId={workspaceId} masked={onRecordPage} />
         </>
       ) : (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warn-line bg-warn-bg px-4 py-2.5 text-sm text-warn-fg">
           <p>{note ?? "You haven't saved your recovery key yet. You need it to open your videos on another device."}</p>
-          <button type="button" onClick={() => remindLater(false)} className="font-medium underline">Show recovery key</button>
+          {onRecordPage ? (
+            <a href={KEY_IN_SETTINGS} className="font-medium underline">Show recovery key</a>
+          ) : (
+            <button type="button" onClick={() => remindLater(false)} className="font-medium underline">Show recovery key</button>
+          )}
         </div>
       )}
     </div>

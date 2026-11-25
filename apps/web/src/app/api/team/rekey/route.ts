@@ -16,7 +16,7 @@ export const GET = handle(async () => {
   requireRole(me, "OWNER", "ADMIN");
   const workspaceId = me.workspace.id;
   const [clients, videos, items] = await Promise.all([
-    db.client.findMany({ where: { workspaceId, teamKeyWrap: { not: null } }, select: { id: true, teamKeyWrap: true, removedAt: true, name: true, email: true, linkOpenedAt: true, pausedAt: true, linkDisabledAt: true } }),
+    db.client.findMany({ where: { workspaceId, teamKeyWrap: { not: null } }, select: { id: true, teamKeyWrap: true, removedAt: true, name: true, email: true, remindersOff: true, linkOpenedAt: true, pausedAt: true, linkDisabledAt: true } }),
     db.video.findMany({ where: { workspaceId, teamKeyWrap: { not: null } }, select: { id: true, teamKeyWrap: true, clientKeyWrap: true, clientId: true } }),
     db.item.findMany({ where: { workspaceId }, select: { id: true, body: true, clientId: true, shared: true } }),
   ]);
@@ -24,7 +24,7 @@ export const GET = handle(async () => {
     fingerprint: me.workspace.keyFingerprint,
     // Who gets their new link how, for the question asked before a removal (lib/rekey.ts decides the same way), and
     // the email for "Send from your email" on the links the team sends itself afterwards.
-    clients: clients.map((c) => ({ id: c.id, name: c.name, hasEmail: !!c.email, email: c.email, opened: !!c.linkOpenedAt, held: !!c.pausedAt || !!c.linkDisabledAt, teamKeyWrap: c.teamKeyWrap, active: !c.removedAt })),
+    clients: clients.map((c) => ({ id: c.id, name: c.name, hasEmail: !!c.email, email: c.email, emailsOff: c.remindersOff, opened: !!c.linkOpenedAt, held: !!c.pausedAt || !!c.linkDisabledAt, teamKeyWrap: c.teamKeyWrap, active: !c.removedAt })),
     videos,
     items,
   });

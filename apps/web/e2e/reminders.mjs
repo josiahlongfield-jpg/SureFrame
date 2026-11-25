@@ -70,6 +70,11 @@ if (!(await pro.isDisabled("text=Save time zone"))) {
 await pro.goto(BASE + "/settings/reminders");
 ok("Reminders links to Branding for the business name", (await pro.getAttribute("[data-testid=reminders-business] a", "href")) === "/settings/branding");
 await pro.goto(BASE + "/settings/branding");
+// A business can't take SureFrame's own name: its emails to clients would read as coming from SureFrame itself (MAIL-5).
+await pro.fill('[data-testid=business-name-form] input[aria-label="Business name"]', "Sure-Frame Support");
+await pro.click("text=Save name");
+await pro.waitForSelector("[data-testid=business-name-form] >> role=status", { timeout: 10000 }).catch(() => {});
+ok("a business name with SureFrame in it is refused, with why", ((await pro.textContent("[data-testid=business-name-form] >> role=status").catch(() => "")) ?? "") === `Enter your own business's name. It can't include "SureFrame".` && !/sure-?frame/i.test(sql(`select name from "Workspace" w join "Membership" m on m."workspaceId"=w.id order by w."createdAt" desc limit 1`)));
 await pro.fill('[data-testid=business-name-form] input[aria-label="Business name"]', "Peak Fitness");
 await pro.click("text=Save name");
 await pro.waitForSelector("[data-testid=business-name-form] >> role=status >> text=Saved");
@@ -113,7 +118,13 @@ const pad = (n) => String(n).padStart(2, "0");
 const dueLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T09:00`;
 await pro.fill('textarea[aria-label="New to-do"]', "Record your weekly check-in");
 await pro.check("text=Share with Riley");
+// Due in two hours, the default "1 week before" and "1 day before" reminders have both passed: the form says no email
+// will go, rather than looking as if one is coming (MAIL-2). The date box is in the browser's zone.
+const soonLocal = new Intl.DateTimeFormat("sv-SE", { timeZone: TZ, dateStyle: "short", timeStyle: "short" }).format(new Date(Date.now() + 2 * 3600_000)).replace(" ", "T");
+await pro.fill('input[aria-label="Due date"]', soonLocal);
+ok("due too soon for its reminders: the form says no reminder email will go", ((await pro.textContent("[data-testid=reminder-too-soon]", { timeout: 5000 }).catch(() => "")) ?? "").includes("so no reminder email will go"));
 await pro.fill('input[aria-label="Due date"]', dueLocal);
+ok("with time for a reminder, that note goes", (await pro.locator("[data-testid=reminder-too-soon]").count()) === 0);
 await pro.selectOption('select[aria-label="Repeat"]', { label: "Every week on Sunday" });
 const pressed = await pro.$$eval("role=group[name='Reminders'] >> button[aria-pressed=true]", (b) => b.map((x) => x.textContent));
 ok("business defaults pre-selected", pressed.join() === "1 week before,1 day before", pressed.join());
@@ -123,19 +134,30 @@ await pro.fill('input[aria-label="Reminder amount"]', "2");
 await pro.selectOption('select[aria-label="Reminder unit"]', "hour");
 await pro.click("text=Add reminder");
 ok("Email Riley ticked by default", await pro.isChecked("text=Email Riley"));
+// Riley hasn't opened their personal link yet, and a reminder email's link carries no key (MAIL-1).
+ok("the form says Riley gets emails once they've opened their link", ((await pro.textContent("[data-testid=reminder-needs-link]", { timeout: 5000 }).catch(() => "")) ?? "").trim() === "Riley gets reminder emails once they've opened their personal link.");
 await pro.screenshot({ path: `${shots}/reminder-form.png`, fullPage: true });
 await pro.click("form >> button:has-text('Add')");
 await pro.waitForSelector("li:has-text('Record your weekly check-in')");
 const rowText = await pro.textContent("li:has-text('Record your weekly check-in')");
 ok("row shows the repeat", rowText.includes("Every week on Sun"), rowText);
-ok("row shows reminders and who gets them", rowText.includes("1 week before, 1 day before, On the day at 8am, 2 hours before") && rowText.includes("· Riley"), rowText);
+ok("no reminder line on the row while nobody would be emailed (Riley hasn't opened their link)", !rowText.includes("1 week before") && !rowText.includes("· Riley"), rowText);
 const itemId = sql(`select id from "Item" where "clientId"='${clientId}'`);
 const times = sql(`select string_agg(to_char(("sendAt" at time zone 'UTC') at time zone '${TZ}', 'Dy HH24:MI'), ',' order by "sendAt") from "Reminder" where "itemId"='${itemId}'`);
 ok("4 reminders scheduled at the right local times", times === "Sun 09:00,Sat 09:00,Sun 07:00,Sun 08:00", times);
 
-// 4. The reminder job sends one that's due
+// 4. The reminder job sends one that's due, but not to a client who has never opened their personal link (MAIL-1).
 sql(`update "Reminder" set "sendAt" = now() - interval '1 minute' where id = (select id from "Reminder" where "itemId"='${itemId}' order by "sendAt" limit 1)`);
 ok("reminder job needs the secret", (await cron("")).status === 401);
+const run0 = await cron();
+ok("no reminder email before the client has opened their personal link", run0.body?.sent === 0 && run0.body?.skipped === 1 && mailTo("riley@example.com").length === 0 && sql(`select error from "Reminder" where "itemId"='${itemId}' and "sentAt" is not null`) === "link not opened", JSON.stringify(run0.body));
+// Once they have (recorded here; step 5 opens it for real), the row says who gets the reminders and the next one goes.
+sql(`update "Client" set "linkOpenedAt" = now() where id='${clientId}'`);
+await pro.reload();
+await pro.waitForSelector("li:has-text('Record your weekly check-in')");
+const rowAfter = await pro.textContent("li:has-text('Record your weekly check-in')");
+ok("row shows reminders and who gets them", rowAfter.includes("1 week before, 1 day before, On the day at 8am, 2 hours before") && rowAfter.includes("· Riley"), rowAfter);
+sql(`update "Reminder" set "sendAt" = now() - interval '1 minute' where id = (select id from "Reminder" where "itemId"='${itemId}' and "sentAt" is null order by "sendAt" limit 1)`);
 const run1 = await cron();
 ok("reminder job sent 1", run1.body?.sent === 1, JSON.stringify(run1.body));
 const [mail] = mailTo("riley@example.com");
@@ -174,6 +196,15 @@ ok("client opted out", sql(`select "remindersOff" from "Client" where id='${clie
 sql(`update "Reminder" set "sendAt" = now() - interval '1 minute' where id = (select r.id from "Reminder" r join "Item" i on i.id=r."itemId" where i."seriesId"='${itemId}' order by "sendAt" limit 1)`);
 const run2 = await cron();
 ok("no email after opting out", run2.body?.sent === 0 && run2.body?.skipped === 1 && mailTo("riley@example.com").length === 1, JSON.stringify(run2.body));
+// The mail app's own Unsubscribe button posts to the address in the List-Unsubscribe header, with no page shown (MAIL-28).
+// Opening that address (as a link scanner does) switches nothing and lands on the page with the confirm button.
+sql(`update "Client" set "remindersOff" = false where id='${clientId}'`);
+const oneClick = mail.unsubscribe.replace("/reminders/off?", "/api/reminders/off?");
+const scanned = await fetch(oneClick, { redirect: "manual" });
+ok("one-click address opened with a GET: nothing switched, sent on to the page", scanned.status === 303 && (scanned.headers.get("location") ?? "").includes("/reminders/off?c=") && sql(`select "remindersOff" from "Client" where id='${clientId}'`) === "f", String(scanned.status));
+ok("one-click post with a wrong signature is refused", (await fetch(oneClick.replace(/s=[^&]+/, "s=wrong"), { method: "POST" })).status === 400 && sql(`select "remindersOff" from "Client" where id='${clientId}'`) === "f");
+const posted = await fetch(oneClick, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "List-Unsubscribe=One-Click" });
+ok("one-click unsubscribe turns emails off", posted.status === 200 && sql(`select "remindersOff" from "Client" where id='${clientId}'`) === "t", String(posted.status));
 await pro.reload();
 // The client is named in full, as on the no-email line (O36).
 await pro.waitForSelector("[data-testid=client-route] >> text=Emails turned off by client");

@@ -51,16 +51,22 @@ export type NoticeInput = z.infer<typeof NoticeInput>;
 /** Every business owner's and admin's address, once each (admins act for the business too, G10): of a business that isn't closed or
  * being deleted, whose own login isn't either. */
 export async function noticeRecipients() {
+  return (await recipientLogins()).map((r) => r.email);
+}
+
+/** The same people with their login's id, which is how the log remembers who a notice has reached (never their address). */
+async function recipientLogins() {
   const rows = await db.user.findMany({
     where: {
       closedAt: null,
       deleteAt: null,
       memberships: { some: { role: { in: ["OWNER", "ADMIN"] }, workspace: { closedAt: null, deleteAt: null } } },
     },
-    select: { email: true },
+    select: { id: true, email: true },
     orderBy: { createdAt: "asc" },
   });
-  return [...new Set(rows.map((r) => r.email.toLowerCase()))];
+  const seen = new Set<string>();
+  return rows.map((r) => ({ id: r.id, email: r.email.toLowerCase() })).filter((r) => !seen.has(r.email) && !!seen.add(r.email));
 }
 
 export function noticeEmail(n: NoticeInput) {
@@ -78,17 +84,24 @@ export function noticeEmail(n: NoticeInput) {
     button: { label: "See our sub-processors", link: appUrl("/legal/dpa#subprocessors") },
     footer:
       `Your videos, messages, replies, to-dos and notes stay end-to-end encrypted, so no sub-processor can read them. If you object on reasonable data ` +
-      `protection grounds, email ${LEGAL.email} before ${day} and we'll work with you in good faith (DPA section 8). You're getting this because you own a ` +
-      `business on ${BRAND.name}.`,
+      `protection grounds, email ${LEGAL.email} before ${day} and we'll work with you in good faith (DPA section 8). You're getting this because you own or help run ` +
+      `a business on ${BRAND.name}.`,
   });
 }
 
 export type NoticeResult = { ok: true; sent: number; recipients: number } | { ok: false; message: string };
 
+/** What the log entry keeps while a notice goes out: whose logins it has reached (ids only), and when that last moved. */
+type Progress = { status?: string; reached?: unknown; progressAt?: string };
+/** A send that has recorded nothing for this long has stopped (a request lasts a few minutes at most), so it can be finished. */
+const STALLED_MS = 10 * 60_000;
+
 /**
  * Checks the notice (the start date at least NOTICE_DAYS away, in Queensland), refuses a second notice for the same
  * sub-processor and start date, emails every business owner in batches (lib/mail.ts sendMails: 100 a request), and
- * logs it. The log entry is written first, so a double click can't send twice, and updated with how many went.
+ * logs it. The log entry is written first, so a double click can't send twice, and updated after each batch with who
+ * it has reached. A notice that only partly went (or stopped part-way) can be sent again with the same details: it
+ * then goes only to the people it hasn't reached, never twice to anyone.
  */
 export async function sendSubprocessorNotice(admin: SupportAdmin, raw: unknown, now = new Date()): Promise<NoticeResult> {
   const parsed = NoticeInput.safeParse(raw);
@@ -97,19 +110,46 @@ export async function sendSubprocessorNotice(admin: SupportAdmin, raw: unknown, 
   const earliest = earliestStart(now);
   if (n.startsOn < earliest) return { ok: false, message: `The start date must be at least ${NOTICE_DAYS} days away: ${longDate(earliest)} or later.` };
   const target = `${n.name} from ${n.startsOn}`;
-  const recipients = await noticeRecipients();
-  if (!recipients.length) return { ok: false, message: "There are no business owners or admins to email." };
+  const people = await recipientLogins();
+  if (!people.length) return { ok: false, message: "There are no business owners or admins to email." };
+  const alreadySent = `A notice about ${n.name} starting ${longDate(n.startsOn)} has already been sent (see the Support log).`;
   // Claimed in one statement: a second click (or a second admin) for the same notice finds this row and stops.
   const claimed = await db.$transaction(async (tx) => {
-    const already = await tx.adminAction.findFirst({ where: { action: NOTICE_ACTION, target }, select: { createdAt: true } });
-    if (already) return null;
-    return tx.adminAction.create({
-      data: { actorUserId: admin.userId, actorEmail: admin.email, action: NOTICE_ACTION, target, reason: n.purpose, details: { ...n, recipients: recipients.length, sent: 0, status: "sending" } },
-    });
+    const already = await tx.adminAction.findFirst({ where: { action: NOTICE_ACTION, target }, orderBy: { createdAt: "asc" }, select: { id: true, details: true } });
+    if (!already) {
+      const row = await tx.adminAction.create({
+        data: { actorUserId: admin.userId, actorEmail: admin.email, action: NOTICE_ACTION, target, reason: n.purpose, details: { ...n, recipients: people.length, sent: 0, status: "sending", reached: [], progressAt: now.toISOString() } },
+      });
+      return { id: row.id, reached: [] as string[], resentBy: null };
+    }
+    const d = (already.details ?? {}) as Progress;
+    // An entry from before the log kept who was reached can't be finished: nobody knows who was missed.
+    if (d.status === "sent" || !Array.isArray(d.reached)) return { refused: alreadySent };
+    const stalled = d.status === "sending" && now.getTime() - Date.parse(d.progressAt ?? "") > STALLED_MS;
+    if (d.status !== "partly sent" && !stalled) return { refused: `The notice about ${n.name} is being sent now. Check the Support log in a few minutes.` };
+    // Picked up again: claimed the same way, so two people finishing it at once can't both send.
+    const reached = d.reached.filter((id): id is string => typeof id === "string");
+    await tx.adminAction.update({ where: { id: already.id }, data: { details: { ...n, recipients: people.length, sent: reached.length, status: "sending", reached, progressAt: now.toISOString(), resentBy: admin.email } } });
+    return { id: already.id, reached, resentBy: admin.email };
   }, { isolationLevel: "Serializable" }).catch(() => null);
-  if (!claimed) return { ok: false, message: `A notice about ${n.name} starting ${longDate(n.startsOn)} has already been sent (see the Support log).` };
+  if (!claimed) return { ok: false, message: alreadySent };
+  if (claimed.refused !== undefined) return { ok: false, message: claimed.refused };
   const mail = noticeEmail(n);
-  const sent = await sendMails(recipients.map((to) => ({ to, ...mail })));
-  await db.adminAction.update({ where: { id: claimed.id }, data: { details: { ...n, recipients: recipients.length, sent, status: sent === recipients.length ? "sent" : "partly sent" } } });
-  return { ok: true, sent, recipients: recipients.length };
+  const reached = new Set(claimed.reached);
+  const todo = people.filter((p) => !reached.has(p.id));
+  const sentSoFar = () => people.filter((p) => reached.has(p.id)).length;
+  const record = (status: string) =>
+    db.adminAction.update({
+      where: { id: claimed.id },
+      data: { details: { ...n, recipients: people.length, sent: sentSoFar(), status, reached: [...reached], progressAt: new Date().toISOString(), ...(claimed.resentBy ? { resentBy: claimed.resentBy } : {}) } },
+    });
+  // One request per 100 (sendMails), so each batch either went or didn't, and the log says who has it after every one.
+  for (let i = 0; i < todo.length; i += 100) {
+    const batch = todo.slice(i, i + 100);
+    if ((await sendMails(batch.map((p) => ({ to: p.email, ...mail })))) === batch.length) batch.forEach((p) => reached.add(p.id));
+    if (i + 100 < todo.length) await record("sending");
+  }
+  const sent = sentSoFar();
+  await record(sent === people.length ? "sent" : "partly sent");
+  return { ok: true, sent, recipients: people.length };
 }

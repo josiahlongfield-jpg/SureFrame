@@ -4,6 +4,14 @@ import { storage } from "@/lib/storage";
 import { handle, HttpError } from "@/lib/session";
 import { uploadableVideo } from "@/lib/videos";
 import { joinParts, MAX_PIECE_BYTES, partReady, pieceKey, registerPiece } from "@/lib/pieces";
+import { limitByIp } from "@/lib/rateLimit";
+
+/**
+ * A brake on flooding, far above real use: a recording sends one piece every couple of seconds (30 a minute), and a
+ * browser catching up after being offline a few a second. Room for a whole office recording behind one address.
+ * A recorder that does meet it waits and tries again (it retries 429), so nothing is lost.
+ */
+const limit = () => limitByIp("pieces", 3000, 60);
 
 /**
  * One piece of a recording, sent as it's made (lib/pieces.ts). Idempotent: a piece sent again after a crash or a
@@ -15,6 +23,7 @@ const Presign = z.object({ offset: z.number().int().min(0), size: z.number().int
 /** With object storage, the browser stores the piece straight in the bucket: this returns a short-lived URL for it. */
 export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: string; seq: string }> }) => {
   const { id, seq } = await ctx.params;
+  await limit();
   const body = Presign.safeParse(await req.json().catch(() => null));
   if (!body.success) throw new HttpError(body.error.issues.some((i) => i.code === "too_big") ? 413 : 400, "Bad piece");
   const video = await uploadableVideo(req, id);
@@ -29,6 +38,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
 /** Without object storage (or when asked), the piece comes through here. */
 export const PUT = handle(async (req: Request, ctx: { params: Promise<{ id: string; seq: string }> }) => {
   const { id, seq } = await ctx.params;
+  await limit();
   const url = new URL(req.url);
   const offset = Number(url.searchParams.get("offset"));
   const durationMs = Number(url.searchParams.get("ms") ?? "0");

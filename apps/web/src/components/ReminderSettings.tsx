@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { senderName } from "@/lib/brand";
+import type { ClientContact } from "@/lib/clientContact";
 import { useEffect, useMemo, useState } from "react";
 import { reminderEmail } from "@/lib/reminderEmail";
 import { ruleLabel, sortRules, type ReminderRule } from "@/lib/schedule";
@@ -16,7 +17,10 @@ type Settings = {
   remindTeamDefault: boolean;
 };
 
-export default function ReminderSettings({ initial }: { initial: Settings & Shown }) {
+/** What the real email carries besides the message: the business's logo and colour (paid plans) and its contact line. */
+export type PreviewLook = { logoUrl: string | null; color: string | null; contact: ClientContact | null };
+
+export default function ReminderSettings({ initial, look }: { initial: Settings & Shown; look?: PreviewLook }) {
   const shown: Shown = { name: initial.name, timezone: initial.timezone, reminderMessage: initial.reminderMessage, reminderReplyTo: initial.reminderReplyTo };
   const [s, setS] = useState<Settings>({ reminderDefaults: initial.reminderDefaults, remindClientDefault: initial.remindClientDefault, remindTeamDefault: initial.remindTeamDefault });
   // The preview's dates depend on the clock and this device's zone, so it's drawn once the page is in the browser.
@@ -42,8 +46,13 @@ export default function ReminderSettings({ initial }: { initial: Settings & Show
       tz,
       link: "#",
       unsubscribe: "#",
+      logoUrl: look?.logoUrl,
+      color: look?.color,
+      contact: look?.contact,
+      // As lib/reminders.ts clientMailSettings: replies go to the reply-to email, else the contact email, else nowhere.
+      noReply: !(shown.reminderReplyTo || look?.contact?.email),
     });
-  }, [now, shown.name, shown.reminderMessage, tz]);
+  }, [now, shown.name, shown.reminderMessage, shown.reminderReplyTo, tz, look]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();

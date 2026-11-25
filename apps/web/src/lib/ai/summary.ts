@@ -4,11 +4,15 @@ import { db } from "@/lib/db";
 import { AI_SUMMARIES_PER_MONTH } from "@/lib/plans";
 import { HttpError } from "@/lib/session";
 
-/** Sonnet keeps a summary at roughly one or two US cents. */
+/** Sonnet keeps a summary of a short video at roughly one or two US cents (the longest transcript accepted costs several times that). */
 const MODEL = "claude-sonnet-5-5";
 
-/** Longest transcript accepted, in characters (about four hours of speech). */
-export const MAX_TRANSCRIPT_CHARS = 300_000;
+/**
+ * Longest transcript accepted, in characters. Transcripts are only made for videos up to MAX_TRANSCRIBE_MINUTES
+ * (lib/ai/limits.ts, 30 minutes): fast speech for that long, with its time stamps, is about 50,000 characters, so
+ * this leaves room for wordier languages without letting a made-up request cost many times a real one.
+ */
+export const MAX_TRANSCRIPT_CHARS = 100_000;
 
 const SYSTEM = `You summarise transcripts of short video messages that a business recorded for one of its clients (for example a coach, accountant, designer or agency explaining work, feedback or next steps).
 

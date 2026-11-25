@@ -32,7 +32,7 @@ export default function NamePrompt() {
         <p>Add your name so clients see who sent their videos, like &ldquo;Your name from Business A&rdquo;.</p>
         <div className="flex items-center gap-3">
           <Link href="/settings/account#name" onClick={dismiss} className="font-medium underline">Add your name</Link>
-          <button onClick={dismiss} className="text-accent hover:text-ink" aria-label="Dismiss">Not now</button>
+          <button onClick={dismiss} className="text-accent hover:text-ink">Not now</button>
         </div>
       </div>
     </div>

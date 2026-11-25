@@ -4,12 +4,13 @@ import { clientEmailContact, type ClientContact } from "@/lib/clientContact";
 /**
  * Sent to a client when their business deletes them (lib/clientRemoval.ts), in
  * good faith (Josiah, 24 October 2026). No button: the link no longer works,
- * and nothing of theirs is kept to come back to.
+ * and nothing of theirs is kept to come back to. It goes as the deletion
+ * starts (files can take a little longer), so it says "are being deleted".
  */
 export function clientRemovedEmail(o: { business: string; clientName: string; logoUrl?: string | null; color?: string | null; noReply?: boolean; contact?: ClientContact | null }) {
   const subject = `Your access to ${o.business} on SureFrame has ended`;
   const lead = `Hi ${o.clientName}, ${o.business} has ended your access to your private SureFrame page, so your link no longer opens your videos.`;
-  const body = `Your videos, messages and shared to-dos with ${o.business} have been deleted for good. If ${o.business} works with you again, they'll send you a new personal link. Thank you for using SureFrame with them.`;
+  const body = `Your videos, messages and shared to-dos with ${o.business} are being deleted for good. If ${o.business} works with you again, they'll send you a new personal link. Thank you for using SureFrame with them.`;
   const after = clientEmailContact(o.business, o.contact, o.noReply) ?? "";
   const text = [lead, "", body, ...(after ? ["", after] : []), "", "Sent with SureFrame"].join("\n");
   const html = emailShell(`${emailLogo(o.logoUrl, o.business)}

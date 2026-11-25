@@ -39,7 +39,7 @@ export default function ChangesNotice({ userId, month, monthKey }: { userId: str
             } catch {}
             setShow(false);
           }}
-          className="shrink-0 rounded-lg px-2 py-0.5 text-muted hover:bg-hover hover:text-ink"
+          className="shrink-0 rounded-lg px-2 py-0.5 text-muted hover:bg-hover hover:text-ink pointer-coarse:min-h-11"
           data-testid="changes-notice-dismiss"
         >
           Dismiss

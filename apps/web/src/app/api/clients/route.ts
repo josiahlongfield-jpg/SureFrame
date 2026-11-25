@@ -2,9 +2,9 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { clientLink, NAME_MAX, newClientToken, seatUsage } from "@/lib/clients";
 import { handle, HttpError, requireUser } from "@/lib/session";
-import { limitByIp } from "@/lib/rateLimit";
+import { limitByIp, MANY_CHANGES } from "@/lib/rateLimit";
 import { KeyFingerprint, requireCurrentKey } from "@/lib/keys";
-import { accessOf, clientScopeWhere, requirePerm } from "@/lib/permissions";
+import { accessOf, clientScopeWhere, requirePerm, seesAllClients } from "@/lib/permissions";
 
 const One = z.object({
   name: z.string().trim().min(1).max(NAME_MAX),
@@ -34,11 +34,12 @@ export const GET = handle(async () => {
 export const POST = handle(async (req: Request) => {
   const me = await requireUser();
   const { user, workspace, role } = me;
-  requirePerm(accessOf(me), "addClients", "Ask the owner or an admin to add new clients");
+  const access = accessOf(me);
+  requirePerm(access, "addClients", "Ask the owner or an admin to add new clients");
   const json = await req.json().catch(() => null);
   const many = Many.safeParse(json);
   const one = many.success ? null : Body.safeParse(json);
-  await limitByIp("clients", 30, 3600);
+  await limitByIp("clients", 30, 3600, MANY_CHANGES);
   if (!many.success && !one?.success) {
     // Say what's wrong: a name that's too long reads differently from a bad email.
     const names: unknown[] = Array.isArray(json?.clients) ? json.clients.map((c: { name?: unknown }) => c?.name) : [json?.name];
@@ -63,6 +64,20 @@ export const POST = handle(async (req: Request) => {
       return false;
     });
     if (dupe) {
+      // Staff who see only their own clients: the match can be a colleague's client, who is on no list they can see,
+      // so "already on your client list" would be a dead end. Say who can sort it out instead (as the edit route does).
+      if (!seesAllClients(access)) {
+        const same = (c: { name: string; email: string | null }) => (dupe.email ? c.email?.toLowerCase() === dupe.email.toLowerCase() : !c.email && c.name.trim().toLowerCase() === dupe.name.trim().toLowerCase());
+        const mine = await tx.client.findMany({ where: { ...clientScopeWhere(access), removedAt: null }, select: { name: true, email: true } });
+        if (existing.some(same) && !mine.some(same)) {
+          throw new HttpError(
+            409,
+            dupe.email
+              ? `Someone else on your team already has a client with the email ${dupe.email}. Ask the owner or an admin to assign them to you.`
+              : `Someone else on your team already has a client called ${dupe.name} with no email. Ask the owner or an admin to assign them to you, or add an email to tell them apart.`,
+          );
+        }
+      }
       throw new HttpError(
         409,
         dupe.email

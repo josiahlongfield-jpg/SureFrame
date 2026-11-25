@@ -2,8 +2,10 @@ import Link from "next/link";
 import LegalPage, { SubprocessorList } from "@/components/LegalPage";
 import { DATA_LOCATIONS, LEGAL, operatorLine, R2_KEPT } from "@/lib/legal";
 import { CODE_MINUTES, CODE_TRIES } from "@/lib/signInCodeRules";
+import { publicPage } from "@/lib/sharePreview";
 
-export const metadata = { title: "Privacy Policy" };
+// The description is this document's line on /legal, so a shared link's preview card says what it is (not the home page's words).
+export const metadata = publicPage("Privacy Policy", "What information we collect, why, who handles it, where it's kept and for how long.");
 
 export default function Page() {
   const mail = <a href={`mailto:${LEGAL.email}`}>{LEGAL.email}</a>;
@@ -126,7 +128,7 @@ export default function Page() {
           <strong>Technical information:</strong> IP address, browser type and logs of requests, used to keep the service secure, prevent abuse and fix problems.
         </li>
         <li>
-          <strong>Sign-in codes:</strong> when you sign in to connect Claude, we email a 6-digit code instead of a link; it works for {CODE_MINUTES} minutes and {CODE_TRIES} tries,
+          <strong>Sign-in codes:</strong> when you sign in to connect Claude, we email an 8-digit code instead of a link; it works for {CODE_MINUTES} minutes and {CODE_TRIES} tries,
           and we keep only a one-way fingerprint of it, with the email address, until it expires.
         </li>
         <li>

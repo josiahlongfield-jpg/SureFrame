@@ -121,7 +121,9 @@ export const LEGAL = {
    * 24 October 2026: version 1.1: a removed client is deleted straight away, with no copy kept to restore them from.
    * 26 November 2026: section 3 mentions the notifications shown in the app (kept up to 90 days, lib/notifications.ts); Annex 2
    * says sign-in email addresses are counted for rate limits as well as IP addresses; Annex 3's email provider entry names the
-   * emails to clients it carries. They describe what we already do, so they keep dpaVersion.
+   * emails to clients it carries. They describe what we already do, so they keep dpaVersion. Also 26 November 2026: the
+   * sign-in code for connecting Claude is 8 digits, not 6 (lib/signInCodeRules.ts): a longer code, nothing taken away, so it
+   * keeps dpaVersion.
    */
   dpaUpdated: "26 November 2026",
   /**
@@ -174,7 +176,9 @@ export const LEGAL = {
    * sf_bell, and the client link cookie's name; email addresses counted at sign-in; a leftover "removed and then deleted"; the
    * second case where a removed client isn't emailed (as the Terms say); the name Stripe is given for a new business started at
    * checkout; what the online Claude connector reads for owners and admins; and which emails to clients our email provider
-   * carries. They describe what the app already does, so they keep privacyVersion.
+   * carries. They describe what the app already does, so they keep privacyVersion. Also 26 November 2026: the sign-in code
+   * for connecting Claude is 8 digits, not 6 (lib/signInCodeRules.ts): a longer code, nothing taken away, so it keeps
+   * privacyVersion.
    */
   privacyUpdated: "26 November 2026",
 };
@@ -230,11 +234,13 @@ export const WORDING_UPDATES: WordingUpdate[] = [
       "Stripe is given your own name, not a business name, when you start a new business at checkout.",
       "For owners and admins, the online Claude connector can also read how each team member is keeping up with their clients.",
       "Our email provider’s entry names the emails to clients it carries: new-video emails and replacement links.",
+      "The sign-in code emailed when you connect Claude is now 8 digits long (it was 6).",
     ],
     dpa: [
       "Section 3: notifications shown in the app, kept for up to 90 days.",
       "Annex 2: sign-in email addresses are counted for rate limits, like IP addresses, and deleted within about two days.",
       "Annex 3: our email provider’s entry names the emails to clients it carries: new-video emails and replacement links.",
+      "Annex 2: the sign-in code emailed when someone connects Claude is now 8 digits long (it was 6).",
     ],
   },
   {

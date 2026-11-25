@@ -34,6 +34,8 @@ const sig = new Stripe("sk_test_fake");
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM });
 const stamp = Date.now();
 const wrap = (c) => c.repeat(44); // stands in for a wrapped key; these checks never decrypt
+// Stands in for an encrypted reply: the API only takes text shaped like what the browser seals (letters, digits, - and _, 39 or more).
+const sealedText = (n = 0) => `sealed-text-${n}`.padEnd(44, "x");
 const outbox = () => (existsSync(".data/outbox") ? readdirSync(".data/outbox").sort().map((f) => JSON.parse(readFileSync(`.data/outbox/${f}`, "utf8"))) : []);
 const waitFor = async (fn, ms = 8000) => {
   for (let t = 0; t < ms; t += 200) {
@@ -127,7 +129,7 @@ ok("Amy's library API has only her own and her clients' videos", amyVideos.inclu
 for (const [label, v] of [["owner's video to Ben", vOwnerBen], ["Bob's video", vBob], ["owner's video to Sha", vOwnerSha]]) {
   ok(`Amy can't open ${label}`, (await status(amy.request.get(`${BASE}/api/videos/${v}`))) === 404);
   ok(`Amy can't read replies on ${label}`, (await status(amy.request.get(`${BASE}/api/videos/${v}/replies`))) === 404);
-  ok(`Amy can't reply on ${label}`, (await status(amy.request.post(`${BASE}/api/videos/${v}/replies`, { data: { kind: "TEXT", body: "x", encrypted: true } }))) === 404);
+  ok(`Amy can't reply on ${label}`, (await status(amy.request.post(`${BASE}/api/videos/${v}/replies`, { data: { kind: "TEXT", body: sealedText(), encrypted: true } }))) === 404);
   ok(`Amy can't stream ${label}`, (await status(amy.request.get(`${BASE}/api/videos/${v}/stream`))) === 404);
   ok(`Amy can't rename ${label}`, (await status(amy.request.patch(`${BASE}/api/videos/${v}`, { data: { title: "hijack" } }))) === 404);
   ok(`Amy can't delete ${label}`, (await status(amy.request.delete(`${BASE}/api/videos/${v}`))) === 404);
@@ -205,7 +207,7 @@ ok("with See all clients Amy lists everyone", ["Ana", "Ben", "Sha"].every((n) =>
 ok("with See all clients Amy opens Bob's video", (await amy.request.get(`${BASE}/api/videos/${vBob}`)).ok());
 await amy.goto(BASE + "/clients");
 await amy.waitForSelector("text=/My clients \\(/");
-ok("Amy starts on My clients, can switch to All", (await amy.getAttribute("role=tab[name=/My clients/]", "aria-selected")) === "true" && !(await amy.isVisible("a:has-text('Ben')")));
+ok("Amy starts on My clients, can switch to All", (await amy.getAttribute("role=button[name=/My clients/]", "aria-pressed")) === "true" && !(await amy.isVisible("a:has-text('Ben')")));
 await amy.click("text=/All clients \\(/");
 ok("All clients tab shows Ben", await amy.isVisible("a:has-text('Ben')"));
 ok("Amy still can't delete Bob's video", (await status(amy.request.delete(`${BASE}/api/videos/${vBob}`))) === 403);
@@ -241,28 +243,31 @@ const clientPage = async (c) => {
   return p;
 };
 const benPage = await clientPage(ben);
+// Readable text is refused: replies, to-dos and notes are only taken sealed (the browser encrypts them first).
+ok("a reply in plain words is refused", (await status(benPage.request.post(`${BASE}/api/videos/${vOwnerBen}/replies`, { data: { kind: "TEXT", body: "Thanks, that all makes sense. See you on Tuesday.", encrypted: true } }))) === 400);
+ok("a to-do in plain words is refused", (await status(owner.request.post(BASE + "/api/items", { data: { kind: "TASK", body: "Call the client back on Tuesday about the plan.", clientId: ben.id, keyFingerprint: fp } }))) === 400);
 const before = outbox().length;
-ok("Ben replies", (await status(benPage.request.post(`${BASE}/api/videos/${vOwnerBen}/replies`, { data: { kind: "TEXT", body: "sealed-text-1", encrypted: true } }))) === 201);
+ok("Ben replies", (await status(benPage.request.post(`${BASE}/api/videos/${vOwnerBen}/replies`, { data: { kind: "TEXT", body: sealedText(1), encrypted: true } }))) === 201);
 const mail = await waitFor(() => outbox().slice(before).find((m) => m.subject?.includes("Ben replied")));
 ok("reply email goes to Bob (assigned), not the owner who recorded it", mail?.to === bobUser.email && !outbox().slice(before).some((m) => m.to === `sa-owner${stamp}@example.com`), JSON.stringify(mail));
 ok("reply email to the team is from SureFrame (not the business's own name) and has no reply text", mail?.from.startsWith("SureFrame <") && !JSON.stringify(mail).includes("sealed-text-1") && mail.text.includes(`/v/${vOwnerBen}`), mail?.from);
 ok("reply email names the video by its title (O72)", !!mail?.subject.endsWith("replied to \u201cOwner to Ben\u201d") && mail.text.includes("\u201cOwner to Ben\u201d"), mail?.subject);
-await benPage.request.post(`${BASE}/api/videos/${vOwnerBen}/replies`, { data: { kind: "TEXT", body: "sealed-text-2", encrypted: true } });
-await benPage.request.post(`${BASE}/api/videos/${vOwnerBen}/replies`, { data: { kind: "TEXT", body: "sealed-text-3", encrypted: true } });
+await benPage.request.post(`${BASE}/api/videos/${vOwnerBen}/replies`, { data: { kind: "TEXT", body: sealedText(2), encrypted: true } });
+await benPage.request.post(`${BASE}/api/videos/${vOwnerBen}/replies`, { data: { kind: "TEXT", body: sealedText(3), encrypted: true } });
 await new Promise((r) => setTimeout(r, 1500));
 ok("a burst of replies sends one email per 15 minutes", outbox().slice(before).filter((m) => m.subject?.includes("Ben replied")).length === 1);
-ok("Bob replies on his client's video", (await status(bob.request.post(`${BASE}/api/videos/${vOwnerBen}/replies`, { data: { kind: "TEXT", body: "x", encrypted: true } }))) === 201);
+ok("Bob replies on his client's video", (await status(bob.request.post(`${BASE}/api/videos/${vOwnerBen}/replies`, { data: { kind: "TEXT", body: sealedText(), encrypted: true } }))) === 201);
 
 // Unassigned client: the recorder hears about it (the owner sent Amy's video to Sha).
 const vAmySha = await record(amy, "Amy for Sha", null);
 await owner.request.patch(`${BASE}/api/videos/${vAmySha}`, { data: { clientId: sha.id, clientKeyWrap: wrap("c"), keyFingerprint: fp } });
 const shaPage = await clientPage(sha);
 const before2 = outbox().length;
-await shaPage.request.post(`${BASE}/api/videos/${vAmySha}/replies`, { data: { kind: "TEXT", body: "s", encrypted: true } });
+await shaPage.request.post(`${BASE}/api/videos/${vAmySha}/replies`, { data: { kind: "TEXT", body: sealedText(), encrypted: true } });
 const mail2 = await waitFor(() => outbox().slice(before2).find((m) => m.subject?.includes("Sha replied")));
 ok("unassigned client's reply goes to the video's recorder", mail2?.to === amyUser.email, JSON.stringify(mail2));
 const before3 = outbox().length;
-await shaPage.request.post(`${BASE}/api/videos/${vOwnerSha}/replies`, { data: { kind: "TEXT", body: "s", encrypted: true } });
+await shaPage.request.post(`${BASE}/api/videos/${vOwnerSha}/replies`, { data: { kind: "TEXT", body: sealedText(), encrypted: true } });
 const mail3 = await waitFor(() => outbox().slice(before3).find((m) => m.subject?.includes("Sha replied")));
 ok("a different conversation isn't throttled, and goes to the owner who recorded it", mail3?.to === `sa-owner${stamp}@example.com`, JSON.stringify(mail3));
 ok("to the person who sent it, the reply email says \"your video\" (S54)", /^Sha replied to your video/.test(mail3?.subject ?? "") && /Sha replied to your video .*on SureFrame\./.test(mail3?.text ?? ""), `${mail3?.subject} | ${mail3?.text}`);
@@ -363,7 +368,7 @@ await owner.request.post(BASE + "/api/clients/assign", { data: { clientIds: [sha
 
 // Email preferences decide who hears about client replies.
 const mailsTo = (from, who, subject) => outbox().slice(from).filter((m) => m.to === who && m.subject.includes(subject));
-const replyAs = async (page, video) => page.request.post(`${BASE}/api/videos/${video}/replies`, { data: { kind: "TEXT", body: "sealed", encrypted: true } });
+const replyAs = async (page, video) => page.request.post(`${BASE}/api/videos/${video}/replies`, { data: { kind: "TEXT", body: sealedText(), encrypted: true } });
 const anaClient = await clientPage(ana);
 const prefs = (data) => owner.request.patch(BASE + "/api/team/prefs", { data });
 

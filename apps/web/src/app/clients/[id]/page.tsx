@@ -126,7 +126,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             clientId={client.id}
             clientName={client.name}
             clientTeamKeyWrap={client.teamKeyWrap}
-            client={{ email: client.email, remindersOff: client.remindersOff }}
+            client={{ email: client.email, remindersOff: client.remindersOff, linkOpened: !!client.linkOpenedAt }}
             defaults={reminderDefaultsFor(workspace, me.membership)}
             title="To-dos & notes"
             note={`Only your team sees these unless you share one with ${client.name}. Shared ones show on ${client.name}'s page.`}

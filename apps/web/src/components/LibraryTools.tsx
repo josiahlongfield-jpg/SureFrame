@@ -69,8 +69,14 @@ export function LibrarySearch({ q, client, clients, keep }: { q: string; client:
     if (who) p.set("client", who);
     return p.size ? `/library?${p}` : "/library";
   };
+  // Clear is on its way to the unfiltered Library: until that page arrives, the pause-then-search timer must not
+  // search again with the client that was just cleared (it would put the client filter back).
+  const clearing = useRef(false);
   useEffect(() => {
-    if (text.trim() === q) return;
+    clearing.current = false;
+  }, [q, client]);
+  useEffect(() => {
+    if (clearing.current || text.trim() === q) return;
     const t = setTimeout(() => router.replace(urlFor(text, client), { scroll: false }), 400);
     return () => clearTimeout(t);
     // urlFor only reads props that are already deps.
@@ -92,7 +98,10 @@ export function LibrarySearch({ q, client, clients, keep }: { q: string; client:
         type="search"
         name="q"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          clearing.current = false;
+          setText(e.target.value);
+        }}
         placeholder="Search titles and clients"
         aria-label="Search videos"
         data-testid="library-search"
@@ -115,7 +124,15 @@ export function LibrarySearch({ q, client, clients, keep }: { q: string; client:
       )}
       <button className="rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-hover">Search</button>
       {(q || client) && (
-        <Link href={rest.size ? `/library?${rest}` : "/library"} onClick={() => setText("")} className="px-2 py-2 text-sm text-dim hover:text-ink" data-testid="library-clear">
+        <Link
+          href={rest.size ? `/library?${rest}` : "/library"}
+          onClick={() => {
+            clearing.current = true;
+            setText("");
+          }}
+          className="px-2 py-2 text-sm text-dim hover:text-ink pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
+          data-testid="library-clear"
+        >
           Clear
         </Link>
       )}
@@ -130,7 +147,8 @@ export function LibraryViewSwitch({ view, layout, canGroupByClient, layoutCookie
     document.cookie = `${name}=${value}; path=/; max-age=31536000; samesite=lax`;
     router.refresh();
   };
-  const pill = (active: boolean) => `flex items-center gap-1.5 rounded-md px-3 py-1.5 ${active ? "bg-surface font-medium text-ink shadow-sm" : "text-muted hover:text-ink"}`;
+  // A thumb-sized target on touch screens; computers keep the compact size.
+  const pill = (active: boolean) => `flex items-center gap-1.5 rounded-md px-3 py-1.5 pointer-coarse:min-h-11 ${active ? "bg-surface font-medium text-ink shadow-sm" : "text-muted hover:text-ink"}`;
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm">
       {canGroupByClient ? (

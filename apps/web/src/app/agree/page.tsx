@@ -48,6 +48,24 @@ async function needsWelcomeNext(userId: string, to: string) {
 }
 
 /**
+ * Whether this login owns the business it's working in, chosen the way lib/session.ts currentUser chooses it (a login
+ * with no business yet gets one of its own). Settings > Billing only opens for the owner before the terms are agreed.
+ */
+async function ownsBusiness(userId: string) {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { activeWorkspaceId: true, memberships: { select: { role: true, workspaceId: true, pausedAt: true, workspace: { select: { suspendedAt: true, closedAt: true } } }, orderBy: { id: "asc" } } },
+  });
+  const all = user?.memberships ?? [];
+  const active =
+    all.find((m) => m.workspaceId === user?.activeWorkspaceId) ??
+    all.find((m) => !m.pausedAt && !m.workspace.suspendedAt && !m.workspace.closedAt) ??
+    all.find((m) => !m.workspace.suspendedAt && !m.workspace.closedAt) ??
+    all[0];
+  return !active || active.role === "OWNER";
+}
+
+/**
  * Where a signed-in account holder agrees to the current Terms of Service and
  * Privacy Policy (lib/terms.ts) before using SureFrame: new accounts first,
  * and everyone again when either changes. Ticking the box and pressing Agree
@@ -59,6 +77,8 @@ export default async function Agree({ searchParams }: { searchParams: Promise<{ 
   const user = await signedIn(to);
   if (await hasAgreed(user.id)) redirect(to);
   const updated = (await agreementKind(user)) === "update";
+  // Only an owner has a subscription to manage; staff are offered the Account page's ways out instead.
+  const owner = updated && (await ownsBusiness(user.id));
   const changes = LEGAL_VERSIONS[0]?.changes ?? [];
   // The list is the newest version's changes only. Someone whose last agreement wasn't to the version just before it
   // (or who has none on record) is pointed to the earlier versions' changes too.
@@ -86,7 +106,8 @@ export default async function Agree({ searchParams }: { searchParams: Promise<{ 
 
   return (
     <main data-theme="fresh" className="text-ink mx-auto max-w-lg px-4 py-12 sm:px-6 sm:py-16">
-      <Logo href="/agree" />
+      {/* Keeps where they were going (an invite, say), so the logo doesn't drop it. */}
+      <Logo href={agreePath(to)} />
       {updated ? (
         <>
           <h1 className="mt-10 text-2xl font-semibold tracking-tight text-ink" data-testid="agree-heading">
@@ -129,7 +150,7 @@ export default async function Agree({ searchParams }: { searchParams: Promise<{ 
       </p>
       <div className="mt-8 grid gap-3 border-t border-line pt-6 text-sm text-muted">
         {/* Someone who has only just signed up has no data or subscription yet: just a way out. */}
-        {updated && (
+        {updated && owner && (
           <p>
             Don&rsquo;t agree? You can{" "}
             <Link href="/settings/billing" className="font-medium text-accent hover:underline" data-testid="agree-billing">
@@ -138,6 +159,16 @@ export default async function Agree({ searchParams }: { searchParams: Promise<{ 
             , or{" "}
             <Link href="/settings/account" className="font-medium text-accent hover:underline" data-testid="agree-account">
               download your data or delete your account
+            </Link>
+            .
+          </p>
+        )}
+        {/* Staff have no subscription to manage (Settings > Billing would send them straight back here): Account has their ways out. */}
+        {updated && !owner && (
+          <p>
+            Don&rsquo;t agree? You can{" "}
+            <Link href="/settings/account" className="font-medium text-accent hover:underline" data-testid="agree-account">
+              download your data, leave the team or delete your account
             </Link>
             .
           </p>

@@ -311,13 +311,19 @@ await act({ action: "unsuspendUser", userId: freeUser.id, reason: "Done checking
 const staffPhone = await signIn(staffEmail, "/library");
 ok("before: both of the staff member's sign-ins work", (await apiStatus(staff)).status === 200 && (await apiStatus(staffPhone)).status === 200);
 await new Promise((r) => setTimeout(r, 1100));
+// A Claude connection of theirs: its token doesn't depend on a sign-in, so support's sign-out has to end it too.
+const claudeGrant = await prisma.connectorGrant.create({
+  data: { kind: "desktop", name: "Claude desktop connector", accessHash: createHash("sha256").update(`sfd_${crypto.randomBytes(32).toString("base64url")}`).digest("hex"), userId: staffUser.id, workspaceId: ws },
+});
 r = await act({ action: "signOutEverywhere", userId: staffUser.id, reason: "Owner reports a lost laptop", category: "security" });
 ok("sign out everywhere: done", r.status === 200 && r.body.emailed, JSON.stringify(r));
 ok("every existing sign-in is refused", (await apiStatus(staff)).status === 401 && (await apiStatus(staffPhone)).status === 401);
+ok("their Claude connection is disconnected too", !!(await prisma.connectorGrant.findUnique({ where: { id: claudeGrant.id } }))?.revokedAt);
 const again = await signIn(staffEmail, "/library");
 ok("signing in again works as normal", (await apiStatus(again)).status === 200);
 const outMail = await waitMail(staffEmail, (m) => m.subject === "You've been signed out of SureFrame everywhere");
 ok("signed-out email: why, sign in again", norm(outMail?.text).includes("on every device to protect the account's security") && norm(outMail?.text).includes("Sign in again to carry on."), outMail?.text);
+ok("signed-out email: says Claude was disconnected, and where to connect it again", norm(outMail?.text).includes("We also disconnected Claude from this login.") && norm(outMail?.text).includes("Settings > Connections"), outMail?.text);
 row = await lastAction({ userId: staffUser.id, action: "user.sign_out_everywhere" });
 ok("sign out everywhere logged", row?.reason === "Owner reports a lost laptop" && !!row.details?.after?.sessionsValidAfter);
 

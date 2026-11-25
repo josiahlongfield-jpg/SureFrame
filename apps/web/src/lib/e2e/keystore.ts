@@ -42,6 +42,25 @@ export async function saveKey(name: string, key: CryptoKey) {
   void navigator.storage?.persist?.().catch(() => {});
 }
 
+/**
+ * Whether this browser really keeps a key it's given: saved under a scratch name, read back, and removed again.
+ * False when site storage is blocked or full (some private modes), where saving fails without any error. Asked
+ * before a new business's key is registered (components/TeamKeyGate.tsx): a key that can't be kept must not become
+ * the business's key, or it's gone with the page.
+ */
+export async function canKeepKey(name: string, key: CryptoKey) {
+  const scratch = `${name}.check`;
+  const text = await exportKey(key);
+  set(scratch, text);
+  const kept = get(scratch) === text;
+  try {
+    localStorage.removeItem(PREFIX + scratch);
+  } catch {
+    /* storage blocked: nothing was written */
+  }
+  return kept;
+}
+
 export const teamKeyName = (workspaceId: string) => `team:${workspaceId}`;
 export const clientKeyName = (clientId: string) => `${CLIENT_PREFIX}${clientId}`;
 

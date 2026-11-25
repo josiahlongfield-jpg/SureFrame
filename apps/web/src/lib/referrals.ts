@@ -11,6 +11,8 @@ import { brandOf } from "@/lib/branding";
 import { zoned } from "@/lib/dates";
 import { sendMail } from "@/lib/mail";
 import { RECEIPTS_NOTE } from "@/lib/plans";
+import { alertFounder } from "@/lib/founderAlert";
+import { rateLimit } from "@/lib/rateLimit";
 import { activeMember } from "@/lib/team";
 import { teamEmail } from "@/lib/teamEmail";
 import { teamPath } from "@/lib/teamLink";
@@ -132,6 +134,9 @@ export async function referralCoupon() {
 const isReferralDiscount = (d: string | Stripe.Discount, coupon: string) =>
   typeof d !== "string" && !d.deleted && (typeof d.source?.coupon === "string" ? d.source.coupon : d.source?.coupon?.id) === coupon;
 
+/** One email per subject a day, however many times Stripe sends the event. */
+const once = (key: string) => rateLimit(`alert:${key}`, 1, 86400).then(() => true, () => false);
+
 /** A subscription's discounts, as `discounts` entries that keep them, less any `drop`s. */
 const keepDiscounts = (sub: Stripe.Subscription, drop?: (d: string | Stripe.Discount) => boolean) =>
   (sub.discounts ?? []).flatMap((d) => (drop?.(d) ? [] : typeof d === "string" ? [{ discount: d }] : d.deleted ? [] : [{ discount: d.id }]));
@@ -146,7 +151,13 @@ export async function recordReferral(sub: Stripe.Subscription) {
   const newWorkspaceId = sub.metadata?.workspaceId;
   if (!code || !newWorkspaceId || !ACTIVE_STATUSES.has(sub.status) || sub.status === "trialing") return;
   const row = await db.referralCode.findUnique({ where: { code }, include: { workspace: true } });
-  if (!row || row.usedAt || row.workspaceId === newWorkspaceId) return;
+  if (!row || row.workspaceId === newWorkspaceId) return;
+  if (row.usedAt) {
+    // Used already. By this business: nothing more to do. By another: this one paid from a Checkout opened before the
+    // code was used up, so its 10% comes off again (a code works once).
+    if (row.usedByWorkspaceId && row.usedByWorkspaceId !== newWorkspaceId) await dropSecondReferral(sub, code, newWorkspaceId);
+    return;
+  }
   const end = row.workspace.currentPeriodEnd;
   const dueAt = end ? new Date(Math.max(Date.now(), end.getTime() - REWARD_LEAD_MS)) : new Date();
   let used = 0;
@@ -156,10 +167,40 @@ export async function recordReferral(sub: Stripe.Subscription) {
     // This business already used another code: the first one counts.
     if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) throw err;
   }
+  if (!used) {
+    // Two businesses paid with the code at the same moment and the other one's payment was recorded first.
+    const now = await db.referralCode.findUnique({ where: { code }, select: { usedAt: true, usedByWorkspaceId: true } });
+    if (now?.usedAt && now.usedByWorkspaceId && now.usedByWorkspaceId !== newWorkspaceId) return dropSecondReferral(sub, code, newWorkspaceId);
+  }
   // The sharer hears once, when the code is used (Settings > Billing says the same).
   if (used) await tellSharer(row.workspace, code).catch((err) => console.error("[billing] referral notice failed", JSON.stringify({ code, error: String(err).slice(0, 300) })));
   // A code of its own made before this was recorded, and not shared yet, goes: a referred business doesn't get one.
   await db.referralCode.deleteMany({ where: { workspaceId: newWorkspaceId, usedAt: null } });
+}
+
+/**
+ * A second business paid with a referral code another business had already used (both had Checkout open at once).
+ * The referral 10% is taken off this subscription, with nothing charged or refunded now, and the founder is told.
+ * Only ever called for a business other than the one recorded against the code. Does nothing once the discount has
+ * gone, so a repeat of the event changes nothing.
+ */
+async function dropSecondReferral(sub: Stripe.Subscription, code: string, workspaceId: string) {
+  const coupon = await referralCoupon();
+  // The discounts in full, to tell the referral one from any other.
+  const full = (sub.discounts ?? []).some((d) => typeof d === "string") ? await stripe().subscriptions.retrieve(sub.id, { expand: DISCOUNT_EXPAND }) : sub;
+  if (!(full.discounts ?? []).some((d) => isReferralDiscount(d, coupon))) return;
+  const keep = keepDiscounts(full, (d) => isReferralDiscount(d, coupon));
+  // Stripe only clears the list when it's sent as an empty value; an empty array isn't sent at all.
+  await stripe().subscriptions.update(sub.id, { discounts: keep.length ? keep : "", proration_behavior: "none" });
+  console.log("[billing] referral code used a second time", JSON.stringify({ code, workspace: workspaceId, subscription: sub.id }));
+  if (await once(`second-referral:${sub.id}`)) {
+    const workspace = await db.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } });
+    await alertFounder(`Referral code ${code} was used twice`, [
+      `${workspace?.name ?? "A business"} (${workspaceId}) paid for subscription ${sub.id} with referral code ${code} after another business had already used it. Both had Checkout open at the same time.`,
+      `A referral code works once, so the ${REFERRAL_PERCENT}% referral discount was taken off this subscription. Its first payment had the discount; later bills are at the full price.`,
+      "This business hasn't been told. Email its owner to explain. To let it keep a discount, give it a code of its own on the Discounts page of the support console; the referral discount itself would be taken off again.",
+    ]);
+  }
 }
 
 /** Emails the owner of the business whose code was used. The business that used it isn't named. */
@@ -253,7 +294,9 @@ export async function referredBusinessLeft(workspaceId: string) {
   if (sub && ACTIVE_STATUSES.has(sub.status)) {
     const coupon = await referralCoupon();
     if ((sub.discounts ?? []).some((d) => isReferralDiscount(d, coupon))) {
-      await stripe().subscriptions.update(sub.id, { discounts: keepDiscounts(sub, (d) => isReferralDiscount(d, coupon)), proration_behavior: "none" });
+      const keep = keepDiscounts(sub, (d) => isReferralDiscount(d, coupon));
+      // Stripe only clears the list when it's sent as an empty value; an empty array isn't sent at all, which left the discount on.
+      await stripe().subscriptions.update(sub.id, { discounts: keep.length ? keep : "", proration_behavior: "none" });
     }
   }
   await db.referralCode.update({ where: { code: row.code }, data: { rewardEndedAt: new Date() } });

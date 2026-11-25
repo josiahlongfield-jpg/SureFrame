@@ -77,7 +77,8 @@ ok("video page with Help fits 320px", await fits(phone));
 async function ask(page, text) {
   const before = await page.locator("[data-testid=client-help-messages] .whitespace-pre-wrap").count();
   await page.fill("textarea[aria-label='Your question']", text);
-  await page.keyboard.press("Enter");
+  // The Ask button, which sends on a phone and a computer alike (Enter only sends on a computer).
+  await page.click("[data-testid=client-help-ask]");
   await page.waitForFunction((n) => document.querySelectorAll("[data-testid=client-help-messages] .whitespace-pre-wrap").length >= n + 2, before, { timeout: 30000 });
   return (await page.locator("[data-testid=client-help-messages] .whitespace-pre-wrap").last().textContent()).trim();
 }
@@ -105,6 +106,12 @@ ok("open panel fits 320px", await fits(phone));
 // Decision 7: the panel says questions are kept 90 days without who asked and may be read, not that nobody reads it.
 const panelText = (await phone.textContent("[data-testid=client-help-panel]")).replace(/\s+/g, " ");
 ok("panel: questions kept 90 days, without who asked, and may be read to improve this help (decision 7)", panelText.includes("Questions are kept for 90 days, without who asked, and may be read to improve this help, so don't type anything private.") && !/nobody reads/i.test(panelText), panelText);
+
+// On a touch screen Enter starts a new line (the Ask button sends), as in the reply box, so a half-typed question doesn't go off.
+await phone.fill("textarea[aria-label='Your question']", "Half a question");
+await phone.press("textarea[aria-label='Your question']", "Enter");
+ok("phone: Enter starts a new line in the help box rather than sending", (await phone.inputValue("textarea[aria-label='Your question']")) === "Half a question\n" && (await phone.locator("[data-testid=client-help-messages] .whitespace-pre-wrap").count()) === 1);
+await phone.fill("textarea[aria-label='Your question']", "");
 
 const answer = await ask(phone, "How do I reply to this video?");
 ok("an answer comes back", answer.includes("reply box"), answer);
@@ -271,7 +278,7 @@ await cPhone.route("**/api/client-help", (r) =>
 );
 await cPhone.tap("[data-testid=client-help-button]");
 await cPhone.fill("textarea[aria-label='Your question']", "One more question");
-await cPhone.keyboard.press("Enter");
+await cPhone.tap("[data-testid=client-help-ask]");
 const refusedText = (await cPhone.textContent("[data-testid=client-help-error]", { timeout: 10000 }).catch(() => "")) ?? "";
 ok("limit reached: says when to ask again", /^You've reached the limit for the help chat\. You can ask again in [78] minutes\. Please contact /.test(refusedText), refusedText);
 ok("limit reached: Ask is off while refused", await cPhone.isDisabled("[data-testid=client-help-ask]"));

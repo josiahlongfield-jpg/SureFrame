@@ -20,6 +20,12 @@ export function pickMimeType() {
   return CANDIDATE_TYPES.find((t) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)) ?? "video/webm";
 }
 
+/**
+ * Whether this browser can record here at all: it needs a recorder, and the lock that keeps a recording still
+ * going from being finished early by another tab's recovery (iPhones and iPads before iOS 15.4 have no such lock).
+ */
+export const canRecord = () => typeof MediaRecorder !== "undefined" && typeof navigator !== "undefined" && !!navigator.locks;
+
 export function bitrateFor(q: Quality) {
   return q >= 2160 ? 16_000_000 : q >= 1080 ? 5_000_000 : 2_500_000;
 }

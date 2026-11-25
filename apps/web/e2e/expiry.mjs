@@ -132,7 +132,8 @@ const toStaff = mails.filter((m) => m.to === staffEmail);
 ok("job reports warnings sent", run1.body?.expiryWarnings >= 2, JSON.stringify(run1.body));
 ok("owner gets exactly one grouped email", toOwner.length === 1, String(toOwner.length));
 const m = toOwner[0] ?? { subject: "", text: "", html: "" };
-ok("subject", m.subject === "2 recordings are deleted from SureFrame in 24 hours", m.subject);
+// The soonest of the two is 20 hours away, not 24: a late warning says how long is really left (MAIL-3).
+ok("subject says how long is left for the soonest", /^2 recordings are deleted from SureFrame, the first in (19|20) hours$/.test(m.subject) && /within 24 hours, the first in about (19|20) hours\./.test(norm(m.text)), m.subject);
 ok("lists each recording once (copies merged), with clients", m.text.includes(`sent to Ana ${stamp}, Ben ${stamp}`) && m.text.split(`/v/${soon1.id}`).length === 2 && m.text.includes(`/v/${soon2.id}`), m.text);
 ok("not the 3-day, 10-day, expired or reply videos", ![in3days, in10days, expired, reply, soon1copy].some((v) => m.text.includes(`/v/${v.id}`)));
 // The business had no time zone; the owner's browser set it (components/TimeZoneSync.tsx), so emails use it.
@@ -142,7 +143,7 @@ ok("owner on a paid plan is told about cloud backup", m.text.includes("/settings
 // Fix-first 12: each recording is named by its title, not only the date it was recorded (titles aren't encrypted).
 ok("each recording is named by its title", m.text.includes(`\u201c${soon1.title}\u201d, recorded`) && m.text.includes(`\u201c${soon2.title}\u201d, recorded`) && m.html.includes(soon1.title), m.text);
 ok("titles stay out of the subject", !mails.some((x) => x.subject.includes("Secret title")));
-ok("staff recorder gets their own email (not the owner)", toStaff.length === 1 && toStaff[0].subject === "A recording is deleted from SureFrame in 24 hours" && toStaff[0].text.includes(`/v/${staffVid.id}`) && !toOwner.some((x) => x.text.includes(staffVid.id)));
+ok("staff recorder gets their own email (not the owner)", toStaff.length === 1 && /^A recording is deleted from SureFrame in (21|22) hours$/.test(toStaff[0].subject) && toStaff[0].text.includes(`/v/${staffVid.id}`) && !toOwner.some((x) => x.text.includes(staffVid.id)));
 ok("staff aren't sent the billing link", toStaff[0] && !toStaff[0].text.includes("/settings/billing") && toStaff[0].text.includes("team owner"));
 ok("no email for the cloud backup workspace", !mails.some((x) => x.to === cloudEmail));
 const warned = await prisma.video.findMany({ where: { id: { in: [soon1.id, soon1copy.id, soon2.id, staffVid.id, in3days.id, reply.id, keptStale.id] } }, select: { id: true, expiryWarnedAt: true } });
@@ -154,8 +155,8 @@ await cron();
 await cron("purge");
 ok("sent exactly once (both jobs run again)", !outbox().slice(mid).some((x) => [ownerEmail, staffEmail].includes(x.to)));
 
-// A video rescheduled into the window later gets its own email.
-await prisma.video.update({ where: { id: in3days.id }, data: { purgeAt: new Date(Date.now() + 12 * H) } });
+// A video rescheduled into the window later gets its own email. Close to a day ahead, it says "in 24 hours".
+await prisma.video.update({ where: { id: in3days.id }, data: { purgeAt: new Date(Date.now() + 23.8 * H) } });
 const mid2 = outbox().length;
 await cron();
 const late = outbox().slice(mid2).filter((x) => x.to === ownerEmail);

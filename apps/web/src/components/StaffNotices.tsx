@@ -27,7 +27,7 @@ export default function StaffNotices({ initial }: { initial: Notice[] }) {
                 </>
               )}
             </p>
-            <button onClick={() => dismiss(n.id)} className="shrink-0 rounded-lg px-2 py-0.5 text-warn-fg hover:bg-hover">Dismiss</button>
+            <button onClick={() => dismiss(n.id)} className="shrink-0 rounded-lg px-2 py-0.5 text-warn-fg hover:bg-hover pointer-coarse:min-h-11">Dismiss</button>
           </li>
         ))}
       </ul>

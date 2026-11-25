@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { fingerprint as keyFingerprint, generateKey, importKey } from "@/lib/e2e/crypto";
-import { followRotations, loadKey, saveKey, teamKeyName } from "@/lib/e2e/keystore";
+import { canKeepKey, followRotations, loadKey, saveKey, teamKeyName } from "@/lib/e2e/keystore";
 
 /** Sent when this device has just made the team's key (the first device of a new business); components/RecoveryKey.tsx shows it. */
 export const KEY_CREATED = "sureframe-team-key-created";
@@ -10,7 +10,17 @@ export const KEY_CREATED = "sureframe-team-key-created";
 type State =
   | { kind: "loading" }
   | { kind: "ready"; key: CryptoKey }
-  | { kind: "recover"; error?: string };
+  | { kind: "recover"; error?: string }
+  // A new business's key couldn't be set up just now: there's no recovery key to ask for yet, only another go.
+  // `blocked`: because this browser won't keep a key (its storage for the site is blocked or full).
+  | { kind: "setup-failed"; blocked?: boolean };
+
+/**
+ * How making a new business's key went: the key, "taken" (another device already set one, so this one needs the
+ * recovery key), "failed" (no connection, a server error, an expired session: nothing was set, so it can be tried
+ * again), or "blocked" (this browser can't keep a key, so none was made: nothing was set either).
+ */
+type Created = { key: CryptoKey } | "taken" | "failed" | "blocked";
 
 /**
  * Creating the team key must happen once per workspace even if the gate
@@ -18,25 +28,35 @@ type State =
  * Otherwise two keys race, one loses with a 409, and a brand-new account is
  * asked for a recovery key it was never shown.
  */
-const creating = new Map<string, Promise<{ key: CryptoKey } | null>>();
+const creating = new Map<string, Promise<Created>>();
 function createTeamKey(workspaceId: string) {
   let pending = creating.get(workspaceId);
   if (!pending) {
-    pending = (async () => {
-      const key = await generateKey();
-      const res = await fetch("/api/workspace/key", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fingerprint: await keyFingerprint(key) }),
-      });
-      if (!res.ok) return null;
-      await saveKey(teamKeyName(workspaceId), key);
-      // The header shows the new recovery key until it's saved (components/RecoveryKey.tsx).
-      window.dispatchEvent(new CustomEvent(KEY_CREATED, { detail: workspaceId }));
-      return { key };
+    pending = (async (): Promise<Created> => {
+      try {
+        const key = await generateKey();
+        // Before the server hears of this key, make sure this browser will keep it: saving fails without any error
+        // where site storage is blocked or full, and a key registered but never kept is gone with this page, along
+        // with every video made with it.
+        if (!(await canKeepKey(teamKeyName(workspaceId), key))) return "blocked";
+        const res = await fetch("/api/workspace/key", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fingerprint: await keyFingerprint(key) }),
+        }).catch(() => null);
+        // Only a 409 means a key already exists somewhere else (api/workspace/key); any other failure set nothing.
+        if (!res?.ok) return res?.status === 409 ? "taken" : "failed";
+        await saveKey(teamKeyName(workspaceId), key);
+        // The header shows the new recovery key until it's saved (components/RecoveryKey.tsx).
+        window.dispatchEvent(new CustomEvent(KEY_CREATED, { detail: workspaceId }));
+        return { key };
+      } catch {
+        return "failed";
+      }
     })();
     creating.set(workspaceId, pending);
-    pending.then((r) => r || creating.delete(workspaceId));
+    // Anything but the key itself is forgotten, so Try again (or the next page) starts afresh.
+    void pending.then((r) => typeof r === "string" && creating.delete(workspaceId));
   }
   return pending;
 }
@@ -65,8 +85,10 @@ export function useTeamKey(workspaceId: string, fingerprint: string | null, onUn
   const [state, setState] = useState<State>({ kind: "loading" });
   // Bumped when another gate on the page unlocks, so every gate opens together.
   const [unlockedElsewhere, setUnlockedElsewhere] = useState(0);
+  // Bumped by Try again after a key set-up that didn't go through.
+  const [attempt, setAttempt] = useState(0);
   const locked = useRef(false);
-  locked.current = state.kind === "recover";
+  locked.current = state.kind === "recover" || state.kind === "setup-failed";
 
   useEffect(() => {
     const onOther = (e: Event) => locked.current && (e as CustomEvent<string>).detail === workspaceId && setUnlockedElsewhere((n) => n + 1);
@@ -89,12 +111,27 @@ export function useTeamKey(workspaceId: string, fingerprint: string | null, onUn
       }
       // First device for this workspace: create the team key.
       const created = await createTeamKey(workspaceId);
-      if (!cancelled) setState(created ? { kind: "ready", ...created } : { kind: "recover" });
-    })();
+      if (cancelled) return;
+      // The recovery key box only when a key really exists elsewhere; a request that failed is offered again instead.
+      if (typeof created === "string") return setState(created === "taken" ? { kind: "recover" } : { kind: "setup-failed", blocked: created === "blocked" });
+      setState({ kind: "ready", ...created });
+      // Made on a second go: the page's other gates, still waiting, open too.
+      if (attempt > 0) window.dispatchEvent(new CustomEvent(UNLOCKED, { detail: workspaceId }));
+    })().catch(() => {
+      // This browser's key store couldn't be read (blocked storage, say): never left on "Unlocking…" for good.
+      if (!cancelled) setState(fingerprint ? { kind: "recover" } : { kind: "setup-failed" });
+    });
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, fingerprint, unlockedElsewhere]);
+    // `attempt` re-runs it for Try again.
+  }, [workspaceId, fingerprint, unlockedElsewhere, attempt]);
+
+  /** Try again, after a new business's key couldn't be set up. */
+  function retry() {
+    setState({ kind: "loading" });
+    setAttempt((n) => n + 1);
+  }
 
   async function recover(input: string) {
     // Nothing typed yet: say what goes in the box, not that a key is wrong (S6).
@@ -116,7 +153,31 @@ export function useTeamKey(workspaceId: string, fingerprint: string | null, onUn
     }
   }
 
-  return { state, recover };
+  return { state, recover, retry };
+}
+
+/**
+ * In place of the recovery key box when a brand-new business's key couldn't be set up (the request failed): that key
+ * was never made, so there's no recovery key to enter yet. One more go usually does it.
+ */
+export function KeySetupFailed({ onRetry, anchor, blocked = false }: { onRetry: () => void; anchor?: string; /** This browser won't keep a key: say that, not "check your connection". */ blocked?: boolean }) {
+  return (
+    <div id={anchor} role="alert" className="mt-6 max-w-md scroll-mt-6 rounded-2xl border border-line bg-surface p-6" data-testid="key-setup-failed">
+      <h2 className="font-semibold text-ink">{blocked ? "Your key can't be kept in this browser" : "We couldn't set up your key just now"}</h2>
+      {blocked ? (
+        <p className="mt-2 text-sm text-muted" data-testid="key-storage-blocked">
+          This browser is blocking storage for SureFrame, so your key can&apos;t be kept here. Turn off private browsing, or allow site data for SureFrame, then try again.
+        </p>
+      ) : (
+        <p className="mt-2 text-sm text-muted">
+          Your videos are locked with a key that&apos;s made in this browser, and setting it up didn&apos;t finish. Check your connection, then try again.
+        </p>
+      )}
+      <button type="button" onClick={onRetry} className="mt-4 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover">
+        Try again
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -190,11 +251,15 @@ export default function TeamKeyGate({
   /** The unlock box's id, so a note elsewhere on the page can link to it. */
   anchor?: string;
 }) {
-  const { state, recover } = useTeamKey(workspaceId, fingerprint, onUnlock);
+  const { state, recover, retry } = useTeamKey(workspaceId, fingerprint, onUnlock);
 
   if (state.kind === "loading") {
     return loading !== undefined ? <>{loading}</> : <div className="grid h-40 place-items-center text-sm text-dim">Unlocking…</div>;
   }
+
+  // Never `lockedNote`, which points to a recovery key box (a new business has no recovery key yet). A gate with one
+  // leaves the Try again box to the page's main gate, and opens with it.
+  if (state.kind === "setup-failed") return lockedNote !== undefined ? null : <KeySetupFailed onRetry={retry} anchor={anchor} blocked={state.blocked} />;
 
   if (state.kind === "recover" && lockedNote !== undefined) return <>{lockedNote}</>;
 

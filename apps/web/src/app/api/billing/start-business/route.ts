@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { FOUNDING_METADATA, keyFor, MANAGED_PAYMENTS, PLAN_ITEM, priceId } from "@/lib/billing";
 import { isEmailBlocked } from "@/lib/blockedEmail";
 import { foundingEnds, foundingOpen } from "@/lib/founding";
-import { NEW_BUSINESS_FOR } from "@/lib/newBusiness";
+import { NEW_BUSINESS_FOR, unusedNewBusinessCustomers } from "@/lib/newBusiness";
 import { PAID_PLANS } from "@/lib/plans";
 import { limitByIp } from "@/lib/rateLimit";
 import { ACCOUNT_SUSPENDED, handle, HttpError, termsRequired } from "@/lib/session";
@@ -40,11 +40,14 @@ export const POST = handle(async (req: Request) => {
   const price = await priceId(keyFor(PLAN_ITEM[plan], interval, founding));
   const ends = founding ? foundingEnds() : null;
   const expiresAt = ends ? Math.floor(Math.max(Date.now() + 31 * 60_000, Math.min(ends.getTime(), Date.now() + 23 * 3600_000)) / 1000) : undefined;
-  // A Stripe customer of its own: the business it pays for is made when it's paid, and takes this customer.
-  const customer = await stripe().customers.create({ email: user.email, name: user.name ?? undefined, metadata: { [NEW_BUSINESS_FOR]: user.id } });
+  // A Stripe customer of its own: the business it pays for is made when it's paid, and takes this customer. One left
+  // from an earlier try that was never paid is used again (its open Checkout is closed first), so backing out and
+  // pressing again doesn't leave a new customer in Stripe each time, and only one Checkout can be paid.
+  const [unused] = await unusedNewBusinessCustomers(user);
+  const customer = unused ?? (await stripe().customers.create({ email: user.email, name: user.name ?? undefined, metadata: { [NEW_BUSINESS_FOR]: user.id } })).id;
   const params: Stripe.Checkout.SessionCreateParams = {
     mode: "subscription",
-    customer: customer.id,
+    customer,
     line_items: [{ price, quantity: 1 }],
     ...(MANAGED_PAYMENTS ? { managed_payments: { enabled: true } } : { automatic_tax: { enabled: true }, customer_update: { address: "auto", name: "auto" } }),
     client_reference_id: user.id,

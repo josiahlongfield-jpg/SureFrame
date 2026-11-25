@@ -126,6 +126,10 @@ export function start(port = Number(process.env.FAKE_STRIPE_PORT ?? 12111)) {
       state.customers.push(c);
       return send(200, c);
     }
+    if (p === "/v1/customers" && req.method === "GET") {
+      // Listed by exact email, as Stripe does; deleted ones aren't listed.
+      return send(200, list(state.customers.filter((c) => !state.deletedCustomers.includes(c.id) && (!form.email || c.email === form.email))));
+    }
     if ((m = p.match(/^\/v1\/customers\/([^/]+)$/)) && req.method === "GET") {
       return send(200, { id: m[1], object: "customer", invoice_settings: { default_payment_method: null } });
     }

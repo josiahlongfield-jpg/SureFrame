@@ -68,6 +68,8 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
     thumbnailUrl: video.thumbnailUrl,
     expiresAt: video.expiresAt,
     purgeAt: video.purgeAt,
+    // A copy shares its original's delete date; if the 24-hour warning for it has gone, it isn't sent again for the copy.
+    expiryWarnedAt: video.expiryWarnedAt,
     encrypted: true,
     teamKeyWrap: video.teamKeyWrap,
     ownerId: video.ownerId,

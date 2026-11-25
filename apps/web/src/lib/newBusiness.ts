@@ -17,7 +17,7 @@ export const NEW_BUSINESS_FOR = "newBusinessFor";
 const OWNS_ONE = "they already own a business";
 
 /** One email per subject a day, however many times Stripe sends the event. */
-const once =(key: string) => rateLimit(`alert:${key}`, 1, 86400).then(() => true, () => false);
+const once = (key: string) => rateLimit(`alert:${key}`, 1, 86400).then(() => true, () => false);
 
 /**
  * A paid subscription started from /start: makes the business it pays for (once: Stripe sends several events, maybe at
@@ -61,4 +61,47 @@ export async function adoptNewBusiness(sub: Stripe.Subscription): Promise<Stripe
   await stripe().subscriptions.update(sub.id, { metadata: { workspaceId: made.id } });
   console.log("[billing] new business started on a paid plan", JSON.stringify({ user: userId, workspace: made.id, subscription: sub.id }));
   return { ...sub, metadata: { ...sub.metadata, workspaceId: made.id } };
+}
+
+/**
+ * The Stripe customers made for this login's "Start your own business" Checkouts that nothing was ever paid on, so one
+ * can be used again for their next try (api/billing/start-business) or deleted with their account (lib/account.ts).
+ * Never a workspace's customer, and never one with a subscription of any kind, running or ended. Any Checkout still
+ * open on one is closed first, so nothing can be paid on it afterwards; one whose Checkout can't be closed is left out.
+ * Found by email, which Stripe lists exactly and at once. `search` also asks Stripe's search for ones made under an
+ * earlier email address: it can lag by a minute or so, so it's only for deleting, where that doesn't matter.
+ */
+export async function unusedNewBusinessCustomers(user: { id: string; email: string }, { search = false } = {}): Promise<string[]> {
+  const listed = (await stripe().customers.list({ email: user.email, limit: 100 })).data;
+  const searched = search
+    ? await stripe()
+        .customers.search({ query: `metadata['${NEW_BUSINESS_FOR}']:'${user.id}'`, limit: 100 })
+        .then((r) => r.data ?? [], () => [])
+    : [];
+  // Each one must say itself that it was made for this login, however it was found.
+  const ids = [...new Set([...listed, ...searched].filter((c) => c.metadata?.[NEW_BUSINESS_FOR] === user.id).map((c) => c.id))];
+  const unused: string[] = [];
+  for (const id of ids) {
+    if (await db.workspace.findUnique({ where: { stripeCustomerId: id }, select: { id: true } })) continue;
+    const open = await stripe().checkout.sessions.list({ customer: id, status: "open", limit: 100 });
+    const closed = await Promise.all(open.data.map((s) => stripe().checkout.sessions.expire(s.id).then(() => true, () => false)));
+    if (closed.includes(false)) continue;
+    // Looked up after the Checkouts are closed, so one being paid at this moment is seen.
+    if ((await stripe().subscriptions.list({ customer: id, status: "all", limit: 1 })).data.length) continue;
+    unused.push(id);
+  }
+  return unused;
+}
+
+/**
+ * When a login is deleted: its unused "Start your own business" customers go from Stripe too, so their name and email
+ * aren't left there with no purchase. Best effort: a failure is logged and the deletion carries on.
+ */
+export async function deleteUnusedNewBusinessCustomers(user: { id: string; email: string }) {
+  if (!process.env.STRIPE_SECRET_KEY) return;
+  try {
+    for (const id of await unusedNewBusinessCustomers(user, { search: true })) await stripe().customers.del(id);
+  } catch (err) {
+    console.log("[account] deleting unused new-business customers failed", JSON.stringify({ user: user.id, error: String((err as Error)?.message ?? err) }));
+  }
 }

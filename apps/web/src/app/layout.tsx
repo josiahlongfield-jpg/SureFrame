@@ -24,10 +24,18 @@ export const metadata: Metadata = {
 };
 
 /**
- * Sets the time zone cookie (lib/dates.ts) on the first page anyone opens, signed in or not, so
- * app pages are drawn in their zone straight away instead of being redrawn by TimeZoneSync.
+ * The public pages that show no times (first part of the path; "" is the home page). They don't set the time zone
+ * cookie: the Privacy Policy says we only use cookies needed to run SureFrame, and a visitor reading these needs none.
+ * Signed-in people on /pricing still get it from TimeZoneSync in the app header.
  */
-const zoneScript = `try{var z=encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC");if(("; "+document.cookie).indexOf("; ${TZ_COOKIE}="+z)<0)document.cookie="${TZ_COOKIE}="+z+"; path=/; max-age=31536000; samesite=lax"}catch(e){}`;
+const NO_ZONE_PAGES = ["", "pricing", "faq", "about", "legal", "example"];
+
+/**
+ * Sets the time zone cookie (lib/dates.ts) on the first page anyone opens, signed in or not, other than the public
+ * pages above (so sign-in, sign-up, clients' pages and the app all set it), so app pages are drawn in their zone
+ * straight away instead of being redrawn by TimeZoneSync.
+ */
+const zoneScript = `try{if(${JSON.stringify(NO_ZONE_PAGES)}.indexOf(location.pathname.split("/")[1])<0){var z=encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC");if(("; "+document.cookie).indexOf("; ${TZ_COOKIE}="+z)<0)document.cookie="${TZ_COOKIE}="+z+"; path=/; max-age=31536000; samesite=lax"}}catch(e){}`;
 
 /**
  * Refresh on phones (Josiah, 23 October 2026): reloading a page on a phone or tablet (touch screen, or narrower than

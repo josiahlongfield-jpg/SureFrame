@@ -19,7 +19,7 @@ import { errorText } from "./errors";
 import { BRAND } from "@/lib/brand";
 import { PLANS } from "@/lib/plans";
 
-export const metadata: Metadata = { title: "Sign in" };
+export const metadata: Metadata = { title: "Sign in", robots: { index: false } };
 
 /**
  * Where to go after signing in: `next`, or `callbackUrl` (what Auth.js and
@@ -43,7 +43,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   };
   // A paid plan picked on the pricing page ("Get Solo"): say we'll come back to it (V18).
   const picked = planPicked(redirectTo);
-  // Connecting Claude: the email carries a 6-digit code, not a link (lib/signInLink.ts), so the page says so (D4).
+  // Connecting Claude: the email carries an 8-digit code, not a link (lib/signInLink.ts), so the page says so (D4).
   const claude = forClaude(redirectTo);
   // Sent here from a page that needs an account (/settings, a video): say what signing in opens (V59).
   const opens = next || callbackUrl ? destination(redirectTo) : null;
@@ -137,7 +137,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
               {keepAt === "email" && keep}
               <SendButton label={claude ? "Email me a code" : "Email me a sign-in link"} busy={claude ? "Sending your code…" : "Sending your link…"} />
               <p className="text-xs text-dim">
-                {claude ? "No password needed. We'll email you a 6-digit code to type in this window." : "No password needed. We'll email you a link that signs you in."}
+                {claude ? "No password needed. We'll email you an 8-digit code to type in this window." : "No password needed. We'll email you a link that signs you in."}
               </p>
             </form>
           )}

@@ -72,6 +72,8 @@ await other.click("[data-testid=confirm-sign-in]");
 // Wait for the redirect away from the confirm page, which "**/login**" alone would match straight away.
 await other.waitForURL((u) => u.pathname === "/login");
 ok("a used link is refused with a clear message", await other.waitForSelector("text=expired or was already used", { timeout: 15000 }).then(() => true, () => false));
+// The new link asked for there goes where the old one was going, not to the library.
+ok("and the sign-in page keeps where the used link was going", new URL(other.url()).searchParams.get("next") === "/clients" && (await other.getAttribute('input[name="next"]', "value")) === "/clients", other.url());
 // A closed account (waiting to be deleted) signing in by email is offered to keep it.
 const closedEmail = `link-closed${Date.now()}@example.com`;
 await prisma.user.create({ data: { email: closedEmail, deletionRequestedAt: new Date(Date.now() - 60_000), deleteAt: new Date(Date.now() + 29 * 86_400_000) } });

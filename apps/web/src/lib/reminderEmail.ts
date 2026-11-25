@@ -72,3 +72,9 @@ export function dueText(due: Date, now: Date, tz: string) {
   if (days > 1 && days < 7) return `on ${due.toLocaleDateString("en-US", { timeZone: tz, weekday: "long" })} at ${time}`;
   return `on ${due.toLocaleDateString("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" })} at ${time}`;
 }
+
+/** Always "on Sun, Oct 12 at 9am": for text read days later (the bell), where "today" would no longer be true. */
+export function dueDated(due: Date, tz: string) {
+  const time = due.toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).replace(":00", "").replace(" ", "").toLowerCase();
+  return `on ${due.toLocaleDateString("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" })} at ${time}`;
+}

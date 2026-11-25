@@ -166,7 +166,7 @@ ok("member can't change the plan", (await staff.request.post(BASE + "/api/billin
 ok("member can't invite", (await staff.request.post(BASE + "/api/team/invites", { data: { teamKeyWrap: "x".repeat(44) } })).status() === 403);
 ok("member can't assign clients", (await staff.request.patch(`${BASE}/api/clients/${avery.id}`, { data: { assignedToId: staffUser.id } })).status() === 403);
 await staff.goto(BASE + "/settings/billing");
-ok("member sees billing is owner-only", !!(await staff.waitForSelector("text=Only the workspace owner", { timeout: 15000 }).catch(() => null)));
+ok("member sees billing is owner-only", !!(await staff.waitForSelector("text=Only the owner can change the plan or billing", { timeout: 15000 }).catch(() => null)));
 
 // A used link can't be reused by someone else.
 const other = await (await browser.newContext()).newPage();

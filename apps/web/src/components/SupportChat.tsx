@@ -94,6 +94,10 @@ export function SupportChat({ signedIn, limits, className = "", suggestions = []
     return () => clearTimeout(id);
   }, [blocked]);
 
+  // A touch keyboard's Return starts a new line and the Send button sends, as in the reply box (ReplyComposer).
+  const [touch, setTouch] = useState(false);
+  useEffect(() => setTouch(window.matchMedia("(hover: none) and (pointer: coarse)").matches), []);
+
   // Braces matter: newer Chrome returns a Promise from scrollIntoView, which
   // React would otherwise try to call as the effect's cleanup.
   useEffect(() => {
@@ -245,11 +249,13 @@ export function SupportChat({ signedIn, limits, className = "", suggestions = []
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              // Not while a Japanese, Chinese or Korean keyboard is still composing a word.
+              if (!touch && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 send(text);
               }
             }}
+            enterKeyHint={touch ? "enter" : "send"}
             rows={2}
             maxLength={4000}
             data-gramm="false"

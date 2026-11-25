@@ -13,7 +13,7 @@ import { pruneAdminActions } from "@/lib/support/admin";
 import { pruneTermsAcceptances } from "@/lib/terms";
 import { sendTermsNotices } from "@/lib/termsNotice";
 import { purgeHeldReplies } from "@/lib/replies";
-import { salvageAbandoned } from "@/lib/pieces";
+import { dropPieces, salvageAbandoned } from "@/lib/pieces";
 import { pruneClientQuestions, sendClientQuestionDigest } from "@/lib/support/clientQuestions";
 import { pruneConnectors } from "@/lib/connector/grants";
 import { pruneSignInCodes } from "@/lib/signInCode";
@@ -37,8 +37,9 @@ export async function GET(req: Request) {
     // Help-chat allowance records for people who aren't paying, after 31 days.
     pruneSupportUse(),
     // Recordings their recorder never finished: finished from the server's copy after 6 hours (lib/pieces.ts), and
-    // only then, uploads with nothing to finish them from are given up after a week.
-    salvageAbandoned().then((salvaged) => abortStaleUploads().then((aborted) => ({ salvaged, aborted }))),
+    // only then, uploads with nothing to finish them from are given up after a week. Paused in maintenance: finishing
+    // one emails the client or the team (lib/uploadComplete.ts), and giving one up deletes it.
+    unlessPaused(() => salvageAbandoned().then((salvaged) => abortStaleUploads(new Date(), dropPieces).then((aborted) => ({ salvaged, aborted })))),
     pruneTeamNotifications(),
     pruneLeftovers(),
     // Normally sent by the 5-minute reminders job; this catches anything it missed.

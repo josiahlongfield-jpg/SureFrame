@@ -2,7 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { deleteClient } from "@/lib/clientRemoval";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
-import { rateLimit } from "@/lib/rateLimit";
+import { MANY_CHANGES, rateLimit } from "@/lib/rateLimit";
 import { accessOf, clientScopeWhere } from "@/lib/permissions";
 import { NAME_MAX } from "@/lib/clients";
 
@@ -29,7 +29,7 @@ export const PATCH = handle(async (req: Request, ctx: { params: Promise<{ id: st
     }
     throw new HttpError(400, "Enter a valid email address");
   }
-  await rateLimit(`client-edit:${workspace.id}`, 30, 3600);
+  await rateLimit(`client-edit:${workspace.id}`, 30, 3600, MANY_CHANGES);
   if (body.data.assignedToId !== undefined) requireRole(me, "OWNER", "ADMIN");
   const scope = clientScopeWhere(accessOf(me));
   if (!(await db.client.findFirst({ where: { ...scope, id, removedAt: null }, select: { id: true } }))) throw new HttpError(404, "Client not found");

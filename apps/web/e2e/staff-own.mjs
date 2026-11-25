@@ -108,6 +108,10 @@ const { url } = await res.json();
 const session = state.sessions.at(-1).params;
 ok("Start on Solo opens Stripe Checkout", res.ok() && url?.startsWith("https://checkout.stripe.test") && session.line_items[0].price === state.prices.find((p) => p.lookup_key === "sureframe_solo_monthly")?.id);
 ok("…for them, with no workspace made before paying", session.subscription_data.metadata.newBusinessFor === staffUser.id && !session.subscription_data.metadata.workspaceId && (await prisma.workspace.count()) === before && (await owned(staffUser.id)) === 0);
+// Backing out and pressing again: the same Stripe customer, and the earlier Checkout is closed so only one can be paid.
+const customersBefore = state.customers.length;
+const again = await staff.request.post(BASE + "/api/billing/start-business", { data: { plan: "SOLO", interval: "month" } });
+ok("pressing again uses the same Stripe customer and closes the earlier Checkout", again.ok() && state.customers.length === customersBefore && state.sessions.at(-1).params.customer === session.customer && state.sessions.at(-2).status === "expired", JSON.stringify({ customers: state.customers.length - customersBefore, earlier: state.sessions.at(-2)?.status }));
 
 // Stripe says it's paid: the business is made, once.
 const sub = createSubscription(session.customer, undefined, "sureframe_solo_monthly", "active", { metadata: { newBusinessFor: staffUser.id } });
@@ -121,6 +125,11 @@ await staff.goto(BASE + "/start?paid=1");
 await staff.waitForURL((u) => u.pathname !== "/start", { timeout: 15000 }).catch(() => {});
 ok("paid: Start moves on to their business", path(staff) !== "/start", staff.url());
 ok("a second business can't be started", (await staff.request.post(BASE + "/api/billing/start-business", { data: { plan: "SOLO" } })).status() === 409);
+// Paid twice all the same (a second Checkout, from another tab, on another Stripe customer): no second business, and
+// the extra subscription is cancelled so it never renews. A person refunds it.
+const extra = createSubscription(`cus_extra${stamp}`, undefined, "sureframe_solo_monthly", "active", { metadata: { newBusinessFor: staffUser.id } });
+await webhook(staff, "customer.subscription.created", extra);
+ok("paid twice: the extra subscription is cancelled and no second business is made", extra.status === "canceled" && (await owned(staffUser.id)) === 1, extra.status);
 
 // ---- Staff member 2 is removed from their only team: Start, not a Free business ----
 const s2Email = `so-staff2${stamp}@example.com`;

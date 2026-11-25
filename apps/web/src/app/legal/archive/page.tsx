@@ -1,8 +1,10 @@
 import Link from "next/link";
 import LegalPage from "@/components/LegalPage";
 import { LEGAL, LEGAL_VERSIONS, WORDING_UPDATES } from "@/lib/legal";
+import { publicPage } from "@/lib/sharePreview";
 
-export const metadata = { title: "Versions and changes" };
+// The description is this page's line on /legal, so a shared link's preview card says what it is (not the home page's words).
+export const metadata = publicPage("Versions and changes", "Each version of the Terms and Privacy Policy people have agreed to, and every wording update since.");
 
 const DOC_NAMES = { terms: "Terms of Service", privacy: "Privacy Policy", dpa: "Data Processing Agreement" } as const;
 

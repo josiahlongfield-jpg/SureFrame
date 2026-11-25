@@ -29,6 +29,7 @@ import { EMAIL_CHANGE_HOURS, emailChangeConfirmEmail, emailChangeNoticeEmail, em
 import { sendMail } from "@/lib/mail";
 import { rateLimit } from "@/lib/rateLimit";
 import { ACTIVITY_COOKIE, KEEP_COOKIE, KEEP_DAYS, activityCookie, keepCookie } from "@/lib/activity";
+import { activityMark, keepMark, keeps } from "@/lib/activityMark";
 
 export const metadata: Metadata = { title: "Account" };
 
@@ -55,16 +56,17 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
   // Deleted for good this long after closing, unless they sign in and keep it (lib/accountDeletion.ts).
   const deletesOn = zoned(ownWorkspace?.timezone).longDay(deletionDate());
   // "Keep me signed in on this device" (lib/activity.ts), for this browser.
-  const kept = (await cookies()).get(KEEP_COOKIE)?.value === "1";
+  const kept = await keeps((await cookies()).get(KEEP_COOKIE)?.value, user.id);
 
   // Turned on or off here while signed in, the same as ticking the box at sign-in, from now.
+  // Both cookies are signed for this account (lib/activityMark.ts), as at sign-in.
   async function keepDevice(form: FormData) {
     "use server";
-    await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: "existing" });
+    const { user } = await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: "existing" });
     const on = form.get("keep") === "1";
     const jar = await cookies();
-    jar.set(ACTIVITY_COOKIE, String(Date.now()), activityCookie(undefined, on));
-    if (on) jar.set(KEEP_COOKIE, "1", keepCookie());
+    jar.set(ACTIVITY_COOKIE, await activityMark(user.id), activityCookie(undefined, on));
+    if (on) jar.set(KEEP_COOKIE, await keepMark(user.id), keepCookie());
     else jar.delete(KEEP_COOKIE);
     redirect("/settings/account?saved=device#device");
   }
@@ -75,6 +77,8 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
     "use server";
     const { user } = await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: "existing" });
     await db.user.update({ where: { id: user.id }, data: { sessionsValidAfter: new Date() } });
+    // Sign-in links already emailed but not yet used stop working too, as with support's button (lib/support/admin.ts).
+    await db.verificationToken.deleteMany({ where: { identifier: user.email } });
     console.log("[account] signed out everywhere", JSON.stringify({ user: user.id }));
     await signOut({ redirectTo: "/login?everywhere=1" });
   }
@@ -96,13 +100,15 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
     const to = plainEmail(String(form.get("email") ?? ""));
     if (!to) redirect("/settings/account?error=email-bad#email");
     if (to === user.email.toLowerCase()) redirect("/settings/account?error=email-same#email");
-    if (await isEmailBlocked(to)) redirect("/settings/account?error=email-blocked#email");
-    if (await db.user.findUnique({ where: { email: to }, select: { id: true } })) redirect("/settings/account?error=email-taken#email");
+    // Counted before the two checks below, which say whether an address has an account or is blocked: every try
+    // uses one of the hour's five, so a list of addresses can't be tested through this form.
     try {
       await rateLimit(`email-change:${user.id}`, 5, 3600);
     } catch {
       redirect("/settings/account?error=email-rate#email");
     }
+    if (await isEmailBlocked(to)) redirect("/settings/account?error=email-blocked#email");
+    if (await db.user.findUnique({ where: { email: to }, select: { id: true } })) redirect("/settings/account?error=email-taken#email");
     const link = appUrl(`/account/email?t=${encodeURIComponent(emailChangeToken(user.id, user.email, to))}`);
     try {
       await sendMail({ to, ...emailChangeConfirmEmail(link, user.email, to) });
@@ -171,11 +177,18 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
           ) : saved === "email" ? (
             <p role="status" className="mt-3 text-sm text-ok-fg" data-testid="email-changed">Done. You now sign in with {user.email}.</p>
           ) : null}
-          <form action={changeEmail} className="mt-4 flex flex-wrap gap-2">
-            <input name="email" type="email" required autoComplete="email" aria-label="New sign-in email" placeholder="New email address"
-              className="min-w-0 flex-1 rounded-xl border border-line-strong px-3 py-2 text-sm" data-testid="new-email" />
-            <button className="rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:bg-hover" data-testid="change-email">Email me a link</button>
-          </form>
+          {agreed ? (
+            <form action={changeEmail} className="mt-4 flex flex-wrap gap-2">
+              <input name="email" type="email" required autoComplete="email" aria-label="New sign-in email" placeholder="New email address"
+                className="min-w-0 flex-1 rounded-xl border border-line-strong px-3 py-2 text-sm" data-testid="new-email" />
+              <button className="rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:bg-hover" data-testid="change-email">Email me a link</button>
+            </form>
+          ) : (
+            // The change itself needs the current terms agreed to (changeEmail above), so the box isn't offered until then.
+            <p className="mt-3 text-sm text-muted" data-testid="email-change-after-agreeing">
+              To change it, <Link href="/agree" className="font-medium text-accent hover:underline">agree to the updated terms</Link> first.
+            </p>
+          )}
           {error?.startsWith("email-") && (
             <p role="alert" className="mt-2 text-sm text-danger-fg" data-testid="email-change-error">
               {error === "email-bad"
@@ -206,7 +219,7 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
             <button className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">Save name</button>
           </form>
           {saved === "name" && <p role="status" className="mt-2 text-sm text-ok-fg">Saved.</p>}
-          {error === "name" && <p className="mt-2 text-sm text-danger-fg">Enter your name.</p>}
+          {error === "name" && <p role="alert" className="mt-2 text-sm text-danger-fg">Enter your name.</p>}
         </section>}
 
         {/* The business's time zone lives here (Decision 13); To-dos/Reminders links to it. */}
@@ -314,7 +327,7 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
 
         {saved === "left" && (
           <p id="leave-result" role="status" className="mt-6 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="left-team">
-            You&apos;ve left the team. Its owner and admins have been emailed. Your login still works for a business of your own, free.
+            You&apos;ve left the team. Its owner and admins have been emailed. Your login still works.
           </p>
         )}
         {error === "leave" && (

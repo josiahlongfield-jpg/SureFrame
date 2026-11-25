@@ -63,7 +63,7 @@ export default async function AppHeader({ email, plan, widget = true }: { email:
   const settings: Links = me ? settingsPages({ manager, teamSize, plan: me.workspace.plan, workspaces: switchableBusinesses(me.user.memberships, me.workspace.id).length, supportAgent: isSupportAgent(me.user.email), ownsBusiness: me.user.memberships.some((m) => m.role === "OWNER") }).map((p) => [p.href, p.label] as const) : [];
   const signOutForm = (
     <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
-      <button className="whitespace-nowrap text-dim hover:text-ink">Sign out</button>
+      <button className="whitespace-nowrap text-dim hover:text-ink pointer-coarse:min-h-11">Sign out</button>
     </form>
   );
   // No backdrop-blur on the header: it would pin the fixed Help button, prompts and dialogs inside it.

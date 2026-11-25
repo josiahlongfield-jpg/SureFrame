@@ -61,7 +61,9 @@ async function FreeLosses({ workspace }: { workspace: Workspace }) {
   }
   if (clients > free.clientSeats) lines.push(`${clients - free.clientSeats} of your ${clients} clients, paused until you upgrade (Free covers ${free.clientSeats}).`);
   if (staff > free.staffSeats) lines.push(`Your team: everyone but the owner is paused (Free has ${free.staffSeats} login).`);
-  if (workspace.cloudBackup) lines.push(`Cloud backup: our copies of your recordings are deleted ${RETENTION_DAYS} days after they were recorded.`);
+  if (workspace.cloudBackup) {
+    lines.push(`Cloud backup: our copies of your recordings are deleted ${RETENTION_DAYS} days after your plan ends, unless you subscribe again with cloud backup or save them to your device first.`);
+  }
   if (aiAssistActive(workspace)) lines.push("AI transcripts and summaries.");
   if (workspace.foundingPrices) lines.push("Your founding prices, for good: a later plan is at the prices of the day.");
   if (workspace.discountLabel) lines.push(`Your discount (${workspace.discountLabel}).`);
@@ -137,7 +139,8 @@ function WhatYouPay({ workspace, discount }: { workspace: Workspace; discount: s
       </ul>
       {total > 0 && (
         <p className="mt-1 text-right text-xs text-dim" data-testid="pay-aud">
-          About {audFor(total / 100)} {per} (an estimate: you&apos;re charged in US dollars and your bank&apos;s rate applies)
+          About {audFor(total / 100)} {per} (an estimate: prices are set in US dollars, and your bank&apos;s rate applies unless you chose to pay in your own
+          currency at checkout)
         </p>
       )}
       <p className="mt-2 text-xs text-dim">
@@ -267,7 +270,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
         <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
           <h1 className="text-2xl font-semibold tracking-tight text-ink">Billing</h1>
           <p className="mt-6 rounded-2xl border border-line bg-surface p-6 text-sm text-muted">
-            {workspace.name} is on the {plan.name} plan. Only the workspace owner can change the plan or billing.
+            {workspace.name} is on the {plan.name} plan. Only the owner can change the plan or billing.
           </p>
         </main>
       </>
@@ -300,9 +303,15 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
               {workspace.aiAssistComplimentary && " Free AI summaries end then, and can be added as a paid add-on."}
             </p>
           )}
-          {(workspace.subscriptionStatus === "past_due" || workspace.subscriptionStatus === "unpaid") && workspace.stripeSubscriptionId && (
+          {workspace.subscriptionStatus === "past_due" && workspace.stripeSubscriptionId && (
             <p role="alert" className="mt-3 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="payment-failed">
               Your last payment didn&apos;t go through. Update your card under Manage subscription so your plan carries on.
+            </p>
+          )}
+          {/* A plan that lapsed or was cancelled has no subscription any more (lib/subscription.ts), so it gets a note of its own. */}
+          {!workspace.stripeSubscriptionId && !comp && (workspace.subscriptionStatus === "unpaid" || workspace.subscriptionStatus === "canceled") && (
+            <p role="status" className="mt-3 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="plan-ended">
+              Your paid plan has ended, because it was cancelled or a payment couldn&apos;t be taken. Choose a plan to subscribe again.
             </p>
           )}
           {workspace.cancelsAt ? (

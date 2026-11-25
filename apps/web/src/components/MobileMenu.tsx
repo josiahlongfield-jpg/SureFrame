@@ -23,7 +23,12 @@ export default function MobileMenu({ links, settings, plan, planHref, email, sig
   useEffect(() => {
     if (!open) return;
     const away = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      // Back to the Menu button, so the keyboard isn't left at the top of the page.
+      box.current?.querySelector<HTMLElement>("button[aria-expanded]")?.focus();
+    };
     document.addEventListener("pointerdown", away);
     document.addEventListener("keydown", esc);
     return () => {
@@ -53,7 +58,7 @@ export default function MobileMenu({ links, settings, plan, planHref, email, sig
         <span className="max-[30rem]:sr-only">Menu</span>
       </button>
       {open && (
-        <div id="app-menu" className="absolute inset-x-0 top-full z-40 max-h-[calc(100dvh-4rem)] overflow-y-auto border-b border-line bg-surface shadow-lg" data-testid="app-menu">
+        <div id="app-menu" className="absolute inset-x-0 top-full z-40 max-h-[calc(100dvh-4rem)] overflow-y-auto sm:max-h-[calc(100dvh-4.5rem)] border-b border-line bg-surface shadow-lg" data-testid="app-menu">
           {/* Any link closes the menu, the current page's too (that one doesn't change the path). */}
           <nav onClick={(e) => (e.target as HTMLElement).closest("a") && setOpen(false)} className="mx-auto flex max-w-6xl flex-col px-2 py-2 text-base sm:px-4">
             <NavLinks links={links} className="rounded-lg px-3 py-2.5 hover:bg-hover" />

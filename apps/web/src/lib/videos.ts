@@ -125,11 +125,15 @@ const FREE_BUDGET = 0.3 * GB;
  */
 export async function replyBytesToday(conversationId: string) {
   const since = new Date(Date.now() - 86_400_000);
-  const [done, open] = await Promise.all([
+  // Replies still recording hold bytes too: in parts already joined, and in pieces waiting to be joined (lib/pieces.ts;
+  // a piece running across a join is counted on both sides, which only errs towards the ceiling by one piece).
+  const recording = (await db.video.findMany({ where: { replyToId: conversationId, status: "RECORDING", createdAt: { gt: since } }, select: { id: true } })).map((v) => v.id);
+  const [done, open, pieces] = await Promise.all([
     db.video.aggregate({ where: { replyToId: conversationId, createdAt: { gt: since }, status: { not: "RECORDING" } }, _sum: { sizeBytes: true } }),
-    db.uploadPart.aggregate({ where: { video: { replyToId: conversationId, status: "RECORDING", createdAt: { gt: since } } }, _sum: { sizeBytes: true } }),
+    db.uploadPart.aggregate({ where: { videoId: { in: recording } }, _sum: { sizeBytes: true } }),
+    db.uploadPiece.aggregate({ where: { videoId: { in: recording } }, _sum: { sizeBytes: true } }),
   ]);
-  return Number(done._sum.sizeBytes ?? 0) + Number(open._sum.sizeBytes ?? 0);
+  return Number(done._sum.sizeBytes ?? 0) + Number(open._sum.sizeBytes ?? 0) + Number(pieces._sum.sizeBytes ?? 0);
 }
 export const REPLY_DAILY_BYTES = 3 * GB;
 

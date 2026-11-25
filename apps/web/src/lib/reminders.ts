@@ -4,10 +4,10 @@ import { Prisma, type Item, type Membership } from "@prisma/client";
 import { db, type Workspace } from "@/lib/db";
 import { appUrl } from "@/lib/stripe";
 import { sendMail } from "@/lib/mail";
-import { reminderEmail } from "@/lib/reminderEmail";
+import { dueDated, reminderEmail } from "@/lib/reminderEmail";
 import { brandOf } from "@/lib/branding";
 import { appSecret } from "@/lib/secrets";
-import { rateLimit } from "@/lib/rateLimit";
+import { isLimited, rateLimit } from "@/lib/rateLimit";
 import { clientTeam } from "@/lib/permissions";
 import { DEFAULT_REMINDERS, isTimeZone, nextOccurrence, reminderTime, type ReminderRule } from "@/lib/schedule";
 import { Repeat, ReminderRules } from "@/lib/scheduleSchema";
@@ -57,10 +57,12 @@ export function reminderDefaultsFor(w: Workspace, m?: OwnSettings | null) {
  * videos): those of the staff member assigned to the client, where they set
  * their own, else the business's. Owners and admins use the business's.
  */
-export function clientMailSettings(w: Pick<Workspace, "reminderMessage" | "reminderReplyTo">, assigned?: (OwnSettings & { pausedAt?: Date | null }) | null) {
+export function clientMailSettings(w: Pick<Workspace, "reminderMessage" | "reminderReplyTo"> & { contactEmail?: string | null }, assigned?: (OwnSettings & { pausedAt?: Date | null }) | null) {
   // A paused staff member can't answer, so their clients' emails go back to the business's settings.
   const own = assigned?.role === "MEMBER" && !assigned.pausedAt ? assigned : null;
-  return { message: own?.myReminderMessage ?? w.reminderMessage, replyTo: own?.myReminderReplyTo ?? w.reminderReplyTo };
+  // With no reply-to set, a client's reply goes to the contact email the business gives its clients (Settings > Branding)
+  // when it has one, rather than to our own sending address, which nobody at the business reads.
+  return { message: own?.myReminderMessage ?? w.reminderMessage, replyTo: (own?.myReminderReplyTo ?? w.reminderReplyTo) || w.contactEmail?.trim() || null };
 }
 
 const rulesOf = (i: Item): ReminderRule[] => {
@@ -129,6 +131,9 @@ export const validUnsubscribe = (clientId: string, sig: string) => {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 };
 
+/** How many runs try a reminder whose emails all fail before it is given up (about an hour of 5-minute runs). */
+const MAX_TRIES = 12;
+
 /** Run every few minutes: roll repeating to-dos forward and send reminders that are due. */
 export async function runReminders(now = new Date()) {
   // A repeating to-do whose time has passed gets its next occurrence even if nobody ticked it.
@@ -139,7 +144,14 @@ export async function runReminders(now = new Date()) {
     take: 500,
   });
   let spawned = 0;
-  for (const i of overdue) if (await spawnNext(i, workspaceTz(i.workspace))) spawned++;
+  for (const i of overdue) {
+    // One to-do that can't be rolled forward (edited or deleted in this instant) mustn't stop the rest, or the reminders below.
+    try {
+      if (await spawnNext(i, workspaceTz(i.workspace))) spawned++;
+    } catch (err) {
+      console.error(JSON.stringify({ level: "error", message: "[reminders] couldn't roll a repeating to-do forward", item: i.id, error: String(err) }));
+    }
+  }
 
   const due = await db.reminder.findMany({
     // Nothing goes out while support has the workspace suspended (lib/support/admin.ts); the reminders stay unsent and
@@ -160,18 +172,18 @@ export async function runReminders(now = new Date()) {
 
   let sent = 0;
   let skipped = 0;
-  for (const r of due) {
+  const sendOne = async (r: (typeof due)[number]) => {
     const { item } = r;
     const ws = item.workspace;
     const skip = async (why: string) => {
       skipped++;
       await db.reminder.update({ where: { id: r.id }, data: { sentAt: now, error: why } });
     };
-    if (item.done) { await skip("done"); continue; }
+    if (item.done) { await skip("done"); return; }
     // The owner closed their account (lib/accountDeletion.ts): nothing goes out in the business's name.
-    if (ws.deleteAt) { await skip("account closed"); continue; }
-    if (item.client?.removedAt) { await skip("client removed"); continue; }
-    if (!item.dueAt || item.dueAt.getTime() < now.getTime() - 3_600_000) { await skip("late"); continue; }
+    if (ws.deleteAt) { await skip("account closed"); return; }
+    if (item.client?.removedAt) { await skip("client removed"); return; }
+    if (!item.dueAt || item.dueAt.getTime() < now.getTime() - 3_600_000) { await skip("late"); return; }
 
     const base = { business: ws.name, due: item.dueAt, now, tz: workspaceTz(ws) };
     // Clients' reminders come from "Business A via SureFrame"; the team's own from SureFrame (lib/mail.ts).
@@ -180,7 +192,10 @@ export async function runReminders(now = new Date()) {
     const bells: NewNotification[] = [];
     if (r.to === "CLIENT") {
       const c = item.client;
-      if (!c || c.removedAt || c.pausedAt || c.linkDisabledAt || c.remindersOff || !c.email || !item.shared) { await skip("client unavailable"); continue; }
+      if (!c || c.removedAt || c.pausedAt || c.linkDisabledAt || c.remindersOff || !c.email || !item.shared) { await skip("client unavailable"); return; }
+      // As with new-video emails (lib/emailClientVideo.ts): the email's link carries no key, so it opens the list only on a
+      // device that has opened the personal link. A client who never has isn't emailed.
+      if (!c.linkOpenedAt) { await skip("link not opened"); return; }
       // The staff member looking after the client speaks for themselves when they've set their own message and reply-to.
       const own = clientMailSettings(ws, ws.members.find((m) => m.userId === c.assignedToId));
       mails.push({
@@ -195,23 +210,27 @@ export async function runReminders(now = new Date()) {
       // A client's to-do goes to the staff member looking after that client
       // (or, when nobody is, to those who can see unassigned clients); general
       // to-dos go to the whole team.
+      // The bell is read days later, so it gives the date where the email's subject says "today" or "tomorrow".
+      const dated = dueDated(item.dueAt, base.tz);
+      const bellText = item.client ? `${item.client.name}: a to-do is due ${dated}` : `A to-do on your list is due ${dated}`;
       for (const mem of item.client ? clientTeam(ws.members, item.client) : ws.members) {
         const m = reminderEmail({ ...base, link, team: true, clientName: item.client?.name });
         mails.push({ to: mem.user.email, m });
-        bells.push({ userId: mem.userId, workspaceId: ws.id, kind: "TODO", text: m.subject, href: item.clientId ? `/clients/${item.clientId}` : "/todos", clientId: item.clientId });
+        bells.push({ userId: mem.userId, workspaceId: ws.id, kind: "TODO", text: bellText, href: item.clientId ? `/clients/${item.clientId}` : "/todos", clientId: item.clientId });
       }
     }
-    // A daily ceiling per business keeps reminders from being used to send bulk mail.
-    try {
-      await rateLimit(`reminder-mail:${ws.id}`, ws.plan === "FREE" ? 100 : 2000, 86_400);
-    } catch {
+    // A daily ceiling per business keeps reminders from being used to send bulk mail. Checked here and counted below once
+    // an email has gone, so a send that keeps failing doesn't use up the day's allowance on its retries.
+    const ceiling = [`reminder-mail:${ws.id}`, ws.plan === "FREE" ? 100 : 2000, 86_400] as const;
+    if (await isLimited(...ceiling)) {
       await skip("daily email limit");
-      continue;
+      return;
     }
     // Claim it first, so a run that overlaps this one can't send it again.
     const claimed = await db.reminder.updateMany({ where: { id: r.id, sentAt: null }, data: { sentAt: now } });
-    if (claimed.count === 0) continue;
-    await notify(bells);
+    if (claimed.count === 0) return;
+    // In the bell on the first try only: a retry after a failed send would add the same line again.
+    if (!r.error) await notify(bells);
     const failed: string[] = [];
     let delivered = 0;
     for (const { to, m, replyTo, fromName } of mails) {
@@ -224,11 +243,24 @@ export async function runReminders(now = new Date()) {
     }
     if (!mails.length || delivered > 0) {
       sent++;
+      if (delivered > 0) await rateLimit(...ceiling).catch(() => {});
       // Some went: don't resend to those who already have it.
       if (failed.length) await db.reminder.update({ where: { id: r.id }, data: { error: failed.join("; ").slice(0, 300) } });
     } else {
-      // Nothing went: release it so the next run retries; record why.
-      await db.reminder.update({ where: { id: r.id }, data: { sentAt: null, error: failed.join("; ").slice(0, 300) } });
+      // Nothing went: release it so the next run retries, recording why and which try this was. After about an hour
+      // of tries it is given up, so one address the email service refuses isn't tried every few minutes for days.
+      const tries = Number(/^try (\d+): /.exec(r.error ?? "")?.[1] ?? 0) + 1;
+      const error = `try ${tries}: ${failed.join("; ")}`.slice(0, 300);
+      if (tries >= MAX_TRIES) skipped++;
+      await db.reminder.update({ where: { id: r.id }, data: tries >= MAX_TRIES ? { error } : { sentAt: null, error } });
+    }
+  };
+  for (const r of due) {
+    // One reminder that fails (its to-do changed or was deleted in this instant) mustn't hold up the ones after it.
+    try {
+      await sendOne(r);
+    } catch (err) {
+      console.error(JSON.stringify({ level: "error", message: "[reminders] a reminder failed; the rest carry on", reminder: r.id, error: String(err) }));
     }
   }
   return { sent, skipped, spawned };

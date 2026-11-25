@@ -5,11 +5,13 @@ import SiteHeader from "@/components/SiteHeader";
 import { mcpResource } from "@/lib/connector/oauth";
 import { USE_KEEP_DAYS } from "@/lib/connector/grants";
 import { LEGAL } from "@/lib/legal";
+import { publicPage } from "@/lib/sharePreview";
 
-export const metadata: Metadata = {
-  title: "Use SureFrame with Claude",
-  description: "Connect your own Claude to SureFrame to make reports on your clients, replies and to-dos. Read-only, and your encrypted content stays private.",
-};
+// Its own words on a shared link's preview card too, not the home page's (lib/sharePreview.ts).
+export const metadata: Metadata = publicPage(
+  "Use SureFrame with Claude",
+  "Connect your own Claude to SureFrame to make reports on your clients, replies and to-dos. Read-only, and your encrypted content stays private.",
+);
 
 const ASK = [
   "Which clients are waiting for an answer, and for how long?",
@@ -50,7 +52,7 @@ export default function HelpClaude() {
             </p>
             <p className="mt-2 text-sm text-muted">
               In Claude, open Settings, then Connectors, choose Add custom connector, and paste <code className="break-all text-ink">{mcpResource()}</code>.
-              Then choose Connect and Allow. If {p} asks you to sign in there, we email you a 6-digit code to type in that same window (not a link), because the connection has to finish in the window Claude opened.
+              Then choose Connect and Allow. If {p} asks you to sign in there, we email you an 8-digit code to type in that same window (not a link), because the connection has to finish in the window Claude opened.
             </p>
           </section>
           <section className="rounded-2xl border border-line bg-surface p-5">

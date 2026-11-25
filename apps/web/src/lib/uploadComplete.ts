@@ -42,9 +42,12 @@ export async function completeUpload(video: Video, partCount: number, durationMs
   const total = used.reduce((sum, p) => sum + Number(p.sizeBytes), 0);
   const workspace = await db.workspace.findUniqueOrThrow({ where: { id: video.workspaceId } });
   const maxMinutes = video.replyToId ? replyMaxMinutes(workspace.plan, await byTeam(id)) : PLANS[workspace.plan].maxDurationMin;
+  // A recording that ran over the plan's length is kept, not thrown away: the browser's own stop can come late (a tab
+  // in the background, a laptop that slept), and by now the recording exists nowhere else. Only one more than twice
+  // the length is refused. The length is the browser's own figure, so the size budget is the limit that always holds.
   const refusal =
     total > (await uploadBudget(video)) ? "This recording is larger than your plan allows."
-    : durationMs > (maxMinutes * 60 + 30) * 1000 ? "This recording is longer than your plan allows."
+    : durationMs > maxMinutes * 2 * 60_000 ? "This recording is longer than your plan allows."
     : null;
   if (refusal) {
     await driver.abort(video.storageKey, video.uploadId).catch(() => {});

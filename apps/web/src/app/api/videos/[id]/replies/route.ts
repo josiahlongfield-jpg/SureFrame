@@ -11,8 +11,10 @@ import { notifyClientReply } from "@/lib/teamNotify";
 import { replyMaxMinutes } from "@/lib/plans";
 
 const Body = z.discriminatedUnion("kind", [
-  // Text arrives already sealed with the conversation's video key.
-  z.object({ kind: z.literal("TEXT"), body: z.string().min(1).max(8000), encrypted: z.literal(true), timestampMs: z.number().int().min(0).optional() }),
+  // Text arrives already sealed with the conversation's video key. Only text shaped like what the browser seals is
+  // taken (lib/e2e/crypto.ts encryptText: base64url, 39 characters for one letter), so a mistake in the app can't
+  // store a readable reply.
+  z.object({ kind: z.literal("TEXT"), body: z.string().min(39).max(8000).regex(/^[A-Za-z0-9_-]+$/), encrypted: z.literal(true), timestampMs: z.number().int().min(0).optional() }),
   // Media key wrapped with the conversation's video key.
   // `review`: held back once uploaded until its author sends it (api/videos/[id]/replies/[replyId]).
   z.object({ kind: z.enum(["VIDEO", "AUDIO"]), mimeType: z.string().max(120).regex(ALLOWED_MIME), parentKeyWrap: z.string().min(40).max(200), review: z.boolean().optional() }),

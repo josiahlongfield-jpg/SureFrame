@@ -51,15 +51,20 @@ export default function JoinTeam({ token, signedIn, agreed, needsName = false, b
       nameBox.current?.focus();
       return;
     }
-    setBusy(true);
     setError(undefined);
+    // The link's key is read before the server is asked, so a link cut short in a message never uses up the invite.
+    const oneOff = await importKey(inviteKey).catch(() => null);
+    if (!oneOff) return setError("This invite link is incomplete. Open the whole link exactly as it was sent to you.");
+    setBusy(true);
     try {
-      const res = await fetch("/api/team/join", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, ...(agreed ? {} : { agree: ticked }), ...(name.trim() ? { name: name.trim() } : {}) }) });
+      const res = await fetch("/api/team/join", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, ...(agreed ? {} : { agree: ticked }), ...(name.trim() ? { name: name.trim() } : {}) }) }).catch(() => null);
+      // Pressing again is safe: the same person joining twice just gets the key again.
+      if (!res) throw new Error("Couldn't join just now. Check your connection and try again.");
       const data = await res.json().catch(() => ({}));
       if (res.status === 403 && data.code === "TERMS_REQUIRED") throw new Error("Tick the box to agree to the Terms of Service and Privacy Policy.");
       if (data.code === "NAME_NEEDED") nameBox.current?.focus();
       if (!res.ok) throw new Error(data.error ?? "Could not join the team");
-      const teamKey = await unwrapKey(data.teamKeyWrap, await importKey(inviteKey)).catch(() => {
+      const teamKey = await unwrapKey(data.teamKeyWrap, oneOff).catch(() => {
         throw new Error("This invite link is damaged. Ask for a new one.");
       });
       if (data.fingerprint && (await fingerprint(teamKey)) !== data.fingerprint) throw new Error("This invite link is out of date. Ask for a new one.");

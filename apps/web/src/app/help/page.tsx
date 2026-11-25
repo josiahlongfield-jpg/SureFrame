@@ -10,11 +10,10 @@ import { BUSINESS_FAQ, CLIENT_FAQ } from "@/components/Faq";
 import { LEGAL } from "@/lib/legal";
 import { currentUser } from "@/lib/session";
 import { SUPPORT_LIMITS, supportTier } from "@/lib/support/allowance";
+import { publicPage } from "@/lib/sharePreview";
 
-export const metadata: Metadata = {
-  title: "Help",
-  description: "Get help with recording, sending videos, clients, billing and your recovery key.",
-};
+// Its own words on a shared link's preview card too, not the home page's (lib/sharePreview.ts).
+export const metadata: Metadata = publicPage("Help", "Get help with recording, sending videos, clients, billing and your recovery key.");
 
 const V = SUPPORT_LIMITS.visitor;
 const F = SUPPORT_LIMITS.free;

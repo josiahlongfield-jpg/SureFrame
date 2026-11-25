@@ -40,6 +40,13 @@ export async function purgeExpired(now = new Date(), budgetMs = 40_000) {
         groups.slice(i, i + 8).map(async ([key, rows]) => {
           const ids = rows.map((r) => r.id);
           try {
+            // Looked at again just before deleting: cloud backup turned on, or a legal hold placed, since the list was
+            // read keeps these. They're left for this run; whatever is still due is picked up by the next one.
+            const still = await db.video.count({ where: { id: { in: ids }, purgeAt: { lte: now }, status: { notIn: ["EXPIRED", "RECORDING"] }, workspace: { cloudBackup: false, legalHoldAt: null } } });
+            if (still !== ids.length) {
+              for (const id of ids) failed.add(id);
+              return;
+            }
             // Another row still using this file and not yet due keeps it for now.
             const inUse = await db.video.count({ where: { storageKey: key, id: { notIn: ids }, status: { not: "EXPIRED" }, OR: [{ purgeAt: null }, { purgeAt: { gt: now } }] } });
             if (!inUse) await storage().delete(key);
@@ -86,9 +93,14 @@ export async function pruneLeftovers(now = new Date()) {
  * after a week so their parts stop costing storage, and removed: an abandoned
  * reply would otherwise show up in the conversation, and an abandoned
  * recording in the library. Recovery after a crash normally happens the next
- * time the app is opened.
+ * time the app is opened. The week runs from when the recording was last
+ * touched: a piece arriving, or access coming back. Asking the server to
+ * finish one it has nothing to finish from doesn't touch it (lib/pieces.ts
+ * finishFromPieces), so a recording that can never be finished does get here.
+ * `dropPieces` deletes what a removed recording still held in pieces
+ * (lib/pieces.ts; handed in by the daily job, as that file builds on this one).
  */
-export async function abortStaleUploads(now = new Date()) {
+export async function abortStaleUploads(now = new Date(), dropPieces?: (videoId: string) => Promise<unknown>) {
   const found = await db.video.findMany({
     where: {
       status: "RECORDING",
@@ -107,7 +119,12 @@ export async function abortStaleUploads(now = new Date()) {
   for (const v of stale) {
     await storage().abort(v.storageKey, v.uploadId).catch(() => {});
     // Deleting a reply's media deletes its Reply row too (onDelete: Cascade).
-    await db.video.delete({ where: { id: v.id } }).catch((err) => console.error("[purge] couldn't remove stale upload", v.id, err));
+    const removed = await db.video.delete({ where: { id: v.id } }).then(
+      () => true,
+      (err) => (console.error("[purge] couldn't remove stale upload", v.id, err), false),
+    );
+    // The pieces it still held (never joined into a part) go with it; any left over are swept up daily (lib/pieces.ts).
+    if (removed) await dropPieces?.(v.id).catch((err) => console.error("[purge] couldn't remove a stale upload's pieces", v.id, err));
   }
   return stale.length;
 }

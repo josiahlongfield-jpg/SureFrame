@@ -24,7 +24,8 @@ ${emailButton(url, "Sign in", emailColors())}
 
 /** Connecting Claude (lib/signInLink.ts forClaude): a code to type in the window Claude opened, and no link. */
 export function signInCodeEmail(code: string) {
-  const spaced = `${code.slice(0, 3)} ${code.slice(3)}`;
+  // Two groups of four; the code box takes it with or without the space.
+  const spaced = `${code.slice(0, 4)} ${code.slice(4)}`;
   const subject = `Your ${BRAND.name} code to connect Claude`;
   const text = [
     `Your code to connect Claude to ${BRAND.name}: ${spaced}`,

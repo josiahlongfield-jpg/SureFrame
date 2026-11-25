@@ -908,6 +908,12 @@ export async function enableClientLink(actor: SupportAdmin, o: { clientId: strin
  * (src/auth.ts rejects tokens from before now), plus unused sign-in links and
  * app hand-over codes. Signing in again works as normal; devices keep their
  * encryption keys.
+ *
+ * Also disconnects this login's Claude connections (lib/connector/grants.ts):
+ * their tokens don't depend on a sign-in, so someone who got into the account
+ * could have made one that would otherwise outlive this. The person connects
+ * Claude again on Settings > Connections. (Their own "Sign out everywhere" on
+ * Settings > Account leaves Claude connected, and says so.)
  */
 export async function signOutEverywhere(actor: SupportAdmin, o: { userId: string; reason: string; category?: NoticeReason; notify?: boolean }) {
   const reason = reasonOf(o.reason);
@@ -915,16 +921,18 @@ export async function signOutEverywhere(actor: SupportAdmin, o: { userId: string
   guard(actor, { userId: o.userId });
   const user = await loadUser(o.userId);
   const now = new Date();
+  let claudeDisconnected = 0;
   const row = await db.$transaction(async (tx) => {
     await tx.user.update({ where: { id: user.id }, data: { sessionsValidAfter: now } });
     await tx.mobileCode.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: now } });
     await tx.verificationToken.deleteMany({ where: { identifier: user.email } });
+    claudeDisconnected = (await tx.connectorGrant.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: now } })).count;
     return logAdmin(tx, actor, {
       action: "user.sign_out_everywhere",
       userId: user.id,
       target: user.email,
       reason,
-      details: { category: o.category ?? null, notify, before: { sessionsValidAfter: user.sessionsValidAfter?.toISOString() ?? null }, after: { sessionsValidAfter: now.toISOString() } },
+      details: { category: o.category ?? null, notify, claudeDisconnected, before: { sessionsValidAfter: user.sessionsValidAfter?.toISOString() ?? null }, after: { sessionsValidAfter: now.toISOString() } },
     });
   });
   let emailed = false;
@@ -935,7 +943,10 @@ export async function signOutEverywhere(actor: SupportAdmin, o: { userId: string
       notice({
         subject: `You've been signed out of ${BRAND.name} everywhere`,
         lead: `We've signed your ${BRAND.name} login (${user.email}) out on every device${o.category ? ` ${NOTICE_REASONS[o.category]}` : ""}.`,
-        lines: [{ text: "Sign in again to carry on. A browser you've used before keeps its encryption keys, so it won't ask for your recovery key." }],
+        lines: [
+          { text: "Sign in again to carry on. A browser you've used before keeps its encryption keys, so it won't ask for your recovery key." },
+          ...(claudeDisconnected ? [{ text: "We also disconnected Claude from this login. To use it again, connect it again under Settings > Connections once you've signed in." }] : []),
+        ],
         button: { label: "Sign in", link: appUrl("/login") },
         footer: `Didn't expect this? Reply to this email or contact ${LEGAL.email}.`,
       }),

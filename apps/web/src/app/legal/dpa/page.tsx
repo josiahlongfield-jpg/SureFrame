@@ -2,8 +2,10 @@ import Link from "next/link";
 import LegalPage, { SubprocessorList } from "@/components/LegalPage";
 import { CODE_MINUTES, CODE_TRIES } from "@/lib/signInCodeRules";
 import { LEGAL, operatorLine, R2_KEPT, SUBPROCESSORS_UPDATED } from "@/lib/legal";
+import { publicPage } from "@/lib/sharePreview";
 
-export const metadata = { title: "Data Processing Agreement" };
+// The description is this document's line on /legal, so a shared link's preview card says what it is (not the home page's words).
+export const metadata = publicPage("Data Processing Agreement", "For businesses: how we handle the client information you put into SureFrame.");
 
 export default function Page() {
   const mail = <a href={`mailto:${LEGAL.email}`}>{LEGAL.email}</a>;
@@ -318,7 +320,7 @@ export default function Page() {
           accounts, and we record each action taken with them.
         </li>
         <li>
-          <strong>Sign-in:</strong> passwordless sign-in links that work once and expire after 24 hours; when someone signs in to connect Claude, a 6-digit
+          <strong>Sign-in:</strong> passwordless sign-in links that work once and expire after 24 hours; when someone signs in to connect Claude, an 8-digit
           code instead, which works for {CODE_MINUTES} minutes and {CODE_TRIES} tries and is kept only as a one-way fingerprint, with the email address, until it
           expires. Sessions usually
           end when the browser closes, and after 8 hours without use; someone who ticks &ldquo;Keep me signed in&rdquo; when signing in, or turns it on later in

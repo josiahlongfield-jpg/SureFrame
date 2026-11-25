@@ -6,11 +6,10 @@ import { BUSINESS_FAQ, CLIENT_FAQ, FaqList } from "@/components/Faq";
 import OpenFaqFromHash from "@/components/OpenFaqFromHash";
 import FaqExpandAll from "@/components/FaqExpandAll";
 import { LEGAL } from "@/lib/legal";
+import { publicPage } from "@/lib/sharePreview";
 
-export const metadata: Metadata = {
-  title: "FAQ",
-  description: "Answers about plans, how long videos are kept, the recovery key, sending to clients, and what clients see and can do.",
-};
+// Its own words on a shared link's preview card too, not the home page's (lib/sharePreview.ts).
+export const metadata: Metadata = publicPage("FAQ", "Answers about plans, how long videos are kept, the recovery key, sending to clients, and what clients see and can do.");
 
 export default function Faq() {
   return (

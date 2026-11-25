@@ -10,6 +10,9 @@ set -u
 CHROMIUM=${CHROMIUM:-}  # empty uses the Chromium Playwright installed (npx playwright install chromium)
 OUT=${OUT:-/tmp/claude-0/suites}; P=${P:-3130}; DB=${DB:-framecast_suites}
 mkdir -p "$OUT"; : > "$OUT/summary.txt"
+# The fake Stripe keeps its state in a file. Give each run its own, so another test server on this machine
+# (which would otherwise share the default file in the temp folder) can never swap the price list under it.
+export FAKE_STRIPE_STATE=${FAKE_STRIPE_STATE:-$OUT/fake-stripe.json}; rm -f "$FAKE_STRIPE_STATE"
 cd "$APP_DIR" || exit 1
 pg_isready -q -h localhost || { service postgresql start >/dev/null 2>&1; sleep 3; }
 BASEURL=$(grep -o '^DATABASE_URL="[^"]*"' .env | sed 's/^DATABASE_URL="//;s/"$//')

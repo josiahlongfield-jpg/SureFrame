@@ -65,7 +65,8 @@ export default async function Start({ searchParams }: { searchParams: Promise<{ 
 
   return (
     <main data-theme="fresh" className="text-ink mx-auto max-w-lg px-4 py-12 sm:px-6 sm:py-16">
-      <Logo href="/start" />
+      {/* Keeps the plan they came to start, so the logo doesn't drop it. */}
+      <Logo href={picked ? `/start?plan=${picked}` : "/start"} />
       {paid ? (
         <div role="status" className="mt-8 rounded-2xl border border-ok-line bg-ok-bg p-5 text-sm text-ok-fg" data-testid="start-paid">
           <p className="font-semibold">Thanks, your payment went through.</p>
@@ -81,7 +82,7 @@ export default async function Start({ searchParams }: { searchParams: Promise<{ 
       {joinable && (
         <div role="status" className="mt-8 rounded-2xl border border-primary-line bg-primary-soft p-5 text-sm text-ink" data-testid="start-joining">
           <p className="font-semibold">Joining {joinable.workspace.name}?</p>
-          <p className="mt-1">You haven&apos;t joined yet. Go back to your invite and press Agree and join.</p>
+          <p className="mt-1">You haven&apos;t joined yet. Go back to your invite and press Join the team.</p>
           <a href={`/join/${token}`} className="mt-2 inline-block font-medium text-accent hover:underline">
             Back to the invite
           </a>
@@ -106,11 +107,17 @@ export default async function Start({ searchParams }: { searchParams: Promise<{ 
       <p className="mt-3 text-muted" data-testid="start-lead">
         {teams.length
           ? `Your own business is separate from ${teams.length === 1 ? `${teams[0]}'s team` : "the teams you work in"}, with its own clients, plan and recovery key.`
-          : "Your own business has its own clients, plan and recovery key."}{" "}
-        Staff logins don&apos;t come with a Free plan of their own, so your business starts on one of these paid plans. You can change or cancel it later in
-        Settings &gt; Billing.
+          : "Your own business has its own clients, plan and recovery key."}
+        {!paid && (
+          <>
+            {" "}
+            Staff logins don&apos;t come with a Free plan of their own, so your business starts on one of these paid plans. You can change or cancel it later
+            in Settings &gt; Billing.
+          </>
+        )}
       </p>
-      <StartBusiness picked={picked} />
+      {/* Not while a payment is being set up: pressing a plan again would open a second Checkout and charge twice. */}
+      {!paid && <StartBusiness picked={picked} />}
       {teams.length > 0 && (
         <p className="mt-6 text-sm">
           <Link href="/library" className="font-medium text-accent hover:underline">

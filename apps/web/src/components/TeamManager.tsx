@@ -23,7 +23,7 @@ import { markLinkSent } from "./ClientsManager";
 /** How a removed person's recordings are shown (lib/team.ts FORMER_MEMBER; that file is server-only). */
 const FORMER = "Former team member";
 
-/** A client the team sends their new link to after a key reset: never opened their personal link, or has no email. */
+/** A client the team sends their new link to after a key reset: never opened their personal link, has no email, turned emails off, or their email didn't go. */
 type ToSend = { id: string; name: string; email: string | null; link: string; firstLink: boolean };
 
 type Role = "OWNER" | "ADMIN" | "MEMBER";
@@ -130,10 +130,25 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
   const [busy, setBusy] = useState(false);
   const [buyQty, setBuyQty] = useState(1);
   const [removing, setRemoving] = useState<string>();
+  // A removal or key reset that failed, said beside the row (or the reset box) it was pressed in: a member's id, or "reset".
+  const [rowError, setRowError] = useState<{ id: string; text: string }>();
   const [reset, setReset] = useState<ResetState>();
   // Invite links made in this browser (see INVITE_LINK), by invite id.
   const [links, setLinks] = useState<Record<string, string>>({});
   const [copiedInvite, setCopiedInvite] = useState<string>();
+  // The invite link ("new" for the one just made, else a waiting invite's id) the browser refused to copy.
+  const [copyFailed, setCopyFailed] = useState<string>();
+  /** Copies an invite link; false (and a line by the button) when the browser refuses, never a false "Copied". */
+  async function copyInvite(url: string, which: string) {
+    setCopyFailed(undefined);
+    try {
+      await writeClipboard(url);
+      return true;
+    } catch {
+      setCopyFailed(which);
+      return false;
+    }
+  }
   useEffect(() => {
     const found: Record<string, string> = {};
     for (const i of initialInvites) {
@@ -203,13 +218,14 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
   /** Asks first, in the page, listing the clients whose links change: the key reset needs everything it re-seals anyway. */
   async function remove(m: Member) {
     setError(undefined);
+    setRowError(undefined);
     setChecking(m.userId);
     try {
-      const res = await fetch("/api/team/rekey");
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Could not start the key reset");
+      const res = await fetch("/api/team/rekey").catch(() => null);
+      if (!res?.ok) throw new Error((await res?.json().catch(() => ({})))?.error ?? "Couldn't start the key reset. Check your connection and try again.");
       setConfirming({ kind: "remove", member: m, bundle: (await res.json()) as Bundle });
     } catch (err) {
-      setError((err as Error).message);
+      setRowError({ id: m.userId, text: (err as Error).message });
     } finally {
       setChecking(undefined);
     }
@@ -219,18 +235,21 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
   async function resetKeys(m?: Member, checked?: Bundle) {
     if (!teamKey) return;
     setError(undefined);
+    setRowError(undefined);
     setConfirming(undefined);
     setRemoving(m?.userId ?? "reset");
     try {
       // The key reset happens here, on this device: new team key, new client keys, everything re-sealed.
       let bundle = checked;
       if (!bundle) {
-        const got = await fetch("/api/team/rekey");
-        if (!got.ok) throw new Error((await got.json().catch(() => ({}))).error ?? "Could not start the key reset");
+        const got = await fetch("/api/team/rekey").catch(() => null);
+        if (!got?.ok) throw new Error((await got?.json().catch(() => ({})))?.error ?? "Couldn't start the key reset. Check your connection and try again.");
         bundle = (await got.json()) as Bundle;
       }
       const { team, newClientKeys, payload } = await rekey(teamKey, bundle);
-      const res = await fetch(m ? `/api/team/members/${m.userId}/remove` : "/api/team/rekey", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const res = await fetch(m ? `/api/team/members/${m.userId}/remove` : "/api/team/rekey", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).catch(() => null);
+      // No answer at all: the reset may or may not have happened, so don't say either way.
+      if (!res) throw new Error("We couldn't confirm that. Check your connection, then reload this page to see whether it went through before trying again.");
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Could not remove");
       await saveKey(teamKeyName(workspaceId), team);
@@ -258,7 +277,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
         setSeats((s) => ({ ...s, pending: 0, used: s.members }));
       }
     } catch (err) {
-      setError((err as Error).message);
+      setRowError({ id: m?.userId ?? "reset", text: (err as Error).message });
     } finally {
       setRemoving(undefined);
     }
@@ -357,10 +376,11 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
               </p>
               <p data-testid="invite-link" className="mt-2 break-all rounded-lg bg-surface px-3 py-2 font-mono text-xs text-ink">{link.url}</p>
               <button
-                onClick={async () => { await writeClipboard(link.url); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                onClick={async () => { if (!(await copyInvite(link.url, "new"))) return; setCopied(true); setTimeout(() => setCopied(false), 2000); }}
                 className="mt-2 rounded-lg border border-ok-line bg-surface px-3 py-1.5 hover:bg-hover">
                 {copied ? "Copied" : "Copy link"}
               </button>
+              {copyFailed === "new" && <p role="alert" className="mt-1 text-xs text-danger-fg" data-testid="copy-failed">Couldn&apos;t copy the link. Select it above and copy it yourself.</p>}
               <p className="mt-2 text-xs text-ok-fg">The end of the link (after #) is the key that unlocks your team&apos;s encrypted videos. It never goes to our servers, so it can&apos;t be in our email: send the link by text, chat or your own email.</p>
             </div>
           )}
@@ -379,6 +399,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
           <button onClick={() => resetKeys()} disabled={!!removing} className="mt-3 rounded-lg bg-amber-600 px-4 py-2 font-semibold text-white hover:bg-amber-700 disabled:opacity-50">
             {removing === "reset" ? "Resetting keys…" : "Reset keys now"}
           </button>
+          {rowError?.id === "reset" && <p className="mt-2 font-medium text-danger-fg" data-testid="reset-error">{rowError.text}</p>}
         </section>
       )}
       {reset && <ResetDone {...reset} business={business} onKeySaved={() => keepReset(workspaceId, null)} />}
@@ -418,8 +439,9 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
         <ul className="divide-y divide-line">
           {members.map((m) => (
             <li key={m.userId} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-              <div>
-                <p className="font-medium text-ink">
+              {/* min-w-0 and break-all: a long name or email wraps inside the row instead of widening a phone's page. */}
+              <div className="min-w-0">
+                <p className="break-words font-medium text-ink">
                   {m.name}{m.userId === meId && " (you)"}
                   {m.paused && (
                     <span className="ml-2 rounded-full bg-warn-bg px-2 py-0.5 text-xs font-semibold text-warn-fg" data-testid="staff-paused-badge" title="Over your plan's staff limit">
@@ -427,7 +449,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
                     </span>
                   )}
                 </p>
-                <p className="text-xs text-dim">{m.email}</p>
+                <p className="break-all text-xs text-dim">{m.email}</p>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted" data-testid="member-role">{ROLE_LABEL[m.role]}</span>
@@ -437,7 +459,8 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
                   </button>
                 )}
               </div>
-
+              {/* Beside the Remove button that was pressed, not at the top of the page. */}
+              {rowError?.id === m.userId && <p role="alert" className="w-full text-sm text-danger-fg" data-testid="member-error">{rowError.text}</p>}
             </li>
           ))}
           {invites.map((i) => (
@@ -455,7 +478,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
                 {links[i.id] && (
                   <button
                     onClick={async () => {
-                      await writeClipboard(links[i.id]);
+                      if (!(await copyInvite(links[i.id], i.id))) return;
                       setCopiedInvite(i.id);
                       setTimeout(() => setCopiedInvite((c) => (c === i.id ? undefined : c)), 2000);
                     }}
@@ -466,6 +489,9 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
                     {copiedInvite === i.id ? "Copied" : "Copy invite link"}
                   </button>
                 )}
+                {/* The button's name hides its "Copied" from screen readers, so it's said here too. */}
+                {copiedInvite === i.id && <span role="status" className="sr-only">Invite link copied</span>}
+                {copyFailed === i.id && <span role="alert" className="basis-full text-xs text-danger-fg" data-testid="copy-failed">Couldn&apos;t copy the link. Try again.</span>}
                 <button onClick={() => setConfirming({ kind: "cancel-invite", invite: i })} data-testid="cancel-invite" className="rounded-lg px-3 py-1.5 text-dim hover:bg-hover hover:text-danger-fg">Cancel invite</button>
               </div>
             </li>
@@ -478,6 +504,7 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
 
 function ResetDone({ name, removed, emailed, toSend, recoveryKey, business, onKeySaved }: ResetState & { business: string; onKeySaved: () => void }) {
   const [keySaved, setKeySaved] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
   const box = useRef<HTMLElement>(null);
   // The removal was asked for further down the page: bring what to do next into view.
   useEffect(() => box.current?.scrollIntoView?.({ block: "start", behavior: "smooth" }), []);
@@ -505,7 +532,11 @@ function ResetDone({ name, removed, emailed, toSend, recoveryKey, business, onKe
       </p>
       {noEmail.length > 0 && (
         <>
-          <p className="mt-4 font-medium">These clients have no email on file, so they can&apos;t open their videos until you send them their new link:</p>
+          <p className="mt-4 font-medium">
+            {noEmail.every((c) => !c.email)
+              ? "These clients have no email on file, so they can't open their videos until you send them their new link:"
+              : "We couldn't email these clients their new link, so they can't open their videos until you send it to them:"}
+          </p>
           {list(noEmail, "reset-no-email")}
         </>
       )}
@@ -531,7 +562,10 @@ function ResetDone({ name, removed, emailed, toSend, recoveryKey, business, onKe
             <button
               type="button"
               onClick={async () => {
-                await fetch("/api/workspace/key/saved", { method: "POST" }).catch(() => null);
+                setSaveFailed(false);
+                const res = await fetch("/api/workspace/key/saved", { method: "POST" }).catch(() => null);
+                // Not noted: the box stays, or the reminder would only come back on the next page.
+                if (!res?.ok) return setSaveFailed(true);
                 setKeySaved(true);
                 onKeySaved();
               }}
@@ -541,6 +575,7 @@ function ResetDone({ name, removed, emailed, toSend, recoveryKey, business, onKe
               I&apos;ve saved it
             </button>
           </div>
+          {saveFailed && <p role="alert" className="mt-2 font-medium text-danger-fg">Couldn&apos;t save that. Check your connection and try again.</p>}
         </div>
       )}
     </section>
@@ -583,14 +618,30 @@ function Dialog({ title, children, confirmLabel, cancelLabel = "Cancel", danger,
     },
     [opener],
   );
+  const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") return onCancel();
+      // Tab and Shift+Tab go round the box, not out to the page behind it (as DialogShell in ConfirmDialog.tsx does).
+      if (e.key !== "Tab" || !box.current) return;
+      const all = [...box.current.querySelectorAll<HTMLElement>("button, a[href], input, select, textarea")].filter((el) => !(el as HTMLButtonElement).disabled && el.offsetParent !== null);
+      if (!all.length) return;
+      const first = all[0];
+      const last = all[all.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !box.current.contains(document.activeElement))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !box.current.contains(document.activeElement))) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
   }, [onCancel]);
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4" onClick={(e) => e.target === e.currentTarget && onCancel()}>
-      <div role="dialog" aria-modal="true" aria-labelledby="team-dialog-title" className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-line bg-surface p-6 shadow-2xl" data-testid="team-dialog">
+      <div ref={box} role="dialog" aria-modal="true" aria-labelledby="team-dialog-title" className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-line bg-surface p-6 shadow-2xl" data-testid="team-dialog">
         <h2 id="team-dialog-title" className="text-lg font-semibold text-ink">{title}</h2>
         <div className="mt-2 grid gap-3 text-sm text-muted">{children}</div>
         <div className="mt-6 flex flex-wrap justify-end gap-2">
@@ -610,9 +661,11 @@ function RemoveDialog({ member, bundle, onCancel, onConfirm }: { member: Member;
   const active = bundle.clients.filter((c) => c.active);
   // Who gets their new link how (lib/rekey.ts decides the same way).
   const ready = active.filter((c) => !c.held);
-  const emailed = ready.filter((c) => c.hasEmail && c.opened);
+  // A client who turned the business's emails off isn't emailed their new link either.
+  const byEmail = (c: (typeof ready)[number]) => c.hasEmail && !c.emailsOff;
+  const emailed = ready.filter((c) => byEmail(c) && c.opened);
   const firstLink = ready.filter((c) => !c.opened);
-  const noEmail = ready.filter((c) => c.opened && !c.hasEmail);
+  const noEmail = ready.filter((c) => c.opened && !byEmail(c));
   const held = active.filter((c) => c.held);
   const names = (list: { name: string }[]) => (list.length > 12 ? `${list.slice(0, 12).map((c) => c.name).join(", ")} and ${list.length - 12} more` : list.map((c) => c.name).join(", "));
   const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -642,7 +695,7 @@ function RemoveDialog({ member, bundle, onCancel, onConfirm }: { member: Member;
           )}
           {noEmail.length > 0 && (
             <div className="rounded-xl border border-warn-line bg-warn-bg p-3 text-warn-fg" data-testid="remove-no-email">
-              <p className="font-medium">{count(noEmail.length, "client has", "clients have")} no email</p>
+              <p className="font-medium">{count(noEmail.length, "client has", "clients have")} no email{noEmail.some((c) => c.emailsOff) ? " or turned emails off" : ""}</p>
               <p>{names(noEmail)}</p>
               <p className="mt-1">Straight after, you&apos;ll get their new links here to copy and send yourself.</p>
             </div>

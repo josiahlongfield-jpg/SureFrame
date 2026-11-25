@@ -28,6 +28,7 @@ import { senderName } from "@/lib/team";
 import ClientVideos from "@/components/ClientVideos";
 import { LibraryViewSwitch } from "@/components/LibraryTools";
 import { INBOX_LAYOUT_COOKIE } from "@/lib/libraryGroups";
+import { setViewerZone, TZ_COOKIE } from "@/lib/dates";
 
 /**
  * "client-a@example.com" as "cli•••@example.com": enough to tell which address it is (C44), without showing the
@@ -41,7 +42,7 @@ async function clientOnDevice(clientId: string) {
   return tokens.length ? db.client.findFirst({ where: { id: clientId, token: { in: tokens } } }) : null;
 }
 
-export const metadata: Metadata = { title: "Your videos" };
+export const metadata: Metadata = { title: "Your videos", robots: { index: false } };
 
 /** A client's view: every video their coach (or coaches) sent them. */
 export default async function Inbox({
@@ -51,6 +52,9 @@ export default async function Inbox({
 }) {
   const { invalid, paused, removed, closed, unavailable, off, replaced, c: arrivedAs, from } = await searchParams;
   const jar = await cookies();
+  // Times in the list follow the client's own clock (their browser's time zone, lib/dates.ts), as the conversation on a
+  // video page does; until this device has told us its zone, the business's.
+  setViewerZone(jar.get(TZ_COOKIE)?.value);
   const tokens = jar
     .getAll()
     .filter((c) => c.name.startsWith("fc_client_"))

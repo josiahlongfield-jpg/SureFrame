@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   if (!email) return back("expired");
   // Also a day's limit per address, so guessing can't go on all day by asking for new emails.
   try {
-    await rateLimit(`signin-code:to:${email}`, 20, 86_400);
+    await rateLimit(`signin-code:to:${email}`, 10, 86_400);
   } catch {
     return back("tries");
   }

@@ -74,6 +74,8 @@ function FirstLink({ clientId, name, email, business, link, teamKeyWrap, sent, t
 
 function Button({ clientId, name, link, teamKeyWrap, teamKey }: Omit<Props, "workspaceId" | "fingerprint"> & { teamKey: CryptoKey }) {
   const [copied, setCopied] = useState(false);
+  // The browser refused the clipboard, or the link couldn't be made: said under the buttons, never shown as copied.
+  const [failed, setFailed] = useState(false);
   const canShare = useCanShare();
   // Worked out ahead, so Copy and Share use it in the same tap.
   const [ready, setReady] = useState<string>();
@@ -85,7 +87,12 @@ function Button({ clientId, name, link, teamKeyWrap, teamKey }: Omit<Props, "wor
     <div className="flex flex-wrap gap-2">
       <button
         onClick={async () => {
-          await writeClipboard(ready ?? full());
+          setFailed(false);
+          try {
+            await writeClipboard(ready ?? full());
+          } catch {
+            return setFailed(true);
+          }
           void markLinkSent(clientId);
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
@@ -97,13 +104,17 @@ function Button({ clientId, name, link, teamKeyWrap, teamKey }: Omit<Props, "wor
       {canShare && (
         <button
           onClick={async () => {
-            if (await shareLink(await full(), `${name}'s personal link`)) void markLinkSent(clientId);
+            setFailed(false);
+            const url = await full().catch(() => null);
+            if (!url) return setFailed(true);
+            if (await shareLink(url, `${name}'s personal link`)) void markLinkSent(clientId);
           }}
           className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm hover:bg-hover"
         >
           Share
         </button>
       )}
+      {failed && <p role="alert" className="w-full text-xs text-danger-fg" data-testid="copy-failed">Couldn&apos;t copy the link. Try again.</p>}
     </div>
   );
 }

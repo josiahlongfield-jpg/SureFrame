@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { decryptText, encryptText, fingerprint } from "@/lib/e2e/crypto";
 import type { ItemDTO } from "@/lib/items";
-import { browserTimeZone, DEFAULT_REMINDERS, repeatLabel, ruleLabel, sortRules, type ReminderRule } from "@/lib/schedule";
+import { browserTimeZone, DEFAULT_REMINDERS, reminderStillComing, repeatLabel, ruleLabel, sortRules, type ReminderRule } from "@/lib/schedule";
 import ScheduleFields, { toLocalInput, type Schedule } from "./ScheduleFields";
 import ConfirmDialog from "./ConfirmDialog";
 
@@ -11,7 +11,8 @@ import ConfirmDialog from "./ConfirmDialog";
 type Decrypted = ItemDTO & { text: string; locked?: boolean };
 
 export type PlannerDefaults = { reminders: ReminderRule[]; remindClient: boolean; remindTeam: boolean };
-export type PlannerClient = { email: string | null; remindersOff: boolean };
+/** `linkOpened` false: the client has never opened their personal link, so reminder emails don't go to them yet (lib/reminders.ts). */
+export type PlannerClient = { email: string | null; remindersOff: boolean; linkOpened?: boolean };
 /** Who "remind the team" emails, as the checkbox says it ("Email me") and as the list shows it ("you"). */
 export type TeamWho = { label: string; tag: string };
 const ME: TeamWho = { label: "Email me", tag: "you" };
@@ -260,6 +261,12 @@ export default function Planner({
   const done = items.filter((i) => i.kind === "TASK" && i.done);
   const first = clientName?.split(" ")[0] ?? "client";
   const who = clientName ?? "the client";
+  // The bell promises an email, so it shows only what will really be sent: not to a client who turned emails off or
+  // has never opened their personal link, and only the reminders still to come (one whose time had passed when the
+  // to-do was saved is never sent).
+  const clientEmailed = !client?.remindersOff && client?.linkOpened !== false;
+  const zone = tz || browserTimeZone();
+  const coming = (i: Decrypted) => (i.dueAt ? i.reminders.filter((r) => reminderStillComing(new Date(i.dueAt!), r, zone, now)) : []);
 
   /** Asks before sharing, in a strip under the item (like Stop sharing on the video page), not a pop-up (D12e). */
   const shareStrip = (i: Decrypted) => (
@@ -360,14 +367,14 @@ export default function Planner({
                 </span>
               )}
               {/* A client sees the bell only for emails that will really come to them: never the team's own reminders. */}
-              {i.dueAt && !i.done && i.reminders.length > 0 && ((i.remindClient && !client?.remindersOff) || (role === "member" && i.remindTeam)) && (
+              {i.dueAt && !i.done && coming(i).length > 0 && ((i.remindClient && clientEmailed) || (role === "member" && i.remindTeam)) && (
                 <span className="inline-flex items-center gap-1" title="Email reminders">
-                  <BellIcon /> {sortRules(i.reminders).map(ruleLabel).join(", ")}
+                  <BellIcon /> {sortRules(coming(i)).map(ruleLabel).join(", ")}
                   {role === "member" && (
                     <span className="text-dim">
                       {" "}
-                      {/* A client who turned emails off isn't sent one, though the to-do keeps asking for when they turn them back on. */}
-                      · {[i.remindClient && !client?.remindersOff && first, i.remindTeam && teamWho.tag].filter(Boolean).join(" and ")}
+                      {/* A client who turned emails off, or hasn't opened their link yet, isn't sent one, though the to-do keeps asking for when they can be. */}
+                      · {[i.remindClient && clientEmailed && first, i.remindTeam && teamWho.tag].filter(Boolean).join(" and ")}
                     </span>
                   )}
                 </span>
@@ -383,8 +390,8 @@ export default function Planner({
             </div>
           </div>
           {role === "member" && (
-            // Always visible on touch screens, which have no hover.
-            <div className="flex gap-2 text-xs text-dim [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
+            // Always visible on touch screens, which have no hover, where each one is also a thumb-sized target.
+            <div className="flex gap-2 text-xs text-dim pointer-coarse:gap-3 pointer-coarse:[&>button]:min-h-11 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
               {/* Not for an item that didn't unlock: Edit or a share change would seal the placeholder over the real words. */}
               {!i.locked && (
                 <button onClick={() => setEditing(i.id)} aria-label={`Edit "${i.text}"`} className="hover:text-ink">
@@ -488,6 +495,7 @@ export default function Planner({
               clientName={clientName}
               clientEmail={client?.email}
               clientOptedOut={client?.remindersOff}
+              clientLinkOpened={client?.linkOpened}
               canShareReminders={!!clientId && share}
               teamLabel={teamWho.label}
               tz={tz}
@@ -610,7 +618,7 @@ function ItemEditor({
     >
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={item.kind === "NOTE" ? 3 : 1} aria-label="Edit text" className="resize-none rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm" />
       {item.kind === "TASK" && (
-        <ScheduleFields value={s} onChange={setS} clientName={clientName} clientEmail={client?.email} clientOptedOut={client?.remindersOff} canShareReminders={item.shared} teamLabel={teamLabel} tz={tz} />
+        <ScheduleFields value={s} onChange={setS} clientName={clientName} clientEmail={client?.email} clientOptedOut={client?.remindersOff} clientLinkOpened={client?.linkOpened} canShareReminders={item.shared} teamLabel={teamLabel} tz={tz} />
       )}
       <div className="flex justify-end gap-2 text-sm">
         <button type="button" onClick={onCancel} className="rounded-lg px-3 py-1.5 text-muted hover:bg-hover">Cancel</button>

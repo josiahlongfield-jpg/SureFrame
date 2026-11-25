@@ -202,7 +202,8 @@ export default function UpgradeButton({
               </Link>
             )}
             {error.code === "TOO_MANY_CLIENTS" && (
-              <Link href="/settings/billing" className={secondaryButton}>
+              // Seats are added on the Clients page, not on Billing.
+              <Link href="/clients#buy-seats" className={secondaryButton}>
                 Add client seats
               </Link>
             )}
@@ -312,7 +313,7 @@ export default function UpgradeButton({
               {confirm.dueToday > 0 && <>Charged to {confirm.paymentMethod ? <strong>{confirm.paymentMethod}</strong> : "the card you subscribed with"}. </>}
               {confirm.leftover > 0 && <>The remaining {money(confirm.leftover, confirm.currency)} comes off your next bills. </>}
               {confirm.cancelling
-                ? "Your subscription is still set to cancel, so it won't renew. To keep it going, choose Manage subscription on the Billing page and renew it."
+                ? "Your subscription is still set to cancel, so it won't renew. To keep it going, choose Keep my plan in Settings > Billing."
                 : `Your plan then renews on this date each ${interval}.`}
             </p>
             {error && (

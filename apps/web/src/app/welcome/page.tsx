@@ -10,7 +10,7 @@ import { needsWelcome, requirePageUser, welcomePath } from "@/lib/session";
 import { appUrl } from "@/lib/stripe";
 import { formerTeams, isPlaceholderName } from "@/lib/team";
 import { welcomeEmail } from "@/lib/welcomeEmail";
-import { BRAND } from "@/lib/brand";
+import { BRAND, isReservedBusinessName, RESERVED_BUSINESS_NAME } from "@/lib/brand";
 
 export const metadata: Metadata = { title: "Welcome", robots: { index: false } };
 
@@ -42,6 +42,8 @@ export default async function Welcome({ searchParams }: { searchParams: Promise<
     const name = clean(form.get("name"));
     const business = clean(form.get("business"));
     if (!business || isPlaceholderName(business)) redirect(`${welcomePath(back)}&error=business`);
+    // Its emails to clients would read as coming from SureFrame itself (lib/brand.ts).
+    if (isReservedBusinessName(business)) redirect(`${welcomePath(back)}&error=reserved`);
     await db.$transaction([
       ...(name ? [db.user.update({ where: { id: me.user.id }, data: { name } })] : []),
       db.workspace.update({ where: { id: me.workspace.id }, data: { name: business } }),
@@ -62,7 +64,8 @@ export default async function Welcome({ searchParams }: { searchParams: Promise<
   const field = "w-full rounded-xl border border-line-strong bg-surface px-3 py-2.5 text-ink";
   return (
     <main data-theme="fresh" className="text-ink mx-auto max-w-lg px-4 py-12 sm:px-6 sm:py-16">
-      <Logo href="/welcome" />
+      {/* Keeps where they were going, so the logo doesn't drop it. */}
+      <Logo href={welcomePath(to)} />
       {former.length > 0 && (
         <div role="status" className="mt-8 rounded-2xl border border-warn-line bg-warn-bg p-5 text-sm text-warn-fg" data-testid="removed-from-team">
           <p className="font-semibold">{left ? "You've left" : "You're no longer on"} {former.map((t) => t.name).join(" or ")}&apos;s team</p>
@@ -97,6 +100,7 @@ export default async function Welcome({ searchParams }: { searchParams: Promise<
           <span className="text-xs text-dim">Clients see who sent each video, like &ldquo;Your name from Business A&rdquo;.</span>
         </label>
         {error === "business" && <p role="alert" className="text-sm text-danger-fg">Enter your business name.</p>}
+        {error === "reserved" && <p role="alert" className="text-sm text-danger-fg" data-testid="welcome-reserved">{RESERVED_BUSINESS_NAME}</p>}
         <button className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary hover:bg-primary-hover sm:w-auto sm:px-8" data-testid="welcome-submit">
           Continue
         </button>

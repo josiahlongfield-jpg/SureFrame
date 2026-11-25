@@ -36,6 +36,7 @@ export default function NotificationBell({ initialUnread, initialNewest }: { ini
   // The newest unread one already known about: anything newer makes it shake.
   const known = useRef(initialNewest);
   const box = useRef<HTMLDivElement>(null);
+  const bellButton = useRef<HTMLButtonElement>(null);
   const path = usePathname();
 
   const stop = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -93,9 +94,12 @@ export default function NotificationBell({ initialUnread, initialNewest }: { ini
   }
 
   async function markRead(body: { id: string } | { all: true }) {
-    setItems((cur) => cur?.map((i) => ("all" in body || i.id === body.id ? { ...i, read: true } : i)) ?? cur);
+    // Shown as read straight away; the ones this changed are remembered, to put back if the server never hears of it.
+    const flipped = new Set((items ?? []).filter((i) => !i.read && ("all" in body || i.id === body.id)).map((i) => i.id));
+    setItems((cur) => cur?.map((i) => (flipped.has(i.id) ? { ...i, read: true } : i)) ?? cur);
     const res = await fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
-    if (res?.ok) take(await res.json());
+    if (res?.ok) return take(await res.json());
+    setItems((cur) => cur?.map((i) => (flipped.has(i.id) ? { ...i, read: false } : i)) ?? cur);
   }
 
   // Close on navigation, a tap outside and Escape.
@@ -103,7 +107,12 @@ export default function NotificationBell({ initialUnread, initialNewest }: { ini
   useEffect(() => {
     if (!open) return;
     const away = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      // Back to the bell, so the keyboard isn't left at the top of the page.
+      bellButton.current?.focus();
+    };
     document.addEventListener("pointerdown", away);
     document.addEventListener("keydown", esc);
     return () => {
@@ -115,6 +124,7 @@ export default function NotificationBell({ initialUnread, initialNewest }: { ini
   return (
     <div ref={box} className={shaking ? "bell-shaking" : undefined}>
       <button
+        ref={bellButton}
         type="button"
         onClick={() => {
           setOpen((o) => !o);
@@ -126,7 +136,7 @@ export default function NotificationBell({ initialUnread, initialNewest }: { ini
         title="Notifications"
         data-testid="bell"
         data-shaking={shaking || undefined}
-        className="relative grid h-10 w-9 place-items-center sm:w-10 rounded-lg text-muted hover:bg-hover hover:text-ink"
+        className="relative grid h-10 w-9 place-items-center sm:w-10 rounded-lg text-muted hover:bg-hover hover:text-ink pointer-coarse:h-11"
       >
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={shaking ? "bell-shake" : undefined} onAnimationEnd={() => setShaking(false)}>
           <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16z" />

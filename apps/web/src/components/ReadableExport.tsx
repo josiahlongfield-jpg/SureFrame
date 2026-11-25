@@ -87,21 +87,25 @@ export default function ReadableExport() {
     setBusy(as);
     setError(undefined);
     try {
-      const res = await fetch("/api/account/export?wraps=1");
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Couldn't download your data. Try again.");
+      const res = await fetch("/api/account/export?wraps=1").catch(() => null);
+      if (!res?.ok) return setError((await res?.json().catch(() => ({})))?.error ?? "Couldn't download your data. Check your connection and try again.");
       const data = await readableCopy((await res.json()) as Export);
+      // Today's date where the person is, not in UTC (which is still yesterday before 10am in Queensland).
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       const blob =
         as === "html"
           ? new Blob([readableHtml(data as unknown as Record<string, unknown>)], { type: "text/html" })
           : new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
-      const a = Object.assign(document.createElement("a"), { href: url, download: `sureframe-export-readable-${new Date().toISOString().slice(0, 10)}.${as}` });
+      const a = Object.assign(document.createElement("a"), { href: url, download: `sureframe-export-readable-${today}.${as}` });
       document.body.append(a);
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (err) {
-      setError((err as Error).message);
+    } catch {
+      // A plain line, not the browser's own error text.
+      setError("Couldn't prepare the readable copy in this browser. Please try again.");
     } finally {
       setBusy(null);
     }

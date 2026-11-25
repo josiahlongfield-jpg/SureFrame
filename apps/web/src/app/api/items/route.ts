@@ -11,7 +11,9 @@ import { KeyFingerprint, requireCurrentKey } from "@/lib/keys";
 
 const Create = z.object({
   kind: z.enum(["TASK", "NOTE"]),
-  body: z.string().min(20).max(20000), // already encrypted on the device
+  // Already encrypted on the device. Only text shaped like what the browser seals is taken (lib/e2e/crypto.ts
+  // encryptText: base64url, never under 38 characters), so a mistake in the app can't store a readable to-do or note.
+  body: z.string().min(38).max(20000).regex(/^[A-Za-z0-9_-]+$/),
   clientId: z.string().nullable().optional(),
   shared: z.boolean().default(false),
   dueAt: z.string().datetime().nullable().optional(),

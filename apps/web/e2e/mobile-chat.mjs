@@ -14,7 +14,7 @@ import { mkdirSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import { startFakeAnthropic } from "./fake-anthropic.mjs";
 import { agreed } from "./agree.mjs";
-import { chooseClients, sendByLink } from "./send.mjs";
+import { sendByLink } from "./send.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const shots = process.argv[2] ?? "/tmp/claude-0/mobile-chat-shots";

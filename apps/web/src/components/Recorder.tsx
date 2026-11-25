@@ -10,8 +10,11 @@ import { encryptFrame, fingerprint, generateKey, wrapKey } from "@/lib/e2e/crypt
 import { browserTimeZone } from "@/lib/schedule";
 import { thumbFromTrack } from "@/lib/thumb";
 import { ChunkedUploader, FatalUploadError, lockName, mayRecover, readyIn, recoverInterrupted, type UploadState } from "@/lib/recorder/uploader";
+import { useLeaveGuard } from "@/lib/recorder/leaving";
+import { reportClientError } from "@/lib/clientError";
 import {
   bitrateFor,
+  canRecord,
   getCamera,
   blockedBySystem,
   getCameraAndMic,
@@ -52,6 +55,10 @@ const NO_CAMERA = "No camera found on this device. If you've just plugged one in
 const CAMERA_BUSY = "Your camera is being used by another app, such as a video-call app or the Camera app. Close it and come back to this page.";
 const CAMERA_PERMISSION = "Camera permission is needed for this mode. Allow it in your browser's address bar, or choose Screen only.";
 const CAMERA_ERRORS = [NO_CAMERA, CAMERA_BUSY, CAMERA_PERMISSION];
+/** Pressing Start with the microphone (or, in Camera only, the camera) blocked in the browser. */
+const MIC_BLOCKED = "Microphone permission is needed to record. Allow it in your browser's address bar, then press Start again.";
+const CAMERA_MIC_BLOCKED = "Camera and microphone permission is needed to record. Allow both in your browser's address bar, then press Start again.";
+const NO_UPLOAD: UploadState = { uploadedBytes: 0, bufferedBytes: 0, retrying: false };
 
 /**
  * The microphones to choose from. Browsers also list their own "default" (and on Windows "communications") entry, the
@@ -88,7 +95,7 @@ export default function Recorder({
   const [phase, setPhase] = useState<Phase>("setup");
   const [count, setCount] = useState(3);
   const [elapsed, setElapsed] = useState(0);
-  const [upload, setUpload] = useState<UploadState>({ uploadedBytes: 0, bufferedBytes: 0, retrying: false });
+  const [upload, setUpload] = useState<UploadState>(NO_UPLOAD);
   const [error, setError] = useState<string>();
   // The plan's videos are used up: the error links to the plans.
   const [upgrade, setUpgrade] = useState(false);
@@ -225,7 +232,28 @@ export default function Recorder({
     started?: boolean;
     /** stop() has begun, so it runs once. */
     finishing?: boolean;
+    /** How long the recording was when its latest piece came: its length if the browser stops the recorder by itself. */
+    lastMs?: number;
   } | null>(null);
+
+  // Leaving this page from inside the app (a link in the header, the Back button) doesn't close the tab, so nothing
+  // else would finish a take that's under way: it would sit unfinished, holding its lock, or carry on unseen. A take
+  // still counting down is called off (start() removes it again); one under way is finished the normal way. Declared
+  // before the effect that lets go of the camera, so this runs first and the recorder hands over its last piece.
+  const gone = useRef(false);
+  useEffect(() => {
+    gone.current = false;
+    return () => {
+      gone.current = true;
+      cancelled.current = true;
+      void actions.current.stop();
+    };
+  }, []);
+  // A link inside the app pressed while recording asks first. If they go ahead, the recording is finished and saved,
+  // and then the page they asked for opens.
+  const [leaveTo, setLeaveTo] = useState<string | null>(null);
+  const leaveAfter = useRef<string | null>(null);
+  useLeaveGuard(phase === "recording" || phase === "paused", setLeaveTo);
 
   // Finish anything a previous crash left behind.
   useEffect(() => {
@@ -386,14 +414,35 @@ export default function Recorder({
     return () => document.removeEventListener("visibilitychange", hidden);
   }, [phase]);
 
+  // Nothing is sent while paused, so to the server a long pause looks like a recording that was left behind, which
+  // it finishes by itself once SureFrame is opened somewhere else (lib/pieces.ts). A small "still here" every 30
+  // seconds keeps it open. Its answer doesn't matter: a recording already finished is refused at the next piece.
+  useEffect(() => {
+    if (phase !== "paused") return;
+    const t = setInterval(() => {
+      const l = live.current;
+      if (l) void fetch(`/api/videos/${l.videoId}/pieces`, { method: "POST" }).catch(() => {});
+    }, 30_000);
+    return () => clearInterval(t);
+  }, [phase]);
+
   function durationNow() {
     const l = live.current;
     if (!l) return 0;
-    return Math.round(l.accumulated + (l.recorder.state === "recording" ? performance.now() - l.startedAt : 0));
+    const ms = l.accumulated + (l.recorder.state === "recording" ? performance.now() - l.startedAt : 0);
+    // A recorder the browser stopped by itself (the camera or microphone went away) isn't "recording" any more:
+    // the length is then what it was at its last piece, not just the time before the last pause.
+    return Math.round(l.recorder.state === "inactive" ? Math.max(ms, l.lastMs ?? 0) : ms);
   }
 
   async function start() {
     setError(undefined);
+    // A browser without what recording needs: said now, before anything is asked for or set up.
+    if (!canRecord()) return setError("This browser can't record here. Update it, or use another up-to-date browser.");
+    // Nor does the last take's upload count (or its error) show at the start of this one.
+    setUpload(NO_UPLOAD);
+    setLeaveTo(null);
+    leaveAfter.current = null;
     // The "finished uploading" note is from before; it doesn't stay up during the next recording.
     setRecovered([]);
     setWholeScreen(false);
@@ -414,6 +463,12 @@ export default function Recorder({
     let shared: MediaStreamTrack | undefined;
     // Set once the server has a video for this take, so a failed start can remove it again.
     let made: { videoId: string; releaseLock: () => void } | undefined;
+    // The browser has the microphone or camera blocked: Start says so, as nothing else would. Cancelling the screen
+    // picker has the same error name and stays silent; the computer's own settings are worded in the catch below.
+    const allowed = <T,>(ask: Promise<T>, blocked: string) =>
+      ask.catch((err: Error) => {
+        throw err?.name === "NotAllowedError" && !/system/i.test(err.message) ? new Error(blocked) : err;
+      });
     try {
       let video: MediaStreamTrack;
       if (mode === "camera") {
@@ -426,7 +481,7 @@ export default function Recorder({
           // Otherwise one request for both, replacing the preview (see getCameraAndMic).
           await cameraAsk.current;
           stopAll(camStream.current);
-          both = await getCameraAndMic(camPick, micId, quality);
+          both = await allowed(getCameraAndMic(camPick, micId, quality), CAMERA_MIC_BLOCKED);
           camStream.current = both;
           // A fresh preview for the new stream.
           setPreviewKey((k) => k + 1);
@@ -455,7 +510,7 @@ export default function Recorder({
           bubble = await openCameraBubble(null, () => setBubbleOpen(false), bubbleControls);
           setBubbleOpen(!!bubble);
         }
-        streams.push(await getMic(micId));
+        streams.push(await allowed(getMic(micId), MIC_BLOCKED));
         const screen = await getScreen(quality);
         streams.push(screen);
         video = screen.getVideoTracks()[0];
@@ -520,19 +575,19 @@ export default function Recorder({
           teamKeyWrap: await wrapKey(videoKey, teamKey),
           keyFingerprint: await fingerprint(teamKey),
         }),
-      });
-      const data = await res.json();
-      if (res.status === 402) {
+      }).catch(() => null);
+      // No answer, or one that isn't ours (an error page): a plain sentence, not the browser's own error text.
+      const data = (await res?.json().catch(() => null)) ?? {};
+      if (res?.status === 402) {
         setUpgrade(true);
         setFreeLeft((n) => (n === null ? n : 0));
       }
-      if (!res.ok) throw new Error(data.error ?? "Could not start recording");
+      if (!res?.ok) throw new Error(data.error ?? "Couldn't start recording. Check your connection and try again.");
       const videoId: string = data.video.id;
       setFreeLeft((n) => (n === null ? n : Math.max(0, n - 1)));
 
       made = { videoId, releaseLock: () => {} };
-      await store.putSession({ videoId, title: data.video.title, mimeType, startedAt: Date.now(), nextPart: 1, durationMs: 0, stopped: false, pieces: true });
-
+      // The lock first, then the local record: another tab's recovery never sees this recording without its lock.
       let releaseLock = () => {};
       await new Promise<void>((held) => {
         navigator.locks.request(lockName(videoId), () => new Promise<void>((release) => {
@@ -541,6 +596,7 @@ export default function Recorder({
         }));
       });
       made.releaseLock = releaseLock;
+      await store.putSession({ videoId, title: data.video.title, mimeType, startedAt: Date.now(), nextPart: 1, durationMs: 0, stopped: false, pieces: true });
 
       const closeBubble = bubble ?? (() => {});
       const tellBubble = () => {
@@ -549,11 +605,17 @@ export default function Recorder({
         ext?.current?.update(!live.current?.started ? "starting" : r.state === "paused" ? "paused" : "recording", durationNow());
       };
 
-      const uploader = new ChunkedUploader(videoId, { duration: durationNow }, setUpload);
+      const uploader: ChunkedUploader = new ChunkedUploader(videoId, { duration: durationNow }, (s) => {
+        setUpload(s);
+        // The server finished this recording from its own copy (it had heard nothing for too long) and takes no more
+        // of it: stop here, with the reason shown, rather than keep recording into nothing.
+        if (s.closed && live.current?.uploader === uploader) void stop();
+      });
       const recorder = new MediaRecorder(new MediaStream(tracks), { mimeType, videoBitsPerSecond: bitrateFor(quality) });
       recorder.ondataavailable = (e) => {
         const l = live.current;
         if (!l || e.data.size === 0) return;
+        l.lastMs = durationNow();
         // Encrypt on this device before the chunk is stored or sent anywhere.
         l.sealing = l.sealing
           .then(() => encryptFrame(e.data, videoKey))
@@ -571,11 +633,34 @@ export default function Recorder({
             failure.current = "This browser hit a problem, so the recording stopped. What was recorded before that has been kept.";
             void stop();
           });
+        // The page's timer runs late in a background tab or on a sleeping computer, while pieces keep coming: the
+        // plan's length limit is checked here too, so a recording can't run on well past it unnoticed.
+        if (l.lastMs >= maxDurationMin * 60_000) void stop();
       };
       recorder.onerror = () => {
         failure.current = "The browser stopped the recorder. What was recorded before that has been kept.";
         void stop();
       };
+      // The browser stopped the recorder by itself (everything it was recording from went away): finish with what
+      // there is, and say so. Stop and Discard set `finishing` before they stop it, so this leaves those alone.
+      recorder.addEventListener("stop", () => {
+        const l = live.current;
+        if (!l || l.recorder !== recorder || l.finishing) return;
+        failure.current ??= "The recording stopped by itself. What was recorded before that has been kept.";
+        void stop();
+      });
+      // A microphone or camera that stops by itself mid-recording (unplugged, a flat battery, a phone call): the
+      // recording ends there and says why, instead of showing "Recording" with nothing going in. Turning them off
+      // ourselves doesn't fire this. The screen ending and the camera circle's camera are handled above.
+      const lost = (what: "microphone" | "camera") => () => {
+        const l = live.current;
+        if (!l || l.recorder !== recorder || !l.started || l.finishing) return;
+        failure.current ??= `Your ${what} stopped, so the recording ended here. What was recorded has been kept.`;
+        // A recorder already stopped (nothing left to record from) finishes from its own stop event, after its last piece.
+        if (recorder.state !== "inactive") void stop();
+      };
+      streams[0]?.getAudioTracks()[0]?.addEventListener("ended", lost("microphone"), { once: true });
+      if (mode === "camera") video.addEventListener("ended", lost("camera"), { once: true });
 
       live.current = { recorder, uploader, streams, closeAudio: () => {
         audio.close();
@@ -609,16 +694,31 @@ export default function Recorder({
       live.current = null;
       // Nothing was recorded: don't leave an empty "Incomplete upload" behind.
       if (made) {
-        await store.removeSession(made.videoId).catch(() => {});
         const removed = await fetch(`/api/videos/${made.videoId}`, { method: "DELETE" }).catch(() => null);
+        // Forgotten here once the server has removed it. If that didn't get through, the local record stays, marked
+        // as discarded, and the next page to open in this browser finishes the delete (recoverInterrupted) rather
+        // than the server later finishing an empty recording.
+        if (removed && (removed.ok || removed.status === 404)) await store.removeSession(made.videoId).catch(() => {});
+        else await store.updateSession(made.videoId, { discarding: true }).catch(() => {});
         if (removed?.ok) placeBack();
         made.releaseLock();
       }
       setPhase("setup");
-      const { name, message } = err as Error;
+      const { name, message } = (err ?? {}) as Error;
       // A refusal by the computer's own settings, not the person: say so rather than nothing happening (see getScreen).
       if (name === "NotAllowedError" && /system/i.test(message)) setError(blockedBySystem("camera or microphone"));
-      else if (name !== "NotAllowedError" && name !== "AbortError") setError(message);
+      // Our own messages and the server's are plain sentences already.
+      else if (name === "Error") setError(message);
+      else if (name !== "NotAllowedError" && name !== "AbortError") {
+        // Anything else is the browser's own wording ("Cannot read properties of undefined"), which means nothing
+        // to the person recording: it goes to the support console, and they get a sentence they can act on.
+        reportClientError("recorder-start", err);
+        setError(
+          name === "NotFoundError" || name === "NotReadableError" || name === "OverconstrainedError"
+            ? "Couldn't start recording. Check that your microphone and camera are plugged in and not being used by another app, then try again."
+            : "Couldn't start recording on this device. Reload the page and try again, or use another browser.",
+        );
+      }
     }
   }
 
@@ -661,7 +761,8 @@ export default function Recorder({
       if (failure.current) {
         setError(`${failure.current} You'll find it in your library.`);
         setPhase("setup");
-      } else router.push(`/v/${l.videoId}?new=1`);
+        // Not once this page has been left (the recording was finished from the clean-up above): they're elsewhere now.
+      } else if (!gone.current) router.push(leaveAfter.current ?? `/v/${l.videoId}?new=1`);
     } catch (err) {
       setError(
         err instanceof FatalUploadError && !mayRecover(err)
@@ -678,12 +779,20 @@ export default function Recorder({
   async function discard() {
     setConfirmDiscard(null);
     const l = live.current;
-    if (!l) return;
+    if (!l || l.finishing) return;
+    // From here Stop, and the recorder stopping just below, don't finish and upload what's being thrown away.
+    l.finishing = true;
     l.recorder.ondataavailable = null;
     if (l.recorder.state !== "inactive") l.recorder.stop();
+    // Nothing more of it is kept here or sent, and a piece on its way isn't reported as a failed upload.
+    l.uploader.cancel();
     cleanup();
-    await store.removeSession(l.videoId);
     const removed = await fetch(`/api/videos/${l.videoId}`, { method: "DELETE" }).catch(() => null);
+    // Forgotten here once the server has deleted it. If that didn't get through, the local record stays, marked as
+    // discarded, and the next page to open in this browser finishes the delete (recoverInterrupted): the server
+    // then never finishes a recording that was thrown away.
+    if (removed && (removed.ok || removed.status === 404)) await store.removeSession(l.videoId).catch(() => {});
+    else await store.updateSession(l.videoId, { discarding: true }).catch(() => {});
     if (removed?.ok) placeBack();
     l.releaseLock();
     live.current = null;
@@ -941,7 +1050,7 @@ export default function Recorder({
               ) : (
                 // Only one choice on Free, so no dropdown: just what it records in.
                 <p className="text-xs text-dim" data-testid="quality-note">
-                  {maxResolution}p on Free. <a href="/pricing" className="font-medium text-accent hover:underline">Upgrade to a paid plan</a> for 1080p and 4K.
+                  {maxResolution}p on Free. <a href="/pricing" className="font-medium text-accent hover:underline">Upgrade to a paid plan</a> for 1080p, and 4K for your screen.
                 </p>
               )}
             </div>
@@ -1006,14 +1115,39 @@ export default function Recorder({
                 testId="discard-confirm"
               />
             )}
+            {leaveTo !== null && !confirmDiscard && (
+              <ConfirmDialog
+                title="You're still recording"
+                body={<p>Leaving this page stops the recording here. It&rsquo;s saved to your library first.</p>}
+                confirmLabel="Stop and leave"
+                cancelLabel="Keep recording"
+                onConfirm={() => {
+                  leaveAfter.current = leaveTo;
+                  setLeaveTo(null);
+                  void stop();
+                }}
+                onCancel={() => setLeaveTo(null)}
+                testId="leave-confirm"
+              />
+            )}
           </>
         )}
 
         {phase === "finishing" && (
-          <div className="flex items-center gap-3 rounded-xl border border-line p-4 text-sm">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            Finishing upload… your link will open in a moment.
-          </div>
+          <>
+            <div className="flex items-center gap-3 rounded-xl border border-line p-4 text-sm">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              Finishing upload… your link will open in a moment.
+            </div>
+            {/* The upload keeps trying for as long as it takes: say why it's waiting, and that nothing is lost. */}
+            {upload.retrying && (
+              <p className="text-sm text-warn-fg" data-testid="finishing-waiting">
+                {upload.unsaved
+                  ? "Waiting for your connection. Keep this page open; the upload finishes when you're back online."
+                  : "Waiting for your connection. Your recording is safe in this browser and will finish as soon as you're back online; you can also close this page and reopen SureFrame later."}
+              </p>
+            )}
+          </>
         )}
       </aside>
     </div>

@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { ACTIVITY_COOKIE as MARKER, activityCookie, KEEP_COOKIE, KEEP_DAYS, KEEP_HEADER, KEEP_NEXT_COOKIE, KEEP_PARAM } from "@/lib/activity";
+import { getToken } from "next-auth/jwt";
+import { ACTIVITY_COOKIE as MARKER, activityCookie, KEEP_COOKIE, KEEP_DAYS, KEEP_HEADER, KEEP_PARAM } from "@/lib/activity";
+import { activityAt, activityMark, keeps, sessionSecret } from "@/lib/activityMark";
 import { OWNER_COOKIE, OWNER_PARAM, maintenanceOn, ownerPass, sameText } from "@/lib/maintenance";
 
 /**
@@ -19,6 +21,11 @@ import { OWNER_COOKIE, OWNER_PARAM, maintenanceOn, ownerPass, sameText } from "@
  * "Keep me signed in on this device" (lib/activity.ts) is the exception: for
  * KEEP_DAYS after that sign-in, the activity cookie outlives the browser and
  * there is no idle limit.
+ *
+ * Both cookies are signed for the account they were issued to
+ * (lib/activityMark.ts), so they can't be typed in by hand to bring an ended
+ * sign-in back: one that is missing, altered or another account's counts as
+ * expired.
  */
 /** Read by the sign-in page to explain why someone was signed out. */
 const EXPIRED = "sf_signed_out";
@@ -33,8 +40,28 @@ const BACKGROUND_HEADER = "x-sf-background";
  */
 const ACTION_HEADER = "next-action";
 
-const sessionCookies = (req: NextRequest) =>
-  req.cookies.getAll().filter((c) => SESSION_COOKIES.some((n) => c.name === n || c.name.startsWith(`${n}.`)));
+// Every cookie Auth.js could read as (part of) a session. It takes any name that starts with one of these two, so
+// this is deliberately loose: nothing that might be a session may be left behind when a sign-in is ended below.
+const sessionCookies = (req: NextRequest) => req.cookies.getAll().filter((c) => c.name.includes(SESSION_COOKIES[0]));
+
+/**
+ * Whose session the request carries. Read with Auth.js's own reader (the same cookie parsing, and the same joining
+ * of a long session's pieces), so this check and the app can never disagree about which session is there.
+ * `undefined` when there is none; `null` when one can't be opened (altered, out of date), or the two cookie names
+ * hold different accounts, since which of them the app reads depends on how the site is reached.
+ */
+async function sessionAccount(req: NextRequest) {
+  // Only the cookies: given the whole request, getToken would also accept a token from an Authorization header.
+  const from = { headers: { cookie: req.headers.get("cookie") ?? "" } };
+  let account: string | undefined;
+  for (const cookieName of SESSION_COOKIES) {
+    if (!(await getToken({ req: from, cookieName, raw: true }))) continue;
+    const sub = (await getToken({ req: from, cookieName, secret: sessionSecret() }))?.sub;
+    if (!sub || (account !== undefined && account !== sub)) return null;
+    account = sub;
+  }
+  return account;
+}
 
 const isCallback = (req: NextRequest) => req.nextUrl.pathname.startsWith("/api/auth/callback/");
 
@@ -47,10 +74,6 @@ function linkKeeps(req: NextRequest) {
   }
 }
 
-/** Kept signed in on this device: ticked for the sign-in being completed now, or for the one in place. */
-const keeping = (req: NextRequest) =>
-  isCallback(req) ? req.cookies.get(KEEP_NEXT_COOKIE)?.value === "1" || linkKeeps(req) : req.cookies.get(KEEP_COOKIE)?.value === "1";
-
 /** The sign-in request as passed on, telling events.signIn (src/auth.ts) when the link asked to keep the device. */
 function signInHeaders(req: NextRequest, base: Headers = new Headers(req.headers)) {
   if (linkKeeps(req)) base.set(KEEP_HEADER, "1");
@@ -58,12 +81,11 @@ function signInHeaders(req: NextRequest, base: Headers = new Headers(req.headers
   return base;
 }
 
-function mark(res: NextResponse, req: NextRequest) {
+/** Counts this request as activity. `keep`: this device is kept signed in (the KEEP cookie is in place). */
+async function mark(res: NextResponse, req: NextRequest, account: string, keep: boolean) {
   const secure = req.nextUrl.protocol === "https:";
-  const keep = keeping(req);
   // No maxAge/expires unless kept: a browser-session cookie.
-  res.cookies.set(MARKER, String(Date.now()), activityCookie(secure, keep));
-  // The sign-in itself sets or clears KEEP, once it has worked (events.signIn in src/auth.ts).
+  res.cookies.set(MARKER, await activityMark(account), activityCookie(secure, keep));
   return res;
 }
 
@@ -135,20 +157,22 @@ function withoutKeepMark(req: NextRequest) {
   return NextResponse.redirect(url);
 }
 
-function sessionActivity(req: NextRequest) {
-  const session = sessionCookies(req);
-  // Completing a sign-in from signed out (email link, Google, dev login) starts the browser session.
-  if (!session.length) return isCallback(req) ? mark(NextResponse.next({ request: { headers: signInHeaders(req) } }), req) : NextResponse.next();
+async function sessionActivity(req: NextRequest) {
+  const account = await sessionAccount(req);
+  // Completing a sign-in from signed out (email link, Google, dev login) starts the browser session. The sign-in
+  // sets the activity cookie itself, once it knows whose it is (events.signIn in src/auth.ts), as it does KEEP.
+  if (account === undefined) return isCallback(req) ? NextResponse.next({ request: { headers: signInHeaders(req) } }) : NextResponse.next();
 
-  const last = Number(req.cookies.get(MARKER)?.value);
-  const idle = req.cookies.get(KEEP_COOKIE)?.value === "1" ? KEEP_DAYS * 86_400_000 : IDLE_MS;
-  const fresh = Number.isFinite(last) && last > 0 && Date.now() - last < idle;
-  if (fresh) {
-    if (isCallback(req)) return mark(NextResponse.next({ request: { headers: signInHeaders(req) } }), req);
-    return req.headers.get(BACKGROUND_HEADER) || req.headers.has(ACTION_HEADER) ? NextResponse.next() : mark(NextResponse.next(), req);
+  const keep = !!account && (await keeps(req.cookies.get(KEEP_COOKIE)?.value, account));
+  const last = account ? await activityAt(req.cookies.get(MARKER)?.value, account) : null;
+  const fresh = last !== null && Date.now() - last < (keep ? KEEP_DAYS * 86_400_000 : IDLE_MS);
+  if (account && fresh) {
+    // A sign-in completed over this one may be someone else's: again, it sets its own activity cookie.
+    if (isCallback(req)) return NextResponse.next({ request: { headers: signInHeaders(req) } });
+    return req.headers.get(BACKGROUND_HEADER) || req.headers.has(ACTION_HEADER) ? NextResponse.next() : mark(NextResponse.next(), req, account, keep);
   }
 
-  const names = new Set(session.map((c) => c.name));
+  const names = new Set(sessionCookies(req).map((c) => c.name));
   // Completing a new sign-in over an expired one: it goes ahead without the old session and sets
   // its own cookies and activity time (src/auth.ts). If the link was bad, the old cookies are
   // cleared on the next request.

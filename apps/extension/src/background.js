@@ -19,11 +19,13 @@ const START = "https://sureframe.app/record";
 chrome.action.onClicked.addListener(() => chrome.tabs.create({ url: START }));
 
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
-  // Pages that were already open get the bubble without a reload.
-  const tabs = await chrome.tabs.query({ url: ["https://*/*", "http://*/*"] });
+  // Pages that were already open get the bubble without a reload. The browser is asked which of them are SureFrame's
+  // own (those get the bridge too), so no tab's address is ever read here.
+  const [tabs, ours] = await Promise.all([chrome.tabs.query({ url: ["https://*/*", "http://*/*"] }), chrome.tabs.query({ url: "https://sureframe.app/*" })]);
+  const own = new Set(ours.map((tab) => tab.id));
   for (const tab of tabs) {
     if (tab.id === undefined || tab.discarded) continue;
-    const files = /^https:\/\/sureframe\.app\//.test(tab.url ?? "") ? ["bridge.js", "page.js"] : ["page.js"];
+    const files = own.has(tab.id) ? ["bridge.js", "page.js"] : ["page.js"];
     chrome.scripting.executeScript({ target: { tabId: tab.id }, files }).catch(() => {});
   }
   // The camera is allowed once, on our own welcome page, so the bubble never has to ask on each website.

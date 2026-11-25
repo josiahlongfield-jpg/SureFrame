@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import LogoMark, { Wordmark } from "@/components/LogoMark";
 
-export const metadata: Metadata = { title: "Under maintenance" };
+export const metadata: Metadata = { title: "Under maintenance", robots: { index: false } };
 
 /** All anyone but the owner sees while maintenance mode is on (lib/maintenance.ts). No menu, no links. */
 export default function Maintenance() {

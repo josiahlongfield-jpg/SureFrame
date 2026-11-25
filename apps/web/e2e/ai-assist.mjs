@@ -19,7 +19,7 @@ import { PrismaClient } from "@prisma/client";
 import { start, state, createSubscription } from "./fake-stripe.mjs";
 import { requests, startFakeAnthropic } from "./fake-anthropic.mjs";
 import { agreed } from "./agree.mjs";
-import { chooseClients, sendByLink } from "./send.mjs";
+import { sendByLink } from "./send.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const shots = process.argv[2] ?? "/tmp";
@@ -198,6 +198,8 @@ for (let i = 0; i < 100 && (await prisma.video.findUnique({ where: { id: videoId
 await prisma.video.update({ where: { id: videoId }, data: { status: "RECORDING" } });
 await owner.reload();
 await owner.waitForSelector("text=still uploading");
+const uploadingNote = (await owner.textContent("[data-testid=still-uploading]").catch(() => "")) ?? "";
+ok("upload not finished: the page says how it gets finished, without promising 90 seconds", uploadingNote.includes("open SureFrame in that browser to finish it") && uploadingNote.includes("within about a day") && !uploadingNote.includes("90 seconds"), uploadingNote);
 await owner.waitForTimeout(1500);
 ok("upload not finished: no transcript panel", (await owner.locator("[data-testid=ai-insight]").count()) === 0);
 ok("upload not finished: transcriber not run", (await owner.evaluate(() => window.__aiCalls)) === 0);

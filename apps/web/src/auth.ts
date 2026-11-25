@@ -108,25 +108,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: { signIn: "/login", verifyRequest: "/login/check", error: "/login" },
   events: {
     // Starts the browser-session activity cookie that src/middleware.ts checks,
-    // for every way of signing in (including server actions, which the
-    // middleware never sees as a callback request).
+    // for every way of signing in (the emailed link, Google, and server actions).
     // Also settles "Keep me signed in on this device" (lib/activity.ts): kept for KEEP_DAYS from now if it was
     // ticked before this sign-in, else not at all.
-    async signIn() {
+    // Both are signed for this account (lib/activityMark.ts), which is why they are set here and not by the
+    // middleware: it can't know whose sign-in this is until it has happened.
+    async signIn({ user }) {
       const { cookies, headers } = await import("next/headers");
       const { ACTIVITY_COOKIE, BELL_VISIT_COOKIE, KEEP_COOKIE, KEEP_HEADER, KEEP_NEXT_COOKIE, activityCookie, keepCookie } = await import("@/lib/activity");
+      const { activityMark, keepMark } = await import("@/lib/activityMark");
+      if (!user.id) return;
       try {
         const jar = await cookies();
         // Ticked in this browser, or carried in the emailed link (src/middleware.ts passes it on as KEEP_HEADER).
         const keep = jar.get(KEEP_NEXT_COOKIE)?.value === "1" || (await headers()).get(KEEP_HEADER) === "1";
-        jar.set(ACTIVITY_COOKIE, String(Date.now()), activityCookie(undefined, keep));
-        if (keep) jar.set(KEEP_COOKIE, "1", keepCookie());
+        jar.set(ACTIVITY_COOKIE, await activityMark(user.id), activityCookie(undefined, keep));
+        if (keep) jar.set(KEEP_COOKIE, await keepMark(user.id), keepCookie());
         else jar.delete(KEEP_COOKIE);
         jar.delete(KEEP_NEXT_COOKIE);
         // A new visit for the bell: it shakes on the first page if anything's unread (components/NotificationBell.tsx).
         jar.delete(BELL_VISIT_COOKIE);
       } catch {
-        // Not in a request that can set cookies; the callback request sets it instead.
+        // Not in a request that can set cookies. Every real sign-in is one (the callback route, or a server action).
       }
     },
     // Signing out ends "Keep me signed in" on this device too.

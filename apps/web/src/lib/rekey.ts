@@ -9,7 +9,7 @@ import { brandOf } from "@/lib/branding";
 import { HttpError } from "@/lib/session";
 import { appUrl } from "@/lib/stripe";
 import { clientMailSettings } from "@/lib/reminders";
-import { hashToken } from "@/lib/team";
+import { activeMember, hashToken } from "@/lib/team";
 
 const Wrap = z.string().min(40).max(200);
 const Fp = z.string().min(16).max(64);
@@ -31,12 +31,14 @@ export const RekeyBody = z.object({
     )
     .max(20000),
   videos: z.array(z.object({ id: z.string(), teamKeyWrap: Wrap, clientKeyWrap: Wrap.nullable() })).max(100000),
+  // Not held to the sealed-text shape that api/items checks: the browser sends back unchanged any item it couldn't
+  // open (lib/e2e/rekey.ts), and one odd old row must not stop a whole key reset.
   items: z.array(z.object({ id: z.string(), body: z.string().min(20).max(20000) })).max(100000),
 });
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && new Set(a).size === a.length && a.every((x) => new Set(b).has(x));
 
-/** A client's new link after a reset: emailed to them, or for the team to send (no email, or never opened the old one). */
+/** A client's new link after a reset: emailed to them, or for the team to send (no email, emails turned off, the email didn't go, or never opened the old one). */
 export type NewLink = { id: string; link: string; emailed: boolean; opened: boolean };
 
 /**
@@ -44,7 +46,7 @@ export type NewLink = { id: string; link: string; emailed: boolean; opened: bool
  * team key, new client keys, a new link for every client (old links stop
  * working, and say they were replaced), the old keys' chains for devices
  * still holding them. Clients who opened their old link and have an email get
- * the new one: it opens on the device they used. Those who never opened theirs
+ * the new one (unless they turned the business's emails off): it opens on the device they used. Those who never opened theirs
  * have no device to upgrade, so they're back on the team's "send their first
  * link" list rather than emailed a link that can't open. `also` runs inside
  * the same transaction.
@@ -52,14 +54,14 @@ export type NewLink = { id: string; link: string; emailed: boolean; opened: bool
 export async function applyRekey(workspace: Workspace, d: z.infer<typeof RekeyBody>, also?: (tx: Prisma.TransactionClient) => Promise<void>) {
   if (d.from !== workspace.keyFingerprint) throw new HttpError(409, "Your team's keys already changed. Reload the page and try again.");
   const newTokens = new Map<string, { token: string; emailed: boolean; opened: boolean }>();
-  const emails: { email: string; name: string; token: string; assignedToId: string | null }[] = [];
+  const emails: { id: string; oldHash: string; email: string; name: string; token: string; assignedToId: string | null }[] = [];
   await db.$transaction(
     async (tx) => {
       // Lock the workspace row so two resets can't interleave.
       const locked = await tx.$queryRaw<{ keyFingerprint: string | null }[]>`SELECT "keyFingerprint" FROM "Workspace" WHERE id = ${workspace.id} FOR UPDATE`;
       if (locked[0]?.keyFingerprint !== d.from) throw new HttpError(409, "Your team's keys already changed. Reload the page and try again.");
       const [clients, videos, items] = await Promise.all([
-        tx.client.findMany({ where: { workspaceId: workspace.id, teamKeyWrap: { not: null } }, select: { id: true, token: true, removedAt: true, pausedAt: true, linkDisabledAt: true, linkOpenedAt: true, email: true, name: true, assignedToId: true } }),
+        tx.client.findMany({ where: { workspaceId: workspace.id, teamKeyWrap: { not: null } }, select: { id: true, token: true, removedAt: true, pausedAt: true, linkDisabledAt: true, linkOpenedAt: true, email: true, remindersOff: true, name: true, assignedToId: true } }),
         tx.video.findMany({ where: { workspaceId: workspace.id, teamKeyWrap: { not: null } }, select: { id: true } }),
         tx.item.findMany({ where: { workspaceId: workspace.id }, select: { id: true } }),
       ]);
@@ -69,14 +71,16 @@ export async function applyRekey(workspace: Workspace, d: z.infer<typeof RekeyBo
       }
       const active = new Map(clients.filter((c) => !c.removedAt).map((c) => [c.id, c]));
       /** A live client's new link: who's emailed it, and the old one remembered as replaced. */
-      const relink = async (c: { id: string; token: string; email: string | null; name: string; assignedToId: string | null; pausedAt: Date | null; linkDisabledAt: Date | null; linkOpenedAt: Date | null }, token: string) => {
+      const relink = async (c: { id: string; token: string; email: string | null; remindersOff: boolean; name: string; assignedToId: string | null; pausedAt: Date | null; linkDisabledAt: Date | null; linkOpenedAt: Date | null }, token: string) => {
         // A paused client gets their new link when they're restored (the team can copy it then). One whose link
         // support turned off keeps it off through the reset, so isn't emailed a link that wouldn't open. One who
-        // never opened their old link has no device that could open a link without its key.
-        const emailed = !!c.email && !c.pausedAt && !c.linkDisabledAt && !!c.linkOpenedAt;
-        if (emailed) emails.push({ email: c.email!, name: c.name, token, assignedToId: c.assignedToId });
+        // never opened their old link has no device that could open a link without its key. One who turned the
+        // business's emails off isn't emailed this either: the team sends their link, as for a client with no email.
+        const emailed = !!c.email && !c.remindersOff && !c.pausedAt && !c.linkDisabledAt && !!c.linkOpenedAt;
+        const tokenHash = hashToken(c.token);
+        if (emailed) emails.push({ id: c.id, oldHash: tokenHash, email: c.email!, name: c.name, token, assignedToId: c.assignedToId });
         newTokens.set(c.id, { token, emailed, opened: !!c.linkOpenedAt });
-        await tx.replacedClientLink.create({ data: { tokenHash: hashToken(c.token), clientId: c.id, emailed } });
+        await tx.replacedClientLink.create({ data: { tokenHash, clientId: c.id, emailed } });
       };
       for (const c of d.clients) {
         const live = active.get(c.id);
@@ -107,19 +111,39 @@ export async function applyRekey(workspace: Workspace, d: z.infer<typeof RekeyBo
   );
 
   const brand = brandOf(workspace, appUrl(""));
-  const members = await db.membership.findMany({ where: { workspaceId: workspace.id } });
-  // Sent in batches, so a business with many clients isn't held up by the per-second sending limit.
-  const emailed = await sendMails(
-    emails.map((e) => {
-      const mail = newLinkEmail({ business: workspace.name, clientName: e.name, link: clientLink(e.token), logoUrl: brand.logoUrl, color: brand.color, contact: contactOf(workspace) });
-      // Replies reach whoever looks after the client, as with every other client email.
-      const { replyTo } = clientMailSettings(workspace, members.find((m) => m.userId === e.assignedToId));
-      return { to: e.email, ...mail, fromName: workspace.name, replyTo };
-    }),
-  ).catch((err) => {
-    console.error("new link emails failed", err);
-    return 0;
-  });
+  // A paused or suspended staff member can't answer, so replies go to the business's address instead (as for reminders).
+  const members = await db.membership.findMany({ where: { workspaceId: workspace.id, ...activeMember } });
+  // Sent in batches, so a business with many clients isn't held up by the per-second sending limit. A batch at a
+  // time, so the clients in a batch that didn't go are known.
+  let emailed = 0;
+  const unsent: typeof emails = [];
+  for (let i = 0; i < emails.length; i += 100) {
+    const chunk = emails.slice(i, i + 100);
+    const went = await sendMails(
+      chunk.map((e) => {
+        const mail = newLinkEmail({ business: workspace.name, clientName: e.name, link: clientLink(e.token), logoUrl: brand.logoUrl, color: brand.color, contact: contactOf(workspace) });
+        // Replies reach whoever looks after the client, as with every other client email.
+        const { replyTo } = clientMailSettings(workspace, members.find((m) => m.userId === e.assignedToId));
+        return { to: e.email, ...mail, fromName: workspace.name, replyTo };
+      }),
+    ).catch((err) => {
+      console.error("new link emails failed", err);
+      return 0;
+    });
+    if (went === chunk.length) emailed += went;
+    else unsent.push(...chunk);
+  }
+  // An email that didn't go isn't "emailed": the team gets that client's new link to send, and their old link says
+  // to ask the business for the new one rather than to look for an email that never came.
+  if (unsent.length) {
+    for (const e of unsent) {
+      const t = newTokens.get(e.id);
+      if (t) t.emailed = false;
+    }
+    await db.replacedClientLink
+      .updateMany({ where: { tokenHash: { in: unsent.map((e) => e.oldHash) } }, data: { emailed: false } })
+      .catch((err) => console.error("couldn't mark new link emails as not sent", err));
+  }
   const links: NewLink[] = [...newTokens].map(([id, t]) => ({ id, link: clientLink(t.token), emailed: t.emailed, opened: t.opened }));
   return { emailed, links };
 }

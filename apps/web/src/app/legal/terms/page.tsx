@@ -2,8 +2,10 @@ import Link from "next/link";
 import LegalPage from "@/components/LegalPage";
 import { LEGAL, operatorLine } from "@/lib/legal";
 import { AI_SUMMARIES_PER_MONTH, PLANS } from "@/lib/plans";
+import { publicPage } from "@/lib/sharePreview";
 
-export const metadata = { title: "Terms of Service" };
+// The description is this document's line on /legal, so a shared link's preview card says what it is (not the home page's words).
+export const metadata = publicPage("Terms of Service", "The agreement for using SureFrame: plans, billing, cancelling, and what you and we are responsible for.");
 
 export default function Page() {
   const mail = <a href={`mailto:${LEGAL.email}`}>{LEGAL.email}</a>;

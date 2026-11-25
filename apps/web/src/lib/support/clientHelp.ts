@@ -127,6 +127,9 @@ export type HelpTurn = { role: "client" | "assistant"; text: string };
  * their browser and only the question itself is recorded, by the caller. Returns the AI's answer, or null when
  * it couldn't help (the caller answers with the business's contact line instead).
  */
+/** How long the AI may take to answer a client, retries included (see answerClient). */
+const ANSWER_BUDGET_MS = 40_000;
+
 export async function answerClient(client: HelpClient, page: HelpPage, turns: HelpTurn[], videoId?: string, browser?: string | null): Promise<{ answer: string | null; outcome: "ANSWERED" | "CANT_HELP" }> {
   const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t) => ({
     role: t.role === "client" ? ("user" as const) : ("assistant" as const),
@@ -156,7 +159,9 @@ export async function answerClient(client: HelpClient, page: HelpPage, turns: He
     system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
     tools: [CANT_HELP_TOOL],
     messages,
-  });
+    // One time limit for the whole call, retries included: api/client-help has 60 seconds in all, and what is left
+    // after this is what its "contact your business" fallback runs in.
+  }, { timeout: ANSWER_BUDGET_MS, signal: AbortSignal.timeout(ANSWER_BUDGET_MS) });
   console.log("[client-help] assistant turn", JSON.stringify({ workspace: client.workspaceId, stop: response.stop_reason, model: response.model, blocks: response.content.map((b) => (b.type === "tool_use" ? `tool:${b.name}` : b.type)) }));
   const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n").trim();
   if (response.stop_reason === "refusal" || response.content.some((b) => b.type === "tool_use") || !text) return { answer: null, outcome: "CANT_HELP" };

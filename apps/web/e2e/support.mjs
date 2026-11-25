@@ -315,6 +315,11 @@ ok("ticket: Escape closes it and focus goes back to Close", (await agent.locator
 await agent.click("[data-testid=close-ticket]");
 await agent.click("[data-testid=close-ticket-dialog] >> text=Close it");
 await agent.waitForSelector("[data-testid=ticket-done]");
+// Closed by the team: the customer's chat no longer says a person has it, and Talk to a person is back.
+await owner.reload();
+await owner.click("button:has-text('Help')");
+await owner.waitForSelector("text=had a look at your invoice", { timeout: 15000 }).catch(() => {});
+ok("closed: the customer's chat doesn't say it's with a person, and Talk to a person is back", !(await owner.textContent("role=dialog[name='SureFrame help']")).includes("Passed to a person") && (await owner.locator("[data-testid=talk-to-person]").count()) === 1);
 await agent.goto(BASE + "/support?show=open");
 ok("closed: gone from the open lists", !(await agent.textContent("body")).includes(inv));
 await agent.goto(`${BASE}/support?show=closed&q=${inv}`);

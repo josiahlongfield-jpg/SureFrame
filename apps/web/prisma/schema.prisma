@@ -85,7 +85,7 @@ model VerificationToken {
   @@id([identifier, token])
 }
 
-/// The 6-digit code in a sign-in email (lib/signInCode.ts): typed on the Check your email page instead of opening the
+/// The 8-digit code in a sign-in email (lib/signInCode.ts): typed on the Check your email page instead of opening the
 /// link, so people finish signing in in the window they started in. Holds the email's sign-in link, encrypted.
 model SignInCode {
   id        String   @id @default(cuid())
@@ -180,7 +180,7 @@ model Workspace {
   /// We stopped the subscription because of that (renewal off, or cancelled if a payment was outstanding).
   /// Keeping the account turns renewal back on while the plan is still running.
   renewalStoppedAt      DateTime?
-  /// This business's referral codes, one per paid plan it has been on (lib/referrals.ts).
+  /// This business's referral code (one per business, lib/referrals.ts).
   referralCodes         ReferralCode[]
   /// Suspended by SureFrame support (lib/support/admin.ts): members can't use it, clients' links show it as
   /// unavailable and nothing is emailed in its name. Nothing is deleted because of it.
@@ -268,7 +268,7 @@ model Membership {
   sentNotify            NotifyScope @default(OFF)
   /// With SELECTED: the staff members they asked to hear about ("Tell me when they send a video").
   sentNotifyStaff       String[]    @default([])
-  /// A member's own reminder settings for their clients (Settings > Reminders).
+  /// A member's own reminder settings for their clients (To-dos/Reminders > Reminder settings).
   /// Null means "use the business's setting". Owners and admins use the business's.
   /// Reminder rules pre-selected on to-dos they create (lib/schedule.ts ReminderRule[]).
   myReminderDefaults    Json?
@@ -517,7 +517,8 @@ model Client {
   /// lib/clientRemoval.ts). A legal hold can delay the actual deletion. Null while active. The clean-up job deletes
   /// every removed client, whatever this date says.
   purgeAt            DateTime?
-  /// When the business was warned that this removed client is about to be deleted.
+  /// No longer used: from the old 30-day restore, when the business was warned before a removed client was deleted.
+  /// Removed clients are now deleted straight away, so nothing sets or reads it. Kept, as columns are never dropped.
   purgeWarnedAt      DateTime?
   /// Who removed them. A plain id, no relation, so it survives them leaving the team.
   removedById        String?

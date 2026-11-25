@@ -135,7 +135,7 @@ export function ClientEmailsForm({ replyTo: initialReplyTo, message: initialMess
       <div className="mt-4 grid gap-4">
         <label className="grid gap-0.5 text-sm">
           <span className="font-medium text-muted">Reply-to email</span>
-          <span className="text-xs text-dim">If a client replies to a reminder or new-video email, it goes here. Left blank, those emails ask clients not to reply.</span>
+          <span className="text-xs text-dim">If a client replies to a reminder or new-video email, it goes here. Left blank, replies go to your contact email if you&apos;ve set one. With neither, those emails ask clients not to reply.</span>
           <input
             type="email"
             value={replyTo}

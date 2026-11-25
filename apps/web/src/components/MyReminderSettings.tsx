@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { reminderEmail } from "@/lib/reminderEmail";
 import { ruleLabel, sortRules, type ReminderRule } from "@/lib/schedule";
 import { ReminderPicker } from "./ScheduleFields";
+import type { PreviewLook } from "./ReminderSettings";
 
 type Defaults = { reminders: ReminderRule[]; remindClient: boolean; remindTeam: boolean };
 
@@ -16,6 +17,8 @@ type Props = {
   defaults: Defaults;
   reminderMessage: string;
   reminderReplyTo: string;
+  /** The business's logo, colour and contact line, as on the real email. */
+  look?: PreviewLook;
 };
 
 /**
@@ -23,7 +26,7 @@ type Props = {
  * Blank fields and "Use the business's defaults" fall back to what the owner
  * or an admin set for the business.
  */
-export default function MyReminderSettings({ business, ...initial }: Props) {
+export default function MyReminderSettings({ business, look, ...initial }: Props) {
   const [own, setOwn] = useState(initial.ownDefaults);
   const [d, setD] = useState<Defaults>(initial.defaults);
   const [message, setMessage] = useState(initial.reminderMessage);
@@ -45,8 +48,10 @@ export default function MyReminderSettings({ business, ...initial }: Props) {
     if (!now) return null;
     const due = new Date(now.getTime() + 86_400_000);
     due.setHours(9, 0, 0, 0);
-    return reminderEmail({ business: business.name, message: message.trim() || business.reminderMessage, due, now, tz, link: "#", unsubscribe: "#" });
-  }, [now, business.name, business.reminderMessage, message, tz]);
+    // As lib/reminders.ts clientMailSettings: replies go to their own reply-to, else the business's, else its contact email, else nowhere.
+    const noReply = !(replyTo.trim() || business.reminderReplyTo || look?.contact?.email);
+    return reminderEmail({ business: business.name, message: message.trim() || business.reminderMessage, due, now, tz, link: "#", unsubscribe: "#", logoUrl: look?.logoUrl, color: look?.color, contact: look?.contact, noReply });
+  }, [now, business.name, business.reminderMessage, business.reminderReplyTo, message, replyTo, tz, look]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();

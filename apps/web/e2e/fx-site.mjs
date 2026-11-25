@@ -109,7 +109,7 @@ ok("pricing: the Claude line asks for follow-up lists too (decision 17)", bonus.
 ok("pricing: Solo shows about A$ a month", norm(await visitor.textContent("[data-testid=plan-SOLO] [data-testid=aud-estimate]")) === "About A$23 a month");
 ok("pricing: Free has no A$ estimate", (await visitor.$$("[data-testid=plan-FREE] [data-testid=aud-estimate]")).length === 0);
 const audNote = norm(await visitor.textContent("[data-testid=aud-note]"));
-ok("pricing: the A$ note says it's an estimate and the bank's rate applies", audNote.includes("estimates") && audNote.includes("charged in US dollars") && audNote.includes("your bank's rate on the day applies"), audNote);
+ok("pricing: the A$ note says it's an estimate and the bank's rate applies", audNote.includes("estimates") && audNote.includes("Prices are set in US dollars") && audNote.includes("your bank's rate on the day applies unless you choose to pay in your own currency at checkout"), audNote);
 ok("pricing: the A$ note puts GST at checkout, not as a SureFrame charge", audNote.includes("before any GST added at checkout where it applies") && !audNote.includes("before any GST."), audNote);
 ok("AI add-on says what happens to longer videos", norm(await visitor.textContent("[data-testid=addon-ai]")).includes("longer videos don't get a transcript or summary"));
 await visitor.click("[role=radio]:has-text('Yearly')");
@@ -266,7 +266,7 @@ ok("DPA: the same version line", norm(await visitor.textContent("[data-testid=le
 ok("DPA: no Google sign-in", !norm(await visitor.textContent("main")).includes("Google (verified"));
 // Round 3 legal wording (Checker C L1-L11, K7, G5-G17; visitor V43-V49).
 const dpaText = norm(await visitor.textContent("main"));
-for (const bit of ["making the information it can read available to it on your instruction", "view counts and emoji reactions", "our own site and our browser extension", "within 48 hours of becoming aware", "6-digit code instead", "as a readable copy unlocked in your browser", "plus two weeks for us to act on it"]) {
+for (const bit of ["making the information it can read available to it on your instruction", "view counts and emoji reactions", "our own site and our browser extension", "within 48 hours of becoming aware", "8-digit code instead", "as a readable copy unlocked in your browser", "plus two weeks for us to act on it"]) {
   ok(`DPA says: ${bit}`, dpaText.includes(bit));
 }
 ok("DPA: the sole trader's legal name on request (decision 11)", dpaText.includes("full legal name is given on request for a signed copy of this agreement: email support@sureframe.app"));
@@ -309,7 +309,7 @@ await visitor.click("[data-testid=back-to-contents]");
 ok("terms: Back to contents goes back to the contents", await waitFor(() => visitor.evaluate(() => location.hash === "#contents" && Math.abs(document.getElementById("contents").getBoundingClientRect().top) < 200)));
 await visitor.goto(BASE + "/legal/privacy");
 const privacy2 = norm(await visitor.textContent("main"));
-for (const bit of ["their transcripts and summaries, and unlocks them on your own computer", "we email a 6-digit code instead of a link", "don’t get a new version: we update the “Last updated” date"]) {
+for (const bit of ["their transcripts and summaries, and unlocks them on your own computer", "we email an 8-digit code instead of a link", "don’t get a new version: we update the “Last updated” date"]) {
   ok(`privacy says: ${bit}`, privacy2.includes(bit));
 }
 // G15, G8: a chosen commitment to the APPs (not a statutory duty), and children's information under "Age".

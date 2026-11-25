@@ -59,11 +59,14 @@ const sess = await good.json();
 ok("right verifier gets a session", good.ok() && sess.token?.length > 50, JSON.stringify(sess));
 ok("code works only once", (await ex({ code: fresh, verifier })).status() === 400);
 // Sign-ins end after 8 hours unused, for the app too: it has to send its last-activity time
-// (the sf_active cookie) along with the session, or the API treats it as signed out.
+// (the sf_active cookie) along with the session, or the API treats it as signed out. The time is signed by the
+// server (src/lib/activityMark.ts), so the app is handed its first one with the session and can't make one up.
 const bare = await anon.request.get(BASE + "/api/clients", { headers: { cookie: `${sess.cookie}=${sess.token}` } });
 ok("the app's session alone counts as signed out", bare.status() === 401);
-const me = await anon.request.get(BASE + "/api/clients", { headers: { cookie: `${sess.cookie}=${sess.token}; sf_active=${Date.now()}` } });
-ok("the app's session works on the API with its activity time", me.ok());
+const made = await anon.request.get(BASE + "/api/clients", { headers: { cookie: `${sess.cookie}=${sess.token}; sf_active=${Date.now()}` } });
+ok("nor does it work with an activity time the app made up", made.status() === 401, String(made.status()));
+const me = await anon.request.get(BASE + "/api/clients", { headers: { cookie: `${sess.cookie}=${sess.token}; ${sess.activity}` } });
+ok("the app's session works on the API with the activity time it was given", me.ok() && /^sf_active=\d+\.[\w-]{43}$/.test(sess.activity ?? ""), `${me.status()} ${sess.activity}`);
 ok("handoff without a challenge refuses", await (async () => { await page.goto(`${BASE}/mobile/handoff`); return !!(await page.waitForSelector("text=Update the SureFrame app", { timeout: 10000 }).catch(() => null)); })());
 
 // Upload bounds.
@@ -72,7 +75,8 @@ const vid = v.video?.id;
 const huge = await page.request.post(`${BASE}/api/videos/${vid}/complete`, { data: { partCount: 2_000_000_000 } });
 ok("absurd part count refused quickly", huge.status() === 400, String(huge.status()));
 
-// A recording longer than the plan allows is refused when it completes.
+// A recording far longer than the plan allows (more than twice its length) is refused when it completes; one that
+// ran a little over is kept (free-limit.mjs).
 const ws = (await prisma.membership.findFirst({ where: { user: { email } } })).workspaceId;
 const fp = "f".repeat(32), wrap = "w".repeat(44);
 await prisma.workspace.update({ where: { id: ws }, data: { keyFingerprint: fp } });
@@ -82,6 +86,19 @@ const longId = await newVideo();
 await upload(longId, "x");
 const tooLong = await page.request.post(`${BASE}/api/videos/${longId}/complete`, { data: { partCount: 1, durationMs: 3 * 60 * 60 * 1000 } });
 ok("recording over the plan's length refused", tooLong.status() === 413, String(tooLong.status()));
+
+// The pieces of one recording can't add up to more than the plan's size budget (0.3 GB on Free), wherever each one
+// says it sits: ten pieces of 32 MB all claiming the start of the recording are 320 MB.
+const piecesId = await newVideo();
+const piece = (seq) => page.request.post(`${BASE}/api/videos/${piecesId}/pieces/${seq}`, { data: { offset: 0, size: 32 * 1024 * 1024 } });
+const nine = [];
+for (let seq = 0; seq < 9; seq++) nine.push((await piece(seq)).status());
+ok("pieces within the size budget are accepted", nine.every((s) => s === 200), nine.join(" "));
+const tenth = await piece(9);
+ok("a piece that would take the recording past its size budget is refused", tenth.status() === 413, String(tenth.status()));
+const again = await piece(3);
+ok("a piece already accepted can still be sent again", again.status() === 200, String(again.status()));
+await page.request.delete(`${BASE}/api/videos/${piecesId}`);
 
 // Once a client has replied, the video can't be moved to another client (their replies would go with it).
 const [c1, c2] = await Promise.all(["Ann", "Ben"].map((name) => prisma.client.create({ data: { name, token: crypto.randomBytes(16).toString("hex"), workspaceId: ws } })));

@@ -1,5 +1,7 @@
 import ReminderSettings from "./ReminderSettings";
 import MyReminderSettings from "./MyReminderSettings";
+import { brandOf } from "@/lib/branding";
+import { contactOf } from "@/lib/clientContact";
 import { reminderDefaultsFor, workspaceReminderDefaults } from "@/lib/reminders";
 import type { Membership, Role, Workspace } from "@prisma/client";
 
@@ -9,6 +11,9 @@ import type { Membership, Role, Workspace } from "@prisma/client";
  */
 export default function ReminderSettingsSection({ workspace, role, membership }: { workspace: Omit<Workspace, "brandLogo">; role: Role; membership: Membership | null | undefined }) {
   const d = workspaceReminderDefaults(workspace);
+  // What the real email carries besides the message (lib/reminders.ts), so the preview shows the same.
+  const brand = brandOf(workspace);
+  const look = { logoUrl: brand.logoUrl, color: brand.color, contact: contactOf(workspace) };
   return (
     <>
       {role === "MEMBER" ? (
@@ -29,6 +34,7 @@ export default function ReminderSettingsSection({ workspace, role, membership }:
             defaults={reminderDefaultsFor(workspace, membership)}
             reminderMessage={membership?.myReminderMessage ?? ""}
             reminderReplyTo={membership?.myReminderReplyTo ?? ""}
+            look={look}
           />
         </>
       ) : (
@@ -47,6 +53,7 @@ export default function ReminderSettingsSection({ workspace, role, membership }:
               reminderMessage: workspace.reminderMessage ?? "",
               reminderReplyTo: workspace.reminderReplyTo ?? "",
             }}
+            look={look}
           />
         </>
       )}

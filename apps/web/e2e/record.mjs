@@ -29,6 +29,12 @@ await agreed(loginEmail);
 await page.fill('input[name="email"]', loginEmail);
 await page.click("text=Continue");
 await page.waitForURL("**/record");
+// The Record page never draws the recovery key itself: a recording of the screen or of this tab would capture it.
+const hiddenKey = await page.waitForSelector("[data-testid=recovery-key-hidden]", { timeout: 20000 }).catch(() => null);
+const keyValue = (await hiddenKey?.getAttribute("data-recovery-key")) ?? "";
+const reminderText = ((await page.textContent("[data-testid=recovery-key-reminder]").catch(() => "")) ?? "").replace(/\s+/g, "");
+ok("the Record page shows the recovery key as dots, never the key itself", !!hiddenKey && keyValue.length > 20 && !reminderText.includes(keyValue) && (await page.locator("[data-testid=recovery-key-reminder] .slashed-zero").count()) === 0);
+ok("and it points to Settings > Account to see it", (await page.getAttribute("[data-testid=recovery-key-reminder] a:has-text('Show recovery key')", "href").catch(() => null)) === "/settings/account#recovery-key");
 await page.click("text=I've saved it"); // first device: recovery key shown once
 
 // 1) Normal recording

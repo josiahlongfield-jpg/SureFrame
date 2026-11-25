@@ -153,7 +153,8 @@ function InboxPage({ business, sender }: { business: string; sender: string }) {
           </ul>
         </section>
         <p className="mt-2 text-xs text-dim">
-          Reminder emails to client-a@example.com are on. <span className="font-medium text-accent">Turn off</span>
+          {/* Worded as on the real page (app/inbox/page.tsx), with the address partly hidden the same way. */}
+          Reminder and new-video emails are on (to cli•••@example.com). <span className="font-medium text-accent">Turn off</span>
         </p>
       </section>
     </>
@@ -177,8 +178,10 @@ function EmailPreview({ brand, sender, origin }: { brand: Brand; sender: string;
             </span>
           </div>
         </div>
-        {/* The real email HTML, isolated from the app's styles like a mail app would. */}
-        <iframe title="Email body" srcDoc={`<!doctype html><meta charset="utf-8"><body style="margin:0;background:#f3efea">${mail.html}</body>`} sandbox="allow-same-origin" className="h-[22rem] w-full" />
+        {/* The real email HTML, isolated from the app's styles like a mail app would. Its button and links do nothing here,
+            like the rest of the sample: they're aimed at a new tab, which this sandboxed frame isn't allowed to open
+            (left alone, the frame would try to load the page inside itself and show a browser error). */}
+        <iframe title="Email body" srcDoc={`<!doctype html><meta charset="utf-8"><base target="_blank"><body style="margin:0;background:#f3efea">${mail.html}</body>`} sandbox="allow-same-origin" className="h-[22rem] w-full" />
       </div>
     </div>
   );

@@ -244,6 +244,7 @@ ok("portal opens with our configuration", res.ok() && portal.url && state.portal
 sub.status = "canceled";
 await webhook("customer.subscription.deleted", sub);
 ok("cancelled subscription returns to Free", /Free plan/.test(await planText()));
+ok("and Billing says the paid plan has ended", (await page.locator("[data-testid=plan-ended]").count()) === 1);
 const sub2 = createSubscription(session.customer, workspaceId, "sureframe_solo_monthly");
 await webhook("customer.subscription.created", sub2);
 await webhook("customer.subscription.deleted", sub);
@@ -277,6 +278,7 @@ res = await api("/api/billing/preview", { plan: "AGENCY" });
 ok("a missing subscription goes to checkout instead of failing", res.ok() && (await res.json()).mode === "checkout");
 const forgotten = await prisma.workspace.findUnique({ where: { id: workspaceId } });
 ok("and its paid features end", forgotten.plan === "FREE" && !forgotten.stripeSubscriptionId && !forgotten.cloudBackup && forgotten.extraClientSeats === 0 && forgotten.stripeCustomerId === session.customer);
+ok("and the founder is told, in case the Stripe key is wrong", alerts("wasn't found in Stripe").length === 1);
 await webhook("customer.subscription.updated", sub2);
 ok("the real subscription is picked up again", /Solo plan/.test(await planText()));
 // The daily clean-up does the same for subscriptions nobody opens Billing for, and fills in

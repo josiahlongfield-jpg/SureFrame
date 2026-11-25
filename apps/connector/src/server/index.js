@@ -4,10 +4,19 @@
 // summaries the person can see, and unlocks them here. SureFrame's servers never get the key.
 //
 // No dependencies: Node's built-in Web Crypto and fetch, newline-delimited JSON-RPC on stdin/stdout.
+import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 
-const VERSION = "1.0.0";
+// One version number: the bundle's own manifest.json (beside this folder), which is what Claude Desktop shows.
+// It goes in the hello message and on every request to SureFrame, so the logs say which build someone has.
+const VERSION = (() => {
+  try {
+    return String(JSON.parse(readFileSync(new URL("../manifest.json", import.meta.url), "utf8")).version);
+  } catch {
+    return "unknown";
+  }
+})();
 const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 const subtle = globalThis.crypto.subtle;
 const KEY_CHECK_MS = 5 * 60_000;
@@ -27,7 +36,8 @@ export function parseCode(code) {
   }
   if (typeof parsed?.u !== "string" || typeof parsed?.t !== "string" || typeof parsed?.k !== "string") throw new Error("That connection code is incomplete. Copy the whole code again from SureFrame.");
   const url = new URL(parsed.u);
-  if (url.protocol !== "https:" && !/^(localhost|127\.0\.0\.1)$/.test(url.hostname)) throw new Error("That connection code points somewhere other than SureFrame.");
+  // Only SureFrame itself (or this computer, for tests): a code someone else made up can't point Claude at their server.
+  if (url.origin !== "https://sureframe.app" && !/^(localhost|127\.0\.0\.1)$/.test(url.hostname)) throw new Error("That connection code points somewhere other than SureFrame.");
   return { base: url.origin, token: parsed.t, key: parsed.k };
 }
 

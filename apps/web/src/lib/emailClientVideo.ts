@@ -8,6 +8,7 @@ import { newVideoEmail } from "@/lib/newVideoEmail";
 import { appUrl } from "@/lib/stripe";
 import { clientMailSettings, unsubscribeUrl } from "@/lib/reminders";
 import { rateLimit } from "@/lib/rateLimit";
+import { activeMember } from "@/lib/team";
 
 /**
  * Emails a client that a video is waiting, if they have an address, want
@@ -68,7 +69,8 @@ async function clientVideoEmail(videoId: string): Promise<Mail | NotSent> {
   if (!(await rateLimit(`client-mail:${c.id}`, 10, 3600).then(() => true, () => false))) return "limited";
   const ws = video.workspace;
   const brand = brandOf(ws, appUrl(""));
-  const assigned = c.assignedToId ? await db.membership.findUnique({ where: { userId_workspaceId: { userId: c.assignedToId, workspaceId: ws.id } } }) : null;
+  // A paused or suspended staff member can't answer, so replies go to the business's address instead (as for reminders).
+  const assigned = c.assignedToId ? await db.membership.findFirst({ where: { userId: c.assignedToId, workspaceId: ws.id, ...activeMember } }) : null;
   const { replyTo } = clientMailSettings(ws, assigned);
   // A former team member's recording comes from the business itself (lib/team.ts senderName).
   return {

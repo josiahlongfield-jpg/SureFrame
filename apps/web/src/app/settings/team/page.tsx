@@ -32,7 +32,7 @@ export default async function TeamSettings({ searchParams }: { searchParams: Pro
     <>
       <AppHeader email={user.email} plan={plan.name} />
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">{role === "MEMBER" ? "Your businesses" : teamName}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">{role === "MEMBER" ? "Switch business" : teamName}</h1>
         <p className="mt-1 text-sm text-dim">
           {role === "MEMBER" ? (
             <>
@@ -46,7 +46,7 @@ export default async function TeamSettings({ searchParams }: { searchParams: Pro
               )}
             </>
           ) : (
-            "You choose who looks after each client. Members see only the clients assigned to them, unless you let them see all clients. Clients see the name of the person who sent their video, never their email."
+            "You choose who looks after each client. Members see only the clients assigned to them, plus the conversations on videos they recorded themselves, unless you let them see all clients. Clients see the name of the person who sent their video, never their email."
           )}
         </p>
         {role !== "MEMBER" && (members.length > 1 || isTeamPlan) && (
@@ -59,12 +59,12 @@ export default async function TeamSettings({ searchParams }: { searchParams: Pro
           <div className="mt-6 rounded-2xl border border-primary-line bg-primary-soft p-5 text-sm text-ink">
             <p className="font-medium">Working with others?</p>
             <p className="mt-1">
-              Studio includes 3 staff logins and Agency includes 10 (yours counts as one), with more at US${EXTRA_STAFF_PRICE}/month each. Everyone records, replies and keeps track of their own clients.
+              Studio includes {PLANS.STUDIO.staffSeats} staff logins and Agency includes {PLANS.AGENCY.staffSeats} (yours counts as one), with more at US${EXTRA_STAFF_PRICE}/month each. Everyone records, replies and keeps track of their own clients.
             </p>
             <Link href="/pricing" className="mt-3 inline-block font-medium underline">See plans</Link>
           </div>
         )}
-        {members.some((m) => m.pausedAt) && (
+        {role !== "MEMBER" && members.some((m) => m.pausedAt) && (
           <p className="mt-6 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="paused-staff-note">
             Your plan covers {seats.limit} staff {seats.limit === 1 ? "login" : "logins"}, so the people marked Paused can&apos;t sign in to your team. Nothing has been
             deleted. Upgrade or add staff logins, or remove people you no longer need, and they&apos;re restored straight away. Please let them know about the change.
@@ -81,7 +81,9 @@ export default async function TeamSettings({ searchParams }: { searchParams: Pro
           canBuyStaff={isTeamPlan && role === "OWNER" && !!workspace.stripeSubscriptionId}
           staffPrice={workspace.billingInterval === "year" ? EXTRA_STAFF_PRICE_YEARLY : EXTRA_STAFF_PRICE}
           per={workspace.billingInterval === "year" ? "year" : "month"}
-          initialMembers={members.map((m) => ({ userId: m.userId, name: m.user.name ?? m.user.email.split("@")[0], email: m.user.email, role: m.role, perms: permsOf(m), paused: !!m.pausedAt }))}
+          // A Member only gets the business switcher here (TeamManager), so their colleagues' details and permissions
+          // aren't sent to their browser at all; /api/team hides other people's permissions from Members the same way.
+          initialMembers={role === "MEMBER" ? [] : members.map((m) => ({ userId: m.userId, name: m.user.name ?? m.user.email.split("@")[0], email: m.user.email, role: m.role, perms: permsOf(m), paused: !!m.pausedAt }))}
           initialInvites={invites.map((i) => ({ id: i.id, email: i.email, role: i.role, expiresAt: i.expiresAt.toISOString() }))}
           keyResetNeeded={role === "MEMBER" ? null : workspace.keyResetNeeded}
           teamPlan={isTeamPlan}

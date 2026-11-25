@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { REACTIONS } from "@/lib/reactions";
+import { REACTIONS, reactionName } from "@/lib/reactions";
 import type { ReplyDTO } from "@/lib/replies";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
 import { isDefaultTitle } from "@/lib/videoTitle";
@@ -41,6 +41,8 @@ type Video = {
   /** Team only: how often this video's own client opened it (viewCount also adds in every copy's views). */
   ownViews?: number;
   createdAt: string;
+  /** Clients only: when it was sent to them, which is the date their list and emails give (it may be recorded earlier). */
+  sentAt?: string | null;
   encrypted: boolean;
   teamKeyWrap: string | null;
   clientKeyWrap: string | null;
@@ -86,7 +88,7 @@ export type SendMany = {
 };
 
 /** Members only: one client's conversation about this recording (theirs is a private copy), for the list beside the video. */
-export type Conversation = { id: string; clientId: string; name: string; count: number; theirs: string[] };
+export type Conversation = { id: string; clientId: string; name: string; count: number; theirs: string[]; /** That client's reactions on their own copy. */ reactions?: { emoji: string; timestampMs: number | null }[] };
 
 export type WatchViewer = { kind: "member"; workspaceId: string; fingerprint: string | null } | { kind: "client"; clientId: string; /** The business emails this client nothing (no address, or emails turned off). */ noEmails?: boolean };
 
@@ -108,6 +110,8 @@ type Props = {
   canDelete?: boolean;
   /** Free: a finished original uses one of the plan's videos in total, and deleting it doesn't give that back. */
   freeVideoLimit?: number | null;
+  /** The longest video or voice reply this viewer can record, in minutes (lib/plans.ts replyMaxMinutes). */
+  replyMaxMinutes?: number;
   /** Members only: clients this video can be sent to. */
   clients: ClientOption[];
   /** Members only: may add a new client from the Send box. */
@@ -135,6 +139,8 @@ type Props = {
   promo?: { workspaceId: string };
   /** Set when this video is one client's copy of another recording. */
   sourceId?: string | null;
+  /** Members only, on an original: how many other clients have a copy (they go when it's deleted), whatever this person may send. */
+  copyCount?: number;
   /** Members only: the library already has a still of this recording (lib/thumb.ts). */
   hasThumb?: boolean;
   /** Members only: this page was opened by Stop, straight after recording (/v/<id>?new=1). */
@@ -255,6 +261,7 @@ function WatchBody({
   canEdit,
   canDelete,
   freeVideoLimit,
+  replyMaxMinutes,
   clients,
   canAddClients,
   sentToId,
@@ -271,6 +278,7 @@ function WatchBody({
   promo,
   hasThumb = true,
   sourceId = null,
+  copyCount = 0,
   justRecorded = false,
   aiPlaceholder,
   rootKey,
@@ -434,14 +442,40 @@ function WatchBody({
   }, []);
 
   // Closing the sheet (Escape, Close, Back) puts focus back on what opened it, or on the "Reply to …" button.
+  // Opening it moves keyboard and screen-reader focus into the dialog: the panel itself, not the reply box, so a
+  // phone's keyboard doesn't jump up.
   const hadSheet = useRef(false);
   useEffect(() => {
-    if (sheet) return void (hadSheet.current = true);
+    if (sheet) {
+      hadSheet.current = true;
+      panel.current?.focus({ preventScroll: true });
+      return;
+    }
     if (!hadSheet.current) return;
     hadSheet.current = false;
     const back = opener.current?.isConnected ? opener.current : inline.current?.querySelector<HTMLElement>("[data-testid=chat-open]");
     back?.focus();
   }, [sheet]);
+
+  // While the sheet covers the page, Tab and Shift+Tab go round its own controls, not the page hidden behind it
+  // (as the help panel does, SupportChat.tsx).
+  function trapSheet(e: React.KeyboardEvent) {
+    if (e.key !== "Tab" || e.defaultPrevented || !panel.current) return;
+    const els = [...panel.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(
+      (el) => el.offsetParent !== null,
+    );
+    if (!els.length) return;
+    const first = els[0];
+    const last = els[els.length - 1];
+    const at = document.activeElement;
+    if (e.shiftKey && (at === first || at === panel.current)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && at === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 
   useEffect(() => {
     if (!sheet) return;
@@ -584,18 +618,31 @@ function WatchBody({
   const [unplayable, setUnplayable] = useState(false);
   // Pressing "Watch now" on the intro starts the video, even if it's still unlocking then.
   const playWhenReady = useRef(false);
+  // Asked to play before the recording had downloaded and unlocked: the cover stays up and says it's getting ready.
+  const [waiting, setWaiting] = useState(false);
   useEffect(() => {
     const el = player.current;
     if (!el || !playable) return;
     const undo = fixDuration(el);
     el.src = playable;
-    if (playWhenReady.current) void el.play().catch(() => {});
+    // Started here, not from the tap itself, so a phone may refuse (iPhones do, for a video with sound): the cover
+    // then shows its play button again and the next tap starts it. When it does start, onPlay takes the cover away.
+    if (playWhenReady.current) void el.play().catch(() => {}).finally(() => setWaiting(false));
     return undo;
   }, [playable]);
   const watchNow = useCallback(() => {
     playWhenReady.current = true;
     if (player.current?.src) void player.current.play().catch(() => {});
+    else setWaiting(true);
   }, []);
+  /** A tap on the cover: plays at once when the recording is ready; before that, it waits under the cover. */
+  const playFromCover = () => {
+    const el = player.current;
+    if (!el?.src) return watchNow();
+    setStarted(true);
+    // Refused by the browser: the cover comes back with its play button.
+    void el.play().catch((err) => (err as { name?: string })?.name === "NotAllowedError" && setStarted(false));
+  };
 
   // A client opening the video counts as a view, whether or not they press play (the team never counts).
   useEffect(() => {
@@ -821,7 +868,13 @@ function WatchBody({
         {sealedMessage && !canEdit && <BusinessMessage sealed={sealedMessage} rootKey={rootKey} from={messageFrom ?? ownerName} />}
         <div style={showPlayer ? frame.style : undefined} className="relative mx-auto overflow-hidden rounded-2xl bg-black shadow-sm">
           {video.status === "RECORDING" ? (
-            <div className="grid aspect-video place-items-center text-dim">This recording is still uploading. If its page was closed, it&rsquo;s finished within about 90 seconds. Refresh in a moment.</div>
+            // True for whoever reads it: only the person who recorded it can bring it in sooner (by opening SureFrame
+            // again); otherwise the daily clean-up finishes it from the server's copy (lib/pieces.ts).
+            <div data-testid="still-uploading" className="grid aspect-video place-items-center px-6 text-center text-dim">
+              {canEdit
+                ? "This recording is still uploading. If the page it was recorded on was closed, open SureFrame in that browser to finish it. Otherwise it finishes by itself within about a day."
+                : "This video is still uploading. It will appear here as soon as it has finished. Try again a little later."}
+            </div>
           ) : expired ? (
             <div className="grid aspect-video place-items-center px-6 text-center text-dim">
               This recording has been deleted from SureFrame. Ask the sender if they kept a copy.
@@ -844,7 +897,8 @@ function WatchBody({
             />
           )}
           {showPlayer && !started && !unplayable && !playError && (
-            <PosterCover poster={poster} label={`Play ${video.title}`} onPlay={() => (setStarted(true), watchNow())} />
+            // Until the recording is ready to play, the cover stays: with the picture, or with nothing but the "getting ready" line.
+            <PosterCover poster={poster} label={`Play ${video.title}`} busy={!playable && (waiting || !poster)} onPlay={playFromCover} />
           )}
           <div className="pointer-events-none absolute bottom-16 right-6 flex flex-col items-center">
             {burst.map((b) => (
@@ -873,6 +927,8 @@ function WatchBody({
           <div className="min-w-0 sm:flex-1">
             {canEdit ? (
               <>
+                {/* The title is a box to type in here, so screen readers get the page's main heading this way. */}
+                <h1 className="sr-only">{title}</h1>
                 <div className="flex items-start gap-1">
                   <textarea
                     ref={titleBox}
@@ -929,7 +985,8 @@ function WatchBody({
             <p className="mt-1 px-1 text-sm text-dim" data-testid="video-meta">
               {ownerName}
               {/* A title that's just the date it was made already says the date (C4). */}
-              {(canEdit || !isDefaultTitle(title)) && ` · ${day(video.createdAt)}`}
+              {/* A client sees the day it was sent to them, as in their list; the team sees the day it was recorded. */}
+              {(canEdit || !isDefaultTitle(title)) && ` · ${day(canEdit ? video.createdAt : (video.sentAt ?? video.createdAt))}`}
               {/* Only the team sees how often the client opened it. */}
               {canEdit && ` · ${video.viewCount} ${video.viewCount === 1 ? "view" : "views"}`}
             </p>
@@ -959,10 +1016,11 @@ function WatchBody({
             )}
             {deleting && (
               <ConfirmDialog
-                title="Delete this video?"
+                // One client's own copy: only theirs goes, and the box says so.
+                title={sourceId ? `Remove this video from ${recipient?.name ?? "this client"}?` : "Delete this video?"}
                 testId="delete-video-confirm"
                 danger
-                confirmLabel="Delete video"
+                confirmLabel={sourceId ? "Remove video" : "Delete video"}
                 cancelLabel="Keep it"
                 busy={deleting.busy}
                 error={deleting.error}
@@ -970,7 +1028,8 @@ function WatchBody({
                 onCancel={() => setDeleting(null)}
                 body={
                   <>
-                    {sendMany && !sendMany.sourceId && sendMany.copies.length > 0 && <p>The copies sent to other clients are deleted too.</p>}
+                    {sourceId && <p>Only {recipient?.name ?? "this client"}&apos;s copy and conversation are deleted. The recording and other clients&apos; copies stay.</p>}
+                    {!sourceId && copyCount > 0 && <p>The copies sent to other clients are deleted too.</p>}
                     {freeVideoLimit ? <p>It still counts towards your {freeVideoLimit} free videos.</p> : null}
                     <p>This can&apos;t be undone.</p>
                   </>
@@ -1035,7 +1094,10 @@ function WatchBody({
             </p>
           </div>
         )}
-        {canEdit && clientReactions && clientReactions.length > 0 && <ReactionSummary reactions={clientReactions} onSeek={seek} who={recipient?.name ?? "The client"} />}
+        {/* The reactions of whoever's conversation is open: another client's are on their own copy (this video's own otherwise, and while the list shows). */}
+        {canEdit && other
+          ? !!other.reactions?.length && <ReactionSummary reactions={other.reactions} onSeek={seek} who={other.name} />
+          : canEdit && clientReactions && clientReactions.length > 0 && <ReactionSummary reactions={clientReactions} onSeek={seek} who={recipient?.name ?? "The client"} />}
 
         {/* The team's AI summary near the top, straight above the message to the client (only with the add-on). */}
         {canEdit && aiBox}
@@ -1138,9 +1200,11 @@ function WatchBody({
         role={expanded || sheet ? "dialog" : undefined}
         aria-modal={expanded || sheet || undefined}
         aria-label={expanded || sheet ? (convId === null ? "Conversations" : "Conversation") : undefined}
+        tabIndex={sheet ? -1 : undefined}
+        onKeyDown={sheet ? trapSheet : undefined}
         className={
           sheet
-            ? "fixed inset-0 z-[60] flex h-[100dvh] flex-col bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
+            ? "fixed inset-0 z-[60] flex h-[100dvh] flex-col bg-surface pb-[env(safe-area-inset-bottom)] outline-none lg:hidden"
             : expanded
               ? "fixed inset-x-4 inset-y-6 z-50 mx-auto flex max-w-3xl flex-col rounded-2xl border border-line bg-surface shadow-2xl"
               : // Kept mounted (just hidden) on phones, so a reply in progress is never lost.
@@ -1371,6 +1435,7 @@ function WatchBody({
           sentNote={sentNote}
           onAsk={() => setConfirming(null)}
           onReviewChange={setDraftWaiting}
+          maxMinutes={replyMaxMinutes}
         />
         </div>
       </aside>
@@ -1709,7 +1774,8 @@ function ReactionSummary({ reactions, onSeek, who }: { reactions: { emoji: strin
         const at = [...new Set(moments.filter((m): m is number => m !== null).sort((a, b) => a - b))];
         return (
           <span key={emoji} className="inline-flex flex-wrap items-center gap-1.5">
-            <span aria-hidden>{emoji}</span>
+            {/* Named for screen readers, which otherwise hear "reacted:" and then only times. */}
+            <span role="img" aria-label={reactionName(emoji)}>{emoji}</span>
             {moments.length > 1 && <span>{moments.length}</span>}
             {at.slice(0, 6).map((ms) => (
               <button key={ms} type="button" onClick={() => onSeek(ms)} className="rounded bg-surface-2 px-1.5 text-xs text-muted hover:bg-line-strong" aria-label={`Play from ${fmt(ms)}`}>

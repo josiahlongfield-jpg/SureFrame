@@ -10,8 +10,8 @@ import { handle, HttpError } from "@/lib/session";
 
 const Patch = z.object({
   done: z.boolean().optional(),
-  // Changing text or sharing sends a freshly encrypted body (sealed with the right key).
-  body: z.string().min(20).max(20000).optional(),
+  // Changing text or sharing sends a freshly encrypted body (sealed with the right key), checked as in api/items.
+  body: z.string().min(38).max(20000).regex(/^[A-Za-z0-9_-]+$/).optional(),
   shared: z.boolean().optional(),
   dueAt: z.string().datetime().nullable().optional(),
   repeat: Repeat.nullable().optional(),

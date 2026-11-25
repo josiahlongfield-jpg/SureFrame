@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
-import { rateLimit } from "@/lib/rateLimit";
+import { MANY_CHANGES, rateLimit } from "@/lib/rateLimit";
 
 const Body = z.object({
   clientIds: z.array(z.string().min(1).max(40)).min(1).max(500),
@@ -19,7 +19,7 @@ export const POST = handle(async (req: Request) => {
   if (body.data.assignedToId && !(await db.membership.findUnique({ where: { userId_workspaceId: { userId: body.data.assignedToId, workspaceId: workspace.id } } }))) {
     throw new HttpError(400, "That person isn't on your team");
   }
-  await rateLimit(`client-assign:${workspace.id}`, 60, 3600);
+  await rateLimit(`client-assign:${workspace.id}`, 60, 3600, MANY_CHANGES);
   const res = await db.client.updateMany({
     where: { id: { in: body.data.clientIds }, workspaceId: workspace.id, removedAt: null },
     data: { assignedToId: body.data.assignedToId },

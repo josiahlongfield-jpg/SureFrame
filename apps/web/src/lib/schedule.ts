@@ -145,6 +145,21 @@ export function reminderTime(due: Date, rule: ReminderRule, tz: string): Date {
   return new Date(due.getTime() - rule.amount * UNIT_MS[rule.unit]);
 }
 
+/**
+ * Whether a rule's reminder for a to-do due at `due` can still go out: its time is still to come (one already past
+ * when the to-do is saved is never scheduled) and not more than an hour after the due time (those are dropped as
+ * late). The rules the reminders job applies (lib/reminders.ts), so the to-do form and list don't promise a reminder
+ * that won't be sent. A time zone this browser doesn't know counts as still coming.
+ */
+export function reminderStillComing(due: Date, rule: ReminderRule, tz: string, now = Date.now()) {
+  try {
+    const at = reminderTime(due, rule, tz).getTime();
+    return at > now && at - due.getTime() <= 3_600_000;
+  } catch {
+    return true;
+  }
+}
+
 export const browserTimeZone = () => {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";

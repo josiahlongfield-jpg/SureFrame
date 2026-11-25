@@ -36,6 +36,9 @@ export const PATCH = handle(async (req: Request, ctx: { params: Promise<{ id: st
   const { workspace } = me;
   const access = accessOf(me);
   const current = await visibleVideo(access, id);
+  // A reply's recording isn't a video in its own right: it has no title or client of its own (visibleVideo finds
+  // these too, for the routes that play them).
+  if (current.replyToId) throw new HttpError(404, "Video not found");
   const body = Patch.safeParse(await req.json());
   if (!body.success) throw new HttpError(400, "Invalid update");
   if (body.data.clientKeyWrap) await requireCurrentKey(workspace, body.data.keyFingerprint);
@@ -101,6 +104,8 @@ export const DELETE = handle(async (_req: Request, ctx: { params: Promise<{ id: 
   const me = await requireUser({ allowTermsPending: true });
   const access = accessOf(me);
   const video = await visibleVideo(access, id);
+  // A reply's recording is deleted with its reply (api/videos/[id]/replies/[replyId]), by its author, not from here.
+  if (video.replyToId) throw new HttpError(404, "Video not found");
   if (!me.agreed && video.status !== "RECORDING") throw termsRequired();
   if (!canDeleteVideo(access, video)) throw new HttpError(403, "You can only delete videos you recorded. Ask the owner or an admin.");
   // Deleting an original also deletes the copies sent to other clients.
@@ -113,6 +118,16 @@ export const DELETE = handle(async (_req: Request, ctx: { params: Promise<{ id: 
   // Remove each conversation's reply media along with the video itself.
   const media = await db.video.findMany({ where: { replyToId: { in: conversations } } });
   await db.video.deleteMany({ where: { id: { in: [...conversations, ...media.map((m) => m.id)] } } });
+  // Gone from the bell and from team emails still queued too, as when a client is deleted (lib/clientRemoval.ts): a
+  // "client replied" line or email would open a page that's no longer there. Bell lines and staff reminders that only
+  // link to the video stay, without the dead link. The video is deleted either way, so none of this fails it.
+  const links = conversations.map((v) => `/v/${v}`);
+  await Promise.all([
+    db.notification.deleteMany({ where: { workspaceId: video.workspaceId, videoId: { in: conversations } } }),
+    db.teamNotification.deleteMany({ where: { workspaceId: video.workspaceId, videoId: { in: conversations }, sentAt: null } }),
+    db.notification.updateMany({ where: { workspaceId: video.workspaceId, href: { in: links } }, data: { href: "/library" } }),
+    db.staffNotice.updateMany({ where: { workspaceId: video.workspaceId, link: { in: links } }, data: { link: null, linkLabel: null } }),
+  ]).catch((err) => console.error("[videos] couldn't clear notifications", err));
   // The rows go first so a storage hiccup can't leave a video that looks deleted but isn't. A file left
   // behind is logged, and it can't be read without the key that went with the row.
   // A copy shares the original's file, so only the original's deletion removes it.

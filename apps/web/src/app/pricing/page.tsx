@@ -32,11 +32,13 @@ import { automaticOffer, cachedOfferForCode, codeFromCookie, isCodeShaped, OFFER
 import { agreePath, currentUser } from "@/lib/session";
 import { agreementKind } from "@/lib/terms";
 import { isReferralCode, referralOffer } from "@/lib/referrals";
+import { publicPage } from "@/lib/sharePreview";
 
-export const metadata: Metadata = {
-  title: "Pricing",
-  description: "Simple plans priced by how many clients you work with, in US dollars. Clients always join free. Optional cloud backup and AI add-ons.",
-};
+// Its own words on a shared link's preview card too, not the home page's (lib/sharePreview.ts).
+export const metadata: Metadata = publicPage(
+  "Pricing",
+  "Simple plans priced by how many clients you work with, in US dollars. Clients always join free. Optional cloud backup and AI add-ons.",
+);
 
 const qldDay = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "Australia/Brisbane" });
 
@@ -252,7 +254,7 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
         <Offers founding={foundingOpen() ? foundingLastDay() : null} ended={ended} forOther={forOther} busy={query.code === "busy"} linked={linked} auto={auto} referral={referral} />
         <PricingTable current={current} signedIn={signedIn} retentionDays={RETENTION_DAYS} start={start} />
         <p className="mt-10 text-center text-sm text-dim">
-          More than 100 clients? Add extra clients for US${EXTRA_SEAT_PRICE.toFixed(2)} a month each, or US${EXTRA_SEAT_PRICE_YEARLY} a year on yearly billing.
+          More than {PLANS.AGENCY.clientSeats} clients? Add extra clients for US${EXTRA_SEAT_PRICE.toFixed(2)} a month each, or US${EXTRA_SEAT_PRICE_YEARLY} a year on yearly billing.
         </p>
         <p className="mt-2 text-center text-sm text-dim" data-testid="currency-note">All prices are in US dollars (USD), plus any sales tax, VAT or GST that applies where you are. Checkout may offer to charge you in your own currency at Stripe&rsquo;s exchange rate; otherwise your bank converts it.</p>
         <p className="mt-2 text-center text-sm text-dim" data-testid="aud-note">{AUD_NOTE}</p>

@@ -108,7 +108,7 @@ export default function BrandingForm(props: { workspaceId: string; name: string;
             placeholder="Your business name"
             className="mt-2 w-full max-w-md rounded-xl border border-line-strong px-3 py-2 text-sm"
           />
-          {!trimmed && <span className="text-sm text-danger-fg">Enter your business name.</span>}
+          {!trimmed && <span role="alert" className="text-sm text-danger-fg">Enter your business name.</span>}
           {placeholderName && <span className="text-sm text-warn-fg" data-testid="name-hint">Clients see this name. Change it to your business name.</span>}
         </label>
         <div>

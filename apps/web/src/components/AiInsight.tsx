@@ -53,7 +53,7 @@ function paragraphs<T extends { start: number; end: number; text: string }>(segm
 
 /** Sends why a transcript failed (never any transcript text) to the server logs. */
 function logFailure(message: string) {
-  const body = JSON.stringify({ where: "ai-transcript", message: message.slice(0, 500), browser: navigator.userAgent });
+  const body = JSON.stringify({ where: "ai-transcript", message: message.slice(0, 500), ua: navigator.userAgent });
   void fetch("/api/support/client-error", { method: "POST", body, keepalive: true }).catch(() => {});
 }
 
@@ -93,8 +93,9 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
   const save = useCallback(
     async (t: Transcript, s: Summary | null) => {
       const body = { transcript: await encryptText(JSON.stringify(t), rootKey), summary: s ? await encryptText(JSON.stringify(s), rootKey) : null };
-      const res = await fetch(`/api/videos/${videoId}/insight`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Couldn't save the transcript");
+      const res = await fetch(`/api/videos/${videoId}/insight`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
+      // A plain line when the connection drops, not the browser's own error text.
+      if (!res?.ok) throw new Error((await res?.json().catch(() => ({})))?.error ?? "Couldn't save the transcript. Check your connection and try again.");
       setSealed(body);
     },
     [rootKey, videoId],
@@ -109,9 +110,9 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ transcript: transcriptText(t) }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
+        }).catch(() => null);
+        const data = (await res?.json().catch(() => ({}))) ?? {};
+        if (!res?.ok) {
           await save(t, null);
           setStatus({ kind: "summaryFailed", message: data.error ?? "Couldn't write the summary just now." });
           return;

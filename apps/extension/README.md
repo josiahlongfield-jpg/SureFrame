@@ -7,7 +7,8 @@ For Chrome, Edge, Brave, Arc and other Chromium browsers. While someone records 
 
 The extension never records, saves or sends anything. The SureFrame tab does all of that, exactly as it does
 without the extension. On a screen recording the bubble on the screen is the camera in the video. Whenever the
-bubble isn't on screen (another app in front, or a page where the browser won't allow extensions or cameras), the
+bubble isn't on screen (another app in front, a page where the browser won't allow extensions or cameras, or a page
+whose own script hides the bubble; a page's stylesheet can't, because the frame's styles are all `!important`), the
 SureFrame tab draws the camera into the video as a corner circle instead. It does the same if the extension stops
 answering (`lib/recorder/compose.ts`).
 

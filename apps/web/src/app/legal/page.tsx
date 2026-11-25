@@ -3,11 +3,10 @@ import Link from "next/link";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import { LEGAL } from "@/lib/legal";
+import { publicPage } from "@/lib/sharePreview";
 
-export const metadata: Metadata = {
-  title: "Legal",
-  description: "SureFrame's Terms of Service, Privacy Policy and Data Processing Agreement, and earlier versions of them.",
-};
+// Its own words on a shared link's preview card too, not the home page's (lib/sharePreview.ts).
+export const metadata: Metadata = publicPage("Legal", "SureFrame's Terms of Service, Privacy Policy and Data Processing Agreement, and earlier versions of them.");
 
 const DOCS = [
   { href: "/legal/terms", title: "Terms of Service", line: "The agreement for using SureFrame: plans, billing, cancelling, and what you and we are responsible for.", updated: LEGAL.termsUpdated },

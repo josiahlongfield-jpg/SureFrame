@@ -2,6 +2,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { handle, HttpError } from "@/lib/session";
 import { salvageFor } from "@/lib/pieces";
+import { limitByIp } from "@/lib/rateLimit";
 
 const Body = z.object({ local: z.array(z.string().max(40)).max(200) });
 
@@ -13,6 +14,9 @@ const Body = z.object({ local: z.array(z.string().max(40)).max(200) });
 export const POST = handle(async (req: Request) => {
   const body = Body.safeParse(await req.json().catch(() => null));
   if (!body.success) throw new HttpError(400, "Invalid request");
+  // A page asks at most 3 times each time it loads; this is far above that, with room for a whole office behind one
+  // address. A page that does meet it just asks again the next time it loads.
+  await limitByIp("salvage", 300, 60);
   const userId = (await auth())?.user?.id ?? null;
   return Response.json(await salvageFor(userId, body.data.local));
 });

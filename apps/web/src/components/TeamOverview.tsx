@@ -45,8 +45,8 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
   async function changeRole(s: OverviewStaff, role: Role) {
     setNote(undefined);
     setSaved(undefined);
-    const res = await fetch(`/api/team/members/${s.userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }) });
-    if (!res.ok) return setNote((await res.json().catch(() => ({}))).error ?? "Could not change the role");
+    const res = await fetch(`/api/team/members/${s.userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }) }).catch(() => null);
+    if (!res?.ok) return setNote((await res?.json().catch(() => ({})))?.error ?? "Couldn't save. Check your connection and try again.");
     setStaff((list) => list.map((x) => (x.userId === s.userId ? { ...x, role } : x)));
     setSaved({
       userId: s.userId,
@@ -58,10 +58,10 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
     setBusy(true);
     setNote(undefined);
     const assignedToId = target || null;
-    const res = await fetch("/api/clients/assign", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientIds: [...picked], assignedToId }) });
-    const data = await res.json().catch(() => ({}));
+    const res = await fetch("/api/clients/assign", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientIds: [...picked], assignedToId }) }).catch(() => null);
+    const data = (await res?.json().catch(() => ({}))) ?? {};
     setBusy(false);
-    if (!res.ok) return setNote(data.error ?? "Could not assign those clients");
+    if (!res?.ok) return setNote(data.error ?? "Couldn't save. Check your connection and try again.");
     setClients((list) => list.map((c) => (picked.has(c.id) ? { ...c, assignedToId } : c)));
     setNote(`Saved. ${data.updated} ${data.updated === 1 ? "client" : "clients"} ${assignedToId ? `now with ${nameOf(assignedToId)}` : "now unassigned: the owner and admins look after them"}.`);
     setPicked(new Set());
@@ -77,9 +77,9 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
           return (
             <li key={s.userId} className="rounded-2xl border border-line bg-surface p-5" data-testid={`staff-${s.email}`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="font-medium text-ink">{s.name}{s.userId === meId && " (you)"}</p>
-                  <p className="text-xs text-dim">{s.email}</p>
+                <div className="min-w-0">
+                  <p className="break-words font-medium text-ink">{s.name}{s.userId === meId && " (you)"}</p>
+                  <p className="break-all text-xs text-dim">{s.email}</p>
                 </div>
                 {/* The role sits beside what they can do; the owner's, and your own, can't be changed here. */}
                 {s.role !== "OWNER" && s.userId !== meId ? (
@@ -134,7 +134,7 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
       {!alone && (
       <section className="rounded-2xl border border-line bg-surface p-5" data-testid="reassign">
         <h3 className="font-semibold text-ink">Reassign clients</h3>
-        <p className="mt-1 text-xs text-dim">Tick clients, then choose who looks after them. Members only see the clients assigned to them, unless they can see all clients. Unassigned clients are looked after by the owner and admins.</p>
+        <p className="mt-1 text-xs text-dim">Tick clients, then choose who looks after them. Members only see the clients assigned to them, unless they can see all clients. They also keep the conversations on videos they recorded themselves, even after that client is given to someone else. Unassigned clients are looked after by the owner and admins.</p>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <button type="button" onClick={() => setPicked(new Set(clients.filter((c) => !c.assignedToId).map((c) => c.id)))} className="rounded-full border border-line-strong px-3 py-1 hover:bg-hover">Pick unassigned</button>
           <button type="button" onClick={() => setPicked(new Set(clients.map((c) => c.id)))} className="rounded-full border border-line-strong px-3 py-1 hover:bg-hover">Pick all</button>
@@ -212,10 +212,16 @@ export function NotifyPrefs({ meId, staff, initial }: { meId: string; staff: Ove
   const quiet = others.filter((s) => s.role === "MEMBER" && s.own && !s.own.replyEmails);
 
   async function save(next: Prefs) {
+    const before = prefs;
     setPrefs(next);
     setSaved(undefined);
-    const res = await fetch("/api/team/prefs", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
-    setSaved(res.ok ? "Saved." : "Couldn't save. Try again.");
+    const res = await fetch("/api/team/prefs", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) }).catch(() => null);
+    if (!res?.ok) {
+      // Not saved: the choice goes back to what the server has (unless another change was made meanwhile).
+      setPrefs((cur) => (cur === next ? before : cur));
+      return setSaved("Couldn't save. Check your connection and try again.");
+    }
+    setSaved("Saved.");
   }
   const toggleIn = (list: string[], id: string, on: boolean) => (on ? [...new Set([...list, id])] : list.filter((x) => x !== id));
 
@@ -268,7 +274,7 @@ export function NotifyPrefs({ meId, staff, initial }: { meId: string; staff: Ove
         )}
       </fieldset>
       <p className="text-xs text-dim">
-        Emails are combined: at most one every 15 minutes per conversation or staff member. They never include replies or video titles. Deletion warnings,
+        Emails are combined: at most one every 15 minutes per conversation or staff member. They never include replies. A reply email names the video by its title. Deletion warnings,
         requests for a personal link and account notices always come.
       </p>
       {saved && <p role="status" className="text-xs text-muted">{saved}</p>}
@@ -295,10 +301,10 @@ export function StaffReminderForm({ meId, staff, clients, videos }: { meId: stri
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ to: to.size === others.length ? "all" : [...to], message, link: link ? { kind, id } : undefined }),
-    });
-    const data = await res.json().catch(() => ({}));
+    }).catch(() => null);
+    const data = (await res?.json().catch(() => ({}))) ?? {};
     setBusy(false);
-    if (!res.ok) return setNote(data.error ?? "Could not send the reminder");
+    if (!res?.ok) return setNote(data.error ?? "Couldn't send the reminder. Check your connection and try again.");
     setNote(`Sent to ${data.sent} ${data.sent === 1 ? "person" : "people"}. It's listed under Sent reminders.`);
     router.refresh();
     setMessage("");

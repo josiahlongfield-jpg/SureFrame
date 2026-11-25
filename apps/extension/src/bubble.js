@@ -34,6 +34,8 @@ let sliding = false;
 /** How far the dial is moved in from where the bubble is placed (held still while sliding). */
 let dialOff = 0;
 let port = null;
+/** Whether the page script can see this frame on its page (page.js look): a page can hide it, and then the camera isn't showing. */
+let pageSees = true;
 let stream = null;
 let opening = null;
 let cameraProblem = null;
@@ -128,6 +130,12 @@ function takePort(offered) {
     if (m.data?.view) {
       view = m.data.view;
       if (!gesture) layout();
+      return;
+    }
+    // The page script looked: the web page has (or no longer has) this frame hidden.
+    if (typeof m.data?.seen === "boolean") {
+      pageSees = m.data.seen;
+      report();
       return;
     }
     // The page script put the frame back around the bubble (its tab was left mid-gesture): the gesture is over.
@@ -313,7 +321,7 @@ function showProblem() {
 function report() {
   if (!chrome.runtime?.id) return;
   const track = stream?.getVideoTracks()[0];
-  const ok = document.visibilityState === "visible" && rec?.mode === "screen+camera" && track?.readyState === "live" && video.videoWidth > 0 && !video.paused;
+  const ok = document.visibilityState === "visible" && pageSees && rec?.mode === "screen+camera" && track?.readyState === "live" && video.videoWidth > 0 && !video.paused;
   chrome.runtime.sendMessage({ type: "camera", ok }).catch(() => {});
 }
 

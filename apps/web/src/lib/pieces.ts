@@ -24,6 +24,8 @@ export const JOIN_BYTES = Number(process.env.UPLOAD_JOIN_BYTES) || MIN_PART_BYTE
 export const MAX_PIECE_BYTES = 32 * 1024 * 1024;
 /** How long a recording must have been silent before someone else's browser may finish it. */
 export const SALVAGE_AFTER_MS = 90_000;
+/** Said with a 503 when a recording can't be finished this moment; the recorder tries again by itself (it retries every 5xx). */
+const STILL_JOINING = "This recording is still being put together. Trying again shortly.";
 
 export const pieceKey = (videoId: string, seq: number) => `pieces/${videoId}/${seq}`;
 
@@ -37,10 +39,20 @@ export async function registerPiece(video: Video, seq: number, offset: number, s
   if (!Number.isInteger(offset) || offset < 0) throw new HttpError(400, "Bad offset");
   if (!Number.isInteger(size) || size < 1) throw new HttpError(400, "Empty piece");
   if (size > MAX_PIECE_BYTES) throw new HttpError(413, "Piece too large");
-  if (offset + size > (await uploadBudget(video)))
-    throw new HttpError(413, "This recording is larger than your plan allows.");
+  const budget = await uploadBudget(video);
+  if (offset + size > budget) throw new HttpError(413, "This recording is larger than your plan allows.");
   // Only pieces not yet joined can be (re)sent; an earlier one is already safely in a part.
   if (offset + size <= video.partsJoined * JOIN_BYTES) return false;
+  // Where a piece says it sits doesn't bound what is stored (any number of pieces could claim the same place), so
+  // what the recording already holds counts too: the joined parts, plus every other piece still waiting, each for
+  // what lies past the joined parts (one running across a join is partly in a part already). For a recording sent
+  // in order this adds up to the same figure as the check above. This piece, when sent again, is left out.
+  const joined = video.partsJoined * JOIN_BYTES;
+  const [waiting] = await db.$queryRaw<{ bytes: number }[]>`
+    SELECT COALESCE(SUM(LEAST("sizeBytes", GREATEST(0, "offset" + "sizeBytes" - ${BigInt(joined)}))), 0)::float8 AS "bytes"
+    FROM "UploadPiece" WHERE "videoId" = ${video.id} AND "seq" <> ${seq}`;
+  if (joined + (waiting?.bytes ?? 0) + Math.min(size, offset + size - joined) > budget)
+    throw new HttpError(413, "This recording is larger than your plan allows.");
   await db.uploadPiece.upsert({
     where: { videoId_seq: { videoId: video.id, seq } },
     create: { videoId: video.id, seq, offset: BigInt(offset), sizeBytes: size },
@@ -83,12 +95,15 @@ export async function joinParts(videoId: string, final = false) {
       data: { joinLockUntil: new Date(now.getTime() + lockFor) },
     });
     if (count) break;
-    if (!final || waited >= 60_000) return;
+    if (!final) return;
     const v = await db.video.findUnique({
       where: { id: videoId },
       select: { status: true },
     });
     if (v?.status !== "RECORDING") return;
+    // The joiner before this one never let go (its server function was cut off mid-join): the recording must not be
+    // finished without the pieces it was joining. Whoever asked tries again, by when the lock has run out.
+    if (waited >= 60_000) throw new HttpError(503, STILL_JOINING);
     await new Promise((r) => setTimeout(r, 500));
   }
   try {
@@ -180,13 +195,56 @@ async function dropFrom(videoId: string, rows: { seq: number }[]) {
     });
 }
 
-/** Joins whatever is left and finishes the recording from the server's copy. */
+/** Deletes what is still stored of a recording that is being removed (lib/retention.ts). The daily sweep below takes any rest. */
+export async function dropPieces(videoId: string, max = 2000) {
+  await dropFrom(videoId, await db.uploadPiece.findMany({ where: { videoId }, select: { seq: true }, take: max }));
+}
+
+/**
+ * Whether a stored piece carries straight on from the joined parts, so that a join would take it (the same test as
+ * joinLocked's). Never once a short last part has been written: nothing can follow that.
+ */
+async function pieceWaiting(video: Pick<Video, "id" | "partsJoined">) {
+  const end = BigInt(video.partsJoined) * BigInt(JOIN_BYTES);
+  if (video.partsJoined > 0) {
+    const last = await db.uploadPart.findUnique({
+      where: { videoId_partNumber: { videoId: video.id, partNumber: video.partsJoined } },
+      select: { sizeBytes: true },
+    });
+    if (last?.sizeBytes !== JOIN_BYTES) return false;
+  }
+  // The first piece, in order, that isn't wholly inside the joined parts (none of those can start further back than this).
+  const rows = await db.uploadPiece.findMany({
+    where: { videoId: video.id, offset: { gt: end - BigInt(MAX_PIECE_BYTES) } },
+    orderBy: { seq: "asc" },
+    select: { offset: true, sizeBytes: true },
+    take: 50,
+  });
+  const next = rows.find((r) => r.offset + BigInt(r.sizeBytes) > end);
+  return !!next && next.offset <= end;
+}
+
+/**
+ * Joins whatever is left and finishes the recording from the server's copy. 409 when there is nothing to finish it
+ * from; 503 when it can't be finished this moment (the recorder then tries again by itself).
+ */
 export async function finishFromPieces(video: Video, durationMs?: number) {
+  // Nothing to finish from (nothing joined, and no piece a join would take): said without taking the join lock.
+  // Taking it touches the recording, and one that the daily clean-up below touches every day would never be a week
+  // untouched, which is when it's removed (lib/retention.ts abortStaleUploads). The pieces are looked at first: a
+  // join under way counts its part before it deletes that part's pieces.
+  if (!(await pieceWaiting({ id: video.id, partsJoined: 0 }))) {
+    const fresh = await db.video.findUnique({ where: { id: video.id }, select: { status: true, partsJoined: true } });
+    if (fresh?.status === "RECORDING" && fresh.partsJoined === 0) throw new HttpError(409, "Nothing was recorded");
+  }
   await joinParts(video.id, true);
   const now = await db.video.findUniqueOrThrow({ where: { id: video.id } });
   if (now.status !== "RECORDING") return now;
+  // A piece arrived while the last join ran: finishing now would leave it out.
+  if (await pieceWaiting(now)) throw new HttpError(503, STILL_JOINING);
   if (now.partsJoined === 0) throw new HttpError(409, "Nothing was recorded");
-  return completeUpload(now, now.partsJoined, Math.round(durationMs ?? now.recordedMs ?? 0));
+  // A length of 0 means the recorder couldn't tell (it had stopped by itself): the length noted with its last piece is better.
+  return completeUpload(now, now.partsJoined, Math.round(durationMs || now.recordedMs || 0));
 }
 
 /**
@@ -288,25 +346,14 @@ export async function salvageAbandoned(budgetMs = 60_000) {
     const out = await finishFromPieces(v).catch(() => null);
     if (out && out.status !== "RECORDING") finished++;
   }
-  // Pieces outliving their recording: deleted, abandoned for good, or finished while one was still arriving.
-  const stale = await db.uploadPiece.findMany({
-    where: { createdAt: { lt: new Date(Date.now() - 86_400_000) } },
-    select: { videoId: true, seq: true },
-    take: 2000,
-  });
-  const live = new Set(
-    (
-      await db.video.findMany({
-        where: {
-          id: { in: [...new Set(stale.map((p) => p.videoId))] },
-          status: "RECORDING",
-        },
-        select: { id: true },
-      })
-    ).map((v) => v.id),
-  );
+  // Pieces outliving their recording: deleted, abandoned for good, or finished while one was still arriving. Only
+  // those are picked, oldest first, so the pieces of recordings still open can't fill the batch and leave it nothing to do.
+  const stale = await db.$queryRaw<{ videoId: string; seq: number }[]>`
+    SELECT p."videoId", p."seq" FROM "UploadPiece" p LEFT JOIN "Video" v ON v."id" = p."videoId"
+    WHERE p."createdAt" < ${new Date(Date.now() - 86_400_000)} AND (v."id" IS NULL OR v."status" <> 'RECORDING')
+    ORDER BY p."createdAt" LIMIT 2000`;
   const byVideo = new Map<string, { seq: number }[]>();
-  for (const p of stale) if (!live.has(p.videoId)) byVideo.set(p.videoId, [...(byVideo.get(p.videoId) ?? []), p]);
+  for (const p of stale) byVideo.set(p.videoId, [...(byVideo.get(p.videoId) ?? []), p]);
   for (const [videoId, rows] of byVideo) await dropFrom(videoId, rows);
   return {
     finished,

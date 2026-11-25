@@ -33,6 +33,8 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM });
 const newPage = async () => (await browser.newContext({ timezoneId: TZ, viewport: { width: 1360, height: 1000 } })).newPage();
 const stamp = Date.now();
 const wrap = (c) => c.repeat(44); // stands in for a wrapped key where nothing is decrypted
+// Stands in for an encrypted reply: the API only takes text shaped like what the browser seals (letters, digits, - and _, 39 or more).
+const sealedText = () => "sealed".padEnd(44, "x");
 const outbox = () => (existsSync(".data/outbox") ? readdirSync(".data/outbox").sort().map((f) => JSON.parse(readFileSync(`.data/outbox/${f}`, "utf8"))) : []);
 const status = async (p) => (await p).status();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -92,6 +94,9 @@ const amyMembership = () => prisma.membership.findFirst({ where: { userId: amyUs
 const benRes = await owner.request.post(BASE + "/api/clients", { data: { name: "Ben", email: `ben${stamp}@example.com`, teamKeyWrap: wrap("k"), keyFingerprint: fp } });
 const ben = (await benRes.json()).client;
 await owner.request.patch(`${BASE}/api/clients/${ben.id}`, { data: { assignedToId: bobUser.id } });
+// Reminder emails, like new-video ones, only go to a client who has opened their personal link (lib/reminders.ts);
+// the test links carry no key, so record it.
+await prisma.client.update({ where: { id: ben.id }, data: { linkOpenedAt: new Date() } });
 
 // ---- Amy's own reminder settings ----
 await amy.goto(BASE + "/settings/reminders");
@@ -140,6 +145,9 @@ await amy.fill('input[aria-label="Client name"]', "Cal");
 await amy.check("[data-testid=route-email]");
 await amy.fill('input[aria-label="Client email"]', `cal-old${stamp}@example.com`);
 await amy.click("button:has-text('Add client')");
+// Cal has opened his personal link (recorded here, before his page is drawn), so his to-do's row names him for reminders.
+await waitFor(() => prisma.client.findFirst({ where: { email: `cal-old${stamp}@example.com` } }));
+await prisma.client.updateMany({ where: { email: `cal-old${stamp}@example.com` }, data: { linkOpenedAt: new Date() } });
 await amy.click("a[href^='/clients/']:has-text('Cal')");
 await amy.waitForURL("**/clients/**");
 const calId = amy.url().split("/clients/")[1];
@@ -238,7 +246,7 @@ const cal = await prisma.client.findUnique({ where: { id: calId } });
 const calPage = await newPage();
 await calPage.goto(`${BASE}/c/${cal.token}`);
 m2 = outbox().length;
-ok("Cal replies", (await status(calPage.request.post(`${BASE}/api/videos/${vCal}/replies`, { data: { kind: "TEXT", body: "sealed", encrypted: true } }))) === 201);
+ok("Cal replies", (await status(calPage.request.post(`${BASE}/api/videos/${vCal}/replies`, { data: { kind: "TEXT", body: sealedText(), encrypted: true } }))) === 201);
 const ownerReply = await waitFor(() => outbox().slice(m2).find((m) => m.to === ownerEmail && m.subject.includes("Cal replied")));
 await sleep(1000);
 ok("the owner (All staff) is emailed about Cal's reply", !!ownerReply);
@@ -278,7 +286,7 @@ await amy.check(replyBox);
 await waitFor(async () => (await amyMembership()).replyNotify === "MINE");
 const vCal2 = await record(amy, "Amy to Cal 2", calId);
 m2 = outbox().length;
-await calPage.request.post(`${BASE}/api/videos/${vCal2}/replies`, { data: { kind: "TEXT", body: "sealed", encrypted: true } });
+await calPage.request.post(`${BASE}/api/videos/${vCal2}/replies`, { data: { kind: "TEXT", body: sealedText(), encrypted: true } });
 ok("with reply emails on, Amy hears about Cal's reply", !!(await waitFor(() => outbox().slice(m2).find((m) => m.to === amyUser.email && m.subject.includes("Cal replied")))));
 await amy.goto(BASE + "/settings/reminders");
 // A click before the page has hydrated does nothing, so click until it takes.

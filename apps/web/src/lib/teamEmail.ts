@@ -3,8 +3,11 @@ import { EMAIL, emailButton, emailColors, emailLogo, emailShell, esc } from "@/l
 
 /**
  * Short emails to the team (client replies, videos sent by staff, staff
- * reminders). Encrypted content (replies, to-dos, video titles) never
- * appears; links open the app, where it's decrypted on the device.
+ * reminders, deletion warnings). Encrypted content (replies, messages,
+ * to-dos, notes) never appears; links open the app, where it's decrypted on
+ * the device. Video titles aren't encrypted and do appear: a client-reply
+ * email names the video by its title (lib/teamNotify.ts), and the deletion
+ * warning lists each recording's title (lib/expiryWarning.ts).
  */
 export function teamEmail(o: {
   business: string;

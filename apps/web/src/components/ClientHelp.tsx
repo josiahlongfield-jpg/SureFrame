@@ -55,6 +55,9 @@ export default function ClientHelp({ for: businesses, page, videoId }: { for: He
   const panelId = useId();
 
   useEffect(() => setSlot(document.getElementById(SLOT)), []);
+  // A touch keyboard's Return starts a new line and the Ask button sends, as in the reply box (ReplyComposer).
+  const [touch, setTouch] = useState(false);
+  useEffect(() => setTouch(window.matchMedia("(hover: none) and (pointer: coarse)").matches), []);
   // This page's reply box is there (not a "can't open" card in its place), so the "Reply to …" button can open it.
   const [replyHere, setReplyHere] = useState(false);
   useEffect(() => {
@@ -214,11 +217,12 @@ export default function ClientHelp({ for: businesses, page, videoId }: { for: He
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                if (!touch && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
                   ask(text);
                 }
               }}
+              enterKeyHint={touch ? "enter" : "send"}
               rows={2}
               maxLength={1000}
               data-gramm="false"
@@ -278,11 +282,11 @@ export default function ClientHelp({ for: businesses, page, videoId }: { for: He
   );
 }
 
-/** When a refused question can be asked again, in the reader's own clock: "in 7 minutes", or "from Oct 23, 3:24 PM". */
+/** When a refused question can be asked again, in the reader's own clock and their browser's own way of writing dates: "in 7 minutes", or "from 23 Oct, 3:24 pm". */
 function againAt(at: number) {
   const mins = Math.max(1, Math.ceil((at - Date.now()) / 60_000));
   if (mins <= 60) return `You can ask again in ${mins} ${mins === 1 ? "minute" : "minutes"}.`;
-  return `You can ask again from ${new Date(at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`;
+  return `You can ask again from ${new Date(at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`;
 }
 
 function Bubble({ mine, text }: { mine: boolean; text: string }) {

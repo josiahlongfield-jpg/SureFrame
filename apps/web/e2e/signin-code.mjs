@@ -1,4 +1,4 @@
-// Signing in to connect Claude (lib/signInCode.ts): the email has a 6-digit code instead of a link, typed on the
+// Signing in to connect Claude (lib/signInCode.ts): the email has an 8-digit code instead of a link, typed on the
 // Check your email page so the window Claude opened finishes the sign-in. Other sign-ins keep the link only.
 // Run against a server with AUTH_EMAIL_LINKS=true.
 import { chromium } from "@playwright/test";
@@ -20,7 +20,7 @@ const mails = (email) =>
     .sort()
     .map((f) => JSON.parse(readFileSync(`${outbox}/${f}`, "utf8")))
     .filter((m) => m.to === email);
-const codeFor = (email) => mails(email).at(-1)?.text.match(/to SureFrame: (\d{3} \d{3})/)?.[1];
+const codeFor = (email) => mails(email).at(-1)?.text.match(/to SureFrame: (\d{4} \d{4})$/m)?.[1];
 // Claude's sign-in window lands here (src/app/oauth/authorize); the details don't matter for signing in.
 const CLAUDE = "/oauth/authorize?response_type=code&client_id=test";
 
@@ -45,10 +45,10 @@ const ctx = await browser.newContext();
 const page = await ctx.newPage();
 await page.goto(`${BASE}/login?next=${encodeURIComponent(CLAUDE)}`);
 await page.waitForSelector("text=Email me a code", { timeout: 5000 }).catch(() => {});
-ok("from Claude: the sign-in page says Connect Claude and that a code is emailed (D4)", (await page.textContent("[data-testid=login-heading]")).trim() === "Connect Claude" && (await page.isVisible("text=Email me a code")) && (await page.isVisible("text=/6-digit code/")));
+ok("from Claude: the sign-in page says Connect Claude and that a code is emailed (D4)", (await page.textContent("[data-testid=login-heading]")).trim() === "Connect Claude" && (await page.isVisible("text=Email me a code")) && (await page.isVisible("text=/8-digit code/")));
 await ask(page, email);
 const code = codeFor(email);
-ok("signing in to connect Claude emails a 6-digit code", /^\d{3} \d{3}$/.test(code ?? ""), String(code));
+ok("signing in to connect Claude emails an 8-digit code", /^\d{4} \d{4}$/.test(code ?? ""), String(code));
 const mail = mails(email).at(-1);
 ok("the code is in the email's HTML too", mail.html.includes(code), "");
 ok("and there's no sign-in link in it", !/https?:\/\//.test(mail.text) && !mail.html.includes("/login/confirm"), mail.text);
@@ -64,7 +64,10 @@ await page.fill("[data-testid=code-input]", "12");
 ok("a short code is held back by the box itself", !(await page.evaluate(() => document.querySelector("[data-testid=code-input]").checkValidity())));
 const short = await ctx.request.post(`${BASE}/login/code`, { form: { code: "12", next: "/library" }, maxRedirects: 0 });
 ok("a short code sent anyway is refused with a reason", (short.headers().location ?? "").includes("error=code-code"), short.headers().location);
-const wrong = code === "000 000" ? "111 111" : "000 000";
+// Six digits, the length codes used to be, are no longer a whole code.
+const six = await ctx.request.post(`${BASE}/login/code`, { form: { code: "123 456", next: "/library" }, maxRedirects: 0 });
+ok("a 6-digit code is refused as incomplete", (six.headers().location ?? "").includes("error=code-code"), six.headers().location);
+const wrong = code === "0000 0000" ? "1111 1111" : "0000 0000";
 await type(page, wrong);
 ok("a wrong code says so", (await alertText(page)).includes("isn't right"), await alertText(page));
 ok("the box is still there after a wrong code", await page.isVisible("[data-testid=code-input]"));
@@ -88,7 +91,7 @@ if (first !== second) {
   await type(p2, first);
   ok("an older email's code stops working once a newer one is sent", (await alertText(p2)).includes("latest email") && new URL(p2.url()).pathname.startsWith("/login"), await alertText(p2));
 } else ok("an older email's code stops working once a newer one is sent (same code drawn, skipped)", true);
-const bad = second === "000 000" ? "111 111" : "000 000";
+const bad = second === "0000 0000" ? "1111 1111" : "0000 0000";
 for (let i = 0; i < 5; i++) await type(p2, bad);
 await type(p2, second);
 ok("after 5 wrong tries even the right code is refused", (await alertText(p2)).includes("Too many wrong tries"), await alertText(p2));
@@ -112,7 +115,7 @@ const p4 = await ctx4.newPage();
 await ask(p4, email, "/library");
 const normal = mails(email).at(-1);
 ok("the sign-in email names SureFrame, not the web address (S2)", normal.text.includes("If you didn't ask to sign in to SureFrame, you can ignore this email.") && !/sign in to localhost/.test(normal.text + normal.html), normal.text);
-ok("a normal sign-in email has the link and no code", /\/login\/confirm\?link=/.test(normal.text) && !/\d{3} \d{3}/.test(normal.text), normal.text);
+ok("a normal sign-in email has the link and no code", /\/login\/confirm\?link=/.test(normal.text) && !/\d{4} \d{4}/.test(normal.text), normal.text);
 ok("and its Check your email page has no code box", !(await p4.isVisible("[data-testid=code-form]")));
 ok("no code is kept for it", (await prisma.signInCode.count({ where: { email } })) === 0);
 await p4.goto(normal.text.match(/https?:\/\/\S+/)[0]);

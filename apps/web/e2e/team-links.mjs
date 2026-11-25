@@ -3,7 +3,7 @@
 import { chromium } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { agreed } from "./agree.mjs";
-import { chooseClients, sendByLink } from "./send.mjs";
+import { sendByLink } from "./send.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const prisma = new PrismaClient();

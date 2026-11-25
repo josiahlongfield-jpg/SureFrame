@@ -213,7 +213,7 @@ export default async function SupportUser({ params, searchParams }: { params: Pr
               power="signOutEverywhere"
               hidden={{ userId: u.id }}
               title="Sign out everywhere"
-              intro="Ends every sign-in on every device and in the mobile app, and unused sign-in links. Signing in again works as normal."
+              intro="Ends every sign-in on every device and in the mobile app, and unused sign-in links, and disconnects Claude from this login. Signing in again works as normal; they connect Claude again on Settings > Connections."
               notify={emailThem}
               submit="Sign out everywhere"
             />

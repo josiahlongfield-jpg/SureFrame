@@ -175,6 +175,17 @@ await visit(fresh, "/agree?next=" + encodeURIComponent("https://evil.example/x")
 ok("an outside next goes to the library instead", path(fresh) === "/library" && new URL(fresh.url()).host === new URL(BASE).host, fresh.url());
 ok("agreeing twice records nothing more", (await rows(newUser.id)).length === 1);
 
+// A new account that chose a paid plan on Pricing ("Get Solo", then sign in) agrees first with the plan kept as the way
+// back, so its checkout starts when they return, rather than a "You can't switch to Solo yet" box and the plan forgotten.
+const planPath = "/pricing?plan=SOLO&interval=month";
+const picker = await signIn(`agree-plan${stamp}@example.com`, planPath);
+ok("a new account that picked a paid plan lands on /agree, with the plan kept", path(picker) === "/agree" && new URL(picker.url()).searchParams.get("next") === planPath, picker.url());
+ok("and is asked to agree as a new account (not to updated terms)", norm(await picker.textContent("[data-testid=agree-heading]").catch(() => "")) === "Before you continue");
+await tickAndAgree(picker).catch(() => {});
+await picker.waitForURL((u) => u.pathname === "/welcome", { timeout: 15000 }).catch(() => {});
+ok("agreeing carries the plan on to the welcome step", path(picker) === "/welcome" && new URL(picker.url()).searchParams.get("next") === planPath, picker.url());
+await picker.context().close();
+
 // ---- A version change: an existing account holder is asked again, as an update -----------------------------
 await prisma.termsAcceptance.create({ data: { userId: newUser.id, email: newEmail, termsVersion: "2026-01-01", privacyVersion: "2026-01-01", method: "signup" } });
 await noticeOver(newUser.id, newEmail);

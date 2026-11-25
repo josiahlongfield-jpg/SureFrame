@@ -25,7 +25,11 @@ export default function NoticeForm({ owners, earliest, days }: { owners: number;
     setError(undefined);
     try {
       const r = await sendNotice(form);
-      if (r.ok) {
+      if (r.ok && r.sent < r.recipients) {
+        // Some emails didn't go: the details stay in the form, so sending again reaches only the people who were missed.
+        setAsking(false);
+        setError(`Sent to ${r.sent} of ${noticePeople(r.recipients)}: the rest didn't send. Press the button again with the same details to email only the people who were missed.`);
+      } else if (r.ok) {
         setAsking(false);
         setDone(`Sent to ${r.sent} of ${noticePeople(r.recipients)}. It's in the Support log.`);
         setForm({ name: "", purpose: "", location: "", startsOn: earliest });
@@ -90,7 +94,7 @@ export default function NoticeForm({ owners, earliest, days }: { owners: number;
                 Every business owner and admin on SureFrame gets the notice about <strong className="text-ink">{form.name}</strong>, starting{" "}
                 {new Intl.DateTimeFormat("en-AU", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${form.startsOn}T00:00:00Z`))}.
               </p>
-              <p>This can&rsquo;t be undone, and it can only be sent once for this sub-processor and date.</p>
+              <p>This can&rsquo;t be undone, and nobody gets it twice for this sub-processor and date.</p>
             </>
           }
           confirmLabel={`Send to ${people}`}

@@ -30,6 +30,11 @@
   let staleTimer = 0;
   /** This frame's name in the extension's storage, where each connection's one-off code is kept (see connect). */
   let slot = "";
+  /** Whether the frame could really be seen when last looked at, as told to the bubble (see look). */
+  let seen = null;
+
+  /** Every style on the frame is "!important", which no web page's stylesheet can override on an inline style. */
+  const put = (name, value) => frame.style.setProperty(name, value, "important");
 
   const ok = () => {
     // Cut off by an update or removal: take the bubble away and step aside.
@@ -62,8 +67,8 @@
     const { w, h } = viewport();
     const left = Math.max(0, Math.min(cx == null ? leftEdge : cx - box.anchor, w - box.width));
     const shownBottom = Math.max(0, Math.min(bottom, h - box.height));
-    frame.style.left = `${left}px`;
-    frame.style.bottom = `${shownBottom}px`;
+    put("left", `${left}px`);
+    put("bottom", `${shownBottom}px`);
     const view = { w, h, cx, bottom };
     const key = JSON.stringify(view);
     if (port && key !== told) {
@@ -84,10 +89,11 @@
     // one-off alias of the extension's own.
     frame.setAttribute("allow", "camera *");
     frame.setAttribute("scrolling", "no");
-    // Fixed, above everything, and see-through around the circle (the colour scheme must match for that).
+    // Fixed, above everything, and see-through around the circle (the colour scheme must match for that). Each one
+    // "!important", so a page whose stylesheet hides or moves frames it doesn't know can't hide or move the bubble.
     frame.style.cssText =
-      "all:initial;position:fixed;z-index:2147483647;border:0;margin:0;padding:0;width:0;height:0;display:block;" +
-      "background:transparent;color-scheme:light;overflow:hidden;visibility:visible;opacity:1;pointer-events:auto";
+      ("all:initial;position:fixed;z-index:2147483647;border:0;margin:0;padding:0;width:0;height:0;display:block;" +
+        "background:transparent;color-scheme:light;overflow:hidden;visibility:visible;opacity:1;pointer-events:auto;").replaceAll(";", "!important;");
     frame.addEventListener("load", connect);
     // A frame the page took away leaves its code behind: clear it before naming the new one.
     if (slot) void chrome.storage.session.remove(`bubble:${slot}`).catch(() => {});
@@ -110,8 +116,30 @@
     slot = "";
   }
 
+  /**
+   * Can the frame really be seen? A page's script (unlike its stylesheet) can still change the frame's styles or hide
+   * the whole page. The bubble is told when it can't be seen and then reports its camera as not showing, so the
+   * SureFrame tab draws the camera into the video itself.
+   */
+  function look() {
+    // Not before the bubble has given its outline: until then the frame has no size.
+    if (!frame || !port || !box.width) return;
+    const style = getComputedStyle(frame);
+    const r = frame.getBoundingClientRect();
+    const { w, h } = viewport();
+    const now =
+      style.display !== "none" && style.visibility === "visible" && Number(style.opacity) > 0.9 &&
+      r.width > 1 && r.height > 1 && r.right > 0 && r.bottom > 0 && r.left < w && r.top < h &&
+      // The page itself hidden (display, visibility or opacity on the frame or on anything it sits in).
+      (frame.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true }) ?? true);
+    if (now === seen) return;
+    seen = now;
+    port.postMessage({ seen });
+  }
+
   async function check() {
     if (!ok()) return;
+    look();
     // Something on the page removed it: put it back.
     if (frame && !frame.isConnected) {
       frame = null;
@@ -172,6 +200,7 @@
         if (full) return settle(held);
         fit();
         clamp();
+        look();
       } else if (m.drag === "start") {
         // Dragging or resizing: the (see-through) frame covers the page meanwhile, and the bubble moves inside it.
         // Moving the frame itself under the pointer would make it lag, as positions inside a moving frame do.
@@ -181,9 +210,10 @@
         full = true;
         held = at;
         const { w, h } = viewport();
-        frame.style.left = frame.style.bottom = "0px";
-        frame.style.width = `${w}px`;
-        frame.style.height = `${h}px`;
+        put("left", "0px");
+        put("bottom", "0px");
+        put("width", `${w}px`);
+        put("height", `${h}px`);
         port.postMessage({ full: at, height: h });
       } else if (m.drag === "end") {
         settle(Number.isFinite(m.cx) && Number.isFinite(m.bottom) ? { cx: m.cx, bottom: m.bottom } : held);
@@ -191,13 +221,15 @@
     };
     frame.contentWindow?.postMessage({ sureframe: "port", nonce }, "*", [channel.port2]);
     told = "";
+    // A new bubble takes it that it can be seen until told otherwise.
+    seen = null;
   }
 
   /** The frame around the bubble, never bigger than the window. */
   function fit() {
     const { w, h } = viewport();
-    frame.style.width = `${Math.min(box.width, w)}px`;
-    frame.style.height = `${Math.min(box.height, h)}px`;
+    put("width", `${Math.min(box.width, w)}px`);
+    put("height", `${Math.min(box.height, h)}px`);
   }
 
   /** Let go: the frame shrinks back around the bubble where it now is, and every other tab's bubble goes there too. */

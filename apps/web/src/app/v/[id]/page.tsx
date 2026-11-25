@@ -12,7 +12,7 @@ import WatchView from "@/components/WatchView";
 import CantOpen from "@/components/CantOpen";
 import { AskForLink, ClientKeyGate } from "@/components/LostKey";
 import Logo from "@/components/Logo";
-import { aiAssistActive, PLANS } from "@/lib/plans";
+import { aiAssistActive, PLANS, replyMaxMinutes } from "@/lib/plans";
 import { db } from "@/lib/db";
 import { clientBlock, clientCookie, clientGate, type Viewer } from "@/lib/access";
 import { loadVideo } from "./load";
@@ -24,7 +24,7 @@ import { clientLink } from "@/lib/clients";
 import { publicVideo } from "@/lib/videos";
 import { heldRepliesOf, replyDTO, replyViewer, visibleReplies } from "@/lib/replies";
 import { accessOf, canDeleteVideo, canSeeVideo, clientScopeWhere, effectivePerms } from "@/lib/permissions";
-import { zoned } from "@/lib/dates";
+import { setViewerZone, TZ_COOKIE, zoned } from "@/lib/dates";
 import { formerTeams, senderName } from "@/lib/team";
 import { nameWithBusiness } from "@/lib/senderLine";
 import { clientHelpLimitText } from "@/lib/support/clientHelp";
@@ -94,7 +94,9 @@ export default async function Watch({ params, searchParams }: Props) {
   if (viewer.kind === "client" && (await keyless(viewer))) {
     const workspace = await db.workspace.findUniqueOrThrow({ where: { id: video.workspaceId }, select: { ...brandFields, ...contactFields, timezone: true } });
     // Which video this is (C48): who from and when. Not its title: like All my videos, a device without the key shows
-    // none of the client's details (Decision 1), and the tab says only "Private video".
+    // none of the client's details (Decision 1), and the tab says only "Private video". The day is the client's own
+    // (their browser's time zone, once this device has told us it), else the business's.
+    setViewerZone((await cookies()).get(TZ_COOKIE)?.value);
     const about = `A video from ${workspace.name}, sent ${zoned(workspace.timezone).longDay(video.sentAt ?? video.createdAt)}.`;
     return (
       <CantOpenShell brand={brandOf(workspace)} help={{ for: [{ clientId: viewer.client.id, business: workspace.name, limits: clientHelpLimitText(workspace.plan), contact: contactOf(workspace) }], page: "cant-open", videoId: id }}>
@@ -173,12 +175,21 @@ export default async function Watch({ params, searchParams }: Props) {
         });
         group.sort((a, b) => (a.sourceId ? 1 : 0) - (b.sourceId ? 1 : 0) || a.createdAt.getTime() - b.createdAt.getTime());
         const said = await db.reply.findMany({ where: { videoId: { in: group.map((g) => g.id) }, ...visibleReplies }, select: { videoId: true, createdAt: true, authorUserId: true } });
+        // Each client reacts on their own copy: loaded for every conversation, so the one open beside the video shows
+        // that client's reaction (the same query as the page's own reactions above).
+        const reacted = await db.reaction.findMany({
+          where: { videoId: { in: group.map((g) => g.id) }, OR: [{ byClient: true }, { authorUserId: null }] },
+          orderBy: { createdAt: "asc" },
+          take: 2000,
+          select: { videoId: true, emoji: true, timestampMs: true },
+        });
         return group.map((g) => {
           const mine = said.filter((r) => r.videoId === g.id);
           return {
             id: g.id,
             clientId: g.client!.id,
             name: g.client!.name,
+            reactions: reacted.filter((r) => r.videoId === g.id).map((r) => ({ emoji: r.emoji, timestampMs: r.timestampMs })),
             count: mine.length,
             // When the other side said something, for the new-reply dot (this viewer's own messages never count).
             theirs: mine.filter((r) => r.authorUserId !== access.userId).map((r) => r.createdAt.toISOString()),
@@ -257,7 +268,7 @@ export default async function Watch({ params, searchParams }: Props) {
           <WatchView
             // Only the team sees how often the client opened it; clients aren't sent the count at all.
             // Clients see "A video from Business A" until it has a real title (Decision 10); the team sees the title as it is.
-            video={{ ...publicVideo(video), title: isMember ? video.title : clientTitle(video.title, workspace.name), viewCount: isMember ? (goneClient ? 0 : video.viewCount) + copyViews : 0, ownViews: isMember && !goneClient ? video.viewCount : 0, emailed: isMember ? (video.emailedAt ? "sent" : video.emailClientWhenReady ? "when-ready" : null) : null }}
+            video={{ ...publicVideo(video), sentAt: isMember ? null : (video.sentAt?.toISOString() ?? null), title: isMember ? video.title : clientTitle(video.title, workspace.name), viewCount: isMember ? (goneClient ? 0 : video.viewCount) + copyViews : 0, ownViews: isMember && !goneClient ? video.viewCount : 0, emailed: isMember ? (video.emailedAt ? "sent" : video.emailClientWhenReady ? "when-ready" : null) : null }}
             // Clients see "Team member 1 from Business A" (never an email); the team sees the name or email (lib/team.ts).
             ownerName={senderName(video, workspace.name, isMember ? "team" : "client")}
             ownerNote={!isMember && video.formerStaffAt ? `Recorded by someone who has since left ${workspace.name}. Your replies still reach ${workspace.name}.` : undefined}
@@ -267,6 +278,8 @@ export default async function Watch({ params, searchParams }: Props) {
             // The client is greeted by name, so they can tell the link is theirs (S17).
             clientName={viewer.kind === "client" ? viewer.client.name : undefined}
             canDelete={!!access && canDeleteVideo(access, video)}
+            // The team's own replies keep to the plan's video length (5 minutes on Free); the note before recording says so from the start.
+            replyMaxMinutes={replyMaxMinutes(workspace.plan, isMember)}
             // Only a finished original counts (a refused upload never got a duration).
             freeVideoLimit={isMember && !video.sourceId && !video.replyToId && video.status !== "RECORDING" && video.durationMs !== null ? PLANS[workspace.plan].maxVideos : null}
             viewer={
@@ -305,6 +318,8 @@ export default async function Watch({ params, searchParams }: Props) {
             reactions={reactions}
             hasThumb={hasThumb}
             sourceId={video.sourceId}
+            // For the Delete box's warning, also for staff who can't send to several clients.
+            copyCount={copies.length}
             business={workspace.name}
             message={video.message}
             myReactions={myReactions}
@@ -411,7 +426,7 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
           <CantOpen title={forClient ? "This video is for a client you don't look after" : "You can't open this video"} testId="video-no-access">
             <p>
               {forClient
-                ? "Only the team members who look after that client, and the owner and admins, can open it."
+                ? "Only the person who recorded it, the team members who look after that client, and the owner and admins can open it."
                 : membership.pausedAt
                   ? `Your access to ${ws.name} is paused.`
                   : "Your access in this team doesn't include it."}{" "}

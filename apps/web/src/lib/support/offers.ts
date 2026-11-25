@@ -17,8 +17,9 @@ export type GivenOffer = Offer & { business: { id: string; name: string; ownerEm
 
 /** Every offer, newest first, ended ones included, with the business each was given to (the console's Discounts page). */
 export async function listOffers(): Promise<GivenOffer[]> {
-  const list = await stripe().promotionCodes.list({ limit: 100, expand: PROMO_LIST_EXPAND });
-  const offers = (await Promise.all(list.data.map(toOffer))).filter((o): o is Offer => !!o);
+  // Stripe gives 100 a page, newest first: every page is read (up to 1,000 codes), so old codes still running stay on the page.
+  const list = await stripe().promotionCodes.list({ limit: 100, expand: PROMO_LIST_EXPAND }).autoPagingToArray({ limit: 1000 });
+  const offers = (await Promise.all(list.map(toOffer))).filter((o): o is Offer => !!o);
   const customers = [...new Set(offers.flatMap((o) => (o.customer ? [o.customer] : [])))];
   const workspaces = await db.workspace.findMany({
     where: { stripeCustomerId: { in: customers } },

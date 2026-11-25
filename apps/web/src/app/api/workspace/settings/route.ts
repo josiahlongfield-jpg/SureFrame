@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isReservedBusinessName, RESERVED_BUSINESS_NAME } from "@/lib/brand";
 import { db } from "@/lib/db";
 import { scheduleReminders } from "@/lib/reminders";
 import { isTimeZone } from "@/lib/schedule";
@@ -26,6 +27,8 @@ export const PATCH = handle(async (req: Request) => {
   const body = Body.safeParse(await req.json());
   if (!body.success) throw new HttpError(400, body.error.issues[0]?.message ?? "Invalid settings");
   const d = body.data;
+  // A new name can't read as SureFrame itself (lib/brand.ts). One saved before this rule can be saved again unchanged.
+  if (d.name !== undefined && d.name !== workspace.name && isReservedBusinessName(d.name)) throw new HttpError(400, RESERVED_BUSINESS_NAME);
   const updated = await db.workspace.update({
     where: { id: workspace.id },
     data: {

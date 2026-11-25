@@ -120,6 +120,10 @@ const early = await widthOf(page, "[data-testid=poster-cover] img");
 ok("before the recording arrives, the library still covers the player", early === 960, String(early));
 ok("that still is a picture, not black", (await brightness("[data-testid=poster-cover] img")) > 20);
 await page.screenshot({ path: `${shots}/sharp-stills-early-poster.png` });
+// Pressing play before the recording has arrived keeps the picture up and says it's getting ready (never a black box).
+await page.click("[data-testid=poster-cover]");
+const busy = await page.waitForSelector("[data-testid=poster-cover] [data-testid=poster-busy]", { timeout: 5000 }).catch(() => null);
+ok("pressing play before the recording arrives keeps the still and says it's getting ready", !!busy && /Getting your video ready/.test((await busy.textContent()) ?? "") && (await widthOf(page, "[data-testid=poster-cover] img")) === 960);
 await page.unroute("**/api/videos/*/stream");
 
 await page.goto(BASE + "/library");

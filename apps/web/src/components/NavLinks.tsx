@@ -36,7 +36,12 @@ export function SettingsMenu({ links }: { links: Links }) {
   useEffect(() => {
     if (!open) return;
     const away = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      // Back to the Settings button, so the keyboard isn't left at the top of the page.
+      box.current?.querySelector<HTMLElement>("button[aria-expanded]")?.focus();
+    };
     document.addEventListener("pointerdown", away);
     document.addEventListener("keydown", esc);
     return () => {

@@ -4,11 +4,13 @@ import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import { DATA_LOCATIONS, LEGAL, SUBPROCESSORS } from "@/lib/legal";
 import { RETENTION_DAYS } from "@/lib/retention";
+import { publicPage } from "@/lib/sharePreview";
 
-export const metadata: Metadata = {
-  title: "About and contact",
-  description: "Who runs SureFrame, how to contact us, where data is kept, what's end-to-end encrypted, and what the recovery key is.",
-};
+// Its own words on a shared link's preview card too, not the home page's (lib/sharePreview.ts).
+export const metadata: Metadata = publicPage(
+  "About and contact",
+  "Who runs SureFrame, how to contact us, where data is kept, what's end-to-end encrypted, and what the recovery key is.",
+);
 
 /*
  * Who runs SureFrame and how it handles data, in plain words. Everything here is taken from the Privacy Policy and Terms

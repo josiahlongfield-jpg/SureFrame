@@ -76,7 +76,9 @@ export default function FirstSteps({ steps, workspaceId, fingerprint, business }
 
   async function hide() {
     setHiding(true);
-    await fetch("/api/workspace/first-steps", { method: "POST" }).catch(() => null);
+    const res = await fetch("/api/workspace/first-steps", { method: "POST" }).catch(() => null);
+    // Not saved: the button works again, rather than staying greyed with the list still there.
+    if (!res?.ok) return setHiding(false);
     router.refresh();
   }
 

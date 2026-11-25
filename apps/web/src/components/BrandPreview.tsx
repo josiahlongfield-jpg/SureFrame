@@ -104,6 +104,14 @@ export function PreviewStage({ brand, view, device, fit = "width", testId }: { b
 
 /** Full-screen version of the same preview. */
 export function FullPreview({ brand, view, device, onView, onDevice, onClose }: { brand: Brand; view: PreviewView; device: Device; onView: (v: PreviewView) => void; onDevice: (d: Device) => void; onClose: () => void }) {
+  // Focus goes back to the button that opened it once it closes. Noted while rendering, before autoFocus moves it to Close.
+  const [opener] = useState(() => (typeof document === "undefined" ? null : (document.activeElement as HTMLElement | null)));
+  useEffect(
+    () => () => {
+      if (opener?.isConnected) opener.focus();
+    },
+    [opener],
+  );
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     addEventListener("keydown", onKey);

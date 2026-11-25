@@ -10,8 +10,11 @@ export const PART_BYTES = Number(process.env.NEXT_PUBLIC_UPLOAD_PART_BYTES) || 5
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** `unsaved`: this browser couldn't keep a local copy (storage full), so a crash now would lose what isn't uploaded yet. */
-export type UploadState = { uploadedBytes: number; bufferedBytes: number; retrying: boolean; error?: string; unsaved?: boolean };
+/**
+ * `unsaved`: this browser couldn't keep a local copy (storage full), so a crash now would lose what isn't uploaded yet.
+ * `closed`: the server had already finished this recording from its own copy, so it takes no more of it.
+ */
+export type UploadState = { uploadedBytes: number; bufferedBytes: number; retrying: boolean; error?: string; unsaved?: boolean; closed?: boolean };
 
 async function withRetry<T>(fn: () => Promise<T>, onRetry: (retrying: boolean) => void): Promise<T> {
   for (let attempt = 0; ; attempt++) {
@@ -28,12 +31,19 @@ async function withRetry<T>(fn: () => Promise<T>, onRetry: (retrying: boolean) =
   }
 }
 
-/** The server refused the upload. `status` is the HTTP status, when there was one. */
+/**
+ * The server refused the upload. `status` is the HTTP status, when there was one. `finishedElsewhere`: a piece was
+ * refused because the server had already finished the recording from its own copy (lib/pieces.ts).
+ */
 export class FatalUploadError extends Error {
-  constructor(message: string, readonly status?: number) {
+  constructor(message: string, readonly status?: number, readonly finishedElsewhere = false) {
     super(message);
   }
 }
+
+/** Shown when a recording still going on this page was finished by the server meanwhile (it looked abandoned). */
+const FINISHED_ELSEWHERE =
+  "This recording was paused or offline for a while, so SureFrame finished it from what had already uploaded. What you recorded after that couldn't be added. You'll find the saved part in your library.";
 
 /**
  * Refusals that can clear up on their own: signed out (401), access paused or
@@ -129,6 +139,7 @@ export class ChunkedUploader {
   private pendingBytes = 0;
   private fatal?: Error;
   private unsaved = false;
+  private cancelled = false;
   private headers: Record<string, string>;
   private duration: () => number;
 
@@ -145,11 +156,12 @@ export class ChunkedUploader {
 
   /** Add a recorded chunk. Resolves once it is safely in IndexedDB. Chunks are kept in arrival order. */
   push(blob: Blob) {
-    if (blob.size === 0) return this.intake;
+    if (blob.size === 0 || this.cancelled) return this.intake;
     const seq = this.seq++;
     const offset = this.offset;
     this.offset += blob.size;
     this.intake = this.intake.then(async () => {
+      if (this.cancelled) return;
       // If the local copy can't be written (storage full), keep going from memory:
       // the upload still has the chunk, only the crash safety net is gone.
       await store.putChunk(this.videoId, seq, blob, offset).catch(this.lostLocalCopy);
@@ -158,6 +170,14 @@ export class ChunkedUploader {
       this.send(seq, offset, blob);
     });
     return this.intake;
+  }
+
+  /**
+   * The recording was discarded: nothing more of it is kept here or sent, and a piece that was on its way when the
+   * server deleted the recording isn't reported as a failed upload.
+   */
+  cancel() {
+    this.cancelled = true;
   }
 
   /** Re-queue chunks still in IndexedDB (used by crash recovery). */
@@ -184,7 +204,7 @@ export class ChunkedUploader {
 
   private send(seq: number, offset: number, blob: Blob) {
     this.queue = this.queue.then(async () => {
-      if (this.fatal) return;
+      if (this.fatal || this.cancelled) return;
       try {
         await withRetry(() => sendPiece(this.videoId, seq, offset, blob, this.duration(), this.headers), (r) => this.emit(r));
         await store.confirmPiece(this.videoId, seq).catch(this.lostLocalCopy);
@@ -192,15 +212,20 @@ export class ChunkedUploader {
         this.pendingBytes -= blob.size;
         this.emit(false);
       } catch (err) {
-        this.fatal = err as Error;
+        // A piece is only refused with 409 when the server has already finished the recording from its own copy
+        // (it went quiet for too long): said in plain words, and the status is kept for recovery (below).
+        const closed = err instanceof FatalUploadError && err.status === 409;
+        this.fatal = closed ? new FatalUploadError(FINISHED_ELSEWHERE, 409, true) : (err as Error);
+        if (this.cancelled) return;
         // Upload failures otherwise only show in the customer's browser.
         reportClientError("upload", err);
-        this.onState({ uploadedBytes: this.uploadedBytes, bufferedBytes: this.pendingBytes, retrying: false, error: this.fatal.message, unsaved: this.unsaved });
+        this.onState({ uploadedBytes: this.uploadedBytes, bufferedBytes: this.pendingBytes, retrying: false, error: this.fatal.message, unsaved: this.unsaved, closed });
       }
     });
   }
 
   private emit(retrying: boolean) {
+    if (this.cancelled) return;
     this.onState({ uploadedBytes: this.uploadedBytes, bufferedBytes: this.pendingBytes, retrying, unsaved: this.unsaved });
   }
 }
@@ -380,7 +405,10 @@ export async function recoverInterrupted(
       } catch (err) {
         const stale = Date.now() - s.startedAt > KEEP_FOR_MS;
         // Already finished elsewhere (the server's copy, from another browser): nothing left to do here.
-        if (err instanceof FatalUploadError && err.status === 409 && s.pieces) await store.removeSession(s.videoId);
+        if (err instanceof FatalUploadError && err.finishedElsewhere && s.pieces) await store.removeSession(s.videoId);
+        // The finish call's own 409 ("Nothing was recorded"): the server has nothing to finish it from yet. That isn't
+        // "finished elsewhere", so the copy here is kept and tried again, for as long as other refusals are.
+        else if (err instanceof FatalUploadError && err.status === 409 && s.pieces && !stale) console.warn("Recovery deferred", s.videoId, err);
         else if (err instanceof FatalUploadError && (!mayRecover(err) || (stale && err.status === 404))) await store.removeSession(s.videoId);
         else console.warn("Recovery deferred", s.videoId, err);
       }

@@ -9,6 +9,7 @@ import { enforceSeatLimits } from "@/lib/seatLimits";
 import { HttpError } from "@/lib/session";
 import { storage } from "@/lib/storage";
 import { appUrl } from "@/lib/stripe";
+import { activeMember } from "@/lib/team";
 
 /**
  * Deleting a client (Josiah, 24 October 2026) is permanent and happens at once:
@@ -129,7 +130,8 @@ async function willBeEmailed(workspaceId: string, c: { id: string; email: string
 /** The email telling a client their access has ended, or null when they aren't emailed. */
 async function goodbyeFor(ws: Workspace, c: { id: string; name: string; email: string | null; remindersOff: boolean; assignedToId: string | null }) {
   if (!c.email || !(await willBeEmailed(ws.id, c))) return null;
-  const assigned = c.assignedToId ? await db.membership.findUnique({ where: { userId_workspaceId: { userId: c.assignedToId, workspaceId: ws.id } } }) : null;
+  // A paused or suspended staff member can't answer, so replies go to the business's address instead (as for reminders).
+  const assigned = c.assignedToId ? await db.membership.findFirst({ where: { userId: c.assignedToId, workspaceId: ws.id, ...activeMember } }) : null;
   const { replyTo } = clientMailSettings(ws, assigned);
   const brand = brandOf(ws, appUrl(""));
   const mail = clientRemovedEmail({ business: ws.name, clientName: c.name, logoUrl: brand.logoUrl, color: brand.color, noReply: !replyTo, contact: contactOf(ws) });

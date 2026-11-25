@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { exportKey, fingerprint, generateKey, unwrapKey, wrapKey } from "@/lib/e2e/crypto";
 import { zoned } from "@/lib/dates";
+import { PLANS } from "@/lib/plans";
 import { shareLink, useCanShare, writeClipboard } from "@/lib/clipboard";
-import { UnlockBox, useTeamKey } from "./TeamKeyGate";
+import { KeySetupFailed, UnlockBox, useTeamKey } from "./TeamKeyGate";
 import RemoveExtras from "./RemoveExtras";
 import { ReplyBadges, type Conv } from "./LibraryTools";
 import FirstLinkSender, { PersonalLinkSteps } from "./FirstLinkSender";
@@ -112,12 +113,15 @@ export function parseClientList(text: string) {
  */
 export default function ClientsManager({ workspaceId, fingerprint, ...rest }: Props) {
   const team = useTeamKey(workspaceId, fingerprint);
-  const locked = team.state.kind === "recover";
+  // A new business whose key couldn't be set up just now: there's no recovery key yet, so Try again instead of the unlock box.
+  const setupFailed = team.state.kind === "setup-failed";
+  const locked = team.state.kind === "recover" || setupFailed;
   // A moment while this browser's key is looked up, as before: the list then opens with or without it.
   if (team.state.kind === "loading") return <div className="grid h-40 place-items-center text-sm text-dim">Unlocking…</div>;
   return (
     <>
-      {locked && (
+      {team.state.kind === "setup-failed" && <KeySetupFailed anchor="unlock" onRetry={team.retry} blocked={team.state.blocked} />}
+      {team.state.kind === "recover" && (
         <UnlockBox
           anchor="unlock"
           error={team.state.kind === "recover" ? team.state.error : undefined}
@@ -125,7 +129,7 @@ export default function ClientsManager({ workspaceId, fingerprint, ...rest }: Pr
           why="Your client list is below. Adding a client and copying a client's personal link need the key in this browser: each client's private key is locked with your team's key."
         />
       )}
-      <Manager {...rest} teamKey={team.state.kind === "ready" ? team.state.key : null} locked={locked} />
+      <Manager {...rest} teamKey={team.state.kind === "ready" ? team.state.key : null} locked={locked} keySetupFailed={setupFailed} />
     </>
   );
 }
@@ -142,6 +146,7 @@ type Filter = "all" | "first" | "no-email" | "paused";
 function Manager({
   teamKey,
   locked = false,
+  keySetupFailed = false,
   business,
   initialClients,
   initialSeats,
@@ -160,7 +165,7 @@ function Manager({
   studioHint,
   timezone,
   seatsAdded,
-}: Omit<Props, "workspaceId" | "fingerprint"> & { teamKey: CryptoKey | null; locked?: boolean }) {
+}: Omit<Props, "workspaceId" | "fingerprint"> & { teamKey: CryptoKey | null; locked?: boolean; /** Locked because a new business's key isn't set up yet (no recovery key exists to enter). */ keySetupFailed?: boolean }) {
   const [clients, setClients] = useState(initialClients);
   const [seats, setSeats] = useState(initialSeats);
   const [name, setName] = useState("");
@@ -171,12 +176,14 @@ function Manager({
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string>();
+  // The row (a client's id, or "all" for the list of new links) whose link couldn't be copied or made.
+  const [copyFailed, setCopyFailed] = useState<string>();
   const [buyQty, setBuyQty] = useState(1);
   const [buying, setBuying] = useState<"ask" | "busy" | null>(null);
   // The client whose "Delete permanently?" box is open.
   const [confirming, setConfirming] = useState<string | null>(null);
   const [notice, setNotice] = useState<string>();
-  const [assigned, setAssigned] = useState<{ id: string; text: string }>();
+  const [assigned, setAssigned] = useState<{ id: string; text: string; error?: boolean }>();
   const [listError, setListError] = useState<string>();
   // The clients just added: sending their personal link is the next step.
   const [justAdded, setJustAdded] = useState<Client[]>([]);
@@ -348,11 +355,12 @@ function Manager({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignedToId }),
     }).catch(() => null);
-    if (!res?.ok) return setError((await res?.json().catch(() => ({})))?.error ?? "Couldn't save. Check your connection and try again.");
+    // A refusal is said beside the dropdown too (not up in the Add a client box, far from the row), and stays until the next change.
+    if (!res?.ok) return setAssigned({ id: c.id, error: true, text: (await res?.json().catch(() => ({})))?.error ?? "Couldn't save. Check your connection and try again." });
     setClients((list) => list.map((x) => (x.id === c.id ? { ...x, assignedToId } : x)));
     // Said beside the dropdown that changed.
     setAssigned({ id: c.id, text: assignedToId ? `Saved: ${staffName(assignedToId) ?? "they"} ${assignedToId === meId ? "(you) look" : "looks"} after ${c.name}` : `Saved: ${c.name} is unassigned` });
-    setTimeout(() => setAssigned((cur) => (cur?.id === c.id ? undefined : cur)), 4000);
+    setTimeout(() => setAssigned((cur) => (cur?.id === c.id && !cur.error ? undefined : cur)), 4000);
   }
 
   const linkOf = (c: Client) => (teamKey ? personalLink(c.link, c.teamKeyWrap, teamKey) : Promise.reject(new Error("This browser doesn't have your team's key yet.")));
@@ -361,17 +369,33 @@ function Manager({
     void markLinkSent(c.id);
     setClients((list) => list.map((x) => (x.id === c.id ? { ...x, linkSent: true } : x)));
   };
+  // A browser can refuse the clipboard (an in-app browser, a denied permission): said by the button, never passed off
+  // as copied, or whatever was on the clipboard before gets sent to a client instead.
   async function copy(c: Client) {
-    await writeClipboard(linkOf(c));
+    setCopyFailed(undefined);
+    try {
+      await writeClipboard(linkOf(c));
+    } catch {
+      return setCopyFailed(c.id);
+    }
     sent(c);
     setCopied(c.id);
     setTimeout(() => setCopied(undefined), 2000);
   }
   async function share(c: Client) {
-    if (await shareLink(await linkOf(c), `${c.name}'s personal link`)) sent(c);
+    setCopyFailed(undefined);
+    // The link itself couldn't be made (the client's key didn't open); a share sheet closed without sharing says nothing.
+    const link = await linkOf(c).catch(() => null);
+    if (!link) return setCopyFailed(c.id);
+    if (await shareLink(link, `${c.name}'s personal link`)) sent(c);
   }
   async function copyAll(list: Client[]) {
-    await writeClipboard(Promise.all(list.map(async (c) => `${c.name}: ${await linkOf(c)}`)).then((l) => l.join("\n")));
+    setCopyFailed(undefined);
+    try {
+      await writeClipboard(Promise.all(list.map(async (c) => `${c.name}: ${await linkOf(c)}`)).then((l) => l.join("\n")));
+    } catch {
+      return setCopyFailed("all");
+    }
     list.forEach(sent);
     setCopied("all");
     setTimeout(() => setCopied(undefined), 2000);
@@ -412,7 +436,7 @@ function Manager({
         )}
         {locked ? (
           <p className="mt-3 text-sm text-muted" data-testid="add-locked">
-            To add clients in this browser, <a href="#unlock" className="font-medium text-accent hover:underline">enter your recovery key</a> first. Each new
+            To add clients in this browser, <a href="#unlock" className="font-medium text-accent hover:underline">{keySetupFailed ? "finish setting up your key" : "enter your recovery key"}</a> first. Each new
             client&apos;s private key is made here and locked with your team&apos;s key, so we never see it.
           </p>
         ) : (
@@ -471,6 +495,7 @@ function Manager({
                   <button onClick={() => copyAll(justAdded)} data-testid="added-copy-all" className="mt-3 rounded-lg border border-line-strong bg-surface px-3 py-1.5 hover:bg-hover">
                     {copied === "all" ? "Copied" : `Copy all ${justAdded.length} links as a list`}
                   </button>
+                  {copyFailed === "all" && <p role="alert" className="mt-1 text-xs text-danger-fg" data-testid="copy-failed">Couldn&apos;t copy the links. Try again.</p>}
                 </>
               )}
             </details>
@@ -633,7 +658,7 @@ function Manager({
             <RemoveExtras extra={extraSeats} spare={seats.limit - seats.used} noun={{ one: "client seat", many: "client seats", holder: "clients" }} endpoint="/api/billing/seats" field="extraSeats" onError={setError} />
             {showBuy && suggestStudio && (
               <p data-testid="studio-hint" className="rounded-lg bg-primary-soft px-3 py-2 text-ink">
-                That would bring Solo to {money(soloAfter)}/month. Studio is {money(studioHint.studioPrice)}/month with {studioHint.studioClients} clients and 3 staff logins (yours included).{" "}
+                That would bring Solo to {money(soloAfter)}/month. Studio is {money(studioHint.studioPrice)}/month with {studioHint.studioClients} clients and {PLANS.STUDIO.staffSeats} staff logins (yours included).{" "}
                 <Link href="/pricing" className="font-medium underline">See plans</Link>
               </p>
             )}
@@ -644,7 +669,7 @@ function Manager({
           </p>
         ) : (
           <p className="mt-5 border-t border-line pt-5 text-sm text-muted">
-            <Link href="/pricing" className="font-medium text-accent hover:underline">Upgrade</Link> for 10 or more clients, with extra clients at {money(seatPrice)} each per month.
+            <Link href="/pricing" className="font-medium text-accent hover:underline">Upgrade</Link> for {PLANS.SOLO.clientSeats} or more clients, with extra clients at {money(seatPrice)} each per month.
           </p>
         )}
       </section>
@@ -658,9 +683,10 @@ function Manager({
 
       <section ref={listTop} className="scroll-mt-6 rounded-2xl border border-line bg-surface">
         {team && (
-          <div role="tablist" aria-label="Which clients" className="flex gap-1 border-b border-line px-4 pt-3 text-sm">
+          // Two buttons that filter the one list below (pressed or not), not tabs: there are no separate panels to move between.
+          <div role="group" aria-label="Which clients" className="flex gap-1 border-b border-line px-4 pt-3 text-sm">
             {(["all", "mine"] as const).map((k) => (
-              <button key={k} role="tab" aria-selected={show === k} onClick={() => setShow(k)}
+              <button key={k} type="button" aria-pressed={show === k} onClick={() => setShow(k)}
                 className={`rounded-t-lg px-3 py-2 ${show === k ? "border-b-2 border-primary font-medium text-ink" : "text-dim hover:text-ink"}`}>
                 {k === "all" ? `All clients (${clients.length})` : `My clients (${clients.filter((c) => c.assignedToId === meId).length})`}
               </button>
@@ -735,7 +761,12 @@ function Manager({
                         {staff.map((p) => <option key={p.id} value={p.id}>{p.id === meId ? `${p.name} (you)` : p.name}</option>)}
                       </select>
                     )}
-                    {assigned?.id === c.id && <span role="status" className="self-center text-xs text-ok-fg" data-testid="assign-saved">{assigned.text}</span>}
+                    {assigned?.id === c.id &&
+                      (assigned.error ? (
+                        <span role="alert" className="basis-full text-xs text-danger-fg sm:text-right" data-testid="assign-error">{assigned.text}</span>
+                      ) : (
+                        <span role="status" className="self-center text-xs text-ok-fg" data-testid="assign-saved">{assigned.text}</span>
+                      ))}
                     {/* New clients are set up by their first video's link, sent from its Send box, so their own link is no more urgent than anyone's. */}
                     {!c.linkOff && locked && <UnlockFirst testId="row-unlock-link">Unlock to copy link</UnlockFirst>}
                     {!c.linkOff && !locked && (
@@ -743,6 +774,8 @@ function Manager({
                         <button onClick={() => copy(c)} disabled={!teamKey} aria-label={`Copy link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover pointer-coarse:min-h-11">
                           {copied === c.id ? "Copied" : "Copy link"}
                         </button>
+                        {/* The button's name ("Copy link for …") hides its "Copied" from screen readers, so it's said here too. */}
+                        {copied === c.id && <span role="status" className="sr-only">Link copied</span>}
                         {canShare && <button onClick={() => share(c)} disabled={!teamKey} aria-label={`Share personal link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover pointer-coarse:min-h-11">Share</button>}
                         {/* Until they've opened a link, their page has every way to send it (from your email, with a message) (O22). */}
                         {!c.reached && (
@@ -750,6 +783,7 @@ function Manager({
                             More ways to send
                           </Link>
                         )}
+                        {copyFailed === c.id && <span role="alert" className="basis-full text-xs text-danger-fg sm:text-right" data-testid="copy-failed">Couldn&apos;t copy the link. Try again.</span>}
                       </>
                     )}
                     {canManage && (

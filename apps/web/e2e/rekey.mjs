@@ -8,7 +8,7 @@ import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 import { start, state, createSubscription } from "./fake-stripe.mjs";
 import { agreed } from "./agree.mjs";
-import { chooseClients, sendByLink, sendTo } from "./send.mjs";
+import { sendByLink, sendTo } from "./send.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const shots = process.argv[2] ?? "/tmp";

@@ -9,7 +9,7 @@ import { noticePeople } from "@/lib/support/noticePeople";
 
 export const generateMetadata = supportTitle("Sub-processor notice", "admin", { robots: { index: false } });
 
-type Details = { name?: string; purpose?: string; location?: string; startsOn?: string; recipients?: number; sent?: number; status?: string };
+type Details = { name?: string; purpose?: string; location?: string; startsOn?: string; recipients?: number; sent?: number; status?: string; reached?: unknown };
 
 /**
  * Support admins: email every business owner that a new sub-processor starts on a date at least 30 days away, as the
@@ -43,7 +43,10 @@ export default async function Notices() {
                   {d.name} from {d.startsOn ? longDate(d.startsOn) : "?"}
                 </p>
                 <p className="text-muted">
-                  {qldTime(a.createdAt)} by {a.actorEmail}: {d.sent ?? 0} of {d.recipients ?? 0} sent{d.status === "sending" ? " (still sending, or stopped)" : ""}
+                  {qldTime(a.createdAt)} by {a.actorEmail}: {d.sent ?? 0} of {d.recipients ?? 0} sent
+                  {d.status === "sending" ? " (still sending, or stopped)" : ""}
+                  {/* Only entries that kept who was reached can be finished (lib/support/subprocessorNotice.ts). */}
+                  {(d.status === "partly sent" || d.status === "sending") && Array.isArray(d.reached) ? ". To email only the people it missed, send the same notice again (if it stopped, wait 10 minutes first)." : ""}
                 </p>
               </li>
             );
