@@ -301,7 +301,9 @@ ok("someone else's records aren't in it", otherRecord.body?.termsAgreements?.len
 await visit(up, "/settings/account");
 ok("Settings > Account opens before agreeing", path(up) === "/settings/account");
 ok("with only the data download and account deletion", (await up.isVisible("text=Download your data")) && (await up.isVisible("text=Delete account")) && !(await up.isVisible("text=Your name")) && !(await up.isVisible("text=Recovery key")));
-ok("and a way back to /agree", (await up.locator('a[href="/agree"]').count()) === 1);
+// Two links now: the notice at the top, and the one in place of the sign-in email form.
+ok("and a way back to /agree", (await up.locator('a[href="/agree"]').count()) >= 1);
+ok("the sign-in email form waits until the terms are agreed", !(await up.isVisible('input[name="email"]')) && (await up.locator('a[href="/agree"]').count()) === 2);
 ok("no subscription section without a Stripe customer", (await up.locator("[data-testid=account-subscription]").count()) === 0);
 // An owner with a subscription can still manage or cancel it without agreeing, so declining never leaves a plan renewing.
 await prisma.workspace.update({ where: { id: wsUp }, data: { stripeCustomerId: `cus_agree${stamp}` } });
