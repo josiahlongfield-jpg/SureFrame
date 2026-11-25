@@ -298,6 +298,8 @@ await owner.waitForSelector("text=Staff logins");
 ok("once saved, the panel is gone after a reload", (await owner.locator("[data-testid=key-reset]").count()) === 0);
 ok("their client goes back to shared", (await prisma.client.findUnique({ where: { id: avery.id } })).assignedToId === null);
 await staff.goto(BASE + "/clients");
+// With no team left they are sent on to /start; let that finish so it can't interrupt the next page load.
+await staff.waitForURL(/\/start/, { timeout: 15000 }).catch(() => null);
 ok("removed staff no longer see the team's clients", !(await staff.isVisible("text=Avery")));
 await staff.goto(link.split("#")[0]);
 ok("their old invite says they were removed, not Join", !!(await staff.waitForSelector("[data-testid=join-removed]", { timeout: 15000 }).catch(() => null)) && !(await staff.isVisible("text=Join the team")));
