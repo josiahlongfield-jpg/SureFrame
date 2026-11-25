@@ -15,8 +15,19 @@ export default function ForgetDevice({ clientId, workspaceId, business, forget }
   const router = useRouter();
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
   async function go() {
     setBusy(true);
+    setError(undefined);
+    // The device's cookies first: if that fails (offline, say), nothing is removed, so it's never left half done
+    // (the key gone but the business still named here).
+    try {
+      await forget();
+    } catch {
+      setBusy(false);
+      setError("Couldn't remove it just now. Check your connection and try again.");
+      return;
+    }
     try {
       // The keystore's own name for this key (lib/e2e/keystore.ts keeps keys under "framecast.key.").
       localStorage.removeItem(`framecast.key.${clientKeyName(clientId)}`);
@@ -24,12 +35,12 @@ export default function ForgetDevice({ clientId, workspaceId, business, forget }
     } catch {
       /* storage blocked: nothing was kept */
     }
-    await forget().catch(() => {});
     router.refresh();
   }
   return (
     <>
-      <button onClick={() => setAsking(true)} disabled={busy} data-testid="forget-device" className="text-xs font-medium text-dim underline-offset-2 hover:text-ink hover:underline disabled:opacity-50">
+      {/* The padding (cancelled by the margin) only widens where a finger can land. */}
+      <button onClick={() => setAsking(true)} disabled={busy} data-testid="forget-device" className="-my-2 py-2 text-xs font-medium text-dim underline-offset-2 hover:text-ink hover:underline disabled:opacity-50">
         {busy ? "Removing…" : "Remove from this device"}
       </button>
       {asking && (
@@ -39,8 +50,12 @@ export default function ForgetDevice({ clientId, workspaceId, business, forget }
           confirmLabel="Remove from this device"
           cancelLabel="Keep them here"
           busy={busy}
+          error={error}
           onConfirm={go}
-          onCancel={() => setAsking(false)}
+          onCancel={() => {
+            setAsking(false);
+            setError(undefined);
+          }}
           testId="forget-confirm"
         />
       )}

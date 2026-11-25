@@ -79,7 +79,11 @@ export default async function SupportTicketPage({
           </Link>
         </p>
       )}
-      {sent && (
+      {sent === "unsent" ? (
+        <p role="status" className="mt-6 rounded-xl bg-warn-bg p-3 text-sm text-warn-fg" data-testid="reply-unsent">
+          Your reply is saved and shows in their chat, but the email{email ? ` to ${email}` : ""} didn&rsquo;t send, so they may not know it&rsquo;s there. Don&rsquo;t send it again here (it would show twice in their chat). Email them yourself instead.
+        </p>
+      ) : sent && (
         <p role="status" className="mt-6 rounded-xl bg-ok-bg p-3 text-sm text-ok-fg" data-testid="reply-sent">
           {sent === "email" && email ? `Reply sent by email to ${email}. It shows in their chat too.` : "Reply sent. It shows in their chat (there's no email address to send it to)."}
         </p>

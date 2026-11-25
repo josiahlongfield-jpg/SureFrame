@@ -513,8 +513,9 @@ model Client {
   createdAt          DateTime             @default(now())
   /// Removed by the business: the link stops working and the seat is freed at once.
   removedAt          DateTime?
-  /// When a removed client is deleted for good (removedAt + 30 days); until then they can be restored.
-  /// Null while active. A removed client without a date is never deleted (lib/clientRemoval.ts dates them).
+  /// When a removed client is deleted for good: set to the moment of removal (deleted straight away, no restore;
+  /// lib/clientRemoval.ts). A legal hold can delay the actual deletion. Null while active. The clean-up job deletes
+  /// every removed client, whatever this date says.
   purgeAt            DateTime?
   /// When the business was warned that this removed client is about to be deleted.
   purgeWarnedAt      DateTime?

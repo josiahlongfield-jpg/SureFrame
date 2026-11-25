@@ -317,7 +317,10 @@ ok("privacy: we have chosen to follow the Australian Privacy Principles", privac
 ok("privacy Age: no children's information for our own purposes; a business adding a client under 13 is responsible for consent", norm(await visitor.textContent("[data-testid=privacy-children]")).startsWith("SureFrame doesn’t knowingly collect children’s information for its own purposes. A business that adds a client under 13 is responsible for any parental consent the law requires"));
 await visitor.goto(BASE + "/legal/archive");
 const archive = norm(await visitor.textContent("main"));
-ok("archive: titled Versions and changes, dated with the latest update (L8, V44, V45)", norm(await visitor.textContent("main h1")) === "Versions and changes" && norm(await visitor.textContent("[data-testid=legal-version]")) === `Last updated ${updatedOf("termsUpdated")}`);
+// The latest of the three documents' dates: a wording update can move one document's date and not the others'.
+const latestUpdated = ["termsUpdated", "privacyUpdated", "dpaUpdated"].map(updatedOf).sort((a, b) => Date.parse(b) - Date.parse(a))[0];
+ok("archive: titled Versions and changes, dated with the latest update (L8, V44, V45)", norm(await visitor.textContent("main h1")) === "Versions and changes" && norm(await visitor.textContent("[data-testid=legal-version]")) === `Last updated ${latestUpdated}`);
+ok("archive: the 26 November wording updates list the notifications in the app", archive.includes("Privacy Policy: Notifications in the app (the list behind the bell)") && archive.includes("Data Processing Agreement: Section 3: notifications shown in the app, kept for up to 90 days."));
 ok("archive: a Wording updates list with each date (L1)", (await visitor.$$("[data-testid=wording-updates] > li")).length >= 6 && archive.includes("13 October 2026") && archive.includes("Terms of Service: Founding prices and discount offers."));
 ok("archive: the 22 October wording updates list the Privacy changes (G15, G8)", archive.includes("We say we have chosen to follow the Australian Privacy Principles.") && archive.includes("a business adding a client under 13 is responsible for any parental consent the law requires"));
 ok("archive: the 11 October changes read as changes from the unnumbered versions (V46)", archive.includes("What changed from the earlier versions, which weren’t numbered:"));

@@ -9,7 +9,7 @@ import { enforceSeatLimits } from "@/lib/seatLimits";
 import { PLANS } from "@/lib/plans";
 import { BRAND } from "@/lib/brand";
 import { appUrl } from "@/lib/stripe";
-import { activeSupportAgent, logAdmin, notice, QUESTIONS, sendNotice } from "@/lib/support/admin";
+import { activeSupportAgent, isFounder, logAdmin, notice, QUESTIONS, sendNotice } from "@/lib/support/admin";
 import { teamPath } from "@/lib/teamLink";
 import { videosUsed } from "@/lib/videoAllowance";
 import { currentSubscription } from "@/lib/subscription";
@@ -36,10 +36,13 @@ function ownWorkspace(session: { user?: { id?: string | null } } | null, owner: 
   return { ok: false, own: true, message: `${owner.workspace.name} is your own business (you're signed in as its owner). Tick "Yes, my own business" and save again if that's what you meant.` };
 }
 
+/** Founder-only, like discount codes: someone who only answers tickets (SUPPORT_AGENTS) can't give plans or AI away. */
+const founderSignedIn = async () => isFounder((await activeSupportAgent())?.email);
+
 /** Gives (or takes back) a free paid plan on the workspace an email address owns. */
 export async function setComplimentary(_prev: CompResult, form: FormData): Promise<CompResult> {
   const session = await auth();
-  if (!(await activeSupportAgent())) redirect("/library");
+  if (!(await founderSignedIn())) redirect("/library");
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const choice = String(form.get("plan") ?? "");
   if (!email.includes("@")) return { ok: false, message: "Enter their sign-in email address." };
@@ -118,7 +121,7 @@ export async function setComplimentary(_prev: CompResult, form: FormData): Promi
 /** Gives (or takes back) the AI summaries add-on, free, on a workspace with a complimentary plan. */
 export async function setComplimentaryAi(_prev: CompResult, form: FormData): Promise<CompResult> {
   const session = await auth();
-  if (!(await activeSupportAgent())) redirect("/library");
+  if (!(await founderSignedIn())) redirect("/library");
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const on = form.get("ai") === "on";
   if (!email.includes("@")) return { ok: false, message: "Enter their sign-in email address." };

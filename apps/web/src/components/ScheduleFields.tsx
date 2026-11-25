@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PRESET_REMINDERS, ruleLabel, sameRule, type ReminderRule, type Repeat } from "@/lib/schedule";
+import { browserTimeZone, localParts, PRESET_REMINDERS, ruleLabel, sameRule, type ReminderRule, type Repeat } from "@/lib/schedule";
 
 export type Schedule = {
   due: string; // datetime-local value, "" for none
@@ -22,6 +22,22 @@ export function toLocalInput(iso: string | null) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/**
+ * The weekday, day of the month and date a due time falls on in `zone`. The due box is typed in this device's own
+ * time, but the server works out repeats in the business's time zone (lib/schedule.ts nextOccurrence), where the
+ * same moment can be a day earlier or later: a repeat's weekday, month day and end date are saved as that zone's.
+ */
+function dayIn(due: string, zone: string) {
+  const d = new Date(due);
+  try {
+    const l = localParts(d, zone);
+    if (Number.isFinite(l.d) && l.wd >= 0) return { wd: l.wd, date: l.d, ymd: `${l.y}-${String(l.m).padStart(2, "0")}-${String(l.d).padStart(2, "0")}` };
+  } catch {
+    /* a zone this browser doesn't know: the device's own day, as before */
+  }
+  return { wd: d.getDay(), date: d.getDate(), ymd: due.slice(0, 10) };
+}
+
 const chip = (on: boolean) =>
   `rounded-full border px-3 py-1 text-xs font-medium transition ${on ? "border-primary bg-primary-soft text-accent" : "border-line-strong bg-surface text-muted hover:border-line-strong"}`;
 
@@ -34,9 +50,12 @@ export default function ScheduleFields({
   clientOptedOut,
   canShareReminders,
   teamLabel = "Email me",
+  tz,
 }: {
   value: Schedule;
   onChange: (s: Schedule) => void;
+  /** The business's time zone, which repeats and reminders follow. None yet: this device's (the server adopts it on the first save). */
+  tz?: string | null;
   clientName?: string;
   clientEmail?: string | null;
   clientOptedOut?: boolean;
@@ -47,6 +66,7 @@ export default function ScheduleFields({
 }) {
   const set = (patch: Partial<Schedule>) => onChange({ ...value, ...patch });
   const first = clientName?.split(" ")[0] ?? "client";
+  const zone = tz || browserTimeZone();
 
   return (
     <div className="grid gap-3 text-sm">
@@ -55,7 +75,7 @@ export default function ScheduleFields({
         <input
           type="datetime-local"
           value={value.due}
-          onChange={(e) => set({ due: e.target.value, repeat: e.target.value ? follow(value.repeat, value.due, e.target.value) : null })}
+          onChange={(e) => set({ due: e.target.value, repeat: e.target.value ? follow(value.repeat, value.due, e.target.value, zone) : null })}
           aria-label="Due date"
           className="rounded-lg border border-line-strong px-2 py-1 text-sm"
         />
@@ -70,7 +90,7 @@ export default function ScheduleFields({
       {/* Repeat and reminders appear once there's a date to hang them on, rather than greyed with one looking chosen (O13, O74). */}
       {!value.due && <p className="text-xs text-dim" data-testid="schedule-extras-hint">Pick a due date to make it repeat or to get reminders.</p>}
       {value.due && <fieldset className="grid gap-3" data-testid="schedule-extras">
-        <RepeatPicker due={value.due} value={value.repeat} onChange={(repeat) => set({ repeat })} />
+        <RepeatPicker due={value.due} zone={zone} value={value.repeat} onChange={(repeat) => set({ repeat })} />
         <div className="flex flex-wrap items-start gap-2 text-muted">
           <span className="w-20 shrink-0 pt-1">Remind</span>
           <div className="min-w-0 flex-1">
@@ -130,13 +150,13 @@ type RepeatChoice = "none" | "day" | "weekdays" | "week" | "2week" | "month" | "
  * Moving the due date moves a repeat that was tied to it ("every month on the
  * 5th" becomes "on the 20th"), so the saved rule matches what the picker shows.
  */
-function follow(r: Repeat | null, oldDue: string, newDue: string): Repeat | null {
+function follow(r: Repeat | null, oldDue: string, newDue: string, zone: string): Repeat | null {
   if (!r) return r;
-  const was = oldDue ? new Date(oldDue) : null;
-  const now = new Date(newDue);
-  if (Number.isNaN(now.getTime())) return r;
-  if (r.unit === "month" && (!was || r.monthDay === undefined || r.monthDay === was.getDate())) return { ...r, monthDay: now.getDate() };
-  if (r.unit === "week" && was && r.weekdays?.length === 1 && r.weekdays[0] === was.getDay()) return { ...r, weekdays: [now.getDay()] };
+  if (Number.isNaN(new Date(newDue).getTime())) return r;
+  const was = oldDue ? dayIn(oldDue, zone) : null;
+  const now = dayIn(newDue, zone);
+  if (r.unit === "month" && (!was || r.monthDay === undefined || r.monthDay === was.date)) return { ...r, monthDay: now.date };
+  if (r.unit === "week" && was && r.weekdays?.length === 1 && r.weekdays[0] === was.wd) return { ...r, weekdays: [now.wd] };
   return r;
 }
 
@@ -151,10 +171,12 @@ function choiceFor(r: Repeat | null, dueDay: number, dueDate: number): RepeatCho
   return "custom";
 }
 
-function RepeatPicker({ due, value, onChange }: { due: string; value: Repeat | null; onChange: (r: Repeat | null) => void }) {
+function RepeatPicker({ due, zone, value, onChange }: { due: string; zone: string; value: Repeat | null; onChange: (r: Repeat | null) => void }) {
   const d = new Date(due);
-  const dueDay = d.getDay();
-  const dueDate = d.getDate();
+  // The due day as the business's time zone has it, which is the day the repeat is counted from.
+  const { wd: dueDay, date: dueDate, ymd: dueYmd } = dayIn(due, zone);
+  // Someone in another time zone can be on a different day from the business at that moment: the choices say so.
+  const otherDay = dueDay !== d.getDay() || dueDate !== d.getDate();
   const [custom, setCustom] = useState(choiceFor(value, dueDay, dueDate) === "custom");
   const choice = custom ? "custom" : choiceFor(value, dueDay, dueDate);
 
@@ -182,6 +204,11 @@ function RepeatPicker({ due, value, onChange }: { due: string; value: Repeat | n
           <option value="month">Every month on the {ordinal(dueDate)}</option>
           <option value="custom">Custom…</option>
         </select>
+        {otherDay && (
+          <p className="text-xs text-dim" data-testid="repeat-zone-note">
+            Repeats follow your business&apos;s time zone ({zone.replace(/_/g, " ")}), where this is due on {DAYS[dueDay]} the {ordinal(dueDate)}.
+          </p>
+        )}
         {choice === "custom" && value && (
           <div className="grid gap-2 rounded-lg bg-canvas p-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -239,7 +266,7 @@ function RepeatPicker({ due, value, onChange }: { due: string; value: Repeat | n
                 onChange={(e) => {
                   const { until: _drop, ...rest } = value;
                   void _drop;
-                  onChange(e.target.value === "never" ? rest : { ...rest, until: due.slice(0, 10) });
+                  onChange(e.target.value === "never" ? rest : { ...rest, until: dueYmd });
                 }}
                 aria-label="Repeat ends"
                 className="rounded-lg border border-line-strong bg-surface px-2 py-1"
@@ -251,7 +278,7 @@ function RepeatPicker({ due, value, onChange }: { due: string; value: Repeat | n
                 <input
                   type="date"
                   value={value.until}
-                  min={due.slice(0, 10)}
+                  min={dueYmd}
                   onChange={(e) => e.target.value && onChange({ ...value, until: e.target.value })}
                   aria-label="Repeat until"
                   className="rounded-lg border border-line-strong px-2 py-1"

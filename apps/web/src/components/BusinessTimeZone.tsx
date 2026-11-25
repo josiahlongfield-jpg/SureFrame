@@ -36,7 +36,8 @@ export default function BusinessTimeZone({ business, timezone, canEdit }: { busi
     <section id="time-zone" className="mt-6 scroll-mt-6 rounded-2xl border border-line bg-surface p-6" data-testid="business-time-zone">
       <h2 className="font-semibold text-ink">{business}&apos;s time zone</h2>
       <p className="mt-1 text-sm text-muted">
-        Due dates, to-do reminders and repeats follow this clock, including daylight saving. It&apos;s one time zone for the whole business.
+        {/* Not due dates: each person types and sees those in their own device's time. */}
+        To-do reminder times and repeats follow this clock, including daylight saving. It&apos;s one time zone for the whole business.
         {!canEdit && " An owner or admin can change it here."}
       </p>
       {canEdit ? (

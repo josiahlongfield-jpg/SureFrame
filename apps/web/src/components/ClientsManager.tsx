@@ -132,7 +132,7 @@ export default function ClientsManager({ workspaceId, fingerprint, ...rest }: Pr
 
 /** In place of a control that needs the team's key, while this browser doesn't have it: a link up to the unlock box. */
 const UnlockFirst = ({ children, testId }: { children: React.ReactNode; testId?: string }) => (
-  <a href="#unlock" data-testid={testId} className="rounded-lg px-2.5 py-1 font-medium text-accent hover:bg-hover">
+  <a href="#unlock" data-testid={testId} className="rounded-lg px-2.5 py-1 font-medium text-accent hover:bg-hover pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
     {children}
   </a>
 );
@@ -257,10 +257,10 @@ function Manager({
       headers: { "Content-Type": "application/json" },
       // Each client gets their own key, created here and stored only wrapped with the team key.
       body: JSON.stringify({ name, email: route === "email" ? email : "", teamKeyWrap: await wrapKey(await generateKey(), teamKey), keyFingerprint: await fingerprint(teamKey) }),
-    });
-    const data = await res.json().catch(() => ({}));
+    }).catch(() => null);
+    const data = (await res?.json().catch(() => ({}))) ?? {};
     setBusy(false);
-    if (!res.ok) return setError(data.error ?? "Could not add client");
+    if (!res?.ok) return setError(data.error ?? "Couldn't add the client. Check your connection and try again.");
     setAddedRoute(route);
     setClients((c) => [...c, data.client].sort((a, b) => a.name.localeCompare(b.name)));
     setSeats((s) => ({ ...s, used: s.used + 1 }));
@@ -274,8 +274,17 @@ function Manager({
 
   // Pasting a whole list: everyone not already on the list, added in one go (as many as there are seats for).
   const known = new Set(clients.flatMap((c) => (c.email ? [c.email.toLowerCase()] : [])));
+  // A line with no email repeats a client when the name matches one who has no email either, as the server counts it.
+  const knownBare = new Set(clients.flatMap((c) => (c.email ? [] : [c.name.trim().toLowerCase()])));
+  const bareName = (c: { name: string }) => c.name.trim().toLowerCase();
   const parsed = bulk ? parseClientList(bulk) : null;
-  const fresh = parsed ? parsed.clients.filter((c, i, all) => !c.email || (!known.has(c.email) && all.findIndex((x) => x.email === c.email) === i)) : [];
+  const fresh = parsed
+    ? parsed.clients.filter((c, i, all) =>
+        c.email
+          ? !known.has(c.email) && all.findIndex((x) => x.email === c.email) === i
+          : !knownBare.has(bareName(c)) && all.findIndex((x) => !x.email && bareName(x) === bareName(c)) === i,
+      )
+    : [];
   const dupes = parsed ? parsed.clients.length - fresh.length : 0;
   const noEmail = fresh.filter((c) => !c.email);
   const fits = fresh.slice(0, left);
@@ -291,10 +300,10 @@ function Manager({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ clients: list, keyFingerprint: await fingerprint(teamKey) }),
-    });
-    const data = await res.json().catch(() => ({}));
+    }).catch(() => null);
+    const data = (await res?.json().catch(() => ({}))) ?? {};
     setBusy(false);
-    if (!res.ok) return setError(data.error ?? "Could not add those clients");
+    if (!res?.ok) return setError(data.error ?? "Couldn't add those clients. Check your connection and try again.");
     setClients((c) => [...c, ...data.clients].sort((a, b) => a.name.localeCompare(b.name)));
     setSeats((s) => ({ ...s, used: s.used + data.clients.length }));
     // Lines to fix and those that didn't fit stay in the box, ready to correct or for when there are more seats.
@@ -338,8 +347,8 @@ function Manager({
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignedToId }),
-    });
-    if (!res.ok) return setError((await res.json().catch(() => ({}))).error ?? "Could not assign client");
+    }).catch(() => null);
+    if (!res?.ok) return setError((await res?.json().catch(() => ({})))?.error ?? "Couldn't save. Check your connection and try again.");
     setClients((list) => list.map((x) => (x.id === c.id ? { ...x, assignedToId } : x)));
     // Said beside the dropdown that changed.
     setAssigned({ id: c.id, text: assignedToId ? `Saved: ${staffName(assignedToId) ?? "they"} ${assignedToId === meId ? "(you) look" : "looks"} after ${c.name}` : `Saved: ${c.name} is unassigned` });
@@ -375,7 +384,12 @@ function Manager({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ extraSeats: extraSeats + buyQty }),
-    });
+    }).catch(() => null);
+    if (!res) {
+      // No answer at all: the seats may or may not have been bought, so don't say either way.
+      setBuying(null);
+      return setError("We couldn't confirm that. Check your connection, then reload this page to see whether it went through before trying again.");
+    }
     const data = await res.json().catch(() => ({}));
     if (data.url) return void (window.location.href = data.url);
     setBuying(null);
@@ -412,7 +426,7 @@ function Manager({
         )}
         {activeMatch && (
           <p className="mt-2 text-sm text-warn-fg" data-testid="duplicate-match">
-            {activeMatch.email ? `${activeMatch.name} already uses this email, so they're on your list.` : `You already have a client called ${activeMatch.name} with no email. Add an email to tell them apart.`}{" "}
+            {activeMatch.email ? `${activeMatch.name} already uses this email, so they're on your list.` : `You already have a client called ${activeMatch.name} with no email. ${route === "email" ? "Add an email to tell them apart." : "Use a different name, or choose Email and add their address."}`}{" "}
             <Link href={`/clients/${activeMatch.id}`} className="font-medium text-accent hover:underline">Open {activeMatch.name}</Link>
           </p>
         )}
@@ -545,7 +559,10 @@ function Manager({
         {full && !(bulk !== null && fresh.length > left) && (
           <p className="mt-2 text-sm text-warn-fg" data-testid="seats-full">
             All {seats.limit} client seats are in use.{" "}
-            {!isOwner
+            {!canManage
+              ? // Only the owner and admins can remove a client.
+                "Ask the owner to add seats, or ask the owner or an admin to remove a client you no longer work with."
+              : !isOwner
               ? "Ask the owner to add seats, or delete a client you no longer work with to add someone new."
               : canBuySeats
                 ? "Add seats below, or delete a client you no longer work with to add someone new."
@@ -596,7 +613,7 @@ function Manager({
             </div>
             )}
             {buying && (
-              <div role="dialog" aria-label="Add client seats" data-testid="buy-seats-confirm" className="rounded-xl border border-line-strong bg-surface-2 p-4 text-muted">
+              <div role="group" aria-label="Add client seats" data-testid="buy-seats-confirm" className="rounded-xl border border-line-strong bg-surface-2 p-4 text-muted">
                 <p className="font-medium text-ink">Add {plural(buyQty, "extra client seat", "extra client seats")} for {money(buyQty * seatPrice)} a {per}, plus any tax?</p>
                 <p className="mt-1">You&apos;re charged today for the rest of this billing period, then it renews with your plan.</p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -723,13 +740,13 @@ function Manager({
                     {!c.linkOff && locked && <UnlockFirst testId="row-unlock-link">Unlock to copy link</UnlockFirst>}
                     {!c.linkOff && !locked && (
                       <>
-                        <button onClick={() => copy(c)} disabled={!teamKey} aria-label={`Copy link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover">
+                        <button onClick={() => copy(c)} disabled={!teamKey} aria-label={`Copy link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover pointer-coarse:min-h-11">
                           {copied === c.id ? "Copied" : "Copy link"}
                         </button>
-                        {canShare && <button onClick={() => share(c)} disabled={!teamKey} aria-label={`Share personal link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover">Share</button>}
+                        {canShare && <button onClick={() => share(c)} disabled={!teamKey} aria-label={`Share personal link for ${c.name}`} className="rounded-lg border border-line-strong bg-surface px-2.5 py-1 font-medium text-ink hover:bg-hover pointer-coarse:min-h-11">Share</button>}
                         {/* Until they've opened a link, their page has every way to send it (from your email, with a message) (O22). */}
                         {!c.reached && (
-                          <Link href={`/clients/${c.id}`} aria-label={`More ways to send ${c.name} their link`} data-testid="row-more-ways" className="rounded-lg px-2.5 py-1 font-medium text-accent hover:bg-hover">
+                          <Link href={`/clients/${c.id}`} aria-label={`More ways to send ${c.name} their link`} data-testid="row-more-ways" className="rounded-lg px-2.5 py-1 font-medium text-accent hover:bg-hover pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
                             More ways to send
                           </Link>
                         )}
@@ -744,7 +761,7 @@ function Manager({
                         onClick={() => askRemove(c)}
                         aria-label={`Remove client ${c.name}`}
                         aria-haspopup="dialog"
-                        className="rounded-lg px-2.5 py-1 font-medium text-dim hover:bg-hover hover:text-danger-fg"
+                        className="rounded-lg px-2.5 py-1 font-medium text-dim hover:bg-hover hover:text-danger-fg pointer-coarse:min-h-11"
                       >
                         Remove client
                       </button>

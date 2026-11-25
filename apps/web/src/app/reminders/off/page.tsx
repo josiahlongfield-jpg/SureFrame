@@ -8,8 +8,9 @@ import { validUnsubscribe } from "@/lib/reminders";
 import { clientHelpLimitText } from "@/lib/support/clientHelp";
 import ClientContactLine from "@/components/ClientContactLine";
 import { contactOf } from "@/lib/clientContact";
+import { clientBlock, clientGate } from "@/lib/access";
 
-export const metadata: Metadata = { title: "Email reminders" };
+export const metadata: Metadata = { title: "Email reminders", robots: { index: false } };
 
 /**
  * Opened from the "Stop emails" link in a reminder or new-video email, or after turning emails back on from
@@ -23,7 +24,7 @@ export default async function RemindersOff({ searchParams }: { searchParams: Pro
   const client = ok
     ? await db.client.findUnique({
         where: { id: c },
-        include: { workspace: { select: { id: true, name: true, plan: true, brandColor: true, brandLogoType: true, brandVersion: true, contactEmail: true, contactPhone: true } } },
+        include: { workspace: { select: { ...clientGate, id: true, name: true, plan: true, brandColor: true, brandLogoType: true, brandVersion: true, contactEmail: true, contactPhone: true } } },
       })
     : null;
   const back = `/reminders/off?c=${encodeURIComponent(c ?? "")}&s=${encodeURIComponent(s ?? "")}`;
@@ -44,9 +45,11 @@ export default async function RemindersOff({ searchParams }: { searchParams: Pro
   // The business's own look; the logo leads to the client's videos, not to SureFrame's own site.
   const brand = client ? brandOf(client.workspace) : null;
   const name = client?.workspace.name;
+  // The business's contact line, but not while support has it unavailable (as on its video pages).
+  const contact = client && clientBlock(client) !== "unavailable" ? contactOf(client.workspace) : null;
   return (
     <div data-theme="fresh" className="flex min-h-screen flex-col bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
-      <ClientHeader brand={brand} allVideosLink help={client && s ? { for: [{ clientId: client.id, business: client.workspace.name, s, limits: clientHelpLimitText(client.workspace.plan), contact: contactOf(client.workspace) }], page: "emails" } : undefined} />
+      <ClientHeader brand={brand} allVideosLink help={client && s ? { for: [{ clientId: client.id, business: client.workspace.name, s, limits: clientHelpLimitText(client.workspace.plan), contact }], page: "emails" } : undefined} />
       <main className="mx-auto w-full max-w-xl flex-1 px-4 py-16 text-center">
         {!client ? (
           <p className="text-muted">This link isn&apos;t valid. Use the link from your most recent reminder email.</p>
@@ -77,7 +80,7 @@ export default async function RemindersOff({ searchParams }: { searchParams: Pro
             </form>
           </>
         )}
-        {client && <ClientContactLine business={client.workspace.name} contact={contactOf(client.workspace)} className="mt-8" />}
+        {client && <ClientContactLine business={client.workspace.name} contact={contact} className="mt-8" />}
       </main>
       <MadeWith />
     </div>

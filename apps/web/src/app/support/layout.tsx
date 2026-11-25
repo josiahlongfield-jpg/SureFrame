@@ -23,8 +23,8 @@ export default async function SupportLayout({ children }: { children: React.Reac
   const links = [
     ["/support", "Inbox"],
     ...(admin ? ([["/support/lookup", "Look up"], ["/support/log", "Support log"], ["/support/notices", "Sub-processor notice"]] as const) : []),
-    ["/support/accounts", "Free plans"],
-    ...(isFounder(me.email) ? ([["/support/offers", "Discounts"]] as const) : []),
+    // Founder-only pages (their actions check too): not shown to someone who only answers tickets.
+    ...(isFounder(me.email) ? ([["/support/accounts", "Free plans"], ["/support/offers", "Discounts"]] as const) : []),
   ] as const;
   return (
     <>

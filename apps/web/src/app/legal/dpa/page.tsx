@@ -63,7 +63,10 @@ export default function Page() {
           <strong>Nature:</strong>
           <ul>
             <li>storing, relaying and deleting end-to-end encrypted content;</li>
-            <li>storing client and team details and using them to send links, reminders and notifications;</li>
+            <li>
+              storing client and team details and using them to send links, reminders and notifications, and to show notifications in the app (kept for
+              up to 90 days);
+            </li>
             <li>controlling who can access what, including pausing, suspending or turning off access as the Terms describe;</li>
             <li>only if you switch on the AI add-on, sending transcript text to our AI provider for a summary;</li>
             <li>
@@ -325,7 +328,7 @@ export default function Page() {
         <li>
           <strong>Data minimisation:</strong> notification emails don&rsquo;t include replies, messages or to-do text (they can name a video by its title). Copies of recordings are deleted from our servers
           automatically (see section 10). Recordings left unfinished are completed from their encrypted copy once untouched for at least 6 hours, leftover
-          pieces are deleted after about a day, and uploads that can&rsquo;t be completed are removed after a week. Expired sign-in links are deleted, and IP addresses counted for rate limits
+          pieces are deleted after about a day, and uploads that can&rsquo;t be completed are removed after a week. Expired sign-in links are deleted, and IP addresses and sign-in email addresses counted for rate limits
           are deleted within about two days (the help chat&rsquo;s limits for visitors and Free plans keep only a one-way fingerprint, for 31 days).
         </li>
         <li>

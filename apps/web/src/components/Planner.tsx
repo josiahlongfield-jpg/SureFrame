@@ -7,13 +7,16 @@ import { browserTimeZone, DEFAULT_REMINDERS, repeatLabel, ruleLabel, sortRules, 
 import ScheduleFields, { toLocalInput, type Schedule } from "./ScheduleFields";
 import ConfirmDialog from "./ConfirmDialog";
 
-type Decrypted = ItemDTO & { text: string };
+/** `locked`: this browser couldn't open it, so `text` is a placeholder and must never be sealed and saved over the real words. */
+type Decrypted = ItemDTO & { text: string; locked?: boolean };
 
 export type PlannerDefaults = { reminders: ReminderRule[]; remindClient: boolean; remindTeam: boolean };
 export type PlannerClient = { email: string | null; remindersOff: boolean };
 /** Who "remind the team" emails, as the checkbox says it ("Email me") and as the list shows it ("you"). */
 export type TeamWho = { label: string; tag: string };
 const ME: TeamWho = { label: "Email me", tag: "you" };
+/** For the team, on an item this browser couldn't open: why it has no Edit or Share. */
+const LOCKED_NOTE = "This one couldn't be unlocked in this browser, so it can't be changed here.";
 
 const RepeatIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M17 2l4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg>
@@ -76,6 +79,11 @@ export default function Planner({
   const [items, setItems] = useState<Decrypted[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  // The business's time zone (team only, sent with the list): repeats are counted in it, not in this device's zone.
+  const [tz, setTz] = useState<string | null>();
+  // A save from the Add form is under way: a second press mustn't save the same item again.
+  const [adding, setAdding] = useState(false);
+  const addingNow = useRef(false);
   const [kind, setKind] = useState<"TASK" | "NOTE">("TASK");
   const [text, setText] = useState("");
   const [schedule, setSchedule] = useState<Schedule>(fresh);
@@ -106,9 +114,9 @@ export default function Planner({
   const decrypt = useCallback(
     async (i: ItemDTO): Promise<Decrypted> => {
       const key = keyFor(i.shared);
-      let text = "[Locked]";
-      if (key) text = await decryptText(i.body, key).catch(() => "[Couldn't unlock]");
-      return { ...i, text };
+      if (!key) return { ...i, text: "[Locked]", locked: true };
+      const text = await decryptText(i.body, key).catch(() => null);
+      return text === null ? { ...i, text: "[Couldn't unlock]", locked: true } : { ...i, text };
     },
     [keyFor],
   );
@@ -121,7 +129,10 @@ export default function Planner({
         if (!r.ok) throw new Error(String(r.status));
         return r.json();
       })
-      .then(async ({ items }: { items: ItemDTO[] }) => setItems(await Promise.all(items.map(decrypt))))
+      .then(async ({ items, tz }: { items: ItemDTO[]; tz?: string | null }) => {
+        setTz(tz);
+        setItems(await Promise.all(items.map(decrypt)));
+      })
       .catch(() => setLoadError(true))
       .finally(() => setLoaded(true));
   }, [clientId, decrypt]);
@@ -138,10 +149,25 @@ export default function Planner({
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
+    // One at a time: a double press on Add, or Enter twice, would save the item twice (and remind a client twice).
+    if (addingNow.current) return;
+    addingNow.current = true;
+    setAdding(true);
+    try {
+      await addItem();
+    } finally {
+      addingNow.current = false;
+      setAdding(false);
+    }
+  }
+
+  async function addItem() {
     const shared = !!clientId && share;
     const key = keyFor(shared);
     const submitted = text;
-    if (!submitted.trim() || !key) return;
+    if (!submitted.trim()) return;
+    // The team's key is always here (the page asks for it first); a client's key can fail to open in this browser.
+    if (!key) return setError(shared ? `${who}'s key didn't unlock in this browser, so this can't be shared with them here. Reload the page, or add it privately.` : "This browser doesn't have your team's key yet. Reload the page and try again.");
     setError(undefined);
     const res = await fetch("/api/items", {
       method: "POST",
@@ -154,9 +180,9 @@ export default function Planner({
         keyFingerprint,
         ...(kind === "TASK" ? scheduleBody(schedule, shared) : {}),
       }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return setError(data.error ?? "Could not save");
+    }).catch(() => null);
+    const data = (await res?.json().catch(() => ({}))) ?? {};
+    if (!res?.ok) return setError(data.error ?? "Couldn't save. Check your connection and try again.");
     setItems((cur) => [{ ...data.item, text: submitted.trim() }, ...cur]);
     // Keep anything typed while the save was in flight.
     setText((cur) => (cur === submitted ? "" : cur));
@@ -170,15 +196,20 @@ export default function Planner({
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(change.body !== undefined ? { ...change, keyFingerprint } : change),
-    });
-    if (!res.ok) {
-      setError((await res.json().catch(() => ({}))).error ?? "Could not save");
+    }).catch(() => null);
+    const data = (await res?.json().catch(() => null)) as { item: ItemDTO; next: ItemDTO | null; error?: string } | null;
+    if (!res?.ok || !data?.item) {
+      // A client (who can only tick) is told plainly under their list; the API's own words ("Not found") are for the team.
+      setError(role === "client" && res ? "That didn't save. Refresh the page and try again." : (data?.error ?? "Couldn't save. Check your connection and try again."));
       return false;
     }
-    const { item, next } = (await res.json()) as { item: ItemDTO; next: ItemDTO | null };
+    if (role === "client") setError(undefined);
+    const { item, next } = data;
     setItems((cur) => {
-      const list = cur.map((x) => (x.id === i.id ? { ...item, text: newText } : x));
-      return next && !list.some((x) => x.id === next.id) ? [...list, { ...next, text: newText }] : list;
+      // An item that didn't unlock stays marked so (unless its text was just rewritten), as does its next repeat.
+      const locked = i.locked && newText === i.text;
+      const list = cur.map((x) => (x.id === i.id ? { ...item, text: newText, locked } : x));
+      return next && !list.some((x) => x.id === next.id) ? [...list, { ...next, text: newText, locked }] : list;
     });
     return true;
   }
@@ -186,6 +217,11 @@ export default function Planner({
   async function setShared(i: Decrypted, shared: boolean) {
     const key = keyFor(shared);
     if (!key) return false;
+    // Its text here is only a placeholder: sealing that with the other key would replace the real words for good.
+    if (i.locked) {
+      setError(LOCKED_NOTE);
+      return false;
+    }
     // Re-seal the text with the other key so the right people can read it.
     const ok = await patch(i, { shared, body: await encryptText(i.text, key) });
     if (ok) setChanged({ id: i.id, shared, text: i.text });
@@ -209,9 +245,9 @@ export default function Planner({
 
   async function remove(i: Decrypted) {
     setBusy(true);
-    const res = await fetch(`/api/items/${i.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/items/${i.id}`, { method: "DELETE" }).catch(() => null);
     setBusy(false);
-    if (!res.ok) return setError("Couldn't delete it. Try again.");
+    if (!res?.ok) return setError("Couldn't delete it. Check your connection and try again.");
     setItems((cur) => cur.filter((x) => x.id !== i.id));
     setDeleting(undefined);
   }
@@ -274,13 +310,15 @@ export default function Planner({
       <li key={i.id} className="py-2.5">
         <ItemEditor
           teamLabel={teamWho.label}
+          tz={tz}
           item={i}
           clientName={clientName}
           client={client}
           onCancel={() => setEditing(undefined)}
           onSave={async (newText, s) => {
             const key = keyFor(i.shared);
-            if (!key) return;
+            // No Edit is offered for an item that didn't unlock; this guards the same thing.
+            if (!key || i.locked) return;
             const change: Record<string, unknown> = i.kind === "TASK" ? scheduleBody(s, i.shared) : {};
             if (newText !== i.text) change.body = await encryptText(newText, key);
             if (await patch(i, change, newText)) setEditing(undefined);
@@ -293,16 +331,23 @@ export default function Planner({
           {i.kind === "TASK" ? (
             <input
               type="checkbox"
+              id={`todo-${i.id}`}
               checked={i.done}
               onChange={() => patch(i, { done: !i.done })}
               aria-label={`Mark "${i.text}" ${i.done ? "not done" : "done"}`}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+              // A finger-sized box for clients, who are mostly on phones and only ever tick.
+              className={`shrink-0 accent-primary ${role === "client" ? "h-5 w-5" : "mt-0.5 h-4 w-4"}`}
             />
           ) : (
             <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-line-strong" aria-hidden />
           )}
           <div className="min-w-0 flex-1">
-            <p className={`whitespace-pre-wrap text-sm ${i.done ? "text-dim line-through" : "text-ink"}`}>{i.text}</p>
+            {role === "client" && i.kind === "TASK" ? (
+              // For a client the words tick it too, so the whole line is the target.
+              <label htmlFor={`todo-${i.id}`} className={`block whitespace-pre-wrap text-sm ${i.done ? "text-dim line-through" : "text-ink"}`}>{i.text}</label>
+            ) : (
+              <p className={`whitespace-pre-wrap text-sm ${i.done ? "text-dim line-through" : "text-ink"}`}>{i.text}</p>
+            )}
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-dim">
               {i.dueAt && (
                 <span className={!i.done && new Date(i.dueAt).getTime() < now ? "font-medium text-danger-fg" : ""}>
@@ -314,7 +359,8 @@ export default function Planner({
                   <RepeatIcon /> {repeatLabel(i.repeat)}
                 </span>
               )}
-              {i.dueAt && !i.done && i.reminders.length > 0 && ((i.remindClient && !client?.remindersOff) || i.remindTeam) && (
+              {/* A client sees the bell only for emails that will really come to them: never the team's own reminders. */}
+              {i.dueAt && !i.done && i.reminders.length > 0 && ((i.remindClient && !client?.remindersOff) || (role === "member" && i.remindTeam)) && (
                 <span className="inline-flex items-center gap-1" title="Email reminders">
                   <BellIcon /> {sortRules(i.reminders).map(ruleLabel).join(", ")}
                   {role === "member" && (
@@ -333,15 +379,20 @@ export default function Planner({
                   {i.shared ? `Shared with ${who}` : "Private to your team"}
                 </span>
               )}
+              {role === "member" && i.locked && <span data-testid="item-locked">{LOCKED_NOTE}</span>}
             </div>
           </div>
           {role === "member" && (
             // Always visible on touch screens, which have no hover.
             <div className="flex gap-2 text-xs text-dim [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
-              <button onClick={() => setEditing(i.id)} aria-label={`Edit "${i.text}"`} className="hover:text-ink">
-                Edit
-              </button>
+              {/* Not for an item that didn't unlock: Edit or a share change would seal the placeholder over the real words. */}
+              {!i.locked && (
+                <button onClick={() => setEditing(i.id)} aria-label={`Edit "${i.text}"`} className="hover:text-ink">
+                  Edit
+                </button>
+              )}
               {clientId &&
+                !i.locked &&
                 (i.shared ? (
                   <button onClick={() => setShared(i, false)} aria-label={`Make "${i.text}" private`} className="hover:text-ink">
                     Make private
@@ -351,7 +402,15 @@ export default function Planner({
                     Share…
                   </button>
                 ))}
-              <button onClick={() => setDeleting(i)} aria-label="Delete" className="hover:text-danger-fg">
+              {/* An old "couldn't save" mustn't show inside the box this opens. */}
+              <button
+                onClick={() => {
+                  setError(undefined);
+                  setDeleting(i);
+                }}
+                aria-label={`Delete ${i.kind === "NOTE" ? "note" : "to-do"}: ${i.text.slice(0, 40)}`}
+                className="hover:text-danger-fg"
+              >
                 Delete
               </button>
             </div>
@@ -431,10 +490,11 @@ export default function Planner({
               clientOptedOut={client?.remindersOff}
               canShareReminders={!!clientId && share}
               teamLabel={teamWho.label}
+              tz={tz}
             />
           )}
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <button className="ml-auto rounded-lg bg-solid px-3 py-1.5 font-medium text-white hover:bg-solid-hover">{clientId ? (share ? `Add and share with ${who}` : "Add privately") : "Add"}</button>
+            <button disabled={adding} className="ml-auto rounded-lg bg-solid px-3 py-1.5 font-medium text-white hover:bg-solid-hover disabled:opacity-50">{clientId ? (share ? `Add and share with ${who}` : "Add privately") : "Add"}</button>
           </div>
           {error && !asking && <p role="alert" className="text-sm text-danger-fg">{error}</p>}
         </form>
@@ -500,6 +560,12 @@ export default function Planner({
           )}
         </div>
       )}
+      {/* A client has no form to show it in: a tick that didn't save says so here. */}
+      {error && role === "client" && (
+        <p role="alert" className="mt-2 text-sm text-danger-fg" data-testid="todo-error">
+          {error}
+        </p>
+      )}
     </section>
   );
 }
@@ -511,8 +577,11 @@ function ItemEditor({
   onSave,
   onCancel,
   teamLabel,
+  tz,
 }: {
   teamLabel: string;
+  /** The business's time zone, for the repeat picker. */
+  tz?: string | null;
   item: Decrypted;
   clientName?: string;
   client?: PlannerClient;
@@ -541,7 +610,7 @@ function ItemEditor({
     >
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={item.kind === "NOTE" ? 3 : 1} aria-label="Edit text" className="resize-none rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm" />
       {item.kind === "TASK" && (
-        <ScheduleFields value={s} onChange={setS} clientName={clientName} clientEmail={client?.email} clientOptedOut={client?.remindersOff} canShareReminders={item.shared} teamLabel={teamLabel} />
+        <ScheduleFields value={s} onChange={setS} clientName={clientName} clientEmail={client?.email} clientOptedOut={client?.remindersOff} canShareReminders={item.shared} teamLabel={teamLabel} tz={tz} />
       )}
       <div className="flex justify-end gap-2 text-sm">
         <button type="button" onClick={onCancel} className="rounded-lg px-3 py-1.5 text-muted hover:bg-hover">Cancel</button>

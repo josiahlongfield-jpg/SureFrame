@@ -12,9 +12,10 @@ export default function MadeWith() {
         <LogoMark size={14} tone="mono" />
         Made with SureFrame
       </Link>
-      <p className="mt-2 space-x-3">
-        <Link href="/legal/privacy" className="hover:text-muted">Privacy</Link>
-        <Link href="/legal/terms" className="hover:text-muted">Terms</Link>
+      {/* Padded so each is a finger-sized target on a phone, not two 12px words side by side. */}
+      <p>
+        <Link href="/legal/privacy" className="inline-block px-2 py-2 hover:text-muted">Privacy</Link>
+        <Link href="/legal/terms" className="inline-block px-2 py-2 hover:text-muted">Terms</Link>
       </p>
     </footer>
   );

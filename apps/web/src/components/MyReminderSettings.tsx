@@ -62,11 +62,11 @@ export default function MyReminderSettings({ business, ...initial }: Props) {
         reminderMessage: message,
         reminderReplyTo: replyTo.trim(),
       }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
+    }).catch(() => null);
+    const data = (await res?.json().catch(() => ({}))) ?? {};
+    if (!res?.ok) {
       setStatus("idle");
-      return setError(data.error ?? "Could not save");
+      return setError(data.error ?? "Couldn't save. Check your connection and try again.");
     }
     setStatus("saved");
   }

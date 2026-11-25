@@ -17,9 +17,20 @@ export const isMissing = (err: unknown) => (err as { code?: string } | null)?.co
 /**
  * Forgets a subscription that no longer exists in Stripe. Paid features end
  * the same way as when a subscription is cancelled: back to the complimentary
- * plan or Free, no add-ons, and anyone over the limits is paused.
+ * plan or Free, no add-ons, and anyone over the limits is paused. The founder
+ * is emailed each time, because a wrong Stripe key looks the same from here.
  */
 export async function forgetSubscription(workspace: Workspace, { customer = false, notify = true } = {}) {
+  if (testKeyOnLiveSite()) {
+    // A test key can't see live subscriptions, so "missing" means the key is wrong, not that the subscription has gone.
+    if (await once("stripe-test-key")) {
+      await alertFounder("The live site is using a Stripe test key", [
+        "STRIPE_SECRET_KEY on the live site is a test key, so Stripe can't find the live subscriptions.",
+        "No plan was changed. Billing pages show an error until the live key is put back in Vercel and the site is redeployed.",
+      ]);
+    }
+    throw new Error("STRIPE_SECRET_KEY is a test key on the live site, so no subscription is forgotten");
+  }
   console.log("[billing] forgetting a subscription Stripe doesn't have", JSON.stringify({ workspace: workspace.id, subscription: workspace.stripeSubscriptionId, customer }));
   await db.workspace.update({
     where: { id: workspace.id },
@@ -40,9 +51,19 @@ export async function forgetSubscription(workspace: Workspace, { customer = fals
       cancelsAt: null,
     },
   });
+  if (workspace.stripeSubscriptionId && (await once(`forgot:${workspace.stripeSubscriptionId}`))) {
+    await alertFounder(`${workspace.name}'s subscription wasn't found in Stripe`, [
+      `Stripe has no subscription ${workspace.stripeSubscriptionId} (customer ${workspace.stripeCustomerId ?? "unknown"}) for workspace ${workspace.name} (${workspace.id}), so it moved to ${workspace.complimentaryPlan ? "its complimentary plan" : "Free"}, without extra seats or add-ons.`,
+      "If it was deleted in Stripe or came from test mode, there's nothing to do.",
+      "If this business is still paying, the Stripe key on the live site may be wrong. Check STRIPE_SECRET_KEY in Vercel. Its plan comes back when Stripe next sends an event for the subscription (its next renewal, or any change made to it in the Stripe Dashboard).",
+    ]);
+  }
   if (workspace.cloudBackup) await backupEnded(workspace.id, { notify });
   await enforceSeatLimits(workspace.id, { notify });
 }
+
+/** The live site with a Stripe test key (a test or restricted test key pasted into Vercel by mistake). */
+const testKeyOnLiveSite = () => process.env.VERCEL_ENV === "production" && /^(sk|rk)_test_/.test(process.env.STRIPE_SECRET_KEY ?? "");
 
 /**
  * The workspace's subscription, or null when it has none. One that Stripe no
@@ -203,12 +224,21 @@ export async function syncSubscription(sub: Stripe.Subscription, { notify = true
   await enforceSeatLimits(workspaceId, { notify });
 }
 
+/** The most subscriptions the daily check forgets in one run (see reconcileSubscriptions). */
+const MAX_MISSING = 3;
+
 /**
  * Daily: subscriptions nobody has opened Billing for are checked too, so one
  * Stripe no longer has (from test mode, or deleted there) stops giving paid
  * features, and workspaces from before the billing interval was stored get it.
+ * One whose status changed in Stripe without the webhook arriving (ended,
+ * say) is brought up to date the way the webhook would have.
  * Visited in a random order within a time budget, so a long list is covered
  * over a few days.
+ *
+ * Missing ones are counted before any is forgotten. A few is normal; more
+ * than MAX_MISSING in one run means the Stripe key can't see them (a test
+ * key, or another account's), so none is forgotten and the founder is told.
  */
 export async function reconcileSubscriptions(budgetMs = 120_000) {
   if (!process.env.STRIPE_SECRET_KEY) return { checked: 0, forgotten: 0 };
@@ -220,14 +250,23 @@ export async function reconcileSubscriptions(budgetMs = 120_000) {
   }
   let checked = 0;
   let forgotten = 0;
+  const missing: Workspace[] = [];
   for (const id of ids) {
     if (Date.now() > deadline) break;
     const w = await db.workspace.findUnique({ where: { id } });
     if (!w?.stripeSubscriptionId) continue;
     try {
-      const sub = await currentSubscription(w);
+      const sub = await stripe()
+        .subscriptions.retrieve(w.stripeSubscriptionId)
+        .catch((err) => (isMissing(err) ? null : Promise.reject(err)));
       checked++;
-      if (!sub) forgotten++;
+      if (!sub) {
+        missing.push(w);
+        if (missing.length > MAX_MISSING) break;
+      }
+      // A missed webhook: only for a subscription that says it's this workspace's, and only when something differs,
+      // so a day with nothing new changes nothing and emails nobody.
+      else if (sub.metadata?.workspaceId === w.id && (!ACTIVE_STATUSES.has(sub.status) || sub.status !== w.subscriptionStatus)) await syncSubscription(sub);
       else if (w.billingInterval !== intervalOf(sub)) await db.workspace.update({ where: { id }, data: { billingInterval: intervalOf(sub) } });
     } catch (err) {
       console.error(JSON.stringify({ level: "error", message: "[billing] subscription check failed", workspace: id, error: String(err) }));
@@ -235,7 +274,28 @@ export async function reconcileSubscriptions(budgetMs = 120_000) {
       if ((err as { type?: string })?.type === "StripeConnectionError") break;
     }
   }
-  console.log("[billing] subscriptions checked", JSON.stringify({ checked, forgotten, total: ids.length }));
+  if (missing.length > MAX_MISSING) {
+    if (await once("many-missing-subscriptions")) {
+      await alertFounder("Several subscriptions weren't found in Stripe", [
+        `The daily billing check looked up ${checked} subscriptions in Stripe and ${missing.length} of them weren't there, so it stopped: ${missing.map((w) => `${w.name} (${w.id})`).join(", ")}.`,
+        "That usually means STRIPE_SECRET_KEY on the live site is wrong (a test key, or a key from another Stripe account). Check it in Vercel.",
+        "This check moved none of them to Free. If they really are gone from Stripe, press Re-sync billing for each one in the support console.",
+      ]);
+    }
+  } else {
+    for (const found of missing) {
+      try {
+        // Read again: a webhook may have given it a new subscription since it was looked up.
+        const w = await db.workspace.findUnique({ where: { id: found.id } });
+        if (!w || w.stripeSubscriptionId !== found.stripeSubscriptionId) continue;
+        await forgetSubscription(w, { customer: !(await customerExists(w.stripeCustomerId)) });
+        forgotten++;
+      } catch (err) {
+        console.error(JSON.stringify({ level: "error", message: "[billing] subscription check failed", workspace: found.id, error: String(err) }));
+      }
+    }
+  }
+  console.log("[billing] subscriptions checked", JSON.stringify({ checked, forgotten, missing: missing.length, total: ids.length }));
   return { checked, forgotten };
 }
 

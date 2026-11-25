@@ -24,7 +24,7 @@ const save = (t: string | null) => {
   } catch {}
 };
 
-const WELCOME = `Hi! I'm SureFrame's assistant. Ask me anything about recording, clients, billing or your account. Or press Talk to a person: someone from the team replies ${REPLY_WITHIN}.`;
+const WELCOME = `Hi! I'm SureFrame's assistant. Ask me anything about recording, clients, billing or your account. Or press Talk to a person: someone from the team usually replies ${REPLY_WITHIN}.`;
 
 /** What a refusal stops until when: asking the assistant, Talk to a person, or both (api/support). */
 type Blocked = { stops: "ai" | "person" | "all"; until: number };
@@ -80,9 +80,9 @@ export function SupportChat({ signedIn, limits, className = "", suggestions = []
     }
   }, [refresh]);
 
-  // While a person is involved, check for their reply now and then.
+  // While a person is involved, check for their reply now and then (not once the team has closed it).
   useEffect(() => {
-    if (!token || !ticket || ticket.status === "OPEN") return;
+    if (!token || !ticket || ticket.status === "OPEN" || ticket.status === "CLOSED") return;
     const id = setInterval(() => refresh(token, true), 20000);
     return () => clearInterval(id);
   }, [token, ticket, refresh]);
@@ -126,7 +126,8 @@ export function SupportChat({ signedIn, limits, className = "", suggestions = []
       setToken(data.token);
       setTicket({ status: data.status, hasEmail: data.hasEmail, messages: data.messages });
     } catch (e) {
-      setError((e as Error).message);
+      // A dropped connection: a plain sentence, not the browser's own "Failed to fetch".
+      setError(e instanceof TypeError ? "Couldn't send that. Check your connection and try again." : (e as Error).message);
       // Put back what they typed, but not the button's own "I'd like to talk to a person" line (V37).
       setText(person && body === TALK_TO_PERSON ? "" : body);
       setTicket((t) => (t ? { ...t, messages: t.messages.filter((m) => m.id !== "pending") } : t));
@@ -157,7 +158,10 @@ export function SupportChat({ signedIn, limits, className = "", suggestions = []
     send(text.trim() || TALK_TO_PERSON, true);
   }
 
-  const withPerson = ticket && ticket.status !== "OPEN";
+  // A conversation the team has closed is no longer with a person: nobody is going to reply, and a new message
+  // goes back to the assistant (api/support reopens it).
+  const withPerson = ticket && (ticket.status === "NEEDS_HUMAN" || ticket.status === "ANSWERED");
+  const closed = ticket && ticket.status === "CLOSED";
   // Asked until there's an address on the conversation, so a person's reply can reach them by email.
   const needsEmail = !signedIn && !ticket?.hasEmail;
   // Once the team has the conversation, messages reach them whatever the assistant's allowance says.
@@ -194,15 +198,19 @@ export function SupportChat({ signedIn, limits, className = "", suggestions = []
         )}
         {ticket?.messages.map((m) => <Bubble key={m.id} author={m.author} body={m.body} />)}
         {busy && <p className="text-sm text-dim">Thinking…</p>}
-        {withPerson && (replied || ticket.status === "ANSWERED") ? (
+        {(withPerson || closed) && (replied || ticket.status === "ANSWERED") ? (
           <p role="status" className="rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="with-person">
             <span className="font-semibold">SureFrame team replied.</span>{" "}
             {signedIn || ticket.hasEmail ? "Write back here, or reply to the email we sent." : "Write back here."}
           </p>
         ) : withPerson ? (
           <p role="status" className="rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="with-person">
-            <span className="font-semibold">Passed to a person:</span> we reply {REPLY_WITHIN}
+            <span className="font-semibold">Passed to a person:</span> we usually reply {REPLY_WITHIN}
             {signedIn || ticket.hasEmail ? ", here and by email." : ", here in this chat. Add your email below to get the reply by email too."}
+          </p>
+        ) : closed ? (
+          <p role="status" className="text-sm text-muted" data-testid="chat-closed">
+            This conversation was closed. Write here to open it again.
           </p>
         ) : null}
         <div ref={end} />

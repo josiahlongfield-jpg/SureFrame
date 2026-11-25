@@ -125,10 +125,16 @@ export default async function Watch({ params, searchParams }: Props) {
   // Staff can open a video they recorded that went to someone else's client: show who, nothing more.
   // So do paused clients, and those whose link support turned off, who can't open it.
   const sentTo = access && video.clientId && !clients.some((c) => c.id === video.clientId)
-    ? await db.client.findUnique({ where: { id: video.clientId }, select: { id: true, name: true, removedAt: true, pausedAt: true, linkDisabledAt: true } })
+    ? await db.client.findUnique({ where: { id: video.clientId }, select: { id: true, name: true, removedAt: true, pausedAt: true, linkDisabledAt: true, linkOpenedAt: true } })
     : null;
   // A deleted client's own conversation is already a 404 (load.ts); a recording also sent to others shows as not sent to them.
   const recipient = sentTo?.removedAt ? null : sentTo;
+  // The same for a copy that went to a client who is now paused or whose link was turned off: still listed in the
+  // Send box, with why they can't open it (the copies above are already only this person's clients).
+  const blockedIds = copies.map((c) => c.clientId).filter((cid): cid is string => !!cid && cid !== recipient?.id && !clients.some((c) => c.id === cid));
+  const blockedCopyClients = blockedIds.length
+    ? await db.client.findMany({ where: { id: { in: blockedIds }, removedAt: null }, select: { id: true, name: true, pausedAt: true, linkDisabledAt: true, linkOpenedAt: true } })
+    : [];
   const expired = !!video.expiresAt && video.expiresAt < new Date();
   const workspace = await db.workspace.findUniqueOrThrow({ where: { id: video.workspaceId } });
   // AI summaries add-on. Copies sent to other clients share the original recording's transcript.
@@ -251,7 +257,7 @@ export default async function Watch({ params, searchParams }: Props) {
           <WatchView
             // Only the team sees how often the client opened it; clients aren't sent the count at all.
             // Clients see "A video from Business A" until it has a real title (Decision 10); the team sees the title as it is.
-            video={{ ...publicVideo(video), title: isMember ? video.title : clientTitle(video.title, workspace.name), viewCount: isMember ? (goneClient ? 0 : video.viewCount) + copyViews : 0, emailed: isMember ? (video.emailedAt ? "sent" : video.emailClientWhenReady ? "when-ready" : null) : null }}
+            video={{ ...publicVideo(video), title: isMember ? video.title : clientTitle(video.title, workspace.name), viewCount: isMember ? (goneClient ? 0 : video.viewCount) + copyViews : 0, ownViews: isMember && !goneClient ? video.viewCount : 0, emailed: isMember ? (video.emailedAt ? "sent" : video.emailClientWhenReady ? "when-ready" : null) : null }}
             // Clients see "Team member 1 from Business A" (never an email); the team sees the name or email (lib/team.ts).
             ownerName={senderName(video, workspace.name, isMember ? "team" : "client")}
             ownerNote={!isMember && video.formerStaffAt ? `Recorded by someone who has since left ${workspace.name}. Your replies still reach ${workspace.name}.` : undefined}
@@ -266,11 +272,12 @@ export default async function Watch({ params, searchParams }: Props) {
             viewer={
               viewer.kind === "member"
                 ? { kind: "member", workspaceId: video.workspaceId, fingerprint: workspace.keyFingerprint }
-                : { kind: "client", clientId: viewer.client.id }
+                : { kind: "client", clientId: viewer.client.id, noEmails: !viewer.client.email || viewer.client.remindersOff }
             }
             clients={[
               ...clients.map((c) => ({ id: c.id, name: c.name, email: c.email, link: clientLink(c.token, video.id), teamKeyWrap: c.teamKeyWrap, assignedToId: c.assignedToId, hasLink: !!c.linkOpenedAt, linkSent: !!c.linkSentAt, mine: c.assignedToId === access?.userId || (!c.assignedToId && access?.role === "OWNER"), emailable: !!c.email && !c.remindersOff, emailsOff: !!c.email && c.remindersOff })),
-              ...(recipient ? [{ id: recipient.id, name: recipient.name, link: "", teamKeyWrap: null, assignedToId: null, paused: !!recipient.pausedAt, linkOff: !!recipient.linkDisabledAt }] : []),
+              // No link or email for these (they can't be sent anything from here); hasLink keeps them out of "First time client".
+              ...[...(recipient ? [recipient] : []), ...blockedCopyClients].map((r) => ({ id: r.id, name: r.name, link: "", teamKeyWrap: null, assignedToId: null, hasLink: !!r.linkOpenedAt, paused: !!r.pausedAt, linkOff: !!r.linkDisabledAt })),
             ]}
             sendMany={
               viewer.kind === "member" && perms?.sendToMany

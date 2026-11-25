@@ -30,10 +30,14 @@ const canEmail = (c: ClientOption) => reached(c) && !!c.emailable;
  * business; after that, clients set to Email are emailed and the rest are listed with Copy link. A client who turned
  * our emails off is listed with Copy link too.
  */
-type Section = "email" | "link" | "first";
-const sectionOf = (c: ClientOption): Section => (!reached(c) ? "first" : c.email && !c.emailsOff ? "email" : "link");
+type Section = "email" | "link" | "first" | "blocked";
+/** Can't be sent anything from here: paused, link turned off by support, or looked after by someone else (no link given). */
+const isBlocked = (c: ClientOption) => !!(c.paused || c.linkOff || !c.link);
+// A blocked client sits in a group of their own with no heading: none of the three headings is true of them.
+const sectionOf = (c: ClientOption): Section => (isBlocked(c) ? "blocked" : !reached(c) ? "first" : c.email && !c.emailsOff ? "email" : "link");
 
-const btn = "rounded-lg border border-line-strong bg-surface px-2.5 py-1 text-xs hover:bg-hover disabled:opacity-50";
+// A thumb-sized target on touch screens; computers keep the compact size.
+const btn = "rounded-lg border border-line-strong bg-surface px-2.5 py-1 text-xs hover:bg-hover disabled:opacity-50 pointer-coarse:min-h-11";
 
 /**
  * Sending a recording: choose one client or several, then one Send button. Each client gets it the way chosen when
@@ -54,7 +58,7 @@ export default function SendPanel({
   teamKey,
   onTitle,
 }: {
-  video: { id: string; title: string; status: string; encrypted: boolean; sourceId: string | null; viewCount?: number; emailed?: "sent" | "when-ready" | null };
+  video: { id: string; title: string; status: string; encrypted: boolean; sourceId: string | null; /** Views by this video's own client only, not its copies'. */ ownViews?: number; emailed?: "sent" | "when-ready" | null };
   clients: ClientOption[];
   /** The business's name, signed at the end of the message sent with a personal link. */
   business: string;
@@ -86,7 +90,7 @@ export default function SendPanel({
     setPrimaryState(id);
   };
   const [recipients, setRecipients] = useState<Recipient[]>(() => [
-    ...(sentToId ? [{ clientId: sentToId, convId: video.id, opened: (video.viewCount ?? 0) > 0 }] : []),
+    ...(sentToId ? [{ clientId: sentToId, convId: video.id, opened: (video.ownViews ?? 0) > 0 }] : []),
     ...(sendMany?.copies ?? []).map((c) => ({ clientId: c.clientId, convId: c.id, opened: c.opened })),
   ]);
   // What's been done for each client: emailed by us (kept on the video, so it's still said after a reload), or sent by the business.
@@ -327,24 +331,25 @@ export default function SendPanel({
   }
 
   const label = picked.length === 0 ? (many ? "Choose clients" : "Choose a client") : picked.length === 1 ? byId.get(picked[0])?.name : `${picked.length} clients chosen`;
-  const isBlocked = (c: ClientOption) => !!(c.paused || c.linkOff || !c.link);
   const sentLink = (c: ClientOption) => c.linkSent || rows[c.id] === "copied" || rows[c.id] === "own-email";
   const sent = recipients.filter((r) => byId.has(r.clientId));
   const inSection = (s: Section) => sent.filter((r) => sectionOf(byId.get(r.clientId)!) === s);
   const emailRows = inSection("email");
   const linkRows = inSection("link");
   const firstRows = inSection("first");
+  const blockedRows = inSection("blocked");
 
   /** Asks before taking this video away from a client. */
   const stopBox = (r: Recipient) => {
     const c = byId.get(r.clientId)!;
     const own = r.convId === video.id && !isCopy;
     return (
-      <div role="dialog" aria-label={`Stop sharing with ${c.name}`} data-testid="stop-sharing-confirm" className="mt-2 rounded-lg border border-danger-line bg-danger-bg p-3 text-xs text-muted">
+      <div role="group" aria-label={`Stop sharing with ${c.name}`} data-testid="stop-sharing-confirm" className="mt-2 rounded-lg border border-danger-line bg-danger-bg p-3 text-xs text-muted">
         {own && hasReplies ? (
           <>
-            <p className="font-medium text-ink">{c.name} has already replied, so this video stays with them.</p>
-            <p className="mt-1">Their replies belong to this conversation. To take the video away, delete it above, which removes it for everyone it was sent to.</p>
+            {/* Any message counts, the team's own included (the server refuses the same way), so it doesn't say the client replied. */}
+            <p className="font-medium text-ink">This conversation already has messages, so this video stays with {c.name}.</p>
+            <p className="mt-1">To take the video away, delete it above, which removes it for everyone it was sent to.</p>
             <div className="mt-2">
               <button onClick={() => setStopping(null)} className={btn}>Close</button>
             </div>
@@ -424,7 +429,8 @@ export default function SendPanel({
                 Copy link
               </button>
             )}
-            <button onClick={() => setStopping(stopping === r.convId ? null : r.convId)} data-testid="stop-sharing" className="rounded-lg px-2 py-1 text-xs text-dim hover:text-danger-fg">
+            {/* Set a little apart from the button beside it, so a thumb doesn't land on the wrong one. */}
+            <button onClick={() => setStopping(stopping === r.convId ? null : r.convId)} aria-expanded={stopping === r.convId} data-testid="stop-sharing" className="ml-1.5 rounded-lg px-2 py-1 text-xs text-dim hover:text-danger-fg pointer-coarse:min-h-11">
               Stop sharing
             </button>
           </span>
@@ -433,6 +439,9 @@ export default function SendPanel({
           <p className="mt-1 text-xs text-warn-fg">SureFrame support turned off {c.name}&apos;s link, so they can&apos;t open this. Contact support@sureframe.app.</p>
         ) : c.paused ? (
           <p className="mt-1 text-xs text-warn-fg">{c.name} is paused because your plan covers fewer clients, so they can&apos;t open this until they&apos;re restored.</p>
+        ) : !c.link ? (
+          // Only the name reaches this page for a client this person doesn't look after (app/v/[id]/page.tsx).
+          <p className="mt-1 text-xs text-dim">Someone else on your team looks after {c.name}.</p>
         ) : null}
         {rowNote && (
           <p role={rowNote.error ? "alert" : "status"} className={`mt-1 text-xs ${rowNote.error ? "text-danger-fg" : "text-ok-fg"}`} data-testid="row-note">
@@ -453,7 +462,7 @@ export default function SendPanel({
     );
   };
 
-  /** "Nothing opened?" after Send from your email: their link onto the clipboard, to paste into an email by hand. */
+  /** "Nothing opened?" after Send from your email: their link onto the clipboard instead, to send their own way. */
   async function copyFirst(r: Recipient) {
     const c = byId.get(r.clientId);
     const link = links[r.convId];
@@ -468,12 +477,12 @@ export default function SendPanel({
   }
 
   /** A section of sent clients, each with its own heading (Josiah's names for them). */
-  const section = (id: Section, title: string, list: Recipient[], intro?: React.ReactNode) =>
+  const section = (id: Section, title: string | null, list: Recipient[], intro?: React.ReactNode) =>
     list.length > 0 && (
       <section className="mt-3 rounded-xl bg-surface-2 p-3" data-testid={`sec-${id}`}>
-        <h3 className="text-sm font-medium text-ink">{title}</h3>
+        {title && <h3 className="text-sm font-medium text-ink">{title}</h3>}
         {intro}
-        <ul className="mt-2 divide-y divide-line">{list.map((r) => row(r, id))}</ul>
+        <ul className={`${title ? "mt-2 " : ""}divide-y divide-line`}>{list.map((r) => row(r, id))}</ul>
       </section>
     );
 
@@ -649,6 +658,8 @@ export default function SendPanel({
               </details>
             </div>,
           )}
+          {/* Paused, link turned off, or someone else's client: each row says why under the name; no heading fits them. */}
+          {section("blocked", null, blockedRows)}
         </div>
       )}
     </div>
@@ -672,9 +683,9 @@ function QuickAddClient({ teamKey, onAdded, onCancel }: { teamKey: CryptoKey; on
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email: route === "email" ? email : "", teamKeyWrap: await wrapKey(await generateKey(), teamKey), keyFingerprint: await fingerprint(teamKey) }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) return setError(data.error ?? "Couldn't add the client. Try again.");
+      }).catch(() => null);
+      const data = (await res?.json().catch(() => ({}))) ?? {};
+      if (!res?.ok) return setError(data.error ?? "Couldn't add the client. Check your connection and try again.");
       const c = data.client as { id: string; name: string; email: string | null; link: string; teamKeyWrap: string | null; assignedToId: string | null };
       onAdded({ id: c.id, name: c.name, email: c.email, link: c.link, teamKeyWrap: c.teamKeyWrap, assignedToId: c.assignedToId, hasLink: false, mine: true, emailable: !!c.email }, route);
     } finally {
@@ -705,7 +716,12 @@ function QuickAddClient({ teamKey, onAdded, onCancel }: { teamKey: CryptoKey; on
  */
 function TitlePrompt({ videoId, business, onTitle }: { videoId: string; business: string; onTitle?: (title: string) => void }) {
   const [title, setTitle] = useState("");
-  const saver = useTitleSaver(videoId, "", onTitle);
+  // A title was saved from this box: emptying the box afterwards doesn't remove it (an empty title is never saved).
+  const [named, setNamed] = useState(false);
+  const saver = useTitleSaver(videoId, "", (t) => {
+    setNamed(true);
+    onTitle?.(t);
+  });
   return (
     <form
       data-testid="title-prompt"
@@ -737,7 +753,7 @@ function TitlePrompt({ videoId, business, onTitle }: { videoId: string; business
         !saver.error && (
           <p className="w-full text-xs text-dim" data-testid="title-nudge">
             {/* Decision 10: an untitled video reaches clients as "A video from Business A", never the date it was made. */}
-            {!title.trim() && <span className="font-medium text-muted">Without a title, your clients see &ldquo;A video from {business}&rdquo;. </span>}
+            {!title.trim() && !named && <span className="font-medium text-muted">Without a title, your clients see &ldquo;A video from {business}&rdquo;. </span>}
             Saved as you type, and it becomes this video&apos;s title above. Save title saves it now.
           </p>
         )

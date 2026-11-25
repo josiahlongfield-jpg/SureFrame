@@ -38,6 +38,8 @@ type Video = {
   rawUrl: string;
   durationMs: number | null;
   viewCount: number;
+  /** Team only: how often this video's own client opened it (viewCount also adds in every copy's views). */
+  ownViews?: number;
   createdAt: string;
   encrypted: boolean;
   teamKeyWrap: string | null;
@@ -86,7 +88,7 @@ export type SendMany = {
 /** Members only: one client's conversation about this recording (theirs is a private copy), for the list beside the video. */
 export type Conversation = { id: string; clientId: string; name: string; count: number; theirs: string[] };
 
-export type WatchViewer = { kind: "member"; workspaceId: string; fingerprint: string | null } | { kind: "client"; clientId: string };
+export type WatchViewer = { kind: "member"; workspaceId: string; fingerprint: string | null } | { kind: "client"; clientId: string; /** The business emails this client nothing (no address, or emails turned off). */ noEmails?: boolean };
 
 type Props = {
   video: Video;
@@ -191,7 +193,7 @@ function ClientUnlock({ clientId, ...props }: Props & { clientId: string }) {
     return (
       <>
         {/* A reply interrupted here still finishes uploading (it's already sealed); it waits for them once the key's back. */}
-        <RecoverUploads always />
+        <RecoverUploads always client />
         {missing === "wrong" ? (
           <BadLinkKey clientId={clientId} business={props.business} signInNext={`/v/${props.video.id}`} />
         ) : (
@@ -307,6 +309,10 @@ function WatchBody({
   const [held, setHeld] = useState(initialHeld);
   // Whose replies are in `replies` (another client's are fetched when their conversation opens).
   const [loadedFor, setLoadedFor] = useState(video.id);
+  // How many messages this video's own conversation holds, whichever client's conversation is open in the panel:
+  // the Send box's Stop sharing is refused once it has any (api/videos/[id]), the team's own and unsent ones included.
+  const ownMessages = useRef(initialReplies.length + initialHeld.length);
+  if (loadedFor === video.id && conv === video.id) ownMessages.current = replies.length + held.length;
   const [loadFailed, setLoadFailed] = useState(false);
   const listBox = useRef<HTMLDivElement>(null);
   const listContent = useRef<HTMLUListElement>(null);
@@ -779,12 +785,13 @@ function WatchBody({
     ? `${business} can see it now, and they're emailed that you replied (unless they've turned those emails off).`
     : talkingTo
       ? `${talkingTo} sees it next time they open this video.`
-      : "Your team can see it here, and so will the client you send this video to.";
+      : // Only the first client: anyone else chosen in the same Send gets their own copy, with an empty conversation.
+        "Your team can see it here, and so will the first client you send this video to.";
   const emptyNote = !canEdit
     ? `Only you and ${business} can see this conversation.`
     : talkingTo
       ? `Only ${talkingTo} and your team can see this conversation.`
-      : "Not sent to a client yet. Anything you add here will be seen by the client you send this video to.";
+      : "Not sent to a client yet. Anything you add here goes to the first client you send this video to.";
   const isWebm = !video.mimeType.includes("mp4");
   const saveName = `${fileName(business, title)}.${isWebm ? "webm" : "mp4"}`;
 
@@ -1049,14 +1056,14 @@ function WatchBody({
 
         {canEdit && teamKey && !expired && (
           <SendPanel
-            video={{ id: video.id, title, status: video.status, encrypted: video.encrypted, sourceId, viewCount: video.viewCount, emailed: video.emailed }}
+            video={{ id: video.id, title, status: video.status, encrypted: video.encrypted, sourceId, ownViews: video.ownViews, emailed: video.emailed }}
             clients={clients}
             business={business}
             canAddClient={canAddClients}
             sentToId={sentToId}
             originalHeld={originalHeld}
             sendMany={sendMany}
-            hasReplies={replies.length > 0}
+            hasReplies={ownMessages.current > 0}
             rootKey={rootKey}
             teamKey={teamKey}
             onTitle={(t) => (titles.adopt(t), setTitle(t))}
@@ -1100,7 +1107,7 @@ function WatchBody({
         {/* To-dos and notes the business shared, under their videos as well as in All my videos (C61). Hidden when there are none. */}
         {!canEdit && viewer.kind === "client" && (
           <div className="mt-5">
-            <ClientPlanner clientId={viewer.clientId} title={`Your to-dos & notes from ${business}`} hideWhenEmpty />
+            <ClientPlanner clientId={viewer.clientId} title={`Your to-dos & notes from ${business}`} hideWhenEmpty noEmails={viewer.noEmails} />
           </div>
         )}
         {!canEdit && <HowThisWorks business={business} purgeAt={video.purgeAt} expired={expired} webm={isWebm && !!playable} />}
@@ -1600,7 +1607,8 @@ function MessageEditor({ videoId, rootKey, sealed, to }: { videoId: string; root
           <p className="text-sm font-medium text-ink">Message to {who}</p>
           {!open && (
             <p className="mt-1 whitespace-pre-wrap text-sm text-muted [overflow-wrap:anywhere]">
-              {saved ?? `Add a short note, shown to ${who} above the video.`}
+              {/* Before it's sent: the message stays with the video itself, which goes to the first client chosen (others get a copy without it). */}
+              {saved ?? (to ? `Add a short note, shown to ${to} above the video.` : "Add a short note, shown above the video to the first client you send it to.")}
             </p>
           )}
         </div>
@@ -1635,7 +1643,7 @@ function MessageEditor({ videoId, rootKey, sealed, to }: { videoId: string; root
       <p className="mt-2 text-xs text-dim">
         {state === "saved" && <span className="font-medium text-ok-fg" role="status" data-testid="message-saved">Saved. </span>}
         {state === "failed" && <span className="font-medium text-danger-fg" role="alert">Couldn&apos;t save. Check your connection and try again. </span>}
-        End-to-end encrypted, like replies. Only this conversation sees it.
+        End-to-end encrypted, like replies. {!to && (saved || open) ? "Only the first client you send this video to sees it." : "Only this conversation sees it."}
       </p>
     </div>
   );

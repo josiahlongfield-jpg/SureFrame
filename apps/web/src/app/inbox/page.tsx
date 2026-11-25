@@ -233,7 +233,7 @@ export default async function Inbox({
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink" style={brandStyle(brand?.color ?? null)}>
       <ClientHeader brand={brand} backTo={backTo} help={help.length ? { for: help, page: "inbox" } : undefined} />
       {/* A reply a closed page interrupted finishes uploading here too, then waits on its video page to be sent. */}
-      <RecoverUploads />
+      <RecoverUploads client />
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
         {/* The link's key is no use on a page that couldn't open it, so it leaves the address bar too. */}
         {arrived && <HideKeyFromAddress />}
@@ -337,7 +337,7 @@ export default async function Inbox({
                 </div>
               )}
               <div className="mt-4">
-                <ClientPlanner clientId={c.id} title="Your to-dos & notes" />
+                <ClientPlanner clientId={c.id} title="Your to-dos & notes" noEmails={!c.email || c.remindersOff} />
               </div>
               {c.email && (
                 <div className="mt-2 flex flex-wrap items-center gap-x-1 text-xs text-dim" data-testid="inbox-emails">

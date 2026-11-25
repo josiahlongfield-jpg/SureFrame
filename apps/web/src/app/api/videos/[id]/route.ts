@@ -48,7 +48,8 @@ export const PATCH = handle(async (req: Request, ctx: { params: Promise<{ id: st
       throw new HttpError(409, "This video is still being removed from a deleted client. Reload the page and send it again.");
     }
     if (await db.reply.count({ where: { videoId: id } })) {
-      throw new HttpError(409, "This client has already replied, so the video stays with them. Use Send to more clients to share it with someone else.");
+      // Any message counts, the team's own and unsent ones too, so it doesn't claim the client replied.
+      throw new HttpError(409, "This conversation already has messages, so the video stays with this client. Use Send to more clients to share it with someone else.");
     }
   }
   if (body.data.clientId && body.data.clientId !== current.clientId && (current.status === "EXPIRED" || current.status === "FAILED")) {

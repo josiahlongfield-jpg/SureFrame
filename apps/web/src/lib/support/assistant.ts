@@ -15,7 +15,7 @@ import { browserNote } from "@/lib/support/browser";
 
 export const MODEL = "claude-opus-5-5";
 
-const SYSTEM = `You are ${BRAND.name}'s support assistant, the first point of contact for customers on the ${BRAND.name} website and app. ${BRAND.name} is run by a small team, so you resolve what you can and hand the rest to a person.
+const SYSTEM = `You are ${BRAND.name}'s support assistant, the first point of contact for customers on the ${BRAND.name} website and app. ${BRAND.name} is a small independent business (see /about), so you resolve what you can and hand the rest to a person.
 
 How to help:
 - Answer from the help guide below and, for signed-in customers, from the account_overview tool. If the guide doesn't cover something, say you're not sure rather than guessing, and offer to pass it to the team.
@@ -72,6 +72,12 @@ let client: Anthropic | undefined;
 export const anthropic = () => (client ??= new Anthropic({ timeout: 45_000, maxRetries: 1 }));
 
 export const assistantEnabled = () => !!process.env.ANTHROPIC_API_KEY;
+
+/**
+ * How long one answer may take across all its turns. api/support stops at 120 seconds (its maxDuration), and the
+ * hand-over that follows a failure (two emails, each with its own retries) needs the rest.
+ */
+const ANSWER_BUDGET_MS = 75_000;
 
 /**
  * A snapshot of the customer's workspace for the account_overview tool. Only
@@ -180,8 +186,14 @@ export async function answer(ticketId: string, opts: AnswerOptions = {}): Promis
   let handedOver = false;
 
   let reply = "";
+  let cutShort = false;
+  const deadline = Date.now() + ANSWER_BUDGET_MS;
   // People who aren't paying get short answers and fewer tool turns.
   for (let turn = 0; turn < (tier === "paying" ? 5 : 3); turn++) {
+    // One deadline for the whole answer: each call gets only the time that's left, and a call that runs out of it
+    // isn't tried again (the signal ends it), so a slow answer fails in time for api/support to hand over.
+    const left = deadline - Date.now();
+    if (left < 2_000) throw new Error("The assistant ran out of time");
     const response = await anthropic().beta.messages.create({
       model: MODEL,
       max_tokens: tier === "paying" ? 4000 : 1200,
@@ -192,7 +204,7 @@ export async function answer(ticketId: string, opts: AnswerOptions = {}): Promis
       system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
       tools: [ACCOUNT_TOOL, HANDOVER_TOOL],
       messages,
-    });
+    }, { timeout: left, signal: AbortSignal.timeout(left) });
     console.log("[support] assistant turn", JSON.stringify({ ticket: ticket.id, stop: response.stop_reason, model: response.model, blocks: response.content.map((b) => (b.type === "tool_use" ? `tool:${b.name}` : b.type)) }));
     if (response.stop_reason === "refusal") {
       const refused = await handOver("The assistant couldn't answer this message. Please read the conversation.", false);
@@ -204,6 +216,8 @@ export async function answer(ticketId: string, opts: AnswerOptions = {}): Promis
     }
     reply = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n").trim() || reply;
     const calls = response.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
+    // The answer ran into its length limit (the turn log above counts how often): say so, rather than stop mid-sentence.
+    cutShort = response.stop_reason === "max_tokens";
     if (response.stop_reason !== "tool_use" || !calls.length) break;
     messages.push({ role: "assistant", content: response.content });
     const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
@@ -225,6 +239,7 @@ export async function answer(ticketId: string, opts: AnswerOptions = {}): Promis
     }
     messages.push({ role: "user", content: results });
   }
+  if (reply && cutShort) reply += "\n\nMy answer was cut short there. Ask again if you need the rest.";
   reply ||= "Sorry, I couldn't put an answer together just then. Could you try asking another way, or ask me to pass it to the team?";
   await db.supportMessage.create({ data: { ticketId, author: "ASSISTANT", body: reply } });
   return { reply, handedOver };

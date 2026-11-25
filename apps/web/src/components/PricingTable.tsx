@@ -17,6 +17,8 @@ export type CurrentPlan = {
   interval: Interval | null;
   /** Only the owner can change the plan. */
   owner: boolean;
+  /** A new account that hasn't agreed to the Terms yet (never "updated" terms for them). */
+  firstTerms?: boolean;
 };
 
 const staticBox = "block rounded-xl border border-line px-4 py-3 text-center text-sm font-semibold text-muted";
@@ -185,5 +187,5 @@ function PlanAction({
     );
   }
   const label = mine && subscribed ? `Switch to ${interval === "year" ? "yearly" : "monthly"}` : subscribed ? `Switch to ${name}` : mine ? `Subscribe to ${name}` : `Get ${name}`;
-  return <UpgradeButton plan={id} interval={interval} featured={featured} label={label} autoStart={start?.plan === id && start.interval === interval} />;
+  return <UpgradeButton plan={id} interval={interval} featured={featured} label={label} autoStart={start?.plan === id && start.interval === interval} firstTerms={current.firstTerms} />;
 }

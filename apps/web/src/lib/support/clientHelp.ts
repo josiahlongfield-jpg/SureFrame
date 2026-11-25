@@ -53,6 +53,8 @@ export type HelpClient = NonNullable<Awaited<ReturnType<typeof helpClient>>>;
  * else the business's), and nothing else about its account. Never SureFrame.
  */
 export async function contactBusiness(client: HelpClient) {
+  // While support has the business unavailable, its pages withhold its contact details (app/v/[id]/page.tsx): so does the chat.
+  if (clientBlock(client) === "unavailable") return `Videos from ${client.workspace.name} are unavailable right now.`;
   const line = contactOf(client.workspace);
   if (line) return `Please contact ${client.workspace.name} ${contactWords(line)}.`;
   const assigned = client.assignedToId
@@ -166,6 +168,11 @@ export async function answerClient(client: HelpClient, page: HelpPage, turns: He
 export async function helpForDevice() {
   const tokens = (await cookies()).getAll().filter((c) => c.name.startsWith("fc_client_")).map((c) => c.value);
   if (!tokens.length) return [];
-  const clients = await db.client.findMany({ where: { token: { in: tokens } }, select: { id: true, workspace: { select: { name: true, plan: true, contactEmail: true, contactPhone: true } } }, orderBy: { createdAt: "asc" } });
-  return clients.map((c) => ({ clientId: c.id, business: c.workspace.name, limits: clientHelpLimitText(c.workspace.plan), contact: contactOf(c.workspace) }));
+  const clients = await db.client.findMany({
+    where: { token: { in: tokens } },
+    select: { id: true, removedAt: true, pausedAt: true, linkDisabledAt: true, workspace: { select: { ...clientGate, name: true, plan: true, contactEmail: true, contactPhone: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  // No contact line while support has the business unavailable, as on its video pages.
+  return clients.map((c) => ({ clientId: c.id, business: c.workspace.name, limits: clientHelpLimitText(c.workspace.plan), contact: clientBlock(c) === "unavailable" ? null : contactOf(c.workspace) }));
 }

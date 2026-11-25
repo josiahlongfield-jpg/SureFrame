@@ -111,7 +111,7 @@ export const TOOLS: ConnectorTool[] = [
     name: "get_overview",
     title: "Overview",
     description:
-      "A summary of SureFrame activity for the clients this person can see: videos sent and opened, clients waiting for an answer, quiet clients, new clients who haven't opened their link, and overdue or upcoming to-dos. Start here for a report.",
+      "An overview of SureFrame activity for the clients this person can see: videos sent and opened, clients waiting for an answer, quiet clients, new clients who haven't opened their link, and overdue or upcoming to-dos. Start here for a report.",
     inputSchema: {
       type: "object",
       properties: {

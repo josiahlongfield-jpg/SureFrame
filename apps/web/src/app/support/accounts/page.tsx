@@ -3,20 +3,22 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { PLANS } from "@/lib/plans";
 import { requirePageUser } from "@/lib/session";
-import { isSupportAdmin } from "@/lib/support/admin";
+import { isFounder, isSupportAdmin } from "@/lib/support/admin";
 import { isSupportAgent } from "@/lib/support/tickets";
 import { canInstall, readManifest } from "@/lib/ai/speechModel";
 import CompForm, { CompAiForm } from "./CompForm";
 import SpeechModelPanel, { type ModelStatus } from "./SpeechModelPanel";
 import { supportTitle } from "../_console/meta";
 
-export const generateMetadata = supportTitle("Free plans");
+export const generateMetadata = supportTitle("Free plans", "founder");
 
 /** Founder-only: give a paid plan free of charge, for trials and partners. */
 export default async function Accounts({ searchParams }: { searchParams: Promise<{ email?: string; plan?: string }> }) {
   const { user } = await requirePageUser("/support/accounts", { allowPaused: true, allowSuspended: true, allowTermsPending: true });
   if (!isSupportAgent(user.email)) notFound();
   if (user.suspendedAt && !isSupportAdmin(user.email)) redirect("/suspended");
+  // Founder-only, like its actions and the Discounts page: not for someone who only answers tickets.
+  if (!isFounder(user.email)) notFound();
   const admin = isSupportAdmin(user.email);
   const prefill = await searchParams;
   const comped = await db.workspace.findMany({

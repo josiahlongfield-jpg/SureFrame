@@ -119,8 +119,11 @@ export const LEGAL = {
    * Also 22 October 2026: the section 8 notice goes to the workspace's admins as well as its owner (G10), more notice than before,
    * so it keeps dpaVersion.
    * 24 October 2026: version 1.1: a removed client is deleted straight away, with no copy kept to restore them from.
+   * 26 November 2026: section 3 mentions the notifications shown in the app (kept up to 90 days, lib/notifications.ts); Annex 2
+   * says sign-in email addresses are counted for rate limits as well as IP addresses; Annex 3's email provider entry names the
+   * emails to clients it carries. They describe what we already do, so they keep dpaVersion.
    */
-  dpaUpdated: "24 October 2026",
+  dpaUpdated: "26 November 2026",
   /**
    * The Privacy Policy page's own "last updated" date. Describing discount codes, referrals and the sf_offer cookie
    * (16 October 2026) only explains more of what we already do, so it keeps privacyVersion. So do a short section for
@@ -167,8 +170,13 @@ export const LEGAL = {
    * 24 October 2026: new version 2026-10-24 (Josiah): a removed client is deleted straight away, and no warning email beforehand.
    * 27 October 2026: the client help chat section says it gives the business's contact details (or reply-to address) and a
    * button to reply on the video, as it already does. Describes what we already do, so it keeps privacyVersion.
+   * 26 November 2026: the notifications in the app (the bell) and how long they're kept; cookies sf_signin_at, sf_joining and
+   * sf_bell, and the client link cookie's name; email addresses counted at sign-in; a leftover "removed and then deleted"; the
+   * second case where a removed client isn't emailed (as the Terms say); the name Stripe is given for a new business started at
+   * checkout; what the online Claude connector reads for owners and admins; and which emails to clients our email provider
+   * carries. They describe what the app already does, so they keep privacyVersion.
    */
-  privacyUpdated: "27 October 2026",
+  privacyUpdated: "26 November 2026",
 };
 
 /**
@@ -212,6 +220,23 @@ export const LEGAL_VERSIONS = [
  */
 export type WordingUpdate = { date: string; terms?: string[]; privacy?: string[]; dpa?: string[] };
 export const WORDING_UPDATES: WordingUpdate[] = [
+  {
+    date: "26 November 2026",
+    privacy: [
+      "Notifications in the app (the list behind the bell): what they hold, and that they’re deleted 30 days after you read them, or after 90 days if you never do.",
+      "Cookies: sf_signin_at, sf_joining and sf_bell are listed, and the client link cookie’s name (fc_client_<business>) is given.",
+      "Email addresses typed at sign-in are counted, like IP addresses, to limit repeated attempts, and deleted within about two days.",
+      "A removed client is deleted straight away (one line still said “removed and then deleted”), and isn’t emailed when the business has another client at the same email address, as the Terms already say.",
+      "Stripe is given your own name, not a business name, when you start a new business at checkout.",
+      "For owners and admins, the online Claude connector can also read how each team member is keeping up with their clients.",
+      "Our email provider’s entry names the emails to clients it carries: new-video emails and replacement links.",
+    ],
+    dpa: [
+      "Section 3: notifications shown in the app, kept for up to 90 days.",
+      "Annex 2: sign-in email addresses are counted for rate limits, like IP addresses, and deleted within about two days.",
+      "Annex 3: our email provider’s entry names the emails to clients it carries: new-video emails and replacement links.",
+    ],
+  },
   {
     date: "27 October 2026",
     terms: ["Section 24: the extension is installed from the Chrome Web Store, in Microsoft Edge too."],
@@ -381,7 +406,7 @@ export const SUBPROCESSORS: Subprocessor[] = [
   {
     name: "Resend",
     purpose: "email delivery",
-    data: "names, email addresses and the emails we send, such as sign-in links, client links, reminders and team emails",
+    data: "names, email addresses and the emails we send, such as sign-in links, new-video emails and replacement links to clients, reminders and team emails",
     location: "United States",
     customerData: true,
   },

@@ -4,8 +4,12 @@ import { useEffect, useState } from "react";
 import { loadClientKey } from "@/lib/e2e/keystore";
 import Planner from "./Planner";
 
-/** What a client sees: only the items shared with them, unlocked with the key from their personal link. */
-export default function ClientPlanner({ clientId, title, hideWhenEmpty = false }: { clientId: string; title?: string; hideWhenEmpty?: boolean }) {
+/**
+ * What a client sees: only the items shared with them, unlocked with the key from their personal link.
+ * `noEmails`: the business emails them nothing (no address saved, or they turned its emails off), so no to-do
+ * shows a reminder bell for an email that won't come.
+ */
+export default function ClientPlanner({ clientId, title, hideWhenEmpty = false, noEmails = false }: { clientId: string; title?: string; hideWhenEmpty?: boolean; noEmails?: boolean }) {
   const [key, setKey] = useState<CryptoKey | null | undefined>();
 
   useEffect(() => {
@@ -31,5 +35,5 @@ export default function ClientPlanner({ clientId, title, hideWhenEmpty = false }
       </section>
     );
   }
-  return <Planner role="client" clientId={clientId} privateKey={null} sharedKey={key} title={title} hideWhenEmpty={hideWhenEmpty} />;
+  return <Planner role="client" clientId={clientId} client={noEmails ? { email: null, remindersOff: true } : undefined} privateKey={null} sharedKey={key} title={title} hideWhenEmpty={hideWhenEmpty} />;
 }

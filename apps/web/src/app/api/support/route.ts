@@ -10,10 +10,12 @@ import { aiRefusal, personRefusal, recordAi, recordPerson, SUPPORT_LIMITS, suppo
 import { qldTime } from "@/lib/support/when";
 import { browserFrom } from "@/lib/support/browser";
 
-// The assistant can take a few turns; leave room to hand over if it's slow.
+// The assistant can take a few turns; leave room to hand over if it's slow (answer() stops itself well inside this).
 export const maxDuration = 120;
 
 const MAX_MESSAGES = 60;
+// A backstop for a conversation the team already has, which the usual length limit doesn't cut off (see below).
+const MAX_WITH_TEAM = 300;
 const Body = z.object({
   token: z.string().min(20).max(64).optional(),
   body: z.string().trim().min(1).max(4000),
@@ -97,6 +99,15 @@ async function post(req: Request) {
   // A token for a conversation that's since been deleted, or that belongs to someone else's account, starts a new one.
   let ticket = token ? await load(token).catch(() => null) : null;
   if (ticket && ownedBySomeoneElse(ticket, me)) ticket = null;
+  // Started signed out, carried on signed in (sign-ins end with the browser, so this is common): it becomes their
+  // account's conversation, so the assistant can see their plan and the team's reply reaches their email and bell.
+  if (ticket && me && !ticket.userId) {
+    ticket = await db.supportTicket.update({
+      where: { id: ticket.id },
+      data: { userId: me.user.id, workspaceId: me.workspace.id },
+      include: { messages: { orderBy: { createdAt: "asc" } } },
+    });
+  }
   const asker: Asker = { tier, workspaceId: me?.workspace.id, network: await clientIp(), email: me ? null : (email ?? ticket?.email ?? null) };
   const withTeam = ticket?.status === "NEEDS_HUMAN" || ticket?.status === "ANSWERED";
 
@@ -117,7 +128,10 @@ async function post(req: Request) {
   } else if (email && !ticket.email && !ticket.userId) {
     await db.supportTicket.update({ where: { id: ticket.id }, data: { email } });
   }
-  if (ticket.messages.length >= (unpaid?.messagesPerChat ?? MAX_MESSAGES)) throw new HttpError(429, "This conversation is very long. Please start a new one.");
+  // A very long conversation is refused, unless the team already has it: someone who isn't paying couldn't get back to
+  // a person from a new one, so their message still reaches the team, without an AI answer.
+  const tooLong = ticket.messages.length >= (unpaid?.messagesPerChat ?? MAX_MESSAGES);
+  if (tooLong && (!withTeam || ticket.messages.length >= MAX_WITH_TEAM)) throw new HttpError(429, "This conversation is very long. Please start a new one.");
   await limited(rateLimit(`support:ticket:${ticket.id}`, 20, 600), 600, "You've sent a lot of messages in this conversation in a short time.");
   await db.supportMessage.create({ data: { ticketId: ticket.id, author: "CUSTOMER", body } });
 
@@ -149,17 +163,19 @@ async function post(req: Request) {
     const no = await handOver(withTeam ? null : personSummary(ticket.messages, body, !!me, tier), withTeam && ticket.urgent);
     // Only if the allowance ran out since the check above (another tab): the message is kept, and the chat says why.
     if (no) throw new Refused(no, null, "person");
-  } else if (ticket.status === "ANSWERED" || aiRefused) {
-    // A person is talking with them now (or has the conversation, and the AI allowance is used up): pass it on.
+  } else if (ticket.status === "ANSWERED" || aiRefused || tooLong) {
+    // A person is talking with them now (or has the conversation, and the AI allowance is used up or it's very long): pass it on.
     await handToHuman(ticket.id, null, ticket.urgent);
-    await say("Thanks, I've added that to your conversation with the team. They'll reply here and by email.");
+    // "By email" only when there's an account or an address to send it to.
+    await say(`Thanks, I've added that to your conversation with the team. They'll reply ${ticket.userId || ticket.email || email ? "here and by email" : "here in this chat"}.`);
   } else if (assistantEnabled() && (await underDailyAiCap())) {
     // Before a person has replied, the assistant keeps helping, even once the team has been told.
     const waiting = ticket.status === "NEEDS_HUMAN";
     if (ticket.status === "CLOSED") await db.supportTicket.update({ where: { id: ticket.id }, data: { status: "OPEN" } });
-    await recordAi(asker);
     try {
       const { handedOver } = await answer(ticket.id, { tier, handOver, personRefused: personRefused?.message, browser: browserFrom(req.headers) });
+      // Counted only once there's an answer, so a failed try doesn't use up their allowance.
+      await recordAi(asker).catch((e) => console.error("[support] allowance not counted", e));
       if (waiting && !handedOver) await handToHuman(ticket.id, null, ticket.urgent);
     } catch (e) {
       const err = e as { status?: number; message?: string; error?: unknown };

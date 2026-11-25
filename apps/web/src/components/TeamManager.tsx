@@ -177,10 +177,10 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, role: inviteRole, teamKeyWrap: await wrapKey(teamKey, oneOff) }),
-    });
-    const data = await res.json().catch(() => ({}));
+    }).catch(() => null);
+    const data = (await res?.json().catch(() => ({}))) ?? {};
     setBusy(false);
-    if (!res.ok) return setError(data.error ?? "Could not create the invite");
+    if (!res?.ok) return setError(data.error ?? "Couldn't create the invite. Check your connection and try again.");
     const url = `${data.link}#k=${await exportKey(oneOff)}`;
     setLink({ url, emailedTo: data.emailed ? data.invite.email : null });
     keepLink(workspaceId, data.invite.id, url);
@@ -192,8 +192,9 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
 
   async function cancel(i: Invite) {
     setConfirming(undefined);
-    const res = await fetch(`/api/team/invites/${i.id}`, { method: "DELETE" });
-    if (!res.ok) return;
+    setError(undefined);
+    const res = await fetch(`/api/team/invites/${i.id}`, { method: "DELETE" }).catch(() => null);
+    if (!res?.ok) return setError((await res?.json().catch(() => ({})))?.error ?? "Couldn't cancel the invite. Check your connection and try again.");
     keepLink(workspaceId, i.id, null);
     setInvites((list) => list.filter((x) => x.id !== i.id));
     setSeats((s) => ({ ...s, pending: s.pending - 1, used: s.used - 1 }));
@@ -266,7 +267,9 @@ function Manager({ teamKey, workspaceId, keyResetNeeded, role, meId, initialSeat
   async function buyStaff() {
     setConfirming(undefined);
     setError(undefined);
-    const res = await fetch("/api/billing/staff", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ extraStaff: extraStaff + buyQty }) });
+    const res = await fetch("/api/billing/staff", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ extraStaff: extraStaff + buyQty }) }).catch(() => null);
+    // No answer at all: the logins may or may not have been bought, so don't say either way.
+    if (!res) return setError("We couldn't confirm that. Check your connection, then reload this page to see whether it went through before trying again.");
     const data = await res.json().catch(() => ({}));
     if (data.url) return void (window.location.href = data.url);
     if (!res.ok) return setError(data.error ?? "Could not add staff logins");
@@ -545,9 +548,12 @@ function ResetDone({ name, removed, emailed, toSend, recoveryKey, business, onKe
 }
 
 function Switcher({ workspaces }: { workspaces: { id: string; name: string; active: boolean }[] }) {
+  const [error, setError] = useState<string>();
   async function go(id: string) {
-    const res = await fetch("/api/team/switch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspaceId: id }) });
-    if (res.ok) window.location.assign("/library");
+    setError(undefined);
+    const res = await fetch("/api/team/switch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspaceId: id }) }).catch(() => null);
+    if (res?.ok) return window.location.assign("/library");
+    setError((await res?.json().catch(() => ({})))?.error ?? "Couldn't switch. Check your connection and try again.");
   }
   return (
     <section className="rounded-2xl border border-line bg-surface p-6">
@@ -555,12 +561,13 @@ function Switcher({ workspaces }: { workspaces: { id: string; name: string; acti
       <p className="mt-1 text-sm text-dim">You&apos;re on more than one business&apos;s team. Switch to work in another.</p>
       <ul className="mt-3 grid gap-2 text-sm">
         {workspaces.map((w) => (
-          <li key={w.id} className="flex items-center justify-between">
-            <span className="text-ink">{w.name}</span>
-            {w.active ? <span className="text-xs text-dim">Current</span> : <button onClick={() => go(w.id)} className="rounded-lg border border-line-strong px-3 py-1.5 hover:bg-hover">Switch</button>}
+          <li key={w.id} className="flex items-center justify-between gap-3">
+            <span className="min-w-0 break-words text-ink">{w.name}</span>
+            {w.active ? <span className="shrink-0 text-xs text-dim">Current</span> : <button onClick={() => go(w.id)} aria-label={`Switch to ${w.name}`} className="shrink-0 rounded-lg border border-line-strong px-3 py-1.5 hover:bg-hover">Switch</button>}
           </li>
         ))}
       </ul>
+      {error && <p role="alert" className="mt-2 text-sm text-danger-fg">{error}</p>}
     </section>
   );
 }

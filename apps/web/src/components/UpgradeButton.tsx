@@ -41,13 +41,16 @@ class BillingError extends Error {
 const FIX: Record<string, { href: string; label: string; message?: string }> = {
   TOO_MANY_CLIENTS: { href: "/clients", label: "Go to Clients" },
   TOO_MANY_STAFF: { href: "/settings/team", label: "Go to Team and staff" },
-  // The API's TERMS_REQUIRED says to reload the page; here the button takes them straight there (D12d).
+  // The API's TERMS_REQUIRED says to reload the page; here the button takes them straight there (D12d). The
+  // dialog's link adds the plan to this address, so agreeing comes back to it.
   TERMS_REQUIRED: {
     href: `/agree?next=${encodeURIComponent("/pricing")}`,
     label: "Review and agree",
-    message: "Please agree to the updated Terms of Service and Privacy Policy first. Then come back here to switch.",
+    message: "Please agree to the updated Terms of Service and Privacy Policy first. Then we'll bring you back to this plan.",
   },
 };
+/** The same, for a new account that has never been shown the Terms: nothing was "updated" for them. */
+const FIRST_TERMS = "Please agree to the Terms of Service and Privacy Policy first. Then we'll bring you back to this plan.";
 
 export default function UpgradeButton({
   plan,
@@ -55,6 +58,7 @@ export default function UpgradeButton({
   featured = false,
   label,
   autoStart = false,
+  firstTerms = false,
 }: {
   plan: PaidPlan;
   interval?: Interval;
@@ -63,6 +67,8 @@ export default function UpgradeButton({
   label?: string;
   /** Back from signing in after choosing this plan: start straight away, once. */
   autoStart?: boolean;
+  /** A new account that hasn't agreed to the Terms yet: asked to agree, not told they were updated. */
+  firstTerms?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ message: string; code?: string }>();
@@ -97,7 +103,7 @@ export default function UpgradeButton({
       const fix = FIX[code ?? ""];
       // Something to fix elsewhere: the dialog with its button, not a line inside the confirm.
       if (fix) setConfirm(undefined);
-      setError({ message: fix?.message ?? (e as Error).message, code });
+      setError({ message: (code === "TERMS_REQUIRED" && firstTerms ? FIRST_TERMS : fix?.message) ?? (e as Error).message, code });
       setBusy(false);
     }
   }
@@ -181,11 +187,17 @@ export default function UpgradeButton({
       </button>
       {note && <p className="mt-2 text-sm text-muted">{note}</p>}
       {error && !confirm && (
-        <DialogShell title={FIX[error.code ?? ""] ? `You can't switch to ${name} yet` : `Couldn't switch to ${name}`} role="alertdialog" onClose={() => setError(undefined)} testId="plan-error">
+        <DialogShell
+          title={error.code === "TERMS_REQUIRED" && firstTerms ? `One step before ${name}` : FIX[error.code ?? ""] ? `You can't switch to ${name} yet` : `Couldn't switch to ${name}`}
+          role="alertdialog"
+          onClose={() => setError(undefined)}
+          testId="plan-error"
+        >
           <p className="mt-3 text-sm text-muted">{error.message}</p>
           <DialogButtons>
             {FIX[error.code ?? ""] && (
-              <Link href={FIX[error.code!].href} className={primaryButton + " text-center"}>
+              // After agreeing they come back to this plan, where its checkout (or the switch dialog) opens.
+              <Link href={error.code === "TERMS_REQUIRED" ? `/agree?next=${encodeURIComponent(`/pricing?plan=${plan}&interval=${interval}`)}` : FIX[error.code!].href} className={primaryButton + " text-center"}>
                 {FIX[error.code!].label}
               </Link>
             )}

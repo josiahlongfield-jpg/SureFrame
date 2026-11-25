@@ -14,12 +14,13 @@ export default function MyEmailPrefs({ initial, owner = false }: { initial: { re
   async function save(on: boolean) {
     setReplyEmails(on);
     setNote(undefined);
-    const res = owner
-      ? await fetch("/api/team/prefs", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ replyNotify: on ? "MINE" : "OFF" }) })
-      : await fetch("/api/account/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ replyEmails: on }) });
-    if (!res.ok) {
+    const res = await (owner
+      ? fetch("/api/team/prefs", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ replyNotify: on ? "MINE" : "OFF" }) })
+      : fetch("/api/account/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ replyEmails: on }) })
+    ).catch(() => null);
+    if (!res?.ok) {
       setReplyEmails(!on);
-      return setNote("Couldn't save. Try again.");
+      return setNote("Couldn't save. Check your connection and try again.");
     }
     setNote(on ? "Saved. You're emailed when clients reply." : "Saved. Reply emails are off; replies still show in the app.");
   }

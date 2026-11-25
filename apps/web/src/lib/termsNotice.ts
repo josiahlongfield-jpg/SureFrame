@@ -17,13 +17,15 @@ function termsNoticeEmail(from: Date, timezone: string | null) {
     lead: `We're updating the ${BRAND.name} Terms of Service and Privacy Policy. The new versions apply to you from ${day}; until then, the versions you agreed to still apply. The main changes:`,
     lines: [
       ...(LEGAL_VERSIONS[0]?.changes ?? []).map((text) => ({ text })),
+      // The list above is the newest version's changes only; someone who never agreed to the one before finds its changes here.
+      ...(LEGAL_VERSIONS.length > 1 ? [{ text: "Earlier changes are listed on our versions page", link: appUrl("/legal/archive#versions") }] : []),
       { text: "Read the new Terms of Service", link: appUrl("/legal/terms") },
       { text: "Read the new Privacy Policy", link: appUrl("/legal/privacy") },
     ],
     button: { label: "Read and agree", link: appUrl("/agree") },
     footer:
-      `To keep using ${BRAND.name} from ${day}, agree to the new versions (we'll ask when you sign in). If you don't want to, you can download your data, ` +
-      `cancel your subscription or delete your account in Settings > Account before then. Questions? Contact ${LEGAL.email}.`,
+      `To keep using ${BRAND.name} from ${day}, agree to the new versions (we'll ask when you sign in). If you don't want to, you can cancel your subscription in ` +
+      `Settings > Billing, and download your data or delete your account in Settings > Account, before then. Questions? Contact ${LEGAL.email}.`,
   });
 }
 

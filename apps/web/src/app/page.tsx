@@ -20,7 +20,7 @@ const PRIVACY = [
   ["Every client gets their own copy", "Send one video to one client or a hundred. Each opens it from their own personal link, and nobody sees anyone else's replies."],
   // What clients experience when a key reset replaces their link (V9): lib/rekey.ts and lib/newLinkEmail.ts.
   [
-    "Staff who leave are locked out",
+    "Staff you remove are locked out",
     `Remove someone from your team and we reset your team's keys and every client's link, so they can't open anything through ${BRAND.name} again. Clients who've opened their link and have an email address are emailed a new one that works on the device they used before; for anyone else, you copy their new link. Nothing they have is lost.`,
   ],
 ];

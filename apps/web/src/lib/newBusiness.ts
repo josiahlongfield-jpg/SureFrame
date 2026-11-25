@@ -13,8 +13,11 @@ import { stripe } from "@/lib/stripe";
  */
 export const NEW_BUSINESS_FOR = "newBusinessFor";
 
+/** Why a paid subscription from /start got no business: its payer has one already. */
+const OWNS_ONE = "they already own a business";
+
 /** One email per subject a day, however many times Stripe sends the event. */
-const once = (key: string) => rateLimit(`alert:${key}`, 1, 86400).then(() => true, () => false);
+const once =(key: string) => rateLimit(`alert:${key}`, 1, 86400).then(() => true, () => false);
 
 /**
  * A paid subscription started from /start: makes the business it pays for (once: Stripe sends several events, maybe at
@@ -33,7 +36,7 @@ export async function adoptNewBusiness(sub: Stripe.Subscription): Promise<Stripe
     const user = await tx.user.findUnique({ where: { id: userId }, include: { memberships: { where: { role: "OWNER" }, select: { id: true } } } });
     if (!user || user.deleteAt || user.closedAt || user.suspendedAt) return { id: null, refused: "the login is closed or suspended" };
     // Paid twice (two tabs), or they have one already: never a second business; a person refunds this one.
-    if (user.memberships.length) return { id: null, refused: "they already own a business" };
+    if (user.memberships.length) return { id: null, refused: OWNS_ONE };
     const workspace = await tx.workspace.create({
       data: { name: `${user.name ?? user.email.split("@")[0]}'s workspace`, stripeCustomerId: customer, members: { create: { userId, role: "OWNER" } } },
       select: { id: true },
@@ -43,10 +46,14 @@ export async function adoptNewBusiness(sub: Stripe.Subscription): Promise<Stripe
     return { id: workspace.id };
   });
   if (!made.id) {
+    // Paid twice: the extra one is cancelled now so it never renews, as for one paid after a support closure
+    // (lib/subscription.ts syncSubscription). The refund is a person's to make.
+    const cancelled = made.refused === OWNS_ONE;
+    if (cancelled) await stripe().subscriptions.cancel(sub.id);
     if (await once(`new-business:${sub.id}`)) {
       await alertFounder("A paid subscription has no business", [
         `Subscription ${sub.id} was paid from the Start your own business page by login ${userId}, but no business was made: ${made.refused}.`,
-        "Cancel and refund it in the Stripe Dashboard, under Customers.",
+        cancelled ? "It was cancelled. Refund the payment in the Stripe Dashboard, under Customers." : "Cancel and refund it in the Stripe Dashboard, under Customers.",
       ]);
     }
     return sub;

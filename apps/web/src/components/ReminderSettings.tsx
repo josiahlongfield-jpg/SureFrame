@@ -54,11 +54,11 @@ export default function ReminderSettings({ initial }: { initial: Settings & Show
       headers: { "Content-Type": "application/json" },
       // Only the default reminders: the name, client emails and time zone are saved on their own pages.
       body: JSON.stringify(s),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
+    }).catch(() => null);
+    const data = (await res?.json().catch(() => ({}))) ?? {};
+    if (!res?.ok) {
       setStatus("idle");
-      return setError(data.error ?? "Could not save");
+      return setError(data.error ?? "Couldn't save. Check your connection and try again.");
     }
     setStatus("saved");
   }

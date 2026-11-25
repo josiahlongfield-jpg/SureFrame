@@ -20,7 +20,7 @@
     }
   },
   "tools": [
-    { "name": "get_overview", "description": "A summary of activity for your clients: videos sent and opened, who's waiting for an answer, quiet clients and to-dos due." },
+    { "name": "get_overview", "description": "An overview of activity for your clients: videos sent and opened, who's waiting for an answer, quiet clients and to-dos due." },
     { "name": "list_clients", "description": "Your clients, with who looks after them, their last video and whether they're waiting for an answer." },
     { "name": "get_client_activity", "description": "One client's videos, replies and to-do dates." },
     { "name": "list_replies_waiting", "description": "Conversations where a client is waiting for an answer." },

@@ -60,6 +60,11 @@ export default async function Agree({ searchParams }: { searchParams: Promise<{ 
   if (await hasAgreed(user.id)) redirect(to);
   const updated = (await agreementKind(user)) === "update";
   const changes = LEGAL_VERSIONS[0]?.changes ?? [];
+  // The list is the newest version's changes only. Someone whose last agreement wasn't to the version just before it
+  // (or who has none on record) is pointed to the earlier versions' changes too.
+  const previous = LEGAL_VERSIONS[1];
+  const last = updated && previous ? await db.termsAcceptance.findFirst({ where: { userId: user.id }, orderBy: { acceptedAt: "desc" }, select: { termsVersion: true, privacyVersion: true } }) : null;
+  const skipped = updated && !!previous && !(last?.termsVersion === previous.terms && last.privacyVersion === previous.privacy);
 
   async function agree(form: FormData) {
     "use server";
@@ -93,6 +98,11 @@ export default async function Agree({ searchParams }: { searchParams: Promise<{ 
               <li key={c}>{c}</li>
             ))}
           </ul>
+          {skipped && (
+            <p className="mt-3 text-sm text-muted" data-testid="agree-earlier">
+              Earlier changes are listed on our {docLink("/legal/archive#versions", "versions page")}.
+            </p>
+          )}
         </>
       ) : (
         <>

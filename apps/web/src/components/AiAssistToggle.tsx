@@ -32,10 +32,12 @@ export default function AiAssistToggle({ enabled, canEnable, priceLabel, usage, 
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled: !on }),
-    });
-    const data = await res.json().catch(() => ({}));
+    }).catch(() => null);
     setBusy(false);
     setAsking(false);
+    // No answer at all: it may or may not have gone through, so don't say either way.
+    if (!res) return setError("We couldn't confirm that. Check your connection, then reload this page to see whether it went through before trying again.");
+    const data = await res.json().catch(() => ({}));
     if (data.url) return void (window.location.href = data.url);
     if (!res.ok) return setError(data.error ?? "Could not change AI summaries");
     setOn(data.aiAssist);

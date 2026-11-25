@@ -11,10 +11,14 @@ import { REPLY_WITHIN } from "@/lib/support/person";
 /** Where handed-over conversations are announced. Set SUPPORT_EMAIL in production. */
 export const supportInbox = () => process.env.SUPPORT_EMAIL || null;
 
-/** People who can read and answer tickets in /support (comma-separated emails). */
+/**
+ * People who can read and answer tickets in /support: SUPPORT_AGENTS (comma-separated emails), and always the support
+ * admins (SUPPORT_ADMINS) and the founder (SUPPORT_EMAIL), so listing only a helper in SUPPORT_AGENTS doesn't shut
+ * the founder out of the console (app/support/layout.tsx sends anyone who isn't an agent to Help).
+ */
 export function isSupportAgent(email: string | null | undefined) {
   if (!email) return false;
-  const agents = (process.env.SUPPORT_AGENTS ?? process.env.SUPPORT_EMAIL ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+  const agents = [process.env.SUPPORT_AGENTS, process.env.SUPPORT_ADMINS, process.env.SUPPORT_EMAIL].flatMap((list) => (list ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean));
   return agents.includes(email.toLowerCase());
 }
 
@@ -75,7 +79,7 @@ export async function acknowledgeHandOver(ticketId: string) {
   if (!ticket || !to) return;
   const link = appUrl(`/help#t=${ticket.accessToken}`);
   const lines = [
-    `Thanks for getting in touch. Your question is with a person on the SureFrame team, and we reply ${REPLY_WITHIN} (Queensland, Australia time), by email and in the help chat.`,
+    `Thanks for getting in touch. Your question is with a person on the SureFrame team, and we usually reply ${REPLY_WITHIN} (Queensland, Australia time), by email and in the help chat.`,
     "You don't need to do anything else. To add details, write in the help chat.",
     ...(ticket.userId ? [] : ["If you didn't ask SureFrame for help, you can ignore this email."]),
   ];
@@ -90,17 +94,21 @@ ${emailButton(link, "See the conversation", emailColors())}`),
   }).catch((e) => console.error("support acknowledgement email failed", e));
 }
 
-/** A person's reply: stored on the ticket and emailed to the customer when we have an address. */
-export async function staffReply(ticket: SupportTicket & { user: { email: string } | null }, body: string) {
+/**
+ * A person's reply: stored on the ticket and emailed to the customer when we have an address. Says where it went:
+ * "email", "chat" (no address), or "unsent" when the email failed (the reply is saved and shows in their chat, so
+ * the page says so rather than showing an error that invites sending it twice).
+ */
+export async function staffReply(ticket: SupportTicket & { user: { email: string } | null }, body: string): Promise<"email" | "chat" | "unsent"> {
   await db.supportMessage.create({ data: { ticketId: ticket.id, author: "STAFF", body } });
   await db.supportTicket.update({ where: { id: ticket.id }, data: { status: "ANSWERED", urgent: false } });
   // A signed-in customer's bell too (lib/notifications.ts), in the business they asked from.
   if (ticket.userId && ticket.workspaceId)
     await notify([{ userId: ticket.userId, workspaceId: ticket.workspaceId, kind: "SUPPORT", text: "Reply from SureFrame support", href: `/help#t=${ticket.accessToken}`, groupKey: `support:${ticket.id}` }]);
   const to = ticket.user?.email ?? ticket.email;
-  if (!to) return false;
+  if (!to) return "chat";
   const link = appUrl(`/help#t=${ticket.accessToken}`);
-  await sendMail({
+  return sendMail({
     to,
     subject: "Reply from SureFrame support",
     text: [body, "", `See the whole conversation or reply: ${link}`, "", "Sent with SureFrame"].join("\n"),
@@ -108,8 +116,10 @@ export async function staffReply(ticket: SupportTicket & { user: { email: string
 <div style="font-size:15px;line-height:1.5">${paragraphs(body)}</div>
 ${emailButton(link, "See the conversation or reply", emailColors())}`),
     replyTo: supportInbox(),
-  });
-  return true;
+  }).then(
+    () => "email" as const,
+    (e) => (console.error("support reply email failed", e), "unsent" as const),
+  );
 }
 
 /** What the customer's browser sees: never the assistant's hand-over summary. */

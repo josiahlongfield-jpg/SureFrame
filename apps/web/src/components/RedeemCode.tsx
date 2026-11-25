@@ -19,9 +19,11 @@ export default function RedeemCode({ subscribed = false }: { subscribed?: boolea
     e.preventDefault();
     setBusy(true);
     setError(undefined);
-    const res = await fetch("/api/billing/code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
-    const data = await res.json().catch(() => ({}));
+    const res = await fetch("/api/billing/code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) }).catch(() => null);
     setBusy(false);
+    // No answer at all: the code may or may not have been added, so don't say either way.
+    if (!res) return setError("We couldn't confirm that. Check your connection, then reload this page to see whether it went through before trying again.");
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) return setError(data.error ?? "That code couldn't be used. Try again.");
     setDone(data);
   }

@@ -13,7 +13,7 @@ These protect real customers' data. Don't break them without the owner's explici
 3. **Don't rename anything called `framecast`.** That was the old name of the database, storage keys and browser keys. Renaming orphans recordings and keys already saved in people's browsers.
 4. **The server never sees videos, replies, notes or to-dos in plain form.** They're end-to-end encrypted in the browser (`src/lib/e2e/`). Keys stay on devices; clients get theirs in the `#k=` part of their personal link. Never add code that sends plaintext content or keys to the server, to logs or to email.
 5. **Don't change prices or plan limits** (`src/lib/plans.ts`) without the owner's decision.
-6. **Legal pages are versioned** (`src/lib/legal.ts`). A wording fix keeps the version. A change to what the Terms or Privacy policy promise needs a new version, which emails every account holder.
+6. **Legal pages are versioned** (`src/lib/legal.ts`). A wording fix keeps the version. A change to what the Terms or Privacy policy promise needs a new version, which emails every account holder. After publishing a new version, check the next day that `TermsNotice` rows are being created by the daily job (`/api/cron/purge`; `TERMS_NOTICES` must be `on` in Vercel).
 7. **Layouts must work down to 320px wide.** Many clients use phones.
 8. **Secrets live only in Vercel environment variables.** Never commit them or paste them into chats or issues.
 9. **Production deploys need the owner's go-ahead.** Pushing to `main` deploys to the live site.

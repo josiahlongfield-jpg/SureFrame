@@ -12,16 +12,16 @@ async function requireAgent() {
   return { userId: agent.id, email: agent.email };
 }
 
-/** A person's reply. The page then says where it went ("sent"), or that the box was empty. */
+/** A person's reply. The page then says where it went ("sent": by email, in the chat only, or saved but the email failed), or that the box was empty. */
 export async function reply(ticketId: string, form: FormData) {
   await requireAgent();
   const body = String(form.get("body") ?? "").trim().slice(0, 8000);
   if (!body) redirect(`/support/${ticketId}?error=empty`);
   const ticket = await db.supportTicket.findUniqueOrThrow({ where: { id: ticketId }, include: { user: { select: { email: true } } } });
-  const emailed = await staffReply(ticket, body);
+  const went = await staffReply(ticket, body);
   revalidatePath(`/support/${ticketId}`);
   revalidatePath("/support");
-  redirect(`/support/${ticketId}?sent=${emailed ? "email" : "chat"}`);
+  redirect(`/support/${ticketId}?sent=${went}`);
 }
 
 /**

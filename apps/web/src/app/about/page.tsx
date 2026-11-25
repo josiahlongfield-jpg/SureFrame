@@ -62,7 +62,7 @@ export default function About() {
           <Section id="contact" title="Contact">
             <p>
               Email {mail}, or ask in <Link href="/help">Help</Link>, where our assistant answers straight away and you can choose Talk to a person (with limits
-              for visitors and the Free plan). When a person is needed, we reply within 2 business days (Queensland, Australia time).
+              for visitors and the Free plan). When a person is needed, we usually reply within 2 business days (Queensland, Australia time).
             </p>
             <p>
               Answers to common questions are in the <Link href="/faq">FAQ</Link>.
@@ -73,7 +73,7 @@ export default function About() {
           <Section id="continuity" title={`If we're away, or if ${LEGAL.product} closes`}>
             <p data-testid="about-continuity">
               Recording, sending, replies, reminders and emails run on their own, so they keep working whether or not someone is at a desk. Our assistant in Help
-              answers at any time, and a person replies within 2 business days.
+              answers at any time, and a person usually replies within 2 business days.
             </p>
             <p>
               If we ever stop providing {LEGAL.product}, we&rsquo;ll give at least 30 days&rsquo; notice by email (unless the law requires us to act sooner) and refund

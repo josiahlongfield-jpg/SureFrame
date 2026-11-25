@@ -166,7 +166,7 @@ export const BUSINESS_FAQ: Qa[] = [
         For your security, you&rsquo;re usually signed out when you close your browser, or after 8 hours without using {BRAND.name}. If you tick Keep me signed in when you
         sign in, or turn it on later in Settings &gt; Account &gt; This device, you stay signed in on that device for 30 days from when it was turned on, even after
         closing the browser. Don&rsquo;t use it on a shared device. Lost a phone, or left a computer signed in? Sign out everywhere, in the same place, signs you
-        out on every device at once. A connected Claude stays connected until you disconnect it on Connections.
+        out on every device at once. It doesn&rsquo;t disconnect Claude: do that on Connections (an online connection also ends by itself after 60 days without use).
       </p>
     ),
   },
@@ -243,8 +243,8 @@ export const CLIENT_FAQ: Qa[] = [
     q: "Are my replies deleted with the video?",
     a: (
       <p>
-        If the business deletes the video, the conversation goes with it. Video and voice replies also leave our servers {RETENTION_DAYS} days after they
-        finished uploading (usually moments after they were recorded), unless the business has Cloud backup. Text replies stay until they&rsquo;re deleted. Video and voice replies can be up to{" "}
+        If the business deletes the video, the conversation goes with it. Video and voice replies also leave our servers {RETENTION_DAYS} days after they&rsquo;re
+        recorded, unless the business has Cloud backup. Text replies stay until they&rsquo;re deleted. Video and voice replies can be up to{" "}
         {MAX_REPLY_MINUTES} minutes long, whichever plan the business is on.
       </p>
     ),

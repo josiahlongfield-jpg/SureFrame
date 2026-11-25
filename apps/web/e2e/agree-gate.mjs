@@ -183,6 +183,8 @@ ok("a newer agreement to older versions: sent back to /agree", path(fresh) === "
 ok("heading: We've updated our Terms of Service and Privacy Policy", norm(await fresh.textContent("[data-testid=agree-heading]")) === "We’ve updated our Terms of Service and Privacy Policy");
 const changes = await fresh.locator("[data-testid=agree-changes] li").count();
 ok("with a short summary of the changes", changes >= 3 && changes <= 4, String(changes));
+// Their last agreement wasn't to the version just before this one, so the earlier versions' changes are linked too.
+ok("and a link to the earlier versions' changes", (await fresh.getAttribute("[data-testid=agree-earlier] a", "href")) === "/legal/archive#versions");
 ok("an existing account can manage or cancel its subscription instead", (await fresh.getAttribute("[data-testid=agree-billing]", "href")) === "/settings/billing");
 ok("or download its data or delete the account", (await fresh.getAttribute("[data-testid=agree-account]", "href")) === "/settings/account");
 await fresh.screenshot({ path: `${shots}/agree-updated-phone.png`, fullPage: true });
@@ -205,6 +207,7 @@ const effective = new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone
 const noticeMail = outbox().find((m) => m.to === oldEmail && m.subject === "We're updating our Terms of Service and Privacy Policy");
 ok("notice: the daily job emails existing account holders once, and records it", typeof purgeRun.termsNotices === "number" && purgeRun.termsNotices >= 1 && !!noticeRow && !!noticeMail, JSON.stringify(purgeRun));
 ok("notice: gives the date they apply (30 days on), the changes and links", !!noticeMail && norm(noticeMail.text).includes(`The new versions apply to you from ${effective}`) && noticeMail.text.includes("Removing a client now deletes them permanently") && noticeMail.text.includes("/legal/terms") && noticeMail.text.includes("/legal/privacy") && noticeMail.text.includes("cancel your subscription"), noticeMail?.text);
+ok("notice: links the earlier versions' changes, and says where to cancel", !!noticeMail && noticeMail.text.includes("/legal/archive#versions") && norm(noticeMail.text).includes("cancel your subscription in Settings > Billing, and download your data or delete your account in Settings > Account, before then"), noticeMail?.text);
 await cron("purge");
 ok("notice: not sent twice", outbox().filter((m) => m.to === oldEmail && m.subject === "We're updating our Terms of Service and Privacy Policy").length === 1);
 await visit(old, "/library", "/library");

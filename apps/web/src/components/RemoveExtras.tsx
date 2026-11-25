@@ -41,9 +41,11 @@ export default function RemoveExtras({
   async function remove() {
     setBusy(true);
     setError(undefined);
-    const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [field]: extra - n }) });
-    const data = await res.json().catch(() => ({}));
+    const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [field]: extra - n }) }).catch(() => null);
     setBusy(false);
+    // No answer at all: the change may or may not have been made, so the box stays open and says so.
+    if (!res) return setError("We couldn't confirm that. Check your connection, then reload this page to see whether it went through before trying again.");
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setAsking(false);
       return onError(data.error ?? `Could not remove ${noun.many}`);

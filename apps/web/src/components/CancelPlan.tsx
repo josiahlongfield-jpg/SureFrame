@@ -36,9 +36,11 @@ export default function CancelPlan({
     setBusy(true);
     setError(undefined);
     setDone(undefined);
-    const res = await fetch("/api/billing/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keep }) });
-    const data = await res.json().catch(() => ({}));
+    const res = await fetch("/api/billing/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keep }) }).catch(() => null);
     setBusy(false);
+    // No answer at all: it may or may not have gone through, so don't say either way.
+    if (!res) return setError("We couldn't confirm that. Check your connection, then reload this page to see whether it went through before trying again.");
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) return setError(data.error ?? (keep ? "Couldn't keep your plan. Try again, or choose Manage subscription." : "Couldn't cancel your plan. Try again, or choose Manage subscription."));
     setAsking(false);
     setEnding(keep ? null : (cancelsOn ?? periodEnd ?? "the end of the period you've paid for"));

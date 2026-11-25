@@ -26,7 +26,8 @@ export const permNames = (keys: (keyof Perms)[], joiner = "and") => {
 
 /** Save one permission for a member; resolves to an error message or null. */
 export async function savePerm(userId: string, key: keyof Perms, value: boolean) {
-  const res = await fetch(`/api/team/members/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ perms: { [key]: value } }) });
+  const res = await fetch(`/api/team/members/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ perms: { [key]: value } }) }).catch(() => null);
+  if (!res) return "Couldn't save. Check your connection and try again.";
   return res.ok ? null : ((await res.json().catch(() => ({}))).error ?? "Could not change what they can do");
 }
 

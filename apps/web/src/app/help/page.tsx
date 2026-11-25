@@ -50,7 +50,7 @@ export default async function Help({ searchParams }: { searchParams: Promise<{ f
           Our assistant answers straight away. To reach someone on the team, choose Talk to a person under the chat{tier === "paying" ? "" : " (see the limits below)"}.
         </p>
         <p className="mt-2 text-sm text-dim" data-testid="reply-time">
-          When a person is needed, we reply within 2 business days (Queensland, Australia time), by email and here in the chat.
+          When a person is needed, we usually reply within 2 business days (Queensland, Australia time), by email and here in the chat.
         </p>
         {tier === "paying" ? (
           <p className="mt-2 text-sm text-muted" data-testid="help-email">

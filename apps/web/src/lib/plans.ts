@@ -65,7 +65,7 @@ const extraStaffLine = (i: Interval) => (i === "year" ? `Extra staff US$${EXTRA_
 /** Free's intro is a limit, not something you get. */
 const PROMO_LINE = "Clients see a short SureFrame intro, once on each device";
 
-const paidFeatures = ["Unlimited videos", "Up to 4 hours per video", "1080p and 4K recording", "Custom branding", "No SureFrame intro before your videos", extraClientsLine("month"), "Optional cloud backup", "Optional AI transcripts and summaries"];
+const paidFeatures = ["Unlimited videos", "Up to 4 hours per video", "1080p recording, and 4K for your screen", "Custom branding", "No SureFrame intro before your videos", extraClientsLine("month"), "Optional cloud backup", "Optional AI transcripts and summaries"];
 
 export const PLANS: Record<Plan, PlanLimits> = {
   FREE: {

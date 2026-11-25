@@ -102,9 +102,15 @@ export default function Page() {
           which the business can see.
         </li>
         <li>
+          <strong>Notifications in the app:</strong> the list behind the bell (for example that a client replied, that a video is about to leave our servers,
+          or a reminder from your team). Like our emails, they can name a client and a video by its title, and they hold a team reminder&rsquo;s message; they
+          never include replies, the message sent with a video, or to-do text.
+        </li>
+        <li>
           <strong>Billing:</strong> your plan and subscription status, and the customer and subscription references from our payment provider. Subscriptions are
           sold through Link, Stripe&rsquo;s merchant-of-record service: Link collects your card, billing address and tax details at checkout and handles them under
-          its own privacy policy, and we never see or store your card. We give Stripe your email address and business name to set up your account there,
+          its own privacy policy, and we never see or store your card. We give Stripe your email address and your business&rsquo;s name (or your own name, when
+          you start a new business at checkout) to set up your account there,
           when you first go to checkout or when we give your business a discount code.
         </li>
         <li>
@@ -259,7 +265,8 @@ export default function Page() {
       <p>
         You can also connect your own Claude to {LEGAL.product} in Settings &gt; Connections. The online connector signs in with your {LEGAL.product} account and
         reads your activity in that team: client names and who looks after them, video titles, when videos were sent and whether they were opened, when replies were
-        written and who&rsquo;s waiting for an answer, and to-do due dates. It can&rsquo;t read your encrypted content. The Claude Desktop connector also fetches your
+        written and who&rsquo;s waiting for an answer, and to-do due dates. For owners and admins it can also read how each team member is keeping up with their
+        clients (videos sent, clients waiting, average time to answer and overdue to-dos). It can&rsquo;t read your encrypted content. The Claude Desktop connector also fetches your
         encrypted to-dos, notes, messages, replies and, if you use AI summaries, their transcripts and summaries, and unlocks them on your own computer with your team&rsquo;s key, which you give it as a
         connection code; we never receive the key. Both only read, and only what you can see.
       </p>
@@ -314,7 +321,7 @@ export default function Page() {
           is kept unsent, for its author only (see the next points). Leftover pieces are deleted after about a day.
         </li>
         <li>
-          With cloud backup, encrypted content is kept until you delete it, the client it was sent to is removed and then deleted (see below), or your account is
+          With cloud backup, encrypted content is kept until you delete it, the client it was sent to is removed (see below), or your account is
           permanently deleted. If cloud backup ends (you switch it off, cancel, or your paid plan ends), our copies are deleted {LEGAL.retentionDays} days later;
           if it ends while the account is suspended or closed, those {LEGAL.retentionDays} days start when it&rsquo;s unsuspended, reopened or kept.
         </li>
@@ -345,6 +352,10 @@ export default function Page() {
         <li>
           Records of team emails (who was told about which reply or video) are deleted about 30 days after the email is sent. Reminders sent to staff are kept
           with the account as a history for owners and admins.
+        </li>
+        <li>
+          Notifications in the app are deleted 30 days after you read them, or after 90 days if you never do, and sooner if the client they name is removed
+          or the account is deleted.
         </li>
         <li>
           Account details are kept while your account is open. When you delete your account, it&rsquo;s closed straight away: you&rsquo;re signed out on every
@@ -378,7 +389,7 @@ export default function Page() {
           A blocked email address&rsquo;s fingerprint is kept for as long as we need to stop that address being used again, until we lift the block. The record
           of blocking it, which includes the address itself, is a support record and is kept for {LEGAL.supportRecordYears} years.
         </li>
-        <li>IP addresses we count to limit repeated attempts (for example at sign-in) are deleted within about two days.</li>
+        <li>IP addresses, and email addresses typed at sign-in, that we count to limit repeated attempts are deleted within about two days.</li>
         <li>
           To keep the help chat&rsquo;s limits for visitors and Free plans, we record when someone uses it with a one-way fingerprint of their IP address and email
           address (not the addresses themselves) or their account. These records are deleted after 31 days.
@@ -418,6 +429,17 @@ export default function Page() {
           send it again. It&rsquo;s only sent to our sign-in pages.
         </li>
         <li>
+          <strong>sf_signin_at:</strong> the time that email was sent, for up to an hour, so the sign-in page knows when you can ask for another.
+        </li>
+        <li>
+          <strong>sf_joining:</strong> holds the code of a team invite you&rsquo;ve opened but not yet accepted, for up to a day, so signing in can lead you
+          back to it. It&rsquo;s removed when you join.
+        </li>
+        <li>
+          <strong>sf_bell:</strong> marks that you&rsquo;ve seen the notification bell this visit. It&rsquo;s removed when you close the browser, sign in or
+          sign out.
+        </li>
+        <li>
           <strong>sf_tz:</strong> your browser&rsquo;s time zone name (for example &ldquo;Australia/Sydney&rdquo;), for up to a year, so times in the app are
           shown in your own time zone.
         </li>
@@ -429,7 +451,7 @@ export default function Page() {
           <strong>sf_signed_out:</strong> set for 5 minutes after we sign you out this way, so the sign-in page can explain why.
         </li>
         <li>
-          <strong>Client link cookie:</strong> remembers a client&rsquo;s personal link on their device for up to a year, so they can get back to
+          <strong>Client link cookie (fc_client_&lt;business&gt;):</strong> remembers a client&rsquo;s personal link on their device for up to a year, so they can get back to
           their videos without an account.
         </li>
         <li>
@@ -446,7 +468,7 @@ export default function Page() {
         </li>
       </ul>
       <p>
-        Most of our cookies&rsquo; names start with sf_. Two client cookies, fc_key_&lt;client&gt; and fc_removed, start with fc_, from the working name {LEGAL.product}{" "}
+        Most of our cookies&rsquo; names start with sf_. Three client cookies, fc_client_&lt;business&gt;, fc_key_&lt;client&gt; and fc_removed, start with fc_, from the working name {LEGAL.product}{" "}
         had while it was being built. They work like the others, and we&rsquo;ve kept their names so that clients&rsquo; devices carry on working.
       </p>
       <p>
@@ -478,8 +500,8 @@ export default function Page() {
       </p>
       <p>
         If a business removes you as a client, your link stops working straight away, and your details, videos, messages and shared to-dos with that business
-        are deleted for good at the same time. It can&rsquo;t be undone. Unless you&rsquo;ve turned that business&rsquo;s emails off, we email you to let you
-        know. If the business works with you again, they&rsquo;ll send you a new personal link.
+        are deleted for good at the same time. It can&rsquo;t be undone. Unless you&rsquo;ve turned that business&rsquo;s emails off, or the business has another client at the same email
+        address, we email you to let you know. If the business works with you again, they&rsquo;ll send you a new personal link.
       </p>
       <p>
         If a business deletes its {LEGAL.product} account, your link stops working and says the business has closed its account. Your details and conversations

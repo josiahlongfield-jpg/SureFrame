@@ -7,10 +7,12 @@ import { readyIn, recoverInterrupted } from "@/lib/recorder/uploader";
 
 /**
  * Finishes recordings a crash or closed tab left in this browser, from any
- * signed-in page. The recorder and the video page run their own recovery,
- * unless `always` is set (the record page when it shows no recorder).
+ * signed-in page and from a client's pages. The recorder and the video page
+ * run their own recovery, unless `always` is set (the record page when it
+ * shows no recorder). `client`: on a client's page, so "see them all" opens
+ * their own list of videos, never the business's library (a sign-in page to them).
  */
-export default function RecoverUploads({ always = false }: { always?: boolean }) {
+export default function RecoverUploads({ always = false, client = false }: { always?: boolean; client?: boolean }) {
   const path = usePathname() ?? "";
   const router = useRouter();
   const [done, setDone] = useState<string[]>([]);
@@ -39,7 +41,7 @@ export default function RecoverUploads({ always = false }: { always?: boolean })
       {done.length === 1 ? (
         <Link className="font-medium underline" href={`/v/${done[0]}`}>View it</Link>
       ) : (
-        <Link className="font-medium underline" href="/library">See your library</Link>
+        <Link className="font-medium underline" href={client ? "/inbox" : "/library"}>{client ? "See your videos" : "See your library"}</Link>
       )}
       <button onClick={() => setDone([])} className="ml-3 text-ok-fg hover:text-ok-fg" aria-label="Dismiss">✕</button>
     </div>

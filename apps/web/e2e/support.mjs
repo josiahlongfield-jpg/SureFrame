@@ -76,7 +76,7 @@ const link = mail.text.match(/https?:\/\/\S+\/support\/\S+/)?.[0];
 ok("email links to the conversation", !!link, link);
 // The customer is told by email too, since the visitor gave an address (V36).
 const ackMail = outbox().find((m) => m.to === "visitor@example.com" && m.subject === "Your question is with a person at SureFrame");
-ok("hand-over: the visitor gets a short email saying a person has it", !!ackMail && ackMail.text.includes("within 2 business days") && ackMail.text.includes("/help#t=") && ackMail.text.includes("If you didn't ask"), ackMail?.text?.slice(0, 200));
+ok("hand-over: the visitor gets a short email saying a person has it", !!ackMail && ackMail.text.includes("we usually reply within 2 business days") && ackMail.text.includes("/help#t=") && ackMail.text.includes("If you didn't ask"), ackMail?.text?.slice(0, 200));
 await visitor.screenshot({ path: `${shots}/support-visitor.png` });
 
 // 3. Before a person replies, the assistant keeps helping, and the team hears about it
@@ -210,7 +210,7 @@ const mailsBeforeTalk = outbox().length;
 await owner.click("[data-testid=talk-to-person]");
 await owner.waitForSelector("[data-testid=with-person]");
 const passed = (await owner.textContent("[data-testid=with-person]")).trim();
-ok("talk to a person: the chat confirms it, with when and where", passed === "Passed to a person: we reply within 2 business days, here and by email.", passed);
+ok("talk to a person: the chat confirms it, with when and where", passed === "Passed to a person: we usually reply within 2 business days, here and by email.", passed);
 ok("talk to a person: the assistant isn't asked", requests.length === callsBeforeTalk);
 const talkMail = outbox().slice(mailsBeforeTalk).find((m) => m.to === AGENT);
 ok("talk to a person: support is emailed, with the customer's words", !!talkMail && talkMail.text.includes("Talk to a person") && talkMail.text.includes(`check my invoice ${inv}`) && talkMail.replyTo === planEmail, talkMail?.text?.slice(0, 200));

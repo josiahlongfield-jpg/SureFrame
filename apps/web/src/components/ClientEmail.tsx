@@ -19,9 +19,9 @@ export default function ClientEmail({ clientId, name, initial, optedOut }: { cli
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    const res = await fetch(`/api/clients/${clientId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: route === "email" ? email : "" }) });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return setError(data.error ?? "Could not save");
+    const res = await fetch(`/api/clients/${clientId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: route === "email" ? email : "" }) }).catch(() => null);
+    const data = (await res?.json().catch(() => ({}))) ?? {};
+    if (!res?.ok) return setError(data.error ?? "Couldn't save. Check your connection and try again.");
     setError(undefined);
     setEditing(false);
     setSaved(routeLine(name, route));

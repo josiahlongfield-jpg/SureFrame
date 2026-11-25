@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AUD_NOTE } from "@/lib/aud";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import PlanGrid from "@/components/PlanGrid";
 import { cookies } from "next/headers";
 import AppHeader from "@/components/AppHeader";
@@ -28,7 +29,8 @@ import { CLAUDE_BONUS } from "@/lib/claudeBonus";
 import { MAX_TRANSCRIBE_MINUTES } from "@/lib/ai/limits";
 import { foundingLastDay, foundingOpen } from "@/lib/founding";
 import { automaticOffer, cachedOfferForCode, codeFromCookie, isCodeShaped, OFFER_COOKIE, offerIsFor, quietly, type Offer } from "@/lib/offers";
-import { currentUser } from "@/lib/session";
+import { agreePath, currentUser } from "@/lib/session";
+import { agreementKind } from "@/lib/terms";
 import { isReferralCode, referralOffer } from "@/lib/referrals";
 
 export const metadata: Metadata = {
@@ -179,7 +181,7 @@ function FreePlanInFull() {
       "Length",
       `Up to ${free.maxDurationMin} minutes per video, and up to ${free.maxDurationMin} minutes for your own video and voice replies (${MAX_REPLY_MINUTES} on paid plans). Your clients' video and voice replies can be up to ${MAX_REPLY_MINUTES} minutes on every plan.`,
     ],
-    ["Quality", `${free.maxResolution}p recording. Paid plans record in 1080p or 4K.`],
+    ["Quality", `${free.maxResolution}p recording. Paid plans record in 1080p, or 4K for screen recordings.`],
     ["What clients see", "A short SureFrame intro before your video, once on each device. Paid plans remove it and let you add your own logo and colours."],
     ["Video storage", `Videos are deleted from our servers ${RETENTION_DAYS} days after they're recorded. Save a video to your device to keep your own copy. Cloud backup is only on paid plans.`],
     ["Logins", `${free.staffSeats} login, yours. Staff logins are on Studio and Agency.`],
@@ -205,14 +207,20 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
   // The plan being looked at by someone signed in, so its card is marked and its button doesn't offer it again.
   const signedIn = !!(await auth())?.user;
   const me = signedIn ? await currentUser() : null;
+  // A new account that hasn't agreed to the Terms yet (not one asked to agree to updated ones): the plan buttons word it that way.
+  const firstTerms = !!me && !me.agreed && (await agreementKind(me.user)) === "signup";
   const current: CurrentPlan | null = me
-    ? { plan: me.workspace.plan, interval: me.workspace.stripeSubscriptionId ? (me.workspace.billingInterval === "year" ? "year" : "month") : null, owner: me.role === "OWNER" }
+    ? { plan: me.workspace.plan, interval: me.workspace.stripeSubscriptionId ? (me.workspace.billingInterval === "year" ? "year" : "month") : null, owner: me.role === "OWNER", firstTerms }
     : null;
   // Back from signing in after choosing a paid plan (its "Get" link sends /pricing?plan=…&interval=… as the way back).
   const start =
     me?.role === "OWNER" && PAID_PLANS.includes(query.plan as PaidPlan)
       ? { plan: query.plan as PaidPlan, interval: query.interval === "year" ? ("year" as const) : ("month" as const) }
       : null;
+  // The billing API waits for the Terms (lib/session.ts requireUser), so a plan chosen before agreeing, as every new
+  // account's is, goes through /agree (and the welcome step) first and comes back here with the plan kept. The way
+  // back is built from the checked plan and interval only, never from the address as typed.
+  if (start && me && !me.agreed && !me.suspended) redirect(agreePath(`/pricing?plan=${start.plan}&interval=${start.interval}`));
   const code = codeFromCookie((await cookies()).get(OFFER_COOKIE)?.value);
   // Wrapped, so a code Stripe says has ended (null offer) differs from Stripe not answering in time (null lookup).
   const referralCode = isReferralCode(code);
