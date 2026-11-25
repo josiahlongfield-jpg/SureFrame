@@ -11,11 +11,12 @@ export const senderName = (business: string | null | undefined) => {
 };
 
 /**
- * A business name with the product's own name in it ("SureFrame", "SureFrame Support", "Sure-Frame Team"), ignoring
+ * A business name with the product's own name in it, at the start of a word ("SureFrame", "SureFrame Support", "Sure-Frame Team"), ignoring
  * capitals, spacing, punctuation and accents. Its emails to clients would read as coming from SureFrame itself, so it's
  * refused wherever a business name is set or changed (the welcome step, Settings > Branding). A name saved before this
  * rule is left as it is, and emails with no business name (ours) still come from plain "SureFrame" above.
  */
+// "Sure" has to start a word, so ordinary names that only happen to run the letters together ("Treasure Frames") pass.
 export const isReservedBusinessName = (name: string) =>
-  name.normalize("NFKD").toLowerCase().replace(/[^a-z0-9]/g, "").includes(BRAND.name.toLowerCase());
+  /(^|[^a-z0-9])sure[^a-z0-9]*frame/.test(name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase());
 export const RESERVED_BUSINESS_NAME = `Enter your own business's name. It can't include "${BRAND.name}".`;

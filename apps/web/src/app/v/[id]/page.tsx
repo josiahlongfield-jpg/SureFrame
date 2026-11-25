@@ -124,6 +124,9 @@ export default async function Watch({ params, searchParams }: Props) {
     // The other clients this recording went to, each with their own conversation.
     access && !video.sourceId ? db.video.findMany({ where: { sourceId: video.id, client: { ...clientScopeWhere(access), removedAt: null } }, select: { id: true, clientId: true, viewCount: true, emailedAt: true }, orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
   ]);
+  // How many copies deleting this recording takes with it: all of them, including ones for clients this person can't
+  // see (a number only, never who).
+  const copyCount = access && !video.sourceId ? await db.video.count({ where: { sourceId: video.id } }) : 0;
   // Staff can open a video they recorded that went to someone else's client: show who, nothing more.
   // So do paused clients, and those whose link support turned off, who can't open it.
   const sentTo = access && video.clientId && !clients.some((c) => c.id === video.clientId)
@@ -319,7 +322,7 @@ export default async function Watch({ params, searchParams }: Props) {
             hasThumb={hasThumb}
             sourceId={video.sourceId}
             // For the Delete box's warning, also for staff who can't send to several clients.
-            copyCount={copies.length}
+            copyCount={copyCount}
             business={workspace.name}
             message={video.message}
             myReactions={myReactions}

@@ -40,7 +40,8 @@ export const GET = handle(async (req: Request) => {
   });
   // Repeats are worked out in the business's time zone (lib/schedule.ts), so the team's repeat picker needs it too:
   // a device in another zone can be on a different weekday or date. Null until the business has one.
-  const tz = who.kind === "member" ? (await db.workspace.findUnique({ where: { id: who.workspaceId }, select: { timezone: true } }))?.timezone ?? null : undefined;
+  // A client's list uses it too, to show the reminder bell by the same clock the reminder emails go by.
+  const tz = (await db.workspace.findUnique({ where: { id: who.workspaceId }, select: { timezone: true } }))?.timezone ?? null;
   return Response.json({
     items: items.map(itemDTO).map((i) => (who.kind === "client" ? { ...i, remindTeam: false } : i)),
     tz,

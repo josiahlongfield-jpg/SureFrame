@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { BRAND, senderName } from "@/lib/brand";
@@ -88,13 +87,11 @@ const SEND_TIMEOUT_MS = 15_000;
 
 async function resend(key: string, path: string, payload: unknown) {
   const body = JSON.stringify(payload);
-  // One key for this send and its retries below, so a retry of a request Resend did accept isn't sent twice.
-  const idempotencyKey = randomUUID();
   // Resend allows a few requests a second; a burst waits briefly and tries again.
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(`https://api.resend.com${path}`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body,
       signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
     });
