@@ -196,13 +196,14 @@ ok("emails page told to the AI", requests.at(-1).body.messages.some((m) => m.rol
 await laptop.screenshot({ path: `${shots}/client-help-desktop.png` });
 
 // ---------- A link that's stopped working still gets help, explained only as the page does ----------
-await prisma.client.update({ where: { id: clientA.id }, data: { removedAt: new Date(), purgeAt: new Date(Date.now() + 30 * 86_400_000) } });
+// (A paused client: a deleted client's page is gone altogether, so there is nothing left there to ask from.)
+await prisma.client.update({ where: { id: clientA.id }, data: { pausedAt: new Date() } });
 await phone.goto(`${BASE}/v/${video.id}`);
-await phone.waitForSelector("[data-testid=video-removed]");
+await phone.waitForSelector("[data-testid=video-paused]");
 await phone.tap("[data-testid=client-help-button]");
 await ask(phone, "Why can't I open this?");
-ok("can't-open page: Help works, told what the page says", requests.at(-1).body.messages.some((m) => m.role === "system" && m.content.includes("Your access has ended")));
-await prisma.client.update({ where: { id: clientA.id }, data: { removedAt: null, purgeAt: null } });
+ok("can't-open page: Help works, told what the page says", requests.at(-1).body.messages.some((m) => m.role === "system" && m.content.includes("Your access is paused")));
+await prisma.client.update({ where: { id: clientA.id }, data: { pausedAt: null } });
 
 // ---------- The weekly digest to the support address ----------
 await prisma.clientQuestionDigest.deleteMany();
