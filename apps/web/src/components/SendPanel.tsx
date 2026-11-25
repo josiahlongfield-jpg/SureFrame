@@ -393,7 +393,8 @@ export default function SendPanel({
     const rowNote = rowNotes[r.clientId];
     const status =
       section === "email"
-        ? state === "emailed" ? "Emailed" : state === "when-ready" ? "Emailed when the upload finishes" : "Not emailed yet"
+        ? // Opened without our email (the link went from the sender's own email or by copy): only "Opened" is said.
+          state === "emailed" ? "Emailed" : state === "when-ready" ? "Emailed when the upload finishes" : r.opened ? null : "Not emailed yet"
         : state === "own-email" ? "Sent from your email" : state === "copied" ? "Link copied" : section === "first" && !sentLink(c) ? "Not sent yet" : null;
     return (
       <li key={r.convId} className="py-2 text-sm first:pt-0 last:pb-0" data-testid="sent-row" data-section={section}>

@@ -51,8 +51,13 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
           they open first sets up their phone or computer, and after that every video opens there.
         </p>
         <p className="mt-1 text-sm text-dim" data-testid="client-page-hint">
-          Open a client by their name to send their link from your email or with a message, see their videos, and keep to-dos and notes
-          {plan.staffSeats > 1 ? ", and to choose who on your team looks after them" : ". On Studio and Agency you can also choose who on your team looks after each client"}.
+          Open a client by their name to send their link from your email or with a message, see their videos, and keep to-dos and notes.
+          {/* Only owners and admins choose that, and only with someone else on the team to choose from. */}
+          {canManage && members.length > 1
+            ? " You can also choose who on your team looks after each client."
+            : canManage && plan.staffSeats <= 1
+              ? " On Studio and Agency you can also choose who on your team looks after each client."
+              : null}
         </p>
         {clients.some((c) => c.pausedAt) && (
           <p className="mt-4 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="paused-clients-note">

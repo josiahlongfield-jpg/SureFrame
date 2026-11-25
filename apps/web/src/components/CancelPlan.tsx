@@ -47,7 +47,8 @@ export default function CancelPlan({
     setDone(
       keep
         ? `Your ${planName} plan will keep renewing${periodEnd ? `. The next bill is on ${periodEnd}` : ""}.`
-        : `Cancelled. Your ${planName} plan stays active ${until}, then your business moves to the Free plan. Changed your mind? Choose Keep my plan.`,
+        : // The line under this one gives the end date and the move to Free, so it isn't said twice.
+          "Cancelled. Changed your mind? Choose Keep my plan.",
     );
     router.refresh();
   }

@@ -854,6 +854,11 @@ export default function Recorder({
   const mirror = frontBack && facing === "environment" ? "" : "-scale-x-100";
   const sides = cameraSides(cams);
   const allowedQualities = ([720, 1080, 2160] as Quality[]).filter((q) => q <= maxResolution);
+  // Where the words in the screen panel sit on a narrow screen: away from the camera circle's corner.
+  const hintEdge =
+    phase === "setup" && mode === "screen+camera"
+      ? corner.startsWith("top") ? "justify-end pb-4 sm:justify-center sm:pb-0" : "justify-start pt-4 sm:justify-center sm:pt-0"
+      : "justify-center";
 
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem]">
@@ -867,14 +872,16 @@ export default function Recorder({
             <>
               <video key={previewKey} ref={previewRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full ${mirror} object-cover ${frame.ready ? "" : "opacity-0"}`} />
               {!frame.ready && (
-                <p className="absolute inset-0 grid place-items-center text-sm text-dim" data-testid="camera-starting">
+                <p className="absolute inset-0 grid place-items-center text-sm text-on-solid/80" data-testid="camera-starting">
                   Starting camera…
                 </p>
               )}
             </>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-dim" data-testid="screen-panel">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="20" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+            // Light text on the dark panel (the dim grey was too faint to read). On a narrow screen the picture is
+            // left out and, before recording, the words sit at the far edge from the camera circle so it doesn't cover them.
+            <div className={`flex h-full flex-col items-center ${hintEdge} gap-3 px-6 text-center text-on-solid/80`} data-testid="screen-panel">
+              <svg className="max-sm:hidden" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="20" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
               <p className="text-sm">
                 {phase === "setup"
                   ? mode === "screen+camera"

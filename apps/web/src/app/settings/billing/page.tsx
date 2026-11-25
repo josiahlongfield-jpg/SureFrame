@@ -56,7 +56,7 @@ async function FreeLosses({ workspace }: { workspace: Workspace }) {
     lines.push(
       used >= free.maxVideos
         ? `Recording new videos: you've recorded ${used}, and Free's ${free.maxVideos} counts every video ever recorded on any plan, so you couldn't record more.`
-        : `Most of Free's videos: you've recorded ${used}, and Free's ${free.maxVideos} counts every video ever recorded on any plan, so ${free.maxVideos - used} would be left.`,
+        : `Unlimited videos: you've recorded ${used}, and Free's ${free.maxVideos} counts every video ever recorded on any plan, so ${free.maxVideos - used} would be left.`,
     );
   }
   if (clients > free.clientSeats) lines.push(`${clients - free.clientSeats} of your ${clients} clients, paused until you upgrade (Free covers ${free.clientSeats}).`);
@@ -67,6 +67,9 @@ async function FreeLosses({ workspace }: { workspace: Workspace }) {
   if (aiAssistActive(workspace)) lines.push("AI transcripts and summaries.");
   if (workspace.foundingPrices) lines.push("Your founding prices, for good: a later plan is at the prices of the day.");
   if (workspace.discountLabel) lines.push(`Your discount (${workspace.discountLabel}).`);
+  // Custom branding is kept on Free but not shown (lib/branding.ts brandOf); Settings > Branding says the same.
+  const branding = [workspace.brandLogoType && "logo", workspace.brandColor && "colour"].filter(Boolean).join(" and ");
+  if (branding) lines.push(`Your ${branding} on client pages and emails (kept, and back when you upgrade).`);
   lines.push(`Videos up to ${free.maxDurationMin} minutes, ${free.maxResolution}p, and your clients see a short ${BRAND.name} intro.`);
   return (
     <div data-testid="free-losses">

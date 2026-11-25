@@ -49,7 +49,10 @@ export function reminderEmail(o: {
     reach ? `\n${reach}` : "",
     o.unsubscribe ? `\nStop emails from ${o.business}: ${o.unsubscribe}` : "",
     "\nSent with SureFrame",
-  ].join("\n");
+  ]
+    // A part that's left out leaves no blank line of its own behind.
+    .filter(Boolean)
+    .join("\n");
   const colors = emailColors(o.color);
   const { link } = colors;
   const html = emailShell(`${emailLogo(o.logoUrl, o.business)}

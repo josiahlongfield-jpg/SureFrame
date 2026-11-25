@@ -51,6 +51,8 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
   const mine = await db.membership.findMany({ where: { userId: user.id }, include: { workspace: { select: { name: true, timezone: true, stripeSubscriptionId: true, _count: { select: { members: true } } } } } });
   const ownWorkspace = mine.find((m) => m.role === "OWNER" && m.workspace._count.members === 1)?.workspace;
   const ownsAlone = !!ownWorkspace;
+  // An owner with anyone else on the team (paused staff too) can't delete yet (lib/accountDeletion.ts): said before they confirm.
+  const ownsTeam = mine.some((m) => m.role === "OWNER" && m.workspace._count.members > 1);
   const teams = mine.filter((m) => m.role !== "OWNER" && m.workspace._count.members > 1);
   const teamNames = teams.map((m) => m.workspace.name);
   // Deleted for good this long after closing, unless they sign in and keep it (lib/accountDeletion.ts).
@@ -178,9 +180,10 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
             <p role="status" className="mt-3 text-sm text-ok-fg" data-testid="email-changed">Done. You now sign in with {user.email}.</p>
           ) : null}
           {agreed ? (
-            <form action={changeEmail} className="mt-4 flex flex-wrap gap-2">
+            <form action={changeEmail} className="mt-4 flex flex-col gap-2 sm:flex-row">
+              {/* Stacked on a phone, so the address being typed has the full width. */}
               <input name="email" type="email" required autoComplete="email" aria-label="New sign-in email" placeholder="New email address"
-                className="min-w-0 flex-1 rounded-xl border border-line-strong px-3 py-2 text-sm" data-testid="new-email" />
+                className="w-full min-w-0 rounded-xl border border-line-strong px-3 py-2 text-sm sm:w-auto sm:flex-1" data-testid="new-email" />
               <button className="rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:bg-hover" data-testid="change-email">Email me a link</button>
             </form>
           ) : (
@@ -370,6 +373,13 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
               Nothing is scheduled yet. If you delete your account, it&apos;s closed straight away and permanently deleted {DELETION_GRACE_DAYS} days later (on{" "}
               {deletesOn} if you delete it today). Until then, you can sign in to keep it with everything as it was.
             </p>
+            {ownsTeam && (
+              <p className="text-ink" data-testid="delete-owns-team">
+                You own a team with other staff. Remove them in{" "}
+                <Link href="/settings/team" className="font-medium text-accent hover:underline">Settings &gt; Team and staff</Link> first. After that, your business goes with
+                your account: its recordings, clients, to-dos and notes.
+              </p>
+            )}
             {(ownsAlone || teamNames.length > 0) && (
               <ul className="list-disc space-y-1 pl-5">
                 {ownsAlone && (
@@ -388,7 +398,7 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
             {error === "confirm" && <p role="alert" className="text-sm text-danger-fg">That doesn&apos;t match your email.</p>}
             {error === "failed" && <p role="alert" className="text-sm text-danger-fg">Your account couldn&apos;t be closed just now (we must stop any subscription first). Please try again in a few minutes, or ask in Help.</p>}
             {error === "team" && <p role="alert" className="text-sm text-danger-fg">You own a team with other staff. Remove them on the Team page first.</p>}
-            <DeleteAccountButton email={user.email} />
+            <DeleteAccountButton email={user.email} blocked={ownsTeam} />
           </form>
         </section>
       </main>

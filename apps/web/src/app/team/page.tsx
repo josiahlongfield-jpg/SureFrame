@@ -258,9 +258,11 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
 /** A staff member's page: their business, who's on the team, what they can do and where their own settings are. */
 async function StaffTeam({ me }: { me: Awaited<ReturnType<typeof requirePageUser>> }) {
   const { user, workspace, membership } = me;
-  const [members, clients] = await Promise.all([
+  // `clients` is everyone they can see; "look after" means assigned to them, as on the owner's Team page.
+  const [members, clients, assigned] = await Promise.all([
     db.membership.findMany({ where: { workspaceId: workspace.id }, include: { user: { select: { name: true, email: true } } }, orderBy: { id: "asc" } }),
     db.client.count({ where: { ...clientScopeWhere(accessOf(me)), removedAt: null } }),
+    db.client.count({ where: { workspaceId: workspace.id, assignedToId: user.id, removedAt: null } }),
   ]);
   const display = (u: { name: string | null; email: string }) => u.name ?? u.email.split("@")[0];
   const ROLE = { OWNER: "Owner", ADMIN: "Admin", MEMBER: "Member" } as const;
@@ -274,7 +276,8 @@ async function StaffTeam({ me }: { me: Awaited<ReturnType<typeof requirePageUser
         <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
           <h2 className="font-semibold text-ink">Your clients</h2>
           <p className="mt-1 text-sm text-muted">
-            You look after {clients} {clients === 1 ? "client" : "clients"}.{" "}
+            You look after {assigned} {assigned === 1 ? "client" : "clients"}
+            {clients > assigned ? `, and you can see all ${clients} of ${workspace.name}'s clients` : ""}.{" "}
             <Link href="/clients" className="font-medium text-accent hover:underline">Open Clients</Link>
           </p>
           <div className="mt-4">

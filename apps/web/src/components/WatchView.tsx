@@ -1453,6 +1453,7 @@ function WatchBody({
           onAsk={() => setConfirming(null)}
           onReviewChange={setDraftWaiting}
           maxMinutes={replyMaxMinutes}
+          byTeam={viewer.kind === "member"}
         />
         </div>
       </aside>
@@ -1684,7 +1685,8 @@ function MessageEditor({ videoId, rootKey, sealed, to }: { videoId: string; root
   const who = to ?? "your client";
   return (
     <div className="mt-4 rounded-2xl border border-line bg-surface p-4" data-testid="message-editor">
-      <div className="flex items-start justify-between gap-3">
+      {/* On a phone the button goes under the words, which would otherwise be squeezed into a narrow column beside it. */}
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-medium text-ink">Message to {who}</p>
           {!open && (

@@ -92,10 +92,12 @@ type Props = {
    * before recording is right from the start. Left out, it's a client's limit; the server's answer still decides.
    */
   maxMinutes?: number;
+  /** True for the business's own team, who reopen the video from their Library; a client opens their link again. */
+  byTeam?: boolean;
 };
 
 const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyComposer(
-  { videoId, conversationKey, currentTimeMs, onReplied, onBusyChange, offscreen = false, sentNote, onAsk, onReviewChange, maxMinutes = 15 },
+  { videoId, conversationKey, currentTimeMs, onReplied, onBusyChange, offscreen = false, sentNote, onAsk, onReviewChange, maxMinutes = 15, byTeam = false },
   ref,
 ) {
   const [mode, setMode] = useState<Mode>("TEXT");
@@ -858,7 +860,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
             <div className="mt-2 grid gap-1 text-xs text-muted" data-testid="reply-notes">
               <p data-testid="reply-limit-note">Replies can be up to {Math.round(maxMs / 60_000)} minutes; recording stops by itself at the limit, and you can play it back before sending.</p>
               <p data-testid="reply-crash-note">
-                Your reply is saved as you record. If this page closes, open the link again and it&rsquo;s ready to send within about 90 seconds.
+                Your reply is saved as you record. If this page closes, {byTeam ? "reopen this video" : "open the link again"} and it&rsquo;s ready to send within about 90 seconds.
               </p>
             </div>
           )}

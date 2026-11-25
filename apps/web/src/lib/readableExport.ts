@@ -68,7 +68,7 @@ export function readableHtml(data: Loose) {
         .join("");
       return `<article>
 <h4>${esc(v.title || "Untitled video")}</h4>
-<p class="dim">${esc(day(v.createdAt))}${v.durationMs ? ` · ${esc(minutes(v.durationMs))}` : ""}${v.clientId ? ` · Sent to ${esc(clientName(v.clientId))}` : ""}${v.status === "EXPIRED" ? " · Deleted from our servers" : v.purgeAt ? ` · Deleted from our servers ${esc(day(v.purgeAt))}` : ""}</p>
+<p class="dim">${esc(day(v.createdAt))}${v.durationMs ? ` · ${esc(minutes(v.durationMs))}` : ""}${v.clientId ? ` · Sent to ${esc(clientName(v.clientId))}` : ""}${v.status === "EXPIRED" ? " · Deleted from our servers" : v.purgeAt ? ` · ${new Date(String(v.purgeAt)).getTime() > Date.now() ? "Deletes from our servers on" : "Deleted from our servers"} ${esc(day(v.purgeAt))}` : ""}</p>
 ${v.message ? `<p><b>Message to the client:</b></p>${opened(v.messageText, v.message)}` : ""}
 ${insight(v.insight as Loose | null)}
 ${replies ? `<p><b>Conversation</b></p><ul>${replies}</ul>` : ""}
@@ -88,6 +88,7 @@ ${t.readable ? `<p class="note">${esc(t.readable)}</p>` : ""}
 <h3>Clients (${clients.length})</h3>
 ${table(["Name", "Email", "Added", "Status"], clientRows)}
 <h3>Videos (${videos.length})</h3>
+${videos.length > 1 ? `<p class="dim" style="margin-bottom:8px">A video sent to several clients is listed once for each client, with that client's conversation, so this can be more than the number you recorded.</p>` : ""}
 ${videoBlocks.join("") || `<p class="dim">None.</p>`}
 <h3>To-dos and notes (${items.length})</h3>
 ${table(["What", "Text", "Due", "For"], itemRows)}
@@ -110,7 +111,7 @@ ul{padding-left:20px}li{margin:0 0 8px}.dim{color:#57687e;font-size:13px;margin:
 </style></head><body><main>
 <h1>Your SureFrame data</h1>
 <p class="dim">${esc(user.name ? `${user.name} · ` : "")}${esc(user.email)} · Downloaded ${esc(exportedAt)}</p>
-<p class="note">${esc(data.note)} Video and voice files aren't in this file: save them from each video's page.</p>
+<p class="note">${esc(data.note)}</p>
 ${teams.join("\n")}
 <h2>Help conversations (${help.length})</h2>
 ${help.join("") || `<p class="dim">None.</p>`}

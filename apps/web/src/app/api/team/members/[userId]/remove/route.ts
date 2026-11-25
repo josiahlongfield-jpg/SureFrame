@@ -45,10 +45,11 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ userId:
   // A freed seat restores a paused staff member.
   await enforceSeatLimits(workspace.id);
   // They hear it from us, not only on their next sign-in. Nothing is emailed in a suspended workspace's name.
-  const gone = await db.user.findUnique({ where: { id: userId }, select: { email: true, deleteAt: true } });
+  const gone = await db.user.findUnique({ where: { id: userId }, select: { email: true, deleteAt: true, _count: { select: { memberships: true } } } });
   if (gone && !gone.deleteAt && !workspace.suspendedAt && !workspace.closedAt) {
     const brand = brandOf(workspace, appUrl(""));
-    await sendMail({ to: gone.email, ...removedEmail({ business: workspace.name, logoUrl: brand.logoUrl, color: brand.color }) }).catch((err) => console.error("removed email failed", err));
+    // With no team or business left they land on the Start page, so the email points to the delete control there.
+    await sendMail({ to: gone.email, ...removedEmail({ business: workspace.name, noTeamLeft: gone._count.memberships === 0, logoUrl: brand.logoUrl, color: brand.color }) }).catch((err) => console.error("removed email failed", err));
   }
   return Response.json(result);
 });

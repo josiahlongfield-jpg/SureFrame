@@ -128,8 +128,10 @@ export default function DeleteClientDialog({
             <li>every conversation with them, with all replies and reactions{preview.replies ? ` (${plural(preview.replies, "reply", "replies")})` : ""}</li>
             <li>their to-dos, notes and reminders{preview.items ? ` (${plural(preview.items, "item", "items")})` : ""}</li>
             <li>their personal link, which stops working on every device</li>
-            <li>{videos ? `${plural(videos, "video", "videos")} sent only to them` : "no videos: none were sent only to them"}</li>
+            {videos > 0 && <li>{plural(videos, "video", "videos")} sent only to them</li>}
           </ul>
+          {/* Nothing to erase isn't part of the "is erased" list, so it's said under it. */}
+          {!videos && <p data-testid="remove-client-no-videos">No videos are deleted: none were sent only to them.</p>}
           {preview.kept > 0 && (
             <p data-testid="remove-client-kept">
               {plural(preview.kept, "video", "videos")} you also sent to other clients or kept for your team {preview.kept === 1 ? "stays" : "stay"}, without {name} on {preview.kept === 1 ? "it" : "them"}.

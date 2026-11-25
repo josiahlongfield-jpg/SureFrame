@@ -8,12 +8,14 @@ import { DELETION_GRACE_DAYS } from "@/lib/periods";
  * The confirm box and button for closing the account: the button works once
  * the email is typed, then asks once more before anything happens, and shows
  * that closing is under way, since it can take a few seconds.
+ * `blocked`: the page has already said why this account can't be deleted yet (an owner with staff), so the button
+ * stays off rather than refusing after the confirm step.
  */
-export default function DeleteAccountButton({ email }: { email: string }) {
+export default function DeleteAccountButton({ email, blocked = false }: { email: string; blocked?: boolean }) {
   const { pending } = useFormStatus();
   const [typed, setTyped] = useState("");
   const [sure, setSure] = useState(false);
-  const matches = typed.trim().toLowerCase() === email.toLowerCase();
+  const matches = !blocked && typed.trim().toLowerCase() === email.toLowerCase();
   return (
     <>
       <label className="block text-sm text-muted">
@@ -23,6 +25,7 @@ export default function DeleteAccountButton({ email }: { email: string }) {
           type="email"
           autoComplete="off"
           required
+          disabled={blocked}
           value={typed}
           onChange={(e) => {
             setTyped(e.target.value);

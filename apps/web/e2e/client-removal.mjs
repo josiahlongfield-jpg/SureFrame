@@ -144,7 +144,7 @@ await owner.click(`li:has-text("Cal ${stamp}") >> button:text-is("Remove client"
 await owner.waitForSelector("[data-testid=remove-client-sure]");
 const calText = norm(await owner.textContent("[data-testid=remove-client-confirm]"));
 ok("no email address: no line about emailing them", !calText.includes("We'll email"), calText);
-ok("no videos sent only to them: said, and no save box", calText.includes("no videos: none were sent only to them") && (await owner.locator("[data-testid=remove-client-save]").count()) === 0, calText);
+ok("no videos sent only to them: said, and no save box", calText.includes("No videos are deleted: none were sent only to them.") && (await owner.locator("[data-testid=remove-client-save]").count()) === 0, calText);
 await owner.click("[data-testid=remove-client-confirm] >> button:text-is('Cancel')");
 ok("Cancel closes the box and deletes nobody", (await owner.locator("[data-testid=remove-client-confirm]").count()) === 0 && !!(await prisma.client.findUnique({ where: { id: cal.id } })));
 ok("Cancel: focus back on Remove client", await owner.evaluate(() => !!document.activeElement?.getAttribute("aria-label")?.startsWith("Remove client Cal")));

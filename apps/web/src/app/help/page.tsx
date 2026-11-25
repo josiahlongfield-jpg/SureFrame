@@ -27,6 +27,8 @@ export default async function Help({ searchParams }: { searchParams: Promise<{ f
   const signedIn = !!(await auth())?.user;
   const me = signedIn ? await currentUser().catch(() => null) : null;
   const tier = supportTier(me?.workspace);
+  // Signed in to a business: not the questions a client would ask, and on a paid plan not the Free plan one.
+  const common = me ? COMMON.filter((id) => !CLIENT_FAQ.some((x) => x.id === id) && (id !== "free-plan" || me.workspace.plan === "FREE")) : COMMON;
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">
       {/* Signed in, the app's own header with its Clients, Library, To-dos and Settings, as on Pricing (V78). The page is the chat, so no floating one.
@@ -68,7 +70,7 @@ export default async function Help({ searchParams }: { searchParams: Promise<{ f
         )}
         <div className="mt-8 flex h-[65vh] min-h-[26.25rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface">
           <ChatBoundary>
-            <SupportChat signedIn={signedIn} className="flex-1" suggestions={COMMON.slice(0, 4).flatMap((id) => [...BUSINESS_FAQ, ...CLIENT_FAQ].find((x) => x.id === id)?.q ?? [])} />
+            <SupportChat signedIn={signedIn} className="flex-1" suggestions={common.slice(0, 4).flatMap((id) => [...BUSINESS_FAQ, ...CLIENT_FAQ].find((x) => x.id === id)?.q ?? [])} />
           </ChatBoundary>
         </div>
         {/* The most-asked questions, linking into the FAQ page rather than repeating it, so Help (ask us) and FAQ (read the
@@ -76,7 +78,7 @@ export default async function Help({ searchParams }: { searchParams: Promise<{ f
         <section id="faq" className="mt-12 scroll-mt-20" aria-labelledby="faq-h" data-testid="help-faq">
           <h2 id="faq-h" className="text-xl font-semibold text-ink">Common questions</h2>
           <ul className="mt-4 divide-y divide-line rounded-2xl border border-line bg-surface">
-            {COMMON.map((id) => {
+            {common.map((id) => {
               const qa = [...BUSINESS_FAQ, ...CLIENT_FAQ].find((x) => x.id === id);
               return qa ? (
                 <li key={id}>

@@ -232,8 +232,11 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // When a folder's recordings leave our servers: said once on the folder's row rather than on every card.
   const dayDeletes = (items: Item[]) => {
     if (workspace.cloudBackup) return null;
-    const at = items.flatMap((v) => (v.purgeAt && v.status !== "EXPIRED" && v.status !== "RECORDING" ? [v.purgeAt.getTime()] : [])).sort((a, b) => a - b)[0];
-    return at ? new Date(at) : null;
+    const at = items.flatMap((v) => (v.purgeAt && v.status !== "EXPIRED" && v.status !== "RECORDING" ? [v.purgeAt.getTime()] : [])).sort((a, b) => a - b);
+    if (!at.length) return null;
+    // A client's, week's or month's folder can hold videos that go on different days: then the date is only the first of them.
+    const first = new Date(at[0]);
+    return { at: first, onlyFirst: dates.shortDay(new Date(at[at.length - 1])) !== dates.shortDay(first) };
   };
   // A folder's picture: its newest still on a little stack of cards, and on wider screens the next two beside it.
   const cover = (items: Item[], depth: number, strip: boolean) => (
@@ -270,7 +273,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
           <span data-testid={`${kind}-count`}>{items.length} {items.length === 1 ? "video" : "videos"}</span>
           {opts.note}
         </span>
-        {deletes && <span className="block text-xs text-dim" data-testid="day-deletes">Deletes {dates.shortDay(deletes)}</span>}
+        {deletes && <span className="block text-xs text-dim" data-testid="day-deletes">{deletes.onlyFirst ? "First one deletes" : "Deletes"} {dates.shortDay(deletes.at)}</span>}
         <span className="mt-1 block empty:hidden">
           <ReplyBadges convs={opts.convs ?? items.flatMap(convsOf)} onlyNew />
         </span>
@@ -287,7 +290,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
           <span className={`block text-dim ${depth === 0 ? "text-sm" : "text-xs"}`}>
             <span data-testid={`${kind}-count`}>{items.length} {items.length === 1 ? "video" : "videos"}</span>
             {opts.note}
-            {deletes && <span data-testid="day-deletes"> · deletes<span className="max-sm:hidden"> from our servers</span> {dates.shortDay(deletes)}</span>}
+            {deletes && <span data-testid="day-deletes"> · {deletes.onlyFirst ? "first one deletes" : "deletes"}<span className="max-sm:hidden"> from our servers</span> {dates.shortDay(deletes.at)}</span>}
           </span>
           <span className="mt-1 block empty:hidden">
             <ReplyBadges convs={opts.convs ?? items.flatMap(convsOf)} onlyNew />

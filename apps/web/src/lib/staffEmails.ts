@@ -24,14 +24,22 @@ export function inviteEmail(o: { business: string; inviter: string; admin: boole
   });
 }
 
-/** Tells someone they were taken off a team, so they don't only find out the next time they sign in. */
-export function removedEmail(o: { business: string; logoUrl?: string | null; color?: string | null }) {
+/**
+ * Tells someone they were taken off a team, so they don't only find out the next time they sign in.
+ * `noTeamLeft`: that was their only team and they have no business, so signing in lands them on the Start page
+ * (app/start), where "Delete this login" is; Settings > Account can't be opened without a team or business.
+ */
+export function removedEmail(o: { business: string; noTeamLeft?: boolean; logoUrl?: string | null; color?: string | null }) {
   return teamEmail({
     business: o.business,
     subject: `You're no longer on ${o.business}'s team`,
     lead: `An owner or admin of ${o.business} removed you from their team on ${BRAND.name}, so you can no longer open its videos or clients.`,
     lines: [
-      { text: `Your ${BRAND.name} login still works. You can use it to start a business of your own, or delete it under Settings > Account.` },
+      {
+        text: o.noTeamLeft
+          ? `Your ${BRAND.name} login still works. You can use it to start a business of your own, or delete it: sign in and choose Delete this login.`
+          : `Your ${BRAND.name} login still works. You can use it to start a business of your own, or delete it under Settings > Account.`,
+      },
       { text: "If that's a mistake, ask them for a new invite link." },
     ],
     button: { label: `Open ${BRAND.name}`, link: appUrl("/library") },

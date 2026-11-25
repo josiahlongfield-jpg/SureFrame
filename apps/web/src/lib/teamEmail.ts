@@ -26,12 +26,16 @@ export function teamEmail(o: {
   const text = [
     o.lead,
     o.note ? `\n${o.note}` : "",
-    ...lines.map((l) => `- ${l.text}${l.link ? `: ${l.link}` : ""}`),
+    // A line that is already a sentence gets its link after a space, not ".: https://…".
+    ...lines.map((l) => `- ${l.text}${l.link ? `${/[.!?]$/.test(l.text) ? "" : ":"} ${l.link}` : ""}`),
     // A button that opens an email (support's notices): the plain-text part shows the bare address, not "mailto:…".
     `\n${o.button.label}: ${o.button.link.replace(/^mailto:/, "")}`,
     o.footer ? `\n${o.footer}` : "",
     "\nSent with SureFrame",
-  ].join("\n");
+  ]
+    // A part that's left out leaves no blank line of its own behind.
+    .filter(Boolean)
+    .join("\n");
   const colors = emailColors(o.color);
   const { link } = colors;
   // These come from SureFrame, so without a logo the business they're about is named under the mark.
