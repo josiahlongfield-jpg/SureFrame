@@ -16,6 +16,7 @@ export function errorText(code: string) {
   if (code === "code-wrong") return "That code isn't right. Check the latest email and try again.";
   if (code === "code-expired") return "That code has expired, or a newer email replaced it. Use the code in the latest email, or send again.";
   if (code === "code-tries") return "Too many wrong tries for that code. Send again to get a new one.";
+  if (code === "code-today") return "Too many codes were tried for this email address today. Use the sign-in link in the email instead, or try again tomorrow.";
   if (code === "code-rate") return "Too many codes were tried from your network. Please wait a little and try again.";
   if (code === "password") return "That password isn't right. Check it and try again.";
   if (code === "Verification") return "That sign-in link has expired or was already used. Enter your email to get a new one.";

@@ -204,7 +204,7 @@ export async function answer(ticketId: string, opts: AnswerOptions = {}): Promis
       system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
       tools: [ACCOUNT_TOOL, HANDOVER_TOOL],
       messages,
-    }, { timeout: left, signal: AbortSignal.timeout(left) });
+    }, { timeout: Math.min(45_000, left), signal: AbortSignal.timeout(left) });
     console.log("[support] assistant turn", JSON.stringify({ ticket: ticket.id, stop: response.stop_reason, model: response.model, blocks: response.content.map((b) => (b.type === "tool_use" ? `tool:${b.name}` : b.type)) }));
     if (response.stop_reason === "refusal") {
       const refused = await handOver("The assistant couldn't answer this message. Please read the conversation.", false);

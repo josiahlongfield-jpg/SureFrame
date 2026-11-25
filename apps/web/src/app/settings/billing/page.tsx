@@ -308,9 +308,14 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
               Your last payment didn&apos;t go through. Update your card under Manage subscription so your plan carries on.
             </p>
           )}
-          {/* A plan that lapsed or was cancelled has no subscription any more (lib/subscription.ts), so it gets a note of its own. */}
+          {/* A plan that lapsed or was cancelled has no subscription any more (lib/subscription.ts), so it gets a note of its own.
+              The status stays for good, so one cancelled (perhaps on purpose) gets a quiet line, not a warning box. */}
           {!workspace.stripeSubscriptionId && !comp && (workspace.subscriptionStatus === "unpaid" || workspace.subscriptionStatus === "canceled") && (
-            <p role="status" className="mt-3 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="plan-ended">
+            <p
+              role="status"
+              className={workspace.subscriptionStatus === "unpaid" ? "mt-3 rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" : "mt-1 text-sm text-muted"}
+              data-testid="plan-ended"
+            >
               Your paid plan has ended, because it was cancelled or a payment couldn&apos;t be taken. Choose a plan to subscribe again.
             </p>
           )}

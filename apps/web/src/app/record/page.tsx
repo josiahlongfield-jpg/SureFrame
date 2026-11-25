@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import RecordScreen from "@/components/RecordScreen";
+import RecorderStays from "@/components/RecorderStays";
 import RecoverUploads from "@/components/RecoverUploads";
 import { PLANS } from "@/lib/plans";
 import { requirePageUser } from "@/lib/session";
@@ -45,7 +46,9 @@ export default async function RecordPage() {
             )}
           </p>
         )}
-        {allowance && left === 0 ? (
+        <RecorderStays
+          limited={!!allowance && left === 0}
+          card={!!allowance && left === 0 && (
           <>
             {/* The recorder isn't shown, so recordings left in this browser finish here (the header leaves this page to the recorder). */}
             <RecoverUploads always />
@@ -64,7 +67,8 @@ export default async function RecordPage() {
               </div>
             </div>
           </>
-        ) : (
+          )}
+        >
           <RecordScreen
             workspaceId={workspace.id}
             fingerprint={workspace.keyFingerprint}
@@ -73,7 +77,7 @@ export default async function RecordPage() {
             freeVideos={left !== null && limit !== null ? { left, limit } : null}
             recordedBefore={recordedBefore}
           />
-        )}
+        </RecorderStays>
       </main>
     </>
   );

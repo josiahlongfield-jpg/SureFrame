@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { fingerprint as keyFingerprint, generateKey, importKey } from "@/lib/e2e/crypto";
-import { canKeepKey, followRotations, loadKey, saveKey, teamKeyName } from "@/lib/e2e/keystore";
+import { canKeepKey, dropKey, followRotations, loadKey, saveKey, teamKeyName } from "@/lib/e2e/keystore";
 
 /** Sent when this device has just made the team's key (the first device of a new business); components/RecoveryKey.tsx shows it. */
 export const KEY_CREATED = "sureframe-team-key-created";
@@ -17,8 +17,8 @@ type State =
 
 /**
  * How making a new business's key went: the key, "taken" (another device already set one, so this one needs the
- * recovery key), "failed" (no connection, a server error, an expired session: nothing was set, so it can be tried
- * again), or "blocked" (this browser can't keep a key, so none was made: nothing was set either).
+ * recovery key), "failed" (no connection, a server error, an expired session: it can be tried again, with the same
+ * key), or "blocked" (this browser can't keep a key, so none was made and nothing was set).
  */
 type Created = { key: CryptoKey } | "taken" | "failed" | "blocked";
 
@@ -34,19 +34,27 @@ function createTeamKey(workspaceId: string) {
   if (!pending) {
     pending = (async (): Promise<Created> => {
       try {
-        const key = await generateKey();
+        // The key of an earlier go that never heard back is used again: the server may have registered it although
+        // its answer was lost, and a different key would then be refused and a recovery key asked for that nobody
+        // was ever shown. It waits under a name of its own until the server has it.
+        const waiting = `${teamKeyName(workspaceId)}.waiting`;
+        const key = (await loadKey(waiting)) ?? (await generateKey());
         // Before the server hears of this key, make sure this browser will keep it: saving fails without any error
         // where site storage is blocked or full, and a key registered but never kept is gone with this page, along
         // with every video made with it.
         if (!(await canKeepKey(teamKeyName(workspaceId), key))) return "blocked";
+        await saveKey(waiting, key);
         const res = await fetch("/api/workspace/key", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fingerprint: await keyFingerprint(key) }),
         }).catch(() => null);
-        // Only a 409 means a key already exists somewhere else (api/workspace/key); any other failure set nothing.
+        // Only a 409 means a different key already exists somewhere else (api/workspace/key), so this one is no use.
+        // Any other failure may or may not have set it: the same key is sent again next time.
+        if (res?.status === 409) dropKey(waiting);
         if (!res?.ok) return res?.status === 409 ? "taken" : "failed";
         await saveKey(teamKeyName(workspaceId), key);
+        dropKey(waiting);
         // The header shows the new recovery key until it's saved (components/RecoveryKey.tsx).
         window.dispatchEvent(new CustomEvent(KEY_CREATED, { detail: workspaceId }));
         return { key };

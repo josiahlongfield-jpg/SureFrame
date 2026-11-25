@@ -481,9 +481,12 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
             // Too big for one reply. A client has no plan, so the server's wording about plans doesn't fit here.
             err instanceof FatalUploadError && err.status === 413
               ? "This reply is too large to upload. Record a shorter one, or send it in two parts."
-              : err instanceof FatalUploadError && !mayRecover(err)
-                ? (err as Error).message
-                : `${(err as Error).message}. Your recording is kept in this browser and finishes uploading next time you open this page here. You'll be asked then whether to send it.`,
+              : err instanceof FatalUploadError && err.finishedElsewhere
+                ? // The uploader's own wording is for the team's recorder (a library, a pause); a reply has neither.
+                  "This reply was offline for a while, so it was finished from what had already uploaded and is kept as an unsent reply. Reload this page to send or delete it."
+                : err instanceof FatalUploadError && !mayRecover(err)
+                  ? (err as Error).message
+                  : `${(err as Error).message}. Your recording is kept in this browser and finishes uploading next time you open this page here. You'll be asked then whether to send it.`,
           );
         }
         return false;

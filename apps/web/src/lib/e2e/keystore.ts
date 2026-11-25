@@ -61,6 +61,15 @@ export async function canKeepKey(name: string, key: CryptoKey) {
   return kept;
 }
 
+/** Removes a key kept under a name of this file's own making (TeamKeyGate's not-yet-registered key). */
+export function dropKey(name: string) {
+  try {
+    localStorage.removeItem(PREFIX + name);
+  } catch {
+    /* storage blocked: nothing was kept */
+  }
+}
+
 export const teamKeyName = (workspaceId: string) => `team:${workspaceId}`;
 export const clientKeyName = (clientId: string) => `${CLIENT_PREFIX}${clientId}`;
 

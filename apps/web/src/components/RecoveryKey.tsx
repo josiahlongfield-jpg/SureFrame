@@ -92,7 +92,7 @@ const keyFile = (value: string, business: string) =>
   ].join("\n");
 
 /** Copy, download as a .txt file, or print. */
-export function KeyActions({ value, business, tone = "plain" }: { value: string; business: string; tone?: "plain" | "warn" }) {
+export function KeyActions({ value, business, tone = "plain", masked = false }: { value: string; business: string; tone?: "plain" | "warn"; masked?: boolean }) {
   // Said plainly beside the buttons as well as on Copy itself, which was easy to miss (O7); a refused copy says so.
   const [copied, setCopied] = useState<"yes" | "failed" | false>(false);
   const btn = `rounded-lg border bg-surface px-3 py-1.5 text-sm font-medium ${tone === "warn" ? "border-warn-line text-warn-fg" : "border-line-strong text-ink"} hover:bg-hover`;
@@ -144,7 +144,7 @@ export function KeyActions({ value, business, tone = "plain" }: { value: string;
         {copied === "yes" ? (
           <span className="font-medium text-ok-fg">Recovery key copied. Paste it somewhere private, like a password manager.</span>
         ) : copied === "failed" ? (
-          <span className="font-medium text-danger-fg">This browser didn&apos;t let us copy it. Select the key above and copy it yourself, or use Download.</span>
+          <span className="font-medium text-danger-fg">{masked ? "This browser didn't let us copy it. Use Download, or see the key in Settings > Account." : "This browser didn't let us copy it. Select the key above and copy it yourself, or use Download."}</span>
         ) : null}
       </span>
     </div>
@@ -254,7 +254,7 @@ export function RecoveryKeyBox({
         </>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <KeyActions value={value} business={business} tone="warn" />
+        <KeyActions value={value} business={business} tone="warn" masked={masked} />
         <button
           type="button"
           onClick={async () => {

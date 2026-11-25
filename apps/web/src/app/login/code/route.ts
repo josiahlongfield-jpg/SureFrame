@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   try {
     await rateLimit(`signin-code:to:${email}`, 10, 86_400);
   } catch {
-    return back("tries");
+    return back("today");
   }
   const result = await redeemSignInCode(email, String(fd?.get("code") ?? ""));
   if ("error" in result) return back(result.error);
