@@ -75,7 +75,8 @@ export default function Page() {
         <li>When a team member has set their name, clients see it on the videos that person sends, as &ldquo;Name from Business&rdquo; (just once when their name is the business name).</li>
         <li>
           When someone leaves your team (you remove them, or they close or delete their account), the videos and replies they made stay with your business and
-          are shown as &ldquo;Former team member&rdquo;.
+          are shown as &ldquo;Former team member&rdquo;. If someone who left on or after 26 November 2026 rejoins your business with the same login, their
+          earlier videos and replies show their name again.
         </li>
       </ul>
 
@@ -100,8 +101,10 @@ export default function Page() {
           reminders, and the recordings you sent only to them. Recordings you also sent to other clients stay with those clients, without the removed client. This
           can&rsquo;t be undone, by you or by us: we don&rsquo;t keep a copy to restore. Before you confirm, you can save the recordings sent only to that client
           to your device; anything you don&rsquo;t save is gone. You can add the same person again later, but they start as a new client with a new personal
-          link, and nothing from before comes back. Unless they&rsquo;ve turned your emails off, or another of your clients uses the same email address, we email
-          the client that their access has ended. Where the law requires you to keep records of your dealings with a client, or to tell them before deleting
+          link, and nothing from before comes back, except one thing: if they&rsquo;d turned your emails off, their emails stay off. For that, we keep a
+          scrambled marker of their email address, which can&rsquo;t be turned back into the address, until they turn your emails back on or your account is
+          deleted. If you&rsquo;d sent them their link or they&rsquo;d opened it, we email them that their access has ended, unless they&rsquo;ve turned
+          your emails off or another of your clients uses the same email address. Where the law requires you to keep records of your dealings with a client, or to tell them before deleting
           their information, that&rsquo;s your responsibility, so save what you need first. If a legal hold applies (section 9), we may finish the deletion when
           it ends; the client is removed from your account straight away either way.
         </li>
@@ -204,8 +207,8 @@ export default function Page() {
 
       <h2>7. Storage and lost recordings</h2>
       <p>
-        Without cloud backup, the encrypted copy of a video on our servers is deleted {LEGAL.retentionDays} days after it&rsquo;s recorded, and after that it can&rsquo;t
-        be watched from its link. Video and voice replies follow the same rule; text replies, to-dos and notes are kept until they&rsquo;re deleted. A video or
+        Without cloud backup, the encrypted copy of a video on our servers is deleted {LEGAL.retentionDays} days after it&rsquo;s recorded (one day later if
+        our warning email couldn&rsquo;t go out first, never longer), and after that it can&rsquo;t be watched from its link. Video and voice replies follow the same rule; text replies, to-dos and notes are kept until they&rsquo;re deleted. A video or
         voice reply that was recorded but never sent is deleted {LEGAL.heldReplyDays} days after it was recorded, with or without cloud backup. A recording
         stays on the device it was made on only until its upload finishes. To keep your own copy, open the video and choose Save
         to device. With cloud backup, other content is kept until you delete it or your account is permanently deleted (see section 17). If cloud backup ends (you switch
@@ -449,7 +452,8 @@ export default function Page() {
       </p>
       <p>
         If you own a workspace with staff, remove them first. If you&rsquo;re on someone else&rsquo;s team, deleting your account takes you off that team straight
-        away. The videos and replies you made for it stay with the team, shown as &ldquo;Former team member&rdquo;, and if you reactivate your account you&rsquo;ll need a new invite to rejoin.
+        away. The videos and replies you made for it stay with the team, shown as &ldquo;Former team member&rdquo;, and if you reactivate your account you&rsquo;ll need a new invite to rejoin; once you do, they
+        show your name again.
       </p>
       <p>We may also close accounts as section 9 describes.</p>
 
@@ -460,7 +464,8 @@ export default function Page() {
         start of these terms). Smaller changes that only clarify, add to what you get, or keep less of your information don&rsquo;t get a new version: we update
         the &ldquo;Last updated&rdquo; date, note them in our <Link href="/legal/archive#wording-updates">list of versions and changes</Link>, and they apply from
         that date. If you already have an account, you can keep using {LEGAL.product} under the version you agreed to until a new version takes effect for you,{" "}
-        {LEGAL.changeNoticeDays} days after we email you about it. Continuing to use {LEGAL.product} after agreeing to an updated version means that version applies. If you don&rsquo;t agree to a
+        {LEGAL.changeNoticeDays} days after we email you about it. A change can apply sooner, from the date we give in that email, where that&rsquo;s needed
+        to keep people safe or to comply with the law. Continuing to use {LEGAL.product} after agreeing to an updated version means that version applies. If you don&rsquo;t agree to a
         change, don&rsquo;t tick the box: you can stop using {LEGAL.product}, and you can still download your data, cancel your subscription and delete your account
         (see section 17). If you
         use {LEGAL.product} only as a client, through a business&rsquo;s link, the version published here when you use it applies.

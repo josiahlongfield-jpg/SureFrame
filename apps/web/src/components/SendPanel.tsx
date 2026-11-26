@@ -206,7 +206,7 @@ export default function SendPanel({
         const res = await fetch(`/api/videos/${video.id}/send`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ recipients: await Promise.all(group.map(async (c) => ({ clientId: c.id, clientKeyWrap: await wrapFor(c) }))), notify, keyFingerprint }),
+          body: JSON.stringify({ recipients: await Promise.all(group.map(async (c) => ({ clientId: c.id, clientKeyWrap: await wrapFor(c) }))), notify, keyFingerprint, withMessage: first }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error ?? "Couldn't send it. Try again.");

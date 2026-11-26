@@ -170,7 +170,7 @@ export const BUSINESS_FAQ: Qa[] = [
         For your security, you&rsquo;re usually signed out when you close your browser, or after 8 hours without using {BRAND.name}. If you tick Keep me signed in when you
         sign in, or turn it on later in Settings &gt; Account &gt; This device, you stay signed in on that device for 30 days from when it was turned on, even after
         closing the browser. Don&rsquo;t use it on a shared device. Lost a phone, or left a computer signed in? Sign out everywhere, in the same place, signs you
-        out on every device at once. It doesn&rsquo;t disconnect Claude: do that on Connections (an online connection also ends by itself after 60 days without use).
+        out on every device at once. It disconnects Claude too; connect it again on Connections afterwards.
       </p>
     ),
   },

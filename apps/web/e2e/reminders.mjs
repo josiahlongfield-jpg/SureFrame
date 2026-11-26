@@ -6,8 +6,10 @@
 // encrypted to-do text.
 import { chromium, devices } from "@playwright/test";
 import { execSync } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { agreed } from "./agree.mjs";
+import { secret } from "./marker.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const CRON = process.env.CRON_SECRET ?? "test-cron-secret";
@@ -241,5 +243,43 @@ ok("business gets its own reminder", runTeam.body?.sent === 1 && teamMail?.to.st
 sql(`update "Item" set "dueAt" = now() - interval '2 hours' where "seriesId"='${itemId}'`);
 const run3 = await cron();
 ok("missed repeat rolls on to the next one", run3.body?.spawned === 1, JSON.stringify(run3.body));
+
+// 9. A client's "stop emailing me" outlives them (MAIL-10): a keyed marker of the address per business, never the
+// address, so the same address added again (or given to another client) starts with emails off.
+{
+  const wsId = sql(`select "workspaceId" from "Client" where id='${clientId}'`);
+  const markers = () => sql(`select marker from "EmailOptOut" where "workspaceId"='${wsId}' order by marker`);
+  const markerOf = (email) => createHmac("sha256", secret()).update(`email-opt-out:${wsId}:${email}`).digest("base64url");
+  const stopLink = (id) => `${BASE}/reminders/off?c=${id}&s=${createHmac("sha256", secret()).update(`reminders:${id}`).digest("base64url").slice(0, 22)}`;
+  const fp = sql(`select coalesce("keyFingerprint", '') from "Workspace" where id='${wsId}'`) || undefined;
+  const add = async (name, email) => (await (await pro.request.post(`${BASE}/api/clients`, { data: { name, email, teamKeyWrap: "w".repeat(44), keyFingerprint: fp } })).json())?.client?.id;
+  const emailsOff = (id) => sql(`select "remindersOff" from "Client" where id='${id}'`);
+  ok("opting out kept a keyed marker of the address for this business, never the address", markers() === markerOf("riley@example.com") && !markers().includes("riley"), markers());
+  const del = await pro.request.delete(`${BASE}/api/clients/${clientId}`);
+  ok("deleting the client keeps the marker", del.status() === 200 && sql(`select count(*) from "Client" where id='${clientId}'`) === "0" && markers() === markerOf("riley@example.com"), String(del.status()));
+  const again = await add("Riley Again", "Riley@Example.com");
+  ok("the same address added again starts with emails off (whatever its capitals)", !!again && emailsOff(again) === "t", again);
+  await pro.goto(`${BASE}/clients/${again}`);
+  ok("and the business sees it", !!(await pro.waitForSelector("text=Emails turned off by client", { timeout: 15000 }).catch(() => null)));
+  const sam = await add("Sam Client", "sam@example.com");
+  ok("another address starts with emails on", !!sam && emailsOff(sam) === "f");
+  await pro.request.delete(`${BASE}/api/clients/${again}`);
+  const changed = await pro.request.patch(`${BASE}/api/clients/${sam}`, { data: { email: "riley@example.com" } });
+  ok("changing a client's email to that address turns their emails off", changed.status() === 200 && emailsOff(sam) === "t", String(changed.status()));
+  await phone.goto(stopLink(sam));
+  await phone.click("button:has-text('Turn them back on')");
+  await phone.waitForSelector("[data-testid=emails-on]");
+  ok("turning emails back on forgets the marker", emailsOff(sam) === "f" && markers() === "", markers());
+  // Turned off before markers existed (no marker yet): deleting the client keeps one then.
+  sql(`update "Client" set "remindersOff" = true where id='${sam}'`);
+  await pro.request.delete(`${BASE}/api/clients/${sam}`);
+  ok("deleting a client who turned emails off before markers existed keeps one too", markers() === markerOf("riley@example.com"), markers());
+  // Deleting the whole business (lib/account.ts deletes the workspace row) takes its markers with it.
+  const gone = `optout${Date.now().toString(36)}`;
+  sql(`insert into "Workspace" (id, name) values ('${gone}', 'Gone Business')`);
+  sql(`insert into "EmailOptOut" (id, "workspaceId", marker) values ('${gone}m', '${gone}', 'x')`);
+  sql(`delete from "Workspace" where id='${gone}'`);
+  ok("a deleted business's markers go with it", sql(`select count(*) from "EmailOptOut" where "workspaceId"='${gone}'`) === "0");
+}
 
 await browser.close();

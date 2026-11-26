@@ -6,6 +6,7 @@
 // Run the app with UPLOAD_JOIN_BYTES small (e.g. 65536) so pieces are joined into parts mid-recording too.
 import { chromium, devices } from "@playwright/test";
 import { execSync } from "node:child_process";
+import { readFileSync, statSync } from "node:fs";
 import { agreed } from "./agree.mjs";
 import { sendByLink } from "./send.mjs";
 
@@ -82,15 +83,17 @@ await a2.goto(BASE + `/v/${videoId}`);
 await a2.waitForSelector("main video", { timeout: 20000 });
 const played = await a2.$eval("main video", finiteDuration);
 ok("the finished recording plays in full", played >= 5, String(played));
+// Cleared, unless it holds a last few seconds the server never got (closed between saving and sending a piece): that
+// part is then kept, marked as left over, for the Record page to offer as a file (REC-2), and never sent again.
 const left = await waitFor(() => a2.evaluate(() => new Promise((r) => {
   const req = indexedDB.open("framecast-recorder");
   req.onsuccess = () => {
     const tx = req.result.transaction("sessions", "readonly");
     const all = tx.objectStore("sessions").getAll();
-    all.onsuccess = () => r(all.result.length === 0 ? "empty" : null);
+    all.onsuccess = () => r(all.result.length === 0 ? "empty" : all.result.every((s) => s.leftover) ? "leftover" : null);
   };
 })));
-ok("the first browser's leftover copy is cleared", left === "empty", String(left));
+ok("the first browser's leftover copy is cleared, or kept only as the part the server never got", left === "empty" || left === "leftover", String(left));
 
 // ---- A client's video reply, closed mid-recording, then opened from the link in another browser. ----
 await a2.goto(BASE + "/clients");
@@ -213,6 +216,100 @@ await g.screenshot({ path: `${shots}/server-backup-waiting.png` });
 const later = await g.waitForSelector(`[data-testid=recovered-uploads] a[href="/v/${soonId}"]`, { timeout: 120000 }).catch(() => null);
 ok("finished on the same page once it has been quiet a while", !!later && sql(`select status from "Video" where id='${soonId}'`) === "UPLOADED");
 ok("the waiting notice gives way to the finished one", !(await g.isVisible("[data-testid=recovering-upload]")));
+
+// ---- REC-20: offline for a while mid-recording. The chunks waiting meanwhile are kept on disk only, then read back
+// and sent in order once the connection returns: the whole recording arrives and plays. ----
+const n = await aCtx.newPage();
+await n.goto(BASE + "/record");
+await n.click("text=Camera only");
+await n.click("text=Start recording");
+await n.waitForSelector("text=/Recording · \\d/", { timeout: 15000 });
+await n.waitForTimeout(3000);
+await aCtx.setOffline(true);
+await n.waitForSelector("text=Connection lost", { timeout: 15000 }).catch(() => {});
+await n.waitForTimeout(12000);
+await aCtx.setOffline(false);
+await n.waitForTimeout(3000);
+await n.click("button:has-text('Stop')");
+await n.waitForURL("**/v/**", { timeout: 90000 }).catch(() => {});
+ok("offline mid-recording: it finishes once back online", /\/v\//.test(n.url()), n.url());
+await n.waitForSelector("main video", { timeout: 30000 }).catch(() => {});
+const offlinePlayed = await n.$eval("main video", finiteDuration).catch(() => 0);
+ok("...and plays in full, the part recorded offline included", offlinePlayed >= 15, String(offlinePlayed));
+await n.close();
+
+// ---- REC-2: offline so long that another browser finishes it from the server's copy. What was recorded meanwhile
+// never reached the server: the recorder stops, says so, and offers the whole recording as a file to save. ----
+const o = await aCtx.newPage();
+await o.goto(BASE + "/record");
+await o.click("text=Camera only");
+await o.click("text=Start recording");
+await o.waitForSelector("text=/Recording · \\d/", { timeout: 15000 });
+const cutId = await waitFor(() => sql(`select id from "Video" where status='RECORDING' and "ownerId"=(select id from "User" where email='${email}') and "replyToId" is null limit 1`) || null);
+await o.waitForTimeout(5000);
+await aCtx.setOffline(true);
+await o.waitForTimeout(8000);
+quietFor(cutId);
+await b.goto(BASE + "/library");
+ok("offline for long, it's finished elsewhere from the server's copy", (await waitFor(() => sql(`select status from "Video" where id='${cutId}'`) === "UPLOADED" || null, 60000)) === true);
+const onServerBytes = Number(sql(`select "sizeBytes" from "Video" where id='${cutId}'`));
+await aCtx.setOffline(false);
+const cutNote = await o.waitForSelector("[data-testid=recorder-leftover]", { timeout: 90000 }).catch(() => null);
+const cutSays = (await o.textContent("[role=alert]").catch(() => "")) ?? "";
+ok("back online, the recorder stops and says the rest is kept to save as a file", !!cutNote && /kept in this browser, for you to save as a file/.test(cutSays), cutSays);
+ok("...and offers it as a file", !!cutNote && /isn.t in your library\. That part is kept in this browser/.test(await cutNote.textContent()));
+await o.screenshot({ path: `${shots}/server-backup-leftover.png` });
+const [dl] = await Promise.all([o.waitForEvent("download", { timeout: 60000 }), o.click("[data-testid=recorder-leftover] >> text=Save as a file")]);
+const savedPath = await dl.path().catch(() => null);
+const savedBytes = savedPath ? statSync(savedPath).size : 0;
+ok("the file is the whole recording, more than the server's copy", savedBytes > onServerBytes, `${savedBytes} vs ${onServerBytes}`);
+const head = savedPath ? readFileSync(savedPath).subarray(0, 4).toString("hex") : "";
+ok("...opened on the device into a video file (not the encrypted copy)", head === "1a45dfa3", head);
+ok("after saving it says where to look", !!(await o.waitForSelector("[data-testid=recorder-leftover] >> text=/Saved\\. Look in your browser/", { timeout: 10000 }).catch(() => null)));
+await o.click("[data-testid=recorder-leftover] >> button:has-text('Remove')");
+const cutGone = await waitFor(() => o.evaluate((id) => new Promise((r) => {
+  const req = indexedDB.open("framecast-recorder");
+  req.onsuccess = () => {
+    const got = req.result.transaction("sessions", "readonly").objectStore("sessions").get(id);
+    got.onsuccess = () => r(got.result ? null : true);
+  };
+}), cutId));
+ok("Remove after saving clears the copy kept in this browser", cutGone === true);
+
+// ---- REC-2 for a client's video reply: offline so long that the server finishes it from its copy (a reply's upload is
+// then refused as not found, its one-time token being used up). It says so truly, the review still plays, and the
+// whole reply can be saved as a file from this device's own copy. ----
+const rCtx = await browser.newContext({ ...devices["Pixel 7"], permissions: ["camera", "microphone"] });
+const r = await rCtx.newPage();
+await skipIntro(r);
+await r.goto(personal);
+await r.waitForURL("**/v/**");
+await r.waitForSelector("main video", { timeout: 20000 });
+await r.click("[data-testid=chat-open]");
+await r.waitForSelector("[data-testid=conversation][data-sheet]");
+await r.click("role=tab[name='Video']");
+await r.click("button:has-text('Record video reply')");
+await r.waitForSelector("text=/Recording · \\d/");
+const cutReply = await waitFor(() => sql(`select "mediaId" from "Reply" where "videoId"='${videoId}' and "byClient" and kind='VIDEO' and "mediaId" not in ('${mediaId}', '${soonReply}') limit 1`) || null);
+await r.waitForTimeout(5000);
+await rCtx.setOffline(true);
+await r.waitForTimeout(8000);
+quietFor(cutReply);
+const elsewhere = await (await browser.newContext({ ...devices["Pixel 7"], permissions: ["camera", "microphone"] })).newPage();
+await skipIntro(elsewhere);
+await elsewhere.goto(personal);
+ok("a client's reply offline for long is finished elsewhere from the server's copy", (await waitFor(() => sql(`select status from "Video" where id='${cutReply}'`) === "UPLOADED" || null, 60000)) === true);
+await rCtx.setOffline(false);
+await r.click("button:has-text('Stop recording')");
+const saveReply = await r.waitForSelector("[data-testid=reply-save-file]", { timeout: 90000 }).catch(() => null);
+const replySays = (await r.textContent("[role=alert]").catch(() => "")) ?? "";
+ok("the reply says it was finished from what had uploaded, not that it finishes next time", /finished from what had already uploaded/.test(replySays) && !/next time/.test(replySays), replySays);
+ok("...and offers to save it as a file", !!saveReply);
+ok("its review still plays from this device's copy (not let go of when the review changed)", await r.$eval("[data-testid=reply-review] video", (v) => fetch(v.currentSrc || v.src).then((x) => x.ok, () => false)).catch(() => false));
+const [replyDl] = await Promise.all([r.waitForEvent("download", { timeout: 30000 }), r.click("[data-testid=reply-save-file]")]);
+const replyPath = await replyDl.path().catch(() => null);
+ok("the saved reply is a video file", replyPath ? readFileSync(replyPath).subarray(0, 4).toString("hex") === "1a45dfa3" : false);
+await r.screenshot({ path: `${shots}/server-backup-reply-cut.png` });
 
 await browser.close();
 console.log(failed ? `${failed} FAILED` : "ALL PASSED");

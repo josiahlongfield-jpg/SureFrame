@@ -14,7 +14,8 @@ function termsNoticeEmail(from: Date, timezone: string | null) {
   return teamEmail({
     business: BRAND.name,
     subject: `We're updating our Terms of Service and Privacy Policy`,
-    lead: `We're updating the ${BRAND.name} Terms of Service and Privacy Policy. The new versions apply to you from ${day}; until then, the versions you agreed to still apply. The main changes:`,
+    // A change can apply sooner (Terms section 18); its line in `changes` then starts "Already in effect" (LEGAL-1).
+    lead: `We're updating the ${BRAND.name} Terms of Service and Privacy Policy. The new versions apply to you from ${day}. Until then the versions you agreed to still apply, except for a change marked below as already in effect. The main changes:`,
     lines: [
       ...(LEGAL_VERSIONS[0]?.changes ?? []).map((text) => ({ text })),
       // The list above is the newest version's changes only; someone who never agreed to the one before finds its changes here.

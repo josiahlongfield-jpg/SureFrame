@@ -238,6 +238,9 @@ ok("visitor: a second person within 30 days is refused, with when to ask again",
 ok("visitor: the refusal leaves the message box empty", (await asker.inputValue('textarea[aria-label="Your message"]')) === "");
 ok("visitor: Talk to a person is off after the refusal, Send isn't blocked by it", (await asker.locator("[data-testid=talk-to-person]").count()) === 1 && (await asker.isDisabled("[data-testid=talk-to-person]")) && (await asker.fill('textarea[aria-label="Your message"]', "x").then(() => asker.isEnabled("form button:has-text('Send')"))));
 await asker.fill('textarea[aria-label="Your message"]', "");
+// The assistant failing for someone who can't be passed on to a person: the chat gives the support address (SUP-12).
+const outage = await ask(asker, "explode");
+ok("assistant down, can't be passed on: given the support address", outage.includes("hit a problem answering that") && outage.includes("email support@sureframe.app"), outage);
 const sameEmail = await fetch(BASE + "/api/support", { method: "POST", headers: { "Content-Type": "application/json", "x-real-ip": "10.7.1.2" }, body: JSON.stringify({ body: "hi", email: "Visitor2@example.com", person: true }) });
 ok("visitor: the same email from another network is refused too", sameEmail.status === 429 && ((await sameEmail.json()).error ?? "").includes("once every 30 days"));
 // Across all visitors, at most 5 people a day (two so far: the refund and visitor2).
@@ -280,10 +283,14 @@ const rows = await agent.$$eval("[data-testid=inbox-list] li", (lis) => lis.map(
 ok("inbox: businesses on a plan come first, tagged", rows[0]?.includes(planEmail) && rows[0]?.includes("Plan given free") && rows.some((r) => r.includes("visitor2@example.com") && r.includes("Visitor")), rows.slice(0, 4).join(" | ").slice(0, 300));
 ok("inbox: rows quote the customer, not the assistant", !inbox.includes("I've passed this to the team") && !inbox.includes("open the Clients page"));
 ok("inbox: times in Queensland time", /\d{1,2} [A-Z][a-z]{2,3} \d{4}, \d{1,2}:\d\d [ap]m AEST/.test(inbox) && !inbox.includes("UTC"));
-ok("inbox: no delete-everything box, a link to its own page instead", (await agent.locator("button:has-text('Delete everything')").count()) === 0 && !!(await agent.waitForSelector("[data-testid=clear-link]", { timeout: 10000 }).catch(() => null)));
+// "Delete every conversation" was removed (SUP-6): no button, no link, and its old page is gone.
+ok("inbox: no way to delete every conversation", (await agent.locator("button:has-text('Delete everything')").count()) === 0 && (await agent.locator("[data-testid=clear-link], a[href='/support/clear']").count()) === 0);
+await agent.goto(BASE + "/support/clear");
+ok("the old delete-everything page is gone", (await agent.locator("[data-testid=ticket-gone]").count()) === 1 && (await agent.locator("button:has-text('Delete everything')").count()) === 0);
+await agent.goto(BASE + "/support");
 ok("support pages: SureFrame's bar with a way back to the app", (await agent.getAttribute("[data-testid=back-to-app]", "href")) === "/library");
 const navs = [];
-for (const p of ["/support", "/support/lookup", "/support/log", "/support/accounts", "/support/offers", "/support/clear"]) {
+for (const p of ["/support", "/support/lookup", "/support/log", "/support/accounts", "/support/offers"]) {
   await agent.goto(BASE + p);
   navs.push((await agent.textContent("[data-testid=support-nav]")).trim());
 }

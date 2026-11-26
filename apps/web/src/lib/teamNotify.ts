@@ -10,6 +10,7 @@ import { zoned } from "@/lib/dates";
 import { videoLabel } from "@/lib/videoTitle";
 import { BRAND } from "@/lib/brand";
 import { notify } from "@/lib/notifications";
+import { canSeeVideo, permsOf } from "@/lib/permissions";
 
 /**
  * Team emails about client replies and videos sent by staff. Each event is
@@ -20,23 +21,34 @@ import { notify } from "@/lib/notifications";
  */
 export const NOTIFY_WINDOW_MS = 15 * 60 * 1000;
 
-type Member = Pick<Membership, "userId" | "role" | "replyNotify" | "replyNotifyStaff" | "sentNotify" | "sentNotifyStaff">;
+type Member = Pick<Membership, "userId" | "role" | "seeAllClients" | "replyNotify" | "replyNotifyStaff" | "sentNotify" | "sentNotifyStaff">;
 const isManager = (m: Pick<Membership, "role">) => m.role === "OWNER" || m.role === "ADMIN";
 
 /**
+ * Who looks after a conversation: the assigned staff member, else whoever recorded the video if they can still see
+ * that client (a member who only sees their own clients doesn't keep a conversation once its client is given to
+ * someone else or unassigned, lib/permissions.ts canSeeVideo), else the owner. `responsible` is whose client it is,
+ * for "Only selected staff".
+ */
+export function lookingAfter<M extends Pick<Membership, "userId" | "role" | "seeAllClients">>(members: M[], o: { assignedToId: string | null; recorderId: string }) {
+  const find = (id: string | null) => (id ? members.find((m) => m.userId === id) : undefined);
+  const recorder = find(o.recorderId);
+  const recorderSees = !!recorder && (recorder.role !== "MEMBER" || recorder.seeAllClients || o.assignedToId === recorder.userId);
+  const responsible = find(o.assignedToId) ?? (recorderSees ? recorder : undefined);
+  return { primary: responsible ?? members.find((m) => m.role === "OWNER"), responsible };
+}
+
+/**
  * Who hears about a client's reply: the person looking after the
- * conversation (assigned staff member, else whoever recorded the video, else
- * the owner), plus owners and admins whose preferences ask for it. Anyone
+ * conversation (assigned staff member, else whoever recorded the video while
+ * they can still see that client, else the owner), plus owners and admins whose preferences ask for it. Anyone
  * who turned their reply emails off gets none (staff do this for their own
  * clients in Settings > Account). That never affects owners and admins: they
  * still get what their own preferences ask for, and the Team overview counts
  * every reply either way.
  */
 export function replyRecipients(members: Member[], o: { assignedToId: string | null; recorderId: string }) {
-  const find = (id: string | null) => (id ? members.find((m) => m.userId === id) : undefined);
-  const primary = find(o.assignedToId) ?? find(o.recorderId) ?? members.find((m) => m.role === "OWNER");
-  // Whose client this is, for "Only selected staff".
-  const responsible = find(o.assignedToId) ?? find(o.recorderId);
+  const { primary, responsible } = lookingAfter(members, o);
   const out = new Set<string>();
   if (primary && primary.replyNotify !== "OFF") out.add(primary.userId);
   for (const m of members) {
@@ -52,8 +64,7 @@ export function replyRecipients(members: Member[], o: { assignedToId: string | n
  * it, even with reply emails off (Josiah, 23 October 2026: the bell is how a reply is never missed).
  */
 export function replyBellRecipients(members: Member[], o: { assignedToId: string | null; recorderId: string }) {
-  const find = (id: string | null) => (id ? members.find((m) => m.userId === id) : undefined);
-  const primary = find(o.assignedToId) ?? find(o.recorderId) ?? members.find((m) => m.role === "OWNER");
+  const { primary } = lookingAfter(members, o);
   return [...new Set([...(primary ? [primary.userId] : []), ...replyRecipients(members, o)])];
 }
 
@@ -173,6 +184,11 @@ export async function flushGroup(userId: string, kind: TeamNotificationKind, gro
   const found = await db.client.findMany({ where: { id: { in: pending.map((p) => p.clientId!).filter(Boolean) } }, select: { id: true, name: true, removedAt: true } });
   // A client deleted since (lib/clientRemoval.ts): nothing about them goes out.
   if (kind === "CLIENT_REPLY" && found.some((c) => c.removedAt)) return false;
+  // Nor to someone who can no longer open the conversation: its client was given to someone else since it was queued.
+  if (kind === "CLIENT_REPLY") {
+    const conv = await db.video.findUnique({ where: { id: groupKey }, select: { workspaceId: true, ownerId: true, clientId: true, replyToId: true } });
+    if (conv && !(await canSeeVideo({ userId, workspaceId: membership.workspaceId, role: membership.role, perms: permsOf(membership) }, conv))) return false;
+  }
   const clients = new Map(found.filter((c) => !c.removedAt).map((c) => [c.id, c.name]));
   const clientName = (id: string | null) => (id && clients.get(id)) || "A client";
 

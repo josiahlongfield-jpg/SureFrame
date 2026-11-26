@@ -3,6 +3,7 @@ import { getToken } from "next-auth/jwt";
 import { ACTIVITY_COOKIE as MARKER, activityCookie, KEEP_COOKIE, KEEP_DAYS, KEEP_HEADER, KEEP_PARAM } from "@/lib/activity";
 import { activityAt, activityMark, keeps, sessionSecret } from "@/lib/activityMark";
 import { OWNER_COOKIE, OWNER_PARAM, maintenanceOn, ownerPass, sameText } from "@/lib/maintenance";
+import { NONCE_HEADER, newNonce, scriptPolicy } from "@/lib/scriptPolicy";
 
 /**
  * Sign-ins last only as long as the browser is open, and end after a long
@@ -89,6 +90,25 @@ async function mark(res: NextResponse, req: NextRequest, account: string, keep: 
   return res;
 }
 
+/** API answers (and the connector addresses that lead to them) are not pages: they get no script policy. */
+const isPage = (pathname: string) => !pathname.startsWith("/api/") && pathname !== "/mcp" && !pathname.startsWith("/.well-known/");
+
+/**
+ * Lets the request carry on (with `headers` in place of its own, when given). A page also gets its script policy
+ * (lib/scriptPolicy.ts): the same fresh nonce goes to the page as it's drawn, and to the browser with the answer.
+ */
+function pass(req: NextRequest, headers?: Headers) {
+  if (!isPage(req.nextUrl.pathname)) return headers ? NextResponse.next({ request: { headers } }) : NextResponse.next();
+  const nonce = newNonce();
+  const policy = scriptPolicy(req.nextUrl.pathname, nonce);
+  const forPage = headers ?? new Headers(req.headers);
+  forPage.set("Content-Security-Policy", policy);
+  forPage.set(NONCE_HEADER, nonce);
+  const res = NextResponse.next({ request: { headers: forPage } });
+  res.headers.set("Content-Security-Policy", policy);
+  return res;
+}
+
 /** The request as it would arrive with no sign-in: the old session cookies are left off. */
 function withoutSession(req: NextRequest, names: Set<string>) {
   const headers = new Headers(req.headers);
@@ -161,7 +181,7 @@ async function sessionActivity(req: NextRequest) {
   const account = await sessionAccount(req);
   // Completing a sign-in from signed out (email link, Google, dev login) starts the browser session. The sign-in
   // sets the activity cookie itself, once it knows whose it is (events.signIn in src/auth.ts), as it does KEEP.
-  if (account === undefined) return isCallback(req) ? NextResponse.next({ request: { headers: signInHeaders(req) } }) : NextResponse.next();
+  if (account === undefined) return isCallback(req) ? NextResponse.next({ request: { headers: signInHeaders(req) } }) : pass(req);
 
   const keep = !!account && (await keeps(req.cookies.get(KEEP_COOKIE)?.value, account));
   const last = account ? await activityAt(req.cookies.get(MARKER)?.value, account) : null;
@@ -169,7 +189,7 @@ async function sessionActivity(req: NextRequest) {
   if (account && fresh) {
     // A sign-in completed over this one may be someone else's: again, it sets its own activity cookie.
     if (isCallback(req)) return NextResponse.next({ request: { headers: signInHeaders(req) } });
-    return req.headers.get(BACKGROUND_HEADER) || req.headers.has(ACTION_HEADER) ? NextResponse.next() : mark(NextResponse.next(), req, account, keep);
+    return req.headers.get(BACKGROUND_HEADER) || req.headers.has(ACTION_HEADER) ? pass(req) : mark(pass(req), req, account, keep);
   }
 
   const names = new Set(sessionCookies(req).map((c) => c.name));
@@ -182,7 +202,7 @@ async function sessionActivity(req: NextRequest) {
   // This request carries on as signed out (pages that need an account send
   // people to sign in as usual, API calls get "Sign in required"), and the
   // response deletes the session cookies.
-  const res = NextResponse.next({ request: { headers: withoutSession(req, names) } });
+  const res = pass(req, withoutSession(req, names));
   // __Secure- cookies can only be replaced by a Secure cookie.
   for (const name of names) res.cookies.set(name, "", { path: "/", maxAge: 0, secure: name.startsWith("__Secure-") });
   res.cookies.set(MARKER, "", { path: "/", maxAge: 0 });

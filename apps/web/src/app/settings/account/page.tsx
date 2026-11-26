@@ -78,10 +78,14 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
   async function signOutEverywhere() {
     "use server";
     const { user } = await requirePageUser("/settings/account", { allowPaused: true, allowTermsPending: "existing" });
-    await db.user.update({ where: { id: user.id }, data: { sessionsValidAfter: new Date() } });
+    const now = new Date();
+    await db.user.update({ where: { id: user.id }, data: { sessionsValidAfter: now } });
     // Sign-in links already emailed but not yet used stop working too, as with support's button (lib/support/admin.ts).
     await db.verificationToken.deleteMany({ where: { identifier: user.email } });
-    console.log("[account] signed out everywhere", JSON.stringify({ user: user.id }));
+    // So does Claude, in every team, as with support's button (SEC-6): its tokens don't depend on a sign-in, so one made
+    // by someone who got into the account would otherwise outlive this.
+    const claude = await db.connectorGrant.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: now } });
+    console.log("[account] signed out everywhere", JSON.stringify({ user: user.id, claudeDisconnected: claude.count }));
     await signOut({ redirectTo: "/login?everywhere=1" });
   }
 
@@ -278,12 +282,12 @@ export default async function AccountSettings({ searchParams }: { searchParams: 
             <form action={signOutEverywhere} className="mt-3">
               <SignOutEverywhereButton />
             </form>
-            {/* Claude's connection isn't a sign-in, so this doesn't end it (Fable, 23 October): say where it's ended. */}
+            {/* It disconnects Claude too (SEC-6, 26 November 2026): say so, and where to connect it again. */}
             <p className="mt-2 text-xs text-dim" data-testid="sign-out-everywhere-claude">
               {!limited ? (
-                <>Claude stays connected: use Disconnect on <Link href="/settings/connections" className="underline">Connections</Link>.</>
+                <>It disconnects Claude too. Connect it again on <Link href="/settings/connections" className="underline">Connections</Link>.</>
               ) : (
-                <>Claude stays connected: use Disconnect on Connections.</>
+                <>It disconnects Claude too. Connect it again on Connections.</>
               )}
             </p>
           </div>

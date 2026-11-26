@@ -684,11 +684,12 @@ function Manager({
       <section ref={listTop} className="scroll-mt-6 rounded-2xl border border-line bg-surface">
         {team && (
           // Two buttons that filter the one list below (pressed or not), not tabs: there are no separate panels to move between.
-          <div role="group" aria-label="Which clients" className="flex gap-1 border-b border-line px-4 pt-3 text-sm">
+          <div role="group" aria-label="Which clients" className="flex flex-wrap gap-1 border-b border-line px-4 pt-3 text-sm">
             {(["all", "mine"] as const).map((k) => (
               <button key={k} type="button" aria-pressed={show === k} onClick={() => setShow(k)}
                 className={`rounded-t-lg px-3 py-2 ${show === k ? "border-b-2 border-primary font-medium text-ink" : "text-dim hover:text-ink"}`}>
-                {k === "all" ? `All clients (${clients.length})` : `My clients (${clients.filter((c) => c.assignedToId === meId).length})`}
+                {/* Owners and admins also look after unassigned clients, which this doesn't count: it says what it counts (WB-19). */}
+                {k === "all" ? `All clients (${clients.length})` : `${canManage ? "Assigned to me" : "My clients"} (${clients.filter((c) => c.assignedToId === meId).length})`}
               </button>
             ))}
           </div>

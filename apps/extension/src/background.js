@@ -8,6 +8,7 @@
 // State lives in chrome.storage.session (cleared when the browser closes):
 //   rec  - the recording the SureFrame tab is running (written by bridge.js)
 //   cmd  - a button pressed on a bubble (read by bridge.js)
+//   recorded - for a shared tab, which tab is being recorded (set below when the SureFrame tab says it's in front)
 // and in chrome.storage.local the bubble's place ("bubblePlace", page.js) and, for the recording it was set in, its
 // size and tucked-away state ("bubbleLook", bubble.js; each new recording starts at the default size with its bar).
 
@@ -32,12 +33,12 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   if (reason === "install") chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") });
 });
 
-chrome.runtime.onStartup.addListener(() => chrome.storage.session.remove(["rec", "cmd"]));
+chrome.runtime.onStartup.addListener(() => chrome.storage.session.remove(["rec", "cmd", "recorded"]));
 
 // The SureFrame tab closing ends its recording's bubbles straight away.
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   const { rec } = await chrome.storage.session.get("rec");
-  if (rec?.tabId === tabId) await chrome.storage.session.remove("rec");
+  if (rec?.tabId === tabId) await chrome.storage.session.remove(["rec", "recorded"]);
 });
 
 /** When each tab's bubble last had its camera showing, by tab. */
@@ -54,16 +55,22 @@ async function bubbleOnScreen() {
   return !!tab && Date.now() - (showing.get(tab.id) ?? 0) < 2500;
 }
 
+/** Whether a tab's bubble showed its camera in the last moment. */
+const shows = (tabId, now = Date.now()) => now - (showing.get(tabId) ?? 0) < 2500;
+
 /**
- * Tells the SureFrame tab whether its camera bubble is on screen. Sent on every change that could alter it (a
+ * Tells the SureFrame tab whether its camera bubble is on screen. For a shared tab, once it's known which tab that is,
+ * also whether the bubble is showing on it ("recorded"): the camera in the video is the bubble only then. Any tab
+ * showing it ("anywhere") is the guess for an older SureFrame page that doesn't say which tab it records. Sent on every change that could alter it (a
  * bubble reporting in, another tab or app brought to the front) and twice a second while this worker is awake.
  */
 let last = "";
 async function pushHealth(force = false) {
-  const { rec } = await chrome.storage.session.get("rec");
+  const { rec, recorded } = await chrome.storage.session.get(["rec", "recorded"]);
   if (!rec?.tabId) return;
   const now = Date.now();
   const health = { type: "health", id: rec.id, onScreen: await bubbleOnScreen(), anywhere: [...showing.values()].some((t) => now - t < 2500) };
+  if (recorded?.id === rec.id) health.recorded = shows(recorded.tabId, now);
   const key = JSON.stringify(health);
   if (!force && key === last) return;
   last = key;
@@ -91,6 +98,19 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       if (was !== !!msg.ok) void pushHealth();
       return;
     }
+    case "recorded-tab":
+      // The SureFrame tab is recording a tab, and the browser brought that tab to the front when it was picked: the
+      // tab in front now is the one in the video. Only the recording's own tab can say so.
+      void (async () => {
+        const { rec } = await chrome.storage.session.get("rec");
+        if (!rec?.tabId || rec.tabId !== tabId || rec.id !== msg.id) return;
+        const win = await chrome.windows.getLastFocused().catch(() => null);
+        const [tab] = win ? await chrome.tabs.query({ active: true, windowId: win.id }).catch(() => []) : [];
+        if (tab?.id === undefined) return;
+        await chrome.storage.session.set({ recorded: { id: rec.id, tabId: tab.id } }).catch(() => {});
+        void pushHealth(true);
+      })();
+      return;
     case "show-recorder":
       // Stop pressed on a bubble: back to the SureFrame tab, where the finished video opens.
       void chrome.storage.session.get("rec").then(({ rec }) => {

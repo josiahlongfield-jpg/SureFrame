@@ -98,6 +98,11 @@ export async function deleteAccount(userId: string) {
     await db.workspace.deleteMany({ where: { id: w.id } });
   }
   const gone = await db.user.deleteMany({ where: { id: userId } });
+  // A deleted login never rejoins, so nothing needs to remember who they were on a team's recordings and replies.
+  if (gone.count) {
+    await db.video.updateMany({ where: { formerOwnerId: userId }, data: { formerOwnerId: null } });
+    await db.reply.updateMany({ where: { formerAuthorId: userId }, data: { formerAuthorId: null } });
+  }
   // An unused sign-in link would otherwise make a fresh account under the same email.
   if (user?.email) await db.verificationToken.deleteMany({ where: { identifier: user.email } });
   return gone.count > 0;
@@ -124,9 +129,10 @@ export async function leaveTeam(userId: string, w: Workspace, leaver: string, { 
     if (owner) {
       // Shown as a former team member's, not the owner's (lib/team.ts senderName).
       const now = new Date();
-      await tx.video.updateMany({ where: { workspaceId: w.id, ownerId: userId }, data: { ownerId: owner.userId, formerStaffAt: now } });
+      // Who they were is kept, so the same login rejoining gets them back (api/team/join).
+      await tx.video.updateMany({ where: { workspaceId: w.id, ownerId: userId }, data: { ownerId: owner.userId, formerStaffAt: now, formerOwnerId: userId } });
       // Their replies stay the team's: without an author they'd count as the client's in the Team overview.
-      await tx.reply.updateMany({ where: { authorUserId: userId, video: { workspaceId: w.id } }, data: { authorUserId: owner.userId, formerStaffAt: now } });
+      await tx.reply.updateMany({ where: { authorUserId: userId, video: { workspaceId: w.id } }, data: { authorUserId: owner.userId, formerStaffAt: now, formerAuthorId: userId } });
     }
     await tx.client.updateMany({ where: { workspaceId: w.id, assignedToId: userId }, data: { assignedToId: null } });
     // Invites they sent and nobody has used yet stop working with them.
@@ -184,7 +190,9 @@ export async function exportAccount(userId: string, { wraps = false } = {}) {
       // Staff export only what they can see in the app (lib/permissions.ts).
       const access = { userId, workspaceId: w.id, role: m.role, perms: permsOf(m) };
       const all = seesAllClients(access);
-      const mineOnly = { OR: [{ ownerId: userId }, { client: { assignedToId: userId } }, { asReply: { video: { OR: [{ ownerId: userId }, { client: { assignedToId: userId } }] } } }] };
+      // Their recordings not sent to anyone, and their clients' conversations (a sent one goes with its client).
+      const theirs = { OR: [{ ownerId: userId, clientId: null }, { client: { assignedToId: userId } }] };
+      const mineOnly = { OR: [...theirs.OR, { asReply: { video: theirs } }] };
       const [clients, videos, items, notices] = await Promise.all([
         db.client.findMany({
           // A deleted client is gone at once (lib/clientRemoval.ts), even while the deletion finishes.

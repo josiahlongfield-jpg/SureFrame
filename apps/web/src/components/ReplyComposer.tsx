@@ -7,7 +7,7 @@ import { useLeaveGuard } from "@/lib/recorder/leaving";
 import { reportClientError } from "@/lib/clientError";
 import { bitrateFor, canRecord, getCameraAndMic, getMic, pickMimeType, stopAll, type CameraPick, type Facing } from "@/lib/recorder/media";
 import { cameraSides, hasFrontAndBack } from "@/lib/recorder/cameras";
-import { encryptFrame, encryptText, generateKey, wrapKey } from "@/lib/e2e/crypto";
+import { encryptText, frameSealer, generateKey, wrapKey } from "@/lib/e2e/crypto";
 import type { ReplyDTO } from "@/lib/replies";
 import { HELD_REPLY_DAYS } from "@/lib/heldReplies";
 import MicLevel from "./MicLevel";
@@ -123,6 +123,8 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
   const [session, setSession] = useState(0);
   // The recording under review: played back from this device's own copy while its upload finishes.
   // `failed`: the upload stopped for good or for now (the reason is shown), so there's nothing to send yet.
+  // It's then offered as a file to save from this device's own copy, which may be the only whole one: the server may
+  // have finished it early from only what had uploaded (REC-2).
   const [review, setReview] = useState<{ url: string; kind: "VIDEO" | "AUDIO"; uploaded: boolean; failed?: boolean } | null>(null);
   // A link inside the app pressed while recording: asks before the page is left (lib/recorder/leaving.ts).
   const [leaveAsk, setLeaveAsk] = useState(false);
@@ -267,7 +269,10 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
     }
   }, [mode, releaseCamera]);
   useEffect(() => () => stopAll(stream.current), []);
-  useEffect(() => () => void (review && URL.revokeObjectURL(review.url)), [review]);
+  // Let go of a review's copy only when it's replaced or the composer goes: an update that keeps the same copy
+  // ("uploaded", "failed") must not take it from the player under the person's eyes.
+  const reviewUrl = review?.url;
+  useEffect(() => () => void (reviewUrl && URL.revokeObjectURL(reviewUrl)), [reviewUrl]);
 
   const recording = phase === "recording";
   useEffect(() => onBusyChange?.(recording), [recording, onBusyChange]);
@@ -399,13 +404,15 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
         mimeType,
         ...(kind === "VIDEO" ? { videoBitsPerSecond: bitrateFor(1080) } : { audioBitsPerSecond: 128_000 }),
       });
+      // Each chunk is sealed with its place in the reply, so the stored file can't be reordered unnoticed.
+      const sealChunk = frameSealer(mediaKey);
       recorder.ondataavailable = (e) => {
         const l = live.current;
         if (!l || l.discarded || e.data.size === 0) return;
         l.raw.push(e.data);
         // Encrypted on this device, in order, before it is saved or sent.
         l.sealing = l.sealing
-          .then(() => encryptFrame(e.data, mediaKey))
+          .then(() => sealChunk(e.data))
           .then((frame) => uploader.push(new Blob([frame as BlobPart])))
           .catch((err) => {
             // A gap would spoil the recording, so it ends here and what came before is kept.
@@ -489,7 +496,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
               ? "This reply is too large to upload. Record a shorter one, or send it in two parts."
               : err instanceof FatalUploadError && err.finishedElsewhere
                 ? // The uploader's own wording is for the team's recorder (a library, a pause); a reply has neither.
-                  "This reply was offline for a while, so it was finished from what had already uploaded and is kept as an unsent reply. Reload this page to send or delete it."
+                  "This reply was offline for a while, so it was finished from what had already uploaded and is kept as an unsent reply. To keep all of it, save it as a file first, then reload this page to send or delete it."
                 : err instanceof FatalUploadError && !mayRecover(err)
                   ? (err as Error).message
                   : `${(err as Error).message}. Your recording is kept in this browser and finishes uploading next time you open this page here. You'll be asked then whether to send it.`,
@@ -500,6 +507,19 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
         l.release();
       }
     })();
+  }
+
+  /** Saves the reply as recorded, from this device's own copy, to this device (nothing is sent anywhere). */
+  function saveReply() {
+    const l = live.current;
+    if (!l) return;
+    const type = l.recorder.mimeType.split(";")[0];
+    const url = URL.createObjectURL(new Blob(l.raw, { type }));
+    const a = Object.assign(document.createElement("a"), { href: url, download: `Reply.${type.split("/")[1] || "webm"}` });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
   /** Sends the reviewed reply once its upload has finished. */
@@ -720,6 +740,11 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, Props>(function ReplyCompo
                   ? "Connection lost. It's saved on this device and keeps uploading when you're back online."
                   : "Uploading securely…"}
           </p>
+          {review.failed && (
+            <button onClick={saveReply} data-testid="reply-save-file" className="mt-2 w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-hover">
+              Save as a file
+            </button>
+          )}
           <button
             onClick={send}
             disabled={phase === "sending" || !!review.failed}

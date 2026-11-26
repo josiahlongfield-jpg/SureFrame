@@ -18,8 +18,8 @@ type Props = {
    * finished: may make transcripts (clients never do).
    */
   canMake: boolean;
-  /** The decrypted recording on this device, once it's ready. */
-  mediaUrl: string | null;
+  /** The decrypted recording on this device once it's ready, or (while the video plays as it loads) a way to fetch it all. */
+  mediaUrl: string | (() => Promise<Blob>) | null;
   durationMs: number | null;
   /** Team member: may remove the transcript and summary (even with the add-on off). */
   canRemove: boolean;
@@ -134,7 +134,7 @@ export default function AiInsight({ videoId, rootKey, initial, canMake, mediaUrl
       const { transcribe, ModelDownloadFailed, ModelUnavailable, UnsupportedDevice } = await import("@/lib/ai/transcribe");
       let t: Transcript;
       try {
-        const media = await (await fetch(mediaUrl)).blob();
+        const media = typeof mediaUrl === "function" ? await mediaUrl() : await (await fetch(mediaUrl)).blob();
         t = await transcribe(media, (progress) => setStatus({ kind: "working", progress }));
       } catch (err) {
         console.warn("Transcript unavailable:", (err as Error).message);

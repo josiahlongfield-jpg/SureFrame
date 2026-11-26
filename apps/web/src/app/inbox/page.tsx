@@ -15,6 +15,7 @@ import CantOpen from "@/components/CantOpen";
 import ForgetDevice from "@/components/ForgetDevice";
 import { AskForLink, ClientKeyGate } from "@/components/LostKey";
 import { db } from "@/lib/db";
+import { forgetOptOut } from "@/lib/emailOptOut";
 import { unsubscribeUrl } from "@/lib/reminders";
 import { clientCookie, REMOVED_COOKIE, usableClientWhere } from "@/lib/access";
 import { visibleReplies } from "@/lib/replies";
@@ -30,6 +31,7 @@ import ClientVideos from "@/components/ClientVideos";
 import { LibraryViewSwitch } from "@/components/LibraryTools";
 import { INBOX_LAYOUT_COOKIE } from "@/lib/libraryGroups";
 import { setViewerZone, TZ_COOKIE } from "@/lib/dates";
+import { privateLinkPreview } from "@/lib/sharePreview";
 
 /**
  * "client-a@example.com" as "cli•••@example.com": enough to tell which address it is (C44), without showing the
@@ -43,7 +45,7 @@ async function clientOnDevice(clientId: string) {
   return tokens.length ? db.client.findFirst({ where: { id: clientId, token: { in: tokens } } }) : null;
 }
 
-export const metadata: Metadata = { title: "Your videos", robots: { index: false } };
+export const metadata: Metadata = { title: "Your videos", robots: { index: false }, ...privateLinkPreview };
 
 /** A client's view: every video their coach (or coaches) sent them. */
 export default async function Inbox({
@@ -125,6 +127,7 @@ export default async function Inbox({
     const client = await clientOnDevice(String(formData.get("clientId")));
     if (!client) return;
     await db.client.update({ where: { id: client.id }, data: { remindersOff: false } });
+    await forgetOptOut(client.id);
     redirect(`/reminders/off${new URL(unsubscribeUrl(client.id)).search}&done=on`);
   }
   // "Remove from this device": this browser forgets the personal link for that business (nothing is deleted).
@@ -273,8 +276,8 @@ export default async function Inbox({
             <CantOpen title={titles[arrived]} testId="client-cant-open">
               {arrived === "invalid" && (
                 <p data-testid="client-invalid">
-                  It may be missing a few characters or have been mistyped. Open it again from the original message, making sure you use the whole link, or ask the
-                  business that sent it for your personal link.
+                  It may be missing a few characters or have been mistyped, or the business may have ended your access. Open it again from the original message,
+                  making sure you use the whole link, or contact the business that sent it if you think this is a mistake.
                 </p>
               )}
               {arrived === "replaced" && (

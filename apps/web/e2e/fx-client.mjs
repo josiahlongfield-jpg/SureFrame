@@ -141,12 +141,26 @@ await phone.screenshot({ path: `${shots}/intro-320.png` });
 await phone.keyboard.press("Tab");
 await phone.keyboard.press("Tab");
 ok("intro: Tab stays inside the card", await phone.evaluate(() => !!document.activeElement?.closest("[data-testid=sureframe-promo]")));
+// Not now closes it without starting the video (WC-20); the intro is then forgotten here so Watch now can be tried.
+await phone.tap("[data-testid=promo-not-now]");
+ok("intro: Not now closes it", !(await phone.isVisible("[data-testid=sureframe-promo]")));
+await phone.waitForTimeout(1000);
+ok("intro: Not now doesn't start the video", await phone.evaluate(() => { const v = document.querySelector("main video"); return !v || v.paused; }));
+await phone.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("sureframe:intro-seen:")).forEach((k) => localStorage.removeItem(k)));
+await phone.reload();
+ok("intro: shown again once forgotten", await shown(phone, "[data-testid=sureframe-promo]", 20000));
 await phone.tap("text=/^Watch now$/");
 ok("intro closes", !(await phone.isVisible("[data-testid=sureframe-promo]")));
 ok("Watch now starts the video", !!(await phone.waitForFunction(() => { const v = document.querySelector("main video"); return v && !v.paused && v.currentTime > 0; }, null, { timeout: 20000 }).catch(() => null)));
 await phone.reload();
 await phone.waitForSelector("main video", { timeout: 20000 });
 ok("intro: once per device per business", !(await shown(phone, "[data-testid=sureframe-promo]", 2500)));
+// With the text size doubled on a 320px phone (WC-5), the header's links wrap instead of running off the screen.
+await phone.evaluate(() => (document.documentElement.style.fontSize = "200%"));
+const bigHeader = await phone.evaluate(() => [...document.querySelectorAll("header a, header button")].filter((e) => e.getClientRects().length).map((e) => Math.round(e.getBoundingClientRect().right)));
+ok("text size doubled: the header fits 320px", bigHeader.length > 0 && bigHeader.every((r) => r <= 320), JSON.stringify(bigHeader));
+await phone.screenshot({ path: `${shots}/header-320-text200.png` });
+await phone.evaluate(() => (document.documentElement.style.fontSize = ""));
 
 ok("client: the business's message above the video", (await phone.textContent("[data-testid=business-message]")).includes("Here's your plan. Start Monday."));
 const meta = await phone.textContent("[data-testid=video-meta]");
@@ -525,6 +539,9 @@ ok("can't-open page fits 320px", await fits(stranger));
 await stranger.screenshot({ path: `${shots}/private-320.png`, fullPage: true });
 await stranger.goto(`${BASE}/c/not-a-real-token-${Date.now()}`);
 ok("mistyped link: says it doesn't look right", (await stranger.textContent("[data-testid=cant-open-title]")) === "This link doesn't look right" && !(await stranger.textContent("body")).includes("no longer active"));
+ok("mistyped link: says the business may have ended their access (WC-1)", (await stranger.textContent("[data-testid=client-invalid]")).includes("or the business may have ended your access"));
+const inboxCard = await stranger.evaluate(() => ({ title: document.querySelector('meta[property="og:title"]')?.content, image: !!document.querySelector('meta[property="og:image"], meta[name="twitter:image"]') }));
+ok("personal link preview: a plain Private video card, no picture (PUB-14)", inboxCard.title === "Private video" && !inboxCard.image, JSON.stringify(inboxCard));
 await stranger.screenshot({ path: `${shots}/bad-link-320.png`, fullPage: true });
 // The link without its #k= part (as in an email) on a new device.
 await stranger.goto(link.split("#")[0]);
@@ -597,6 +614,10 @@ await stranger.goto(`${BASE}/v/${videoId}`);
 await stranger.waitForSelector("[data-testid=business-message]", { timeout: 20000 });
 ok("message label: 'Owner A, Business A' (O38)", (await stranger.textContent("[data-testid=business-message] p")) === "Message from Owner A, Business A");
 ok("byline: 'Owner A from Business A'", (await stranger.textContent("[data-testid=video-meta]")).startsWith("Owner A from Business A ·"));
+// A client's link previews as a plain card, without SureFrame's headline or picture (PUB-14).
+const cardOf = (p) => p.evaluate(() => ({ title: document.querySelector('meta[property="og:title"]')?.content, image: !!document.querySelector('meta[property="og:image"], meta[name="twitter:image"]') }));
+const videoCard = await cardOf(stranger);
+ok("video link preview: a plain Private video card, no picture", videoCard.title === "Private video" && !videoCard.image, JSON.stringify(videoCard));
 await prisma.user.update({ where: { id: ownerUser.id }, data: { name: "business a" } });
 await stranger.reload();
 await stranger.waitForSelector("[data-testid=business-message]", { timeout: 20000 });

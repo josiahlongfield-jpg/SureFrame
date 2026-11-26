@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
 import { MANY_CHANGES, rateLimit } from "@/lib/rateLimit";
+import { forgetMovedClients } from "@/lib/notifications";
 
 const Body = z.object({
   clientIds: z.array(z.string().min(1).max(40)).min(1).max(500),
@@ -24,5 +25,7 @@ export const POST = handle(async (req: Request) => {
     where: { id: { in: body.data.clientIds }, workspaceId: workspace.id, removedAt: null },
     data: { assignedToId: body.data.assignedToId },
   });
+  // The previous staff member's bell lines and queued reply emails about them go too (lib/notifications.ts).
+  await forgetMovedClients(workspace.id, body.data.clientIds);
   return Response.json({ updated: res.count });
 });

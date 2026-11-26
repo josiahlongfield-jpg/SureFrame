@@ -258,6 +258,8 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
     workspace.stripeSubscriptionId && workspace.discountLabel && !(workspace.discountEndsAt && workspace.discountEndsAt.getTime() <= Date.now())
       ? workspace.discountLabel
       : null;
+  // A code can still go beside a referral discount (Terms, Discounts); labels of more than one are joined with "; " (lib/offers.ts discountOf).
+  const onlyReferral = !!discount?.startsWith("Referral:") && !discount.includes("; ");
   const afterCancel = (
     <>
       If you cancel, or a payment can&apos;t be taken, you move to the Free plan when the paid period ends. Clients and staff beyond its limits are then paused
@@ -401,7 +403,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
             </p>
           )}
           {/* Without a subscription a code is kept for checkout; on a running one, a code we gave this business comes off its next bill. */}
-          {agreed && (!workspace.stripeSubscriptionId || !discount) && <RedeemCode subscribed={!!workspace.stripeSubscriptionId} />}
+          {agreed && (!workspace.stripeSubscriptionId || !discount || onlyReferral) && <RedeemCode subscribed={!!workspace.stripeSubscriptionId} />}
         </div>
         {agreed && <Referrals workspace={workspace} />}
         {agreed && (

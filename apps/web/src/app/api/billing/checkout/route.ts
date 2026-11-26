@@ -36,7 +36,8 @@ export const POST = handle(async (req: Request) => {
     const charge = await chargeChange(change.sub, {
       items: change.items,
       billing_cycle_anchor: { type: "now" },
-      ...(offer ? { discounts: [{ promotion_code: offer.id }] } : {}),
+      // The code, beside a referral discount the subscription already has (lib/offers.ts discountsWithCode).
+      ...(offer ? { discounts: offer.discounts } : {}),
     }).catch((err) => {
       // Stripe has the last word on a code; then nothing changed.
       if (offer && (err as { type?: string })?.type === "StripeInvalidRequestError") {
@@ -50,7 +51,10 @@ export const POST = handle(async (req: Request) => {
       if (charge.payUrl) return Response.json({ url: charge.payUrl });
       return unpaid(charge);
     }
-    await db.workspace.update({ where: { id: workspace.id }, data: { plan, billingInterval: interval, ...(change.seats ? { extraClientSeats: change.seats.to } : {}) } });
+    await db.workspace.update({
+      where: { id: workspace.id },
+      data: { plan, billingInterval: interval, ...(change.seats ? { extraClientSeats: change.seats.to } : {}), ...(change.staffSeats ? { extraStaffSeats: change.staffSeats.to } : {}) },
+    });
     // The webhook does this too; now, so Settings > Billing shows the discount straight away.
     if (offer) await syncSubscription(await stripe().subscriptions.retrieve(change.sub.id, { expand: DISCOUNT_EXPAND }), { notify: false });
     return Response.json({ url: appUrl("/settings/billing?upgraded=1") });

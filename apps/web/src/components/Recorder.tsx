@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import MicLevel from "./MicLevel";
 import ConfirmDialog from "./ConfirmDialog";
 import * as store from "@/lib/recorder/store";
-import { encryptFrame, fingerprint, generateKey, wrapKey } from "@/lib/e2e/crypto";
+import { fingerprint, frameSealer, generateKey, wrapKey } from "@/lib/e2e/crypto";
 import { browserTimeZone } from "@/lib/schedule";
 import { thumbFromTrack } from "@/lib/thumb";
-import { ChunkedUploader, FatalUploadError, lockName, mayRecover, readyIn, recoverInterrupted, type UploadState } from "@/lib/recorder/uploader";
+import { ChunkedUploader, FatalUploadError, keepLeftover, lockName, mayRecover, readyIn, recoverInterrupted, type UploadState } from "@/lib/recorder/uploader";
+import { listLeftovers, removeLeftover, saveLeftover } from "@/lib/recorder/leftover";
 import { useLeaveGuard } from "@/lib/recorder/leaving";
 import { reportClientError } from "@/lib/clientError";
 import {
@@ -133,7 +134,8 @@ export default function Recorder({
   const [circleNow, setCircleNow] = useState(false);
   // Screen + Camera with the extension, sharing one window: the bubble can't be inside another app's window, so the
   // camera is the corner circle in the video and the bubble shows just Pause and Stop (Josiah 2026-10-21).
-  const [windowShare, setWindowShare] = useState(false);
+  // The same when the whole screen is shared on a computer with more than one screen ("screens").
+  const [windowShare, setWindowShare] = useState<"window" | "screens" | null>(null);
   const bubbleLink = useRef<ReturnType<typeof bubbleRecording> | null>(null);
   // Phones and tablets can't share their screen from a browser, so they only get camera mode.
   const [canShareScreen, setCanShareScreen] = useState(true);
@@ -256,8 +258,12 @@ export default function Recorder({
   useLeaveGuard(phase === "recording" || phase === "paused", setLeaveTo);
 
   // Finish anything a previous crash left behind.
+  // Bumped when a part of a recording the server finished early may have been kept here, to offer it (LeftoverNotice).
+  const [leftoverCheck, setLeftoverCheck] = useState(0);
   useEffect(() => {
-    recoverInterrupted((id, s) => setRecovered((r) => [...r, s.replyTo ?? id]), setRecovering).catch(() => {});
+    recoverInterrupted((id, s) => setRecovered((r) => [...r, s.replyTo ?? id]), setRecovering)
+      .catch(() => {})
+      .finally(() => setLeftoverCheck((n) => n + 1));
   }, []);
 
   const loadDevices = useCallback(async () => {
@@ -447,7 +453,7 @@ export default function Recorder({
     setRecovered([]);
     setWholeScreen(false);
     setCircleNow(false);
-    setWindowShare(false);
+    setWindowShare(null);
     // Setup notices (no camera, camera found) don't carry into the recording.
     if (!noCamera) setNotice(undefined);
     setUpgrade(false);
@@ -459,6 +465,8 @@ export default function Recorder({
     // With the extension, its bubble and bar on every web page instead of the browser's floating window.
     const ext = mode !== "camera" && extension ? bubbleLink : null;
     let health: (h: BubbleHealth) => void = () => {};
+    // A tab is shared with the extension's bubble on: which one is told to the extension when recording starts.
+    let tabShare = false;
     // The shared screen itself: sharing stopped before recording begins means there's nothing to record.
     let shared: MediaStreamTrack | undefined;
     // Set once the server has a video for this take, so a failed start can remove it again.
@@ -528,29 +536,35 @@ export default function Recorder({
         const camTrack = camStream.current?.getVideoTracks()[0];
         if (mode === "screen+camera" && camTrack && canComposeCamera()) {
           const surface = (shared.getSettings() as { displaySurface?: string }).displaySurface;
-          // One window shared: the circle is the camera the whole way through, and the bubble keeps just its bar.
-          const oneWindow = !!ext && surface === "window";
-          if (oneWindow) {
+          // One window shared: the circle is the camera the whole way through, and the bubble keeps just its bar. The
+          // same for a whole screen on a computer with more than one: the extension can't tell which screen the
+          // bubble is on, so it can't tell whether the bubble is in the video (REC-15).
+          const barOnly = !!ext && (surface === "window" || (surface === "monitor" && (window.screen as Screen & { isExtended?: boolean }).isExtended === true));
+          if (barOnly) {
             ext.current?.setMode("screen");
-            setWindowShare(true);
+            setWindowShare(surface === "window" ? "window" : "screens");
           }
+          // One tab shared: the bubble is in the video only when it's showing on that tab, so the extension is told
+          // which tab it is once recording starts (lib/recorder/extension.ts recordedTab).
+          tabShare = !!ext && !barOnly && surface === "browser";
           const c = composeCamera(
             video,
             camTrack,
             cornerNow.current,
             () => setNotice("Your camera stopped, so the recording carries on with your screen only."),
             // With the extension, the bubble on screen is the camera in the video. The circle is drawn in only while
-            // the bubble isn't on what's being recorded: for a shared tab, while no tab shows it; for a window or the
+            // the bubble isn't on what's being recorded: for a shared tab, while that tab doesn't show it; for the
             // whole screen, while another app (or a page the bubble can't go on) is in front.
-            ext && !oneWindow ? { bubble: true, onCircle: setCircleNow } : {},
+            ext && !barOnly ? { bubble: true, onCircle: setCircleNow } : {},
           );
           composed = c;
           composer.current = c;
           video = c.track;
-          if (ext && !oneWindow) health = (h) => c.bubbleSeen(surface === "browser" ? h.anywhere : h.onScreen);
+          // An extension from before 1.0.12 can't say which tab shows the bubble: then any tab showing it counts.
+          if (ext && !barOnly) health = (h) => c.bubbleSeen(surface === "browser" ? (h.recorded ?? h.anywhere) : h.onScreen);
           // A whole-screen share would also record the floating window, title bar and all, so the camera
           // showed twice. The circle drawn into the video is the camera then, and you see yourself on this tab.
-          else if (surface === "monitor") {
+          else if (!ext && surface === "monitor") {
             bubble?.();
             bubble = null;
             setBubbleOpen(false);
@@ -612,13 +626,15 @@ export default function Recorder({
         if (s.closed && live.current?.uploader === uploader) void stop();
       });
       const recorder = new MediaRecorder(new MediaStream(tracks), { mimeType, videoBitsPerSecond: bitrateFor(quality) });
+      // Each chunk is sealed with its place in the recording, so the stored file can't be reordered unnoticed.
+      const sealChunk = frameSealer(videoKey);
       recorder.ondataavailable = (e) => {
         const l = live.current;
         if (!l || e.data.size === 0) return;
         l.lastMs = durationNow();
         // Encrypt on this device before the chunk is stored or sent anywhere.
         l.sealing = l.sealing
-          .then(() => encryptFrame(e.data, videoKey))
+          .then(() => sealChunk(e.data))
           .then((frame) => uploader.push(new Blob([frame as BlobPart])))
           .then(() => store.updateSession(videoId, { durationMs: durationNow() }).catch(() => {}))
           // Each saved piece also tells the extension's bubble the recording is still going (never a reason to stop).
@@ -678,6 +694,9 @@ export default function Recorder({
       live.current.started = true;
       live.current.startedAt = performance.now();
       tellBubble();
+      // The browser brings a shared tab to the front once it's picked, so by now (after the countdown) the tab in front
+      // is the one being recorded.
+      if (tabShare) ext?.current?.recordedTab();
       setPhase("recording");
       // The library still, from a moment into the recording; if this misses, opening the video makes one.
       const still = video;
@@ -770,6 +789,11 @@ export default function Recorder({
           : `${(err as Error).message}. Your recording is kept in this browser and will finish uploading next time you open SureFrame here.`,
       );
       setPhase("setup");
+      // Finished early by the server: what's still here never got there, so it's offered as a file to save.
+      if (err instanceof FatalUploadError && err.finishedElsewhere)
+        void keepLeftover({ videoId: l.videoId, startedAt: Date.now() })
+          .catch(() => {})
+          .then(() => setLeftoverCheck((n) => n + 1));
     } finally {
       l.releaseLock();
       live.current = null;
@@ -898,7 +922,9 @@ export default function Recorder({
                         ? "Recording your screen. Pause and Stop also float in a small window over your other windows."
                         : "Recording your screen."
                     : extension && bubbleOpen && windowShare
-                      ? "Recording a window. Your camera is in the circle in the corner of the video, and Pause and Stop float on your web pages."
+                      ? windowShare === "window"
+                        ? "Recording a window. Your camera is in the circle in the corner of the video, and Pause and Stop float on your web pages."
+                        : "Recording your whole screen. With more than one screen, your camera is in the circle in the corner of the video, and Pause and Stop float on your web pages."
                     : extension && bubbleOpen
                       ? circleNow
                         ? "Recording your screen. Your camera bubble isn\u2019t on screen right now, so your camera is in the circle in the corner of the video."
@@ -977,6 +1003,7 @@ export default function Recorder({
             )}
           </div>
         )}
+        {phase === "setup" && <LeftoverNotice teamKey={teamKey} check={leftoverCheck} />}
         {notice && !error && (phase === "setup" || recordingish) && (
           <div key={flash} className={`rounded-xl border border-line bg-canvas p-3 text-sm text-muted ${flash ? "notice-flash" : ""}`}>{notice}</div>
         )}
@@ -1250,6 +1277,81 @@ function UploadBadge({ s }: { s: UploadState }) {
       {s.bufferedBytes > 0 && <span className="text-dim"> (+{(s.bufferedBytes / 1024 / 1024).toFixed(1)} MB on device)</span>}
       {s.uploadedBytes === 0 && <span className="block text-xs text-dim">It goes up every few seconds while you record, and is kept safe in this browser until it&rsquo;s up.</span>}
     </p>
+  );
+}
+
+/**
+ * The last part of a recording the server finished early, kept only in this browser (lib/recorder/leftover.ts): saved
+ * to this device as one file with the rest of the recording, or removed. One at a time, the latest first.
+ */
+function LeftoverNotice({ teamKey, check }: { teamKey: CryptoKey; check: number }) {
+  const [held, setHeld] = useState<string | null>(null);
+  const [state, setState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  const [askRemove, setAskRemove] = useState(false);
+  const [listed, setListed] = useState(0);
+  useEffect(() => {
+    let off = false;
+    listLeftovers()
+      .then((l) => !off && setHeld(l[0]?.videoId ?? null))
+      .catch(() => {});
+    return () => {
+      off = true;
+    };
+  }, [check, listed]);
+  if (!held) return null;
+  const id = held;
+  async function done() {
+    await removeLeftover(id).catch(() => {});
+    setAskRemove(false);
+    setState("idle");
+    setListed((n) => n + 1);
+  }
+  async function save() {
+    setState("saving");
+    try {
+      // The library's copy had it all after all: nothing to save.
+      if ((await saveLeftover(id, teamKey)) === "nothing") return void (await done());
+      setState("saved");
+    } catch (err) {
+      console.warn("Couldn't save the rest of the recording", err);
+      setState("failed");
+    }
+  }
+  return (
+    <div className="rounded-xl border border-warn-line bg-warn-bg p-3 text-sm text-warn-fg" data-testid="recorder-leftover">
+      <p>
+        {state === "saved"
+          ? "Saved. Look in your browser’s downloads: the file is the whole recording. You can now remove the copy kept in this browser."
+          : "SureFrame finished a recording early from what had uploaded, so its last part isn’t in your library. That part is kept in this browser. Save the whole recording to this device as a file to keep it."}
+      </p>
+      {state === "failed" && <p className="mt-1">Couldn&rsquo;t put the file together. Check your connection and try again.</p>}
+      <div className="mt-2 flex flex-wrap gap-2">
+        {state !== "saved" && (
+          <button onClick={save} disabled={state === "saving"} className="rounded-lg bg-primary px-3 py-1.5 font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50">
+            {state === "saving" ? "Saving…" : "Save as a file"}
+          </button>
+        )}
+        <button
+          onClick={() => (state === "saved" ? void done() : setAskRemove(true))}
+          disabled={state === "saving"}
+          className="rounded-lg border border-line-strong bg-surface px-3 py-1.5 font-medium text-ink hover:bg-hover disabled:opacity-50"
+        >
+          Remove
+        </button>
+      </div>
+      {askRemove && (
+        <ConfirmDialog
+          title="Remove the rest of this recording?"
+          body={<p>It&rsquo;s only in this browser, so it can&rsquo;t be brought back. The part in your library stays.</p>}
+          confirmLabel="Remove"
+          cancelLabel="Keep it"
+          danger
+          onConfirm={() => void done()}
+          onCancel={() => setAskRemove(false)}
+          testId="leftover-remove-confirm"
+        />
+      )}
+    </div>
   );
 }
 

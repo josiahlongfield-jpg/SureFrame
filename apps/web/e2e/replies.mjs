@@ -185,8 +185,9 @@ for (const n of ["Two", "Three"]) {
 }
 console.log("add button disabled when full:", await coach.isDisabled("button:has-text('Add client')"));
 
-// Relay window: force the copy past its deletion date and run the daily job
-sql(`update "Video" set "purgeAt"=now() - interval '1 minute' where id='${rootId}'`);
+// Relay window: force the copy past its deletion date and run the daily job. Marked as warned a day ago: one whose
+// 24-hour warning never went is kept a day more so it goes first (MAIL-3, e2e/expiry.mjs).
+sql(`update "Video" set "purgeAt"=now() - interval '1 minute', "expiryWarnedAt"=now() - interval '1 day' where id='${rootId}'`);
 const purge = await strangerCtx.request.get(`${BASE}/api/cron/purge`, { headers: { authorization: "Bearer test-cron-secret" } });
 console.log("purge job:", purge.status(), await purge.text());
 console.log("purge without secret:", (await strangerCtx.request.get(`${BASE}/api/cron/purge`)).status());

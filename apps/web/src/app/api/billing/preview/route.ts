@@ -34,7 +34,7 @@ export const POST = handle(async (req: Request) => {
     customer: typeof change.sub.customer === "string" ? change.sub.customer : change.sub.customer.id,
     subscription: change.sub.id,
     subscription_details: { items: change.items, billing_cycle_anchor: { type: "now" }, proration_behavior: "always_invoice" },
-    ...(offer ? { discounts: [{ promotion_code: offer.id }] } : {}),
+    ...(offer ? { discounts: offer.discounts } : {}),
   });
   const planPrice = await priceId(planKey);
   const priceOf = (l: (typeof preview.lines.data)[number]) => {
@@ -65,6 +65,7 @@ export const POST = handle(async (req: Request) => {
     paymentMethod: await paymentMethodLabel(change.sub),
     // Extra client seats the new plan covers, which come off with the switch (lib/planChange.ts).
     seats: change.seats,
+    staffSeats: change.staffSeats,
     // Switching plans doesn't undo a cancellation; the dialog says so.
     cancelling: !!(change.sub.cancel_at || change.sub.cancel_at_period_end),
   });

@@ -35,8 +35,9 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ userId:
     // count as the client's if their login is deleted later.
     const owner = await tx.membership.findFirstOrThrow({ where: { workspaceId: workspace.id, role: "OWNER" } });
     const now = new Date();
-    await tx.video.updateMany({ where: { workspaceId: workspace.id, ownerId: userId }, data: { ownerId: owner.userId, formerStaffAt: now } });
-    await tx.reply.updateMany({ where: { authorUserId: userId, video: { workspaceId: workspace.id } }, data: { authorUserId: owner.userId, formerStaffAt: now } });
+    // Who they were is kept (formerOwnerId, formerAuthorId) so the same login rejoining gets them back (api/team/join).
+    await tx.video.updateMany({ where: { workspaceId: workspace.id, ownerId: userId }, data: { ownerId: owner.userId, formerStaffAt: now, formerOwnerId: userId } });
+    await tx.reply.updateMany({ where: { authorUserId: userId, video: { workspaceId: workspace.id } }, data: { authorUserId: owner.userId, formerStaffAt: now, formerAuthorId: userId } });
     await tx.membership.delete({ where: { id: m.id } });
     // Their Claude connections end with their place on the team, and don't come back if they're invited again.
     await tx.connectorGrant.updateMany({ where: { workspaceId: workspace.id, userId, revokedAt: null }, data: { revokedAt: now } });

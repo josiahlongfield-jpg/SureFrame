@@ -162,14 +162,19 @@ export default function Page() {
 
       <h2>10. Deletion and return</h2>
       <ul>
-        <li>Without cloud backup, recordings are deleted from our servers {LEGAL.retentionDays} days after they&rsquo;re recorded.</li>
+        <li>
+          Without cloud backup, recordings are deleted from our servers {LEGAL.retentionDays} days after they&rsquo;re recorded (one day later if our warning
+          email couldn&rsquo;t go out first, never longer).
+        </li>
         <li>
           A video or voice reply that was recorded but never sent is deleted {LEGAL.heldReplyDays} days after it was recorded, with or without cloud backup.
         </li>
         <li>
           When you remove a client, their link stops working straight away and we delete their details, conversations, to-dos and notes, and the recordings
           sent only to them, at the same time, even with cloud backup. We keep no copy to restore them from. Recordings you also sent to other clients stay with
-          those clients.
+          those clients. If the client had turned your emails off, we keep only a scrambled marker of their email address (a keyed hash, which can&rsquo;t be
+          turned back into the address), so their emails stay off if you add them again; it&rsquo;s deleted when they turn your emails back on, or with your
+          account.
         </li>
         <li>
           When you delete your account, we keep Customer Personal Data for {LEGAL.deletionGraceDays} days so you can reactivate it, then delete it. If we close your

@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { appUrl } from "@/lib/appUrl";
 import { BRAND } from "@/lib/brand";
 import { TZ_COOKIE } from "@/lib/dates";
+import { NONCE_HEADER } from "@/lib/scriptPolicy";
 import SkipLink from "@/components/SkipLink";
 import { fontVars } from "./fonts";
 import "./globals.css";
@@ -46,12 +48,15 @@ const topScript = `try{var n=performance.getEntriesByType&&performance.getEntrie
 
 export const viewport: Viewport = { themeColor: "#0f2747", colorScheme: "light" };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // This page's nonce from the script policy (lib/scriptPolicy.ts, set in middleware.ts), without which the browser
+  // won't run the two scripts below. Browsers hide a nonce once read, hence suppressHydrationWarning.
+  const nonce = (await headers()).get(NONCE_HEADER) ?? undefined;
   return (
     <html lang="en" data-theme="fresh" className={fontVars}>
       <body className="min-h-screen antialiased">
-        <script dangerouslySetInnerHTML={{ __html: zoneScript }} />
-        <script dangerouslySetInnerHTML={{ __html: topScript }} />
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: zoneScript }} />
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: topScript }} />
         <SkipLink />
         {children}
       </body>

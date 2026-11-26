@@ -34,13 +34,16 @@ export default function SureFramePromo({ workspaceId, business, onWatch }: { wor
   }, [open]);
 
   if (!open) return null;
-  const watch = () => {
+  const close = () => {
     try {
       localStorage.setItem(introSeenKey(workspaceId), "1");
     } catch {
       /* storage blocked: it may show again next visit */
     }
     setOpen(false);
+  };
+  const watch = () => {
+    close();
     onWatch();
   };
 
@@ -53,6 +56,8 @@ export default function SureFramePromo({ workspaceId, business, onWatch }: { wor
       data-testid="sureframe-promo"
       className="fixed inset-0 z-[70] grid place-items-center overflow-y-auto bg-solid/70 px-4 py-6"
       onKeyDown={(e) => {
+        // Escape is the same as Not now: the card closes and the video doesn't start.
+        if (e.key === "Escape") return close();
         // Tab stays in the card: the page behind it isn't usable until the intro closes.
         if (e.key !== "Tab") return;
         const stops = [...(box.current?.querySelectorAll<HTMLElement>("button:not([disabled]), a[href]") ?? [])];
@@ -94,7 +99,11 @@ export default function SureFramePromo({ workspaceId, business, onWatch }: { wor
           >
             Watch now
           </button>
-          <p id="promo-wait" className="mt-2 text-xs text-muted" data-testid="promo-wait">
+          {/* For a client somewhere quiet, or who only wants to read or reply: closes the intro without starting the video. */}
+          <button onClick={close} data-testid="promo-not-now" className="mt-2 rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-hover hover:text-ink">
+            Not now
+          </button>
+          <p id="promo-wait" className="mt-1 text-xs text-muted" data-testid="promo-wait">
             This short intro only shows once on this device.
           </p>
           <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-dim">

@@ -1,5 +1,6 @@
 import { appUrl } from "@/lib/appUrl";
 import { db } from "@/lib/db";
+import { rememberOptOut } from "@/lib/emailOptOut";
 import { validUnsubscribe } from "@/lib/reminders";
 import { handle } from "@/lib/session";
 
@@ -15,6 +16,7 @@ export const POST = handle(async (req: Request) => {
   const s = q.get("s");
   if (!c || !s || !validUnsubscribe(c, s)) return new Response("This link isn't valid.", { status: 400 });
   await db.client.updateMany({ where: { id: c }, data: { remindersOff: true } });
+  await rememberOptOut(c);
   return new Response("Emails turned off.");
 });
 

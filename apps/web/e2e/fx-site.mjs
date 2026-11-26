@@ -246,11 +246,17 @@ ok("privacy: a table of contents linking to the For clients section", await seen
 // The page's own "last updated" date (lib/legal.ts), which moves when wording that needs no new agreement changes.
 const legalTs = readFileSync(new URL("../src/lib/legal.ts", import.meta.url), "utf8");
 const updatedOf = (key) => legalTs.match(new RegExp(`${key}: "([^"]+)"`))?.[1];
-ok("privacy: version, when it took effect, last updated, versions and changes", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 2026-10-24 (in effect from 24 October 2026) · Last updated ${updatedOf("privacyUpdated")} · Versions and changes`, await visitor.textContent("[data-testid=legal-version]"));
+ok("privacy: version, when it took effect, last updated, versions and changes", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 2026-11-26 (in effect from 26 November 2026) · Last updated ${updatedOf("privacyUpdated")} · Versions and changes`, await visitor.textContent("[data-testid=legal-version]"));
 const privacy = norm(await visitor.textContent("main"));
 for (const bit of ["Keep me signed in", "the short SureFrame intro is shown once per device for each business; your browser remembers this", "Clients can delete their own replies", "The business can see"]) {
   ok(`privacy says: ${bit}`, privacy.includes(bit));
 }
+// SEC-7: a sent video goes with the client's conversation; staff keep only their own recordings not yet sent.
+ok("privacy: what staff can see follows the client's conversation (SEC-7)", privacy.includes("those clients’ videos and conversations, and recordings they have made but not yet sent") && !privacy.includes("the videos they recorded themselves"));
+// MAIL-3, MAIL-8, MAIL-9: the one-day hold for the warning, who gets the warning, and who is told their access ended.
+ok("privacy: kept a day longer only so the warning goes first (MAIL-3)", privacy.includes("(one day later if our warning email couldn’t go out first, never longer)"));
+ok("privacy: the warning goes to the team and lists client replies (MAIL-8)", privacy.includes("We try to email the business’s team about a day before, listing the videos and client replies about to be deleted") && !privacy.includes("email the person who recorded a video about a day before"));
+ok("privacy: a removed client is told only if their link was sent or opened (MAIL-9)", privacy.includes("If the business had sent you your link or you’d opened it, we email you to let you know"));
 ok("privacy: no Continue with Google (only email sign-in exists)", !privacy.includes("Google, if you") && !privacy.includes("Continue with Google"));
 // Josiah's decisions (22 October 2026): the client help chat's questions and digest (7), the EU/UK representative (21).
 ok("privacy: client help questions may be read, and the weekly list is kept up to 12 months (decision 7)", privacy.includes("we may read them for that, and that email is kept in our support inbox for up to 12 months") && privacy.includes("is kept in our support inbox for up to 12 months, then deleted") && !privacy.includes("stays in our support inbox"));
@@ -260,9 +266,9 @@ await visitor.click("[data-testid=legal-toc] a[href='#for-clients']");
 ok("contents links jump to the section", await visitor.evaluate(() => location.hash === "#for-clients" && document.getElementById("for-clients").getBoundingClientRect().top < 200));
 await visitor.goto(BASE + "/legal/terms");
 ok("terms: contents, and the cancel link goes to Billing", (await seen(visitor, "[data-testid=legal-toc]")) && (await visitor.$$("main a[href='/settings/billing']")).length >= 1);
-ok("terms: the same version line", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 2026-10-24 (in effect from 24 October 2026) · Last updated ${updatedOf("termsUpdated")} · Versions and changes`);
+ok("terms: the same version line", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 2026-11-26 (in effect from 26 November 2026) · Last updated ${updatedOf("termsUpdated")} · Versions and changes`);
 await visitor.goto(BASE + "/legal/dpa");
-ok("DPA: the same version line", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 1.1 (in effect from 24 October 2026) · Last updated ${updatedOf("dpaUpdated")} · Versions and changes`, await visitor.textContent("[data-testid=legal-version]"));
+ok("DPA: the same version line", norm(await visitor.textContent("[data-testid=legal-version]")) === `Version 1.2 (in effect from 26 November 2026) · Last updated ${updatedOf("dpaUpdated")} · Versions and changes`, await visitor.textContent("[data-testid=legal-version]"));
 ok("DPA: no Google sign-in", !norm(await visitor.textContent("main")).includes("Google (verified"));
 // Round 3 legal wording (Checker C L1-L11, K7, G5-G17; visitor V43-V49).
 const dpaText = norm(await visitor.textContent("main"));
@@ -297,8 +303,10 @@ for (const bit of [
 }
 ok("terms: no stale export line or re-agree-on-every-update promise (L1, L4)", !terms.includes("text in the data export stays encrypted") && !terms.includes("When we update them, we’ll ask you"));
 await visitor.click("[data-testid=legal-latest] summary");
-// The box says what the latest date was: a new version (24 October 2026, removing a client deletes them) links to the
-// earlier versions; a wording update since (27 October 2026, the extension's store) links to the wording updates.
+// The box says what the latest date was: a new version (26 November 2026, section 18 and kept opt-outs) links to the
+// earlier versions; a wording update (as on 27 October 2026, the extension's store) links to the wording updates.
+ok("terms: section 18 lets a change apply sooner for safety or the law (LEGAL-1)", terms.includes("A change can apply sooner, from the date we give in that email, where that’s needed to keep people safe or to comply with the law."));
+ok("terms: section 4 says a re-added client's emails stay off (MAIL-10)", terms.includes("if they’d turned your emails off, their emails stay off"));
 ok("terms: what changed on the last-updated date, linking to earlier versions (V43)", (await seen(visitor, "[data-testid=legal-latest] li")) &&
   ((norm(await visitor.textContent("[data-testid=legal-latest]")).includes("This is a new version, so account holders are asked to agree to it.") && (await visitor.$$("[data-testid=legal-latest] a[href='/legal/archive#versions']")).length === 1) ||
     (norm(await visitor.textContent("[data-testid=legal-latest]")).includes("so there’s nothing new to agree to.") && (await visitor.$$("[data-testid=legal-latest] a[href='/legal/archive#wording-updates']")).length === 1)));
@@ -320,7 +328,11 @@ const archive = norm(await visitor.textContent("main"));
 // The latest of the three documents' dates: a wording update can move one document's date and not the others'.
 const latestUpdated = ["termsUpdated", "privacyUpdated", "dpaUpdated"].map(updatedOf).sort((a, b) => Date.parse(b) - Date.parse(a))[0];
 ok("archive: titled Versions and changes, dated with the latest update (L8, V44, V45)", norm(await visitor.textContent("main h1")) === "Versions and changes" && norm(await visitor.textContent("[data-testid=legal-version]")) === `Last updated ${latestUpdated}`);
-ok("archive: the 26 November wording updates list the notifications in the app", archive.includes("Privacy Policy: Notifications in the app (the list behind the bell)") && archive.includes("Data Processing Agreement: Section 3: notifications shown in the app, kept for up to 90 days."));
+// The 26 November wording updates went out with that day's new versions, so they're listed under that version, not twice.
+const clarified = norm(await visitor.textContent("[data-testid=clarified-2026-11-26]").catch(() => ""));
+ok("archive: the 26 November version lists the wording made clearer with it (the notifications in the app)", clarified.includes("Privacy Policy: Notifications in the app (the list behind the bell)") && clarified.includes("Data Processing Agreement: Section 3: notifications shown in the app, kept for up to 90 days."), clarified);
+ok("archive: and 26 November isn't also a wording update", !norm(await visitor.textContent("[data-testid=wording-updates]")).includes("26 November 2026"));
+ok("archive: the DPA's current version and what changed in it", archive.includes("Version 1.2, in effect from 26 November 2026, is the current one. What changed from the version before:") && archive.includes("we keep a scrambled marker of their email address"));
 ok("archive: a Wording updates list with each date (L1)", (await visitor.$$("[data-testid=wording-updates] > li")).length >= 6 && archive.includes("13 October 2026") && archive.includes("Terms of Service: Founding prices and discount offers."));
 ok("archive: the 22 October wording updates list the Privacy changes (G15, G8)", archive.includes("We say we have chosen to follow the Australian Privacy Principles.") && archive.includes("a business adding a client under 13 is responsible for any parental consent the law requires"));
 ok("archive: the 11 October changes read as changes from the unnumbered versions (V46)", archive.includes("What changed from the earlier versions, which weren’t numbered:"));

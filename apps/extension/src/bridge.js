@@ -44,7 +44,7 @@
     const { rec } = await session.get("rec").catch(() => ({}));
     const tab = await whoami();
     // Only this tab's own recording.
-    if (rec && tab && rec.tabId === tab.tabId) await session.remove(["rec", "cmd"]).catch(() => {});
+    if (rec && tab && rec.tabId === tab.tabId) await session.remove(["rec", "cmd", "recorded"]).catch(() => {});
   }
 
   /**
@@ -53,7 +53,7 @@
    */
   function onWorker(msg) {
     if (!ok() || msg?.type !== "health" || !current || msg.id !== current.id) return;
-    send({ type: "health", id: msg.id, onScreen: msg.onScreen, anywhere: msg.anywhere });
+    send({ type: "health", id: msg.id, onScreen: msg.onScreen, anywhere: msg.anywhere, recorded: msg.recorded });
   }
 
   function onPage(e) {
@@ -63,6 +63,8 @@
     if (msg.type === "hello") send({ type: "hello", version: chrome.runtime.getManifest().version });
     else if (msg.type === "recording" && msg.rec?.id) void publish(msg.rec);
     else if (msg.type === "end") void end();
+    // A tab is being recorded, and it's the one in front now: the worker notes which (background.js).
+    else if (msg.type === "recorded-tab" && current && msg.id === current.id) chrome.runtime.sendMessage({ type: "recorded-tab", id: msg.id }).catch(() => {});
   }
 
   function onStorage(changes, area) {

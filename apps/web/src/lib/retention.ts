@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { storage } from "@/lib/storage";
 
@@ -11,6 +12,25 @@ export function purgeDate(cloudBackup: boolean, from = new Date()) {
 }
 
 /**
+ * The server copies whose recorder (or, for a client's reply, whoever recorded the video it answers) gets the
+ * 24-hour warning (lib/expiryWarning.ts), leaving dates aside: the team's own recordings and their clients' sent
+ * video and voice replies (MAIL-8), not in a workspace that's backed up, closing, suspended, closed or on legal hold,
+ * nor in a deleted client's conversation while that deletion finishes (lib/clientRemoval.ts).
+ */
+export const warnable: Prisma.VideoWhereInput = {
+  status: { notIn: ["EXPIRED", "RECORDING"] },
+  workspace: { cloudBackup: false, deleteAt: null, suspendedAt: null, closedAt: null, legalHoldAt: null },
+  NOT: { client: { removedAt: { not: null } } },
+  OR: [{ replyToId: null }, { asReply: { byClient: true, heldAt: null, video: { NOT: { client: { removedAt: { not: null } } } } } }],
+};
+
+/**
+ * Kept in expiryWarnedAt (which otherwise says when the warning went) on a copy the purge held back a day because
+ * its warning hadn't gone (MAIL-3). The warning job still sends one for it; the purge never holds it a second time.
+ */
+export const HELD_FOR_WARNING = new Date(0);
+
+/**
  * Delete server copies whose window has passed. Nothing is kept on devices
  * unless someone saved it. Works through the backlog in batches until done or
  * out of time. Copies sent to several clients share one file, which is
@@ -22,6 +42,13 @@ export async function purgeExpired(now = new Date(), budgetMs = 40_000) {
   const until = Date.now() + budgetMs;
   const failed = new Set<string>();
   let purged = 0;
+  // Due, but its 24-hour warning never went (the jobs were paused for maintenance, a legal hold was just lifted, or
+  // the email kept failing): kept one more day so the warning goes first (MAIL-3). Only once: one already held is
+  // deleted on its new date, warned or not, so nothing stays more than a day past its date. Nothing else is held.
+  await db.video.updateMany({
+    where: { AND: [warnable, { purgeAt: { lte: now }, expiryWarnedAt: null }] },
+    data: { purgeAt: new Date(now.getTime() + 86_400_000), expiryWarnedAt: HELD_FOR_WARNING },
+  });
   while (Date.now() < until) {
     const due = await db.video.findMany({
       // Never a backed-up workspace's video, even if a stale date slipped through, nor one on legal hold

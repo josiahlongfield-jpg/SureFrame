@@ -86,6 +86,30 @@ export async function markRead(userId: string, workspaceId: string, which: { id?
   return 0;
 }
 
+/**
+ * Clients given to someone else (or unassigned): staff who only see their own clients and no longer look after them
+ * lose what their bell says about them, and the reply emails still queued for them, along with the conversations
+ * (lib/permissions.ts canSeeVideo). Never throws: the reassignment has already been saved.
+ */
+export async function forgetMovedClients(workspaceId: string, clientIds: string[]) {
+  try {
+    const [members, clients] = await Promise.all([
+      db.membership.findMany({ where: { workspaceId, role: "MEMBER", seeAllClients: false }, select: { userId: true } }),
+      db.client.findMany({ where: { workspaceId, id: { in: clientIds } }, select: { id: true, assignedToId: true } }),
+    ]);
+    const byAssignee = new Map<string | null, string[]>();
+    for (const c of clients) byAssignee.set(c.assignedToId, [...(byAssignee.get(c.assignedToId) ?? []), c.id]);
+    for (const [assignee, ids] of byAssignee) {
+      const users = members.map((m) => m.userId).filter((id) => id !== assignee);
+      if (!users.length) continue;
+      const where = { workspaceId, clientId: { in: ids }, userId: { in: users } };
+      await Promise.all([db.notification.deleteMany({ where }), db.teamNotification.deleteMany({ where: { ...where, sentAt: null } })]);
+    }
+  } catch (err) {
+    console.error("couldn't clear notifications for moved clients", err);
+  }
+}
+
 /** Old ones go (the daily clean-up job, app/api/cron/purge). */
 export async function pruneNotifications(now = new Date()) {
   const day = 86_400_000;

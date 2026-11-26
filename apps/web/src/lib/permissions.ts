@@ -5,8 +5,10 @@ import { HttpError } from "@/lib/session";
 /**
  * Who on a team may see and do what. Owners and admins have full access.
  * A member (staff) sees only the clients assigned to them, the videos sent
- * to those clients and the videos they recorded themselves, plus whatever
- * else the owner or an admin turned on for them on the Team page.
+ * to those clients and the recordings they made and haven't sent to anyone,
+ * plus whatever else the owner or an admin turned on for them on the Team
+ * page. A conversation goes with its client: when a client is given to
+ * someone else, the member who recorded its videos no longer sees them.
  *
  * Everything the server hands out about clients, videos, conversations and
  * to-dos goes through these checks. Staff devices hold the team key, so this
@@ -67,17 +69,19 @@ const deletedClientsOnly: Prisma.VideoWhereInput = { client: { removedAt: { not:
 
 /**
  * The library list: originals, plus (for restricted staff) the copies sent to
- * their clients when they can't open the original itself.
+ * their clients when they can't open the original itself. The same rule as
+ * canSeeVideo below.
  */
 export function libraryWhere(a: Access): Prisma.VideoWhereInput {
   if (seesAllClients(a)) return { workspaceId: a.workspaceId, replyToId: null, sourceId: null, NOT: deletedClientsOnly };
+  const original: Prisma.VideoWhereInput = { OR: [{ ownerId: a.userId, clientId: null }, { client: { assignedToId: a.userId } }] };
   return {
     workspaceId: a.workspaceId,
     replyToId: null,
     NOT: deletedClientsOnly,
     OR: [
-      { ownerId: a.userId, sourceId: null },
-      { ownerId: { not: a.userId }, client: { assignedToId: a.userId } },
+      { sourceId: null, ...original },
+      { sourceId: { not: null }, client: { assignedToId: a.userId }, source: { NOT: original } },
     ],
   };
 }
@@ -90,8 +94,10 @@ type VideoLike = { workspaceId: string; ownerId: string; clientId: string | null
  */
 export async function canSeeVideo(a: Access, video: VideoLike, client?: { assignedToId: string | null } | null) {
   if (video.workspaceId !== a.workspaceId) return false;
-  if (seesAllClients(a) || video.ownerId === a.userId) return true;
-  if (!video.clientId) return false;
+  if (seesAllClients(a)) return true;
+  // A recording not sent to anyone stays its recorder's. Once sent, it's that client's conversation, and goes with
+  // the client: a member who recorded it loses it when the client is given to someone else (SEC-7).
+  if (!video.clientId) return video.ownerId === a.userId;
   const c = client !== undefined ? client : await db.client.findUnique({ where: { id: video.clientId }, select: { assignedToId: true } });
   return c?.assignedToId === a.userId;
 }

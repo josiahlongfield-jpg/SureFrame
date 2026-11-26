@@ -296,22 +296,46 @@ export async function discountOf(sub: Stripe.Subscription): Promise<DiscountNow 
 
 const perMonth = (cents: number, interval: string | undefined) => (interval === "year" ? cents / 12 : cents);
 
+/** A discount still on a subscription: not removed, and not past its end. */
+const liveDiscount = (d: string | Stripe.Discount) => typeof d === "string" || (!d.deleted && !(d.end && d.end * 1000 <= Date.now()));
+/** The referral discount (lib/referrals.ts), told apart by its coupon. */
+const isReferralDiscount = (d: string | Stripe.Discount) =>
+  typeof d !== "string" && !!d.source?.coupon && typeof d.source.coupon !== "string" && d.source.coupon.metadata?.sureframe_kind === "referral";
+
+/**
+ * The `discounts` to send when a code goes on a running subscription. Apart from a referral discount, only one
+ * discount applies to a subscription at a time (Terms, Discounts): a referral discount stays beside the code, in
+ * whichever order they came, and any other discount refuses it. Also the referral's percentage off the plan (0 without).
+ */
+export async function discountsWithCode(sub: Stripe.Subscription, promotionCode: string) {
+  let live = (sub.discounts ?? []).filter(liveDiscount);
+  // Ids only (not expanded): read them in full to tell the referral one from any other.
+  if (live.some((d) => typeof d === "string" || typeof d.source?.coupon === "string")) {
+    live = ((await stripe().subscriptions.retrieve(sub.id, { expand: DISCOUNT_EXPAND })).discounts ?? []).filter(liveDiscount);
+  }
+  if (live.some((d) => !isReferralDiscount(d))) throw new HttpError(400, "Your subscription already has a discount, and codes can't be combined.");
+  const referral = live as Stripe.Discount[];
+  return {
+    discounts: [...referral.map((d) => ({ discount: d.id })), { promotion_code: promotionCode }],
+    referralPercent: referral.reduce((t, d) => t + ((d.source.coupon as Stripe.Coupon).percent_off ?? 0), 0),
+  };
+}
+
 /**
  * A code typed when switching to a bigger plan. It's only for moving up: the
  * new plan, with the code taken off, must still cost at least what the
  * current plan does (each counted per month, so monthly and yearly compare),
  * so a code never makes a switch cheaper than staying put. It can't be added
- * on top of a discount the subscription already has, and codes for new
- * customers aren't for subscribers.
+ * on top of another code the subscription already has (a referral discount
+ * stays beside it), and codes for new customers aren't for subscribers.
+ * Comes with the `discounts` to send for the switch.
  */
-export async function upgradeOffer(sub: Stripe.Subscription, newPlanKey: CatalogKey, code: string): Promise<Offer> {
+export async function upgradeOffer(sub: Stripe.Subscription, newPlanKey: CatalogKey, code: string): Promise<Offer & { discounts: { discount?: string; promotion_code?: string }[] }> {
   const offer = await offerForCode(code);
   if (!offer) throw new HttpError(400, "That code isn't valid or has ended.");
   if (!offerIsFor(offer, typeof sub.customer === "string" ? sub.customer : sub.customer.id)) throw new HttpError(400, NOT_YOURS);
   if (offer.newCustomersOnly) throw new HttpError(400, NEW_CUSTOMERS_ONLY);
-  if ((sub.discounts ?? []).some((d) => typeof d === "string" || (!d.deleted && !(d.end && d.end * 1000 <= Date.now())))) {
-    throw new HttpError(400, "Your subscription already has a discount, and codes can't be combined.");
-  }
+  const { discounts, referralPercent } = await discountsWithCode(sub, offer.id);
   const current = sub.items.data.find((i) => planOf(i.price));
   if (!current?.price.unit_amount) throw new HttpError(400, "Codes can only be used when moving up to a bigger plan.");
   const was = perMonth(current.price.unit_amount * (current.quantity ?? 1), current.price.recurring?.interval);
@@ -324,10 +348,13 @@ export async function upgradeOffer(sub: Stripe.Subscription, newPlanKey: Catalog
   const products = c.applies_to?.products;
   const onPlan = !products?.length || products.some((p) => itemOfProduct(p) === next.item);
   const off = !onPlan ? 0 : c.percent_off ? (full * c.percent_off) / 100 : c.amount_off ? perMonth(c.amount_off, next.interval) : 0;
-  if (full - off < was) {
+  // A referral discount comes off both plans. Counted as if both discounts came off the full price, the cheapest Stripe
+  // could make it, so the new plan never costs less than the current one with its referral discount.
+  const kept = 1 - referralPercent / 100;
+  if (full * kept - off < was * kept) {
     const name = (k: string) => k.charAt(0).toUpperCase() + k.slice(1);
     const from = catalogOf(current.price)?.item ?? "current";
     throw new HttpError(400, `That code would make ${name(next.item)} cost less than your ${name(from)} plan, so it can't be used for this switch.`);
   }
-  return offer;
+  return { ...offer, discounts };
 }

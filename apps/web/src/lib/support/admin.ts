@@ -913,7 +913,7 @@ export async function enableClientLink(actor: SupportAdmin, o: { clientId: strin
  * their tokens don't depend on a sign-in, so someone who got into the account
  * could have made one that would otherwise outlive this. The person connects
  * Claude again on Settings > Connections. (Their own "Sign out everywhere" on
- * Settings > Account leaves Claude connected, and says so.)
+ * Settings > Account does the same, and says so.)
  */
 export async function signOutEverywhere(actor: SupportAdmin, o: { userId: string; reason: string; category?: NoticeReason; notify?: boolean }) {
   const reason = reasonOf(o.reason);

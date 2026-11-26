@@ -29,11 +29,19 @@ export default function ClientHeader({
 }) {
   return (
     <header className="border-b border-line bg-surface">
-      <div className={`mx-auto flex h-16 ${width} items-center justify-between gap-3 px-4 sm:px-6`}>
-        <BrandMark brand={brand} href="/inbox" />
-        <div className="flex shrink-0 items-center gap-2 min-[22rem]:gap-4">
+      {/*
+        With the phone's text size made much bigger, the links don't fit beside the name: they wrap onto a second line
+        (and onto two lines of their own on the narrowest phones) instead of running off the screen or over the logo.
+        At normal text size everything fits on one line, so nothing wraps and it looks as before: a business's name is
+        cut short first (BrandMark), and the links only move down once the name has less than 4rem left.
+      */}
+      <div className={`mx-auto flex min-h-16 ${width} flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6`}>
+        <div className={brand && (brand.logoUrl || brand.color) ? "flex min-w-[4rem] flex-1 basis-0 items-center" : "flex items-center"}>
+          <BrandMark brand={brand} href="/inbox" />
+        </div>
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 min-[22rem]:gap-4">
           {allVideosLink && (
-            <Link href={fromVideo ? `/inbox?from=${fromVideo}` : "/inbox"} className="shrink-0 text-sm font-medium text-muted hover:text-ink" data-testid="all-videos-link">
+            <Link href={fromVideo ? `/inbox?from=${fromVideo}` : "/inbox"} className="text-sm font-medium text-muted hover:text-ink" data-testid="all-videos-link">
               All my videos
             </Link>
           )}

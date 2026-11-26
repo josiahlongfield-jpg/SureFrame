@@ -594,6 +594,62 @@ await frameOf(plain).click("#stop");
 await rec.waitForURL("**/v/**", { timeout: 30000 }).catch(() => {});
 ok("one window: Stop on the bar saves the video", /\/v\//.test(rec.url()), rec.url());
 
+// REC-15: the whole screen on a computer with more than one screen. The extension can't tell which screen the bubble
+// is on, so the camera is the corner circle the whole way through and the bubble keeps just its bar, as for one window.
+await rec.goto(BASE + "/record");
+await rec.click("text=Screen + Camera");
+await rec.evaluate(() => Object.defineProperty(window.screen, "isExtended", { get: () => true, configurable: true }));
+await rec.click("text=Start recording");
+await rec.waitForSelector("text=/Recording · \\d/", { timeout: 20000 });
+await plain.bringToFront();
+await plain.waitForSelector("#sureframe-bubble-frame", { timeout: 10000 }).catch(() => {});
+await plain.waitForTimeout(2500);
+const screens = await box(plain);
+ok("two screens: the bubble keeps just its bar, camera off", screens && screens.height <= 44 && !(await frameOf(plain).isVisible("#circle")), JSON.stringify(screens));
+says = await recorderSays();
+ok("...and the recorder says the camera is the corner circle", /With more than one screen, your camera is in the circle in the corner of the video/.test(says), says);
+await frameOf(plain).click("#stop");
+await rec.waitForURL("**/v/**", { timeout: 30000 }).catch(() => {});
+ok("two screens: Stop on the bar saves the video", /\/v\//.test(rec.url()), rec.url());
+
+// REC-15: one tab shared. The browser brings a picked tab to the front, so the tab in front when recording starts is
+// the one recorded; the bubble is the camera only while it shows on that tab, not while it shows on any tab at all.
+await rec.goto(BASE + "/record");
+await rec.click("text=Screen + Camera");
+await rec.evaluate(() => {
+  const share = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
+  navigator.mediaDevices.getDisplayMedia = async (o) => {
+    const s = await share(o);
+    const t = s.getVideoTracks()[0];
+    const settings = t.getSettings.bind(t);
+    t.getSettings = () => ({ ...settings(), displaySurface: "browser" });
+    return s;
+  };
+});
+await rec.click("text=Start recording");
+await rec.waitForSelector("[data-testid=countdown-note]", { timeout: 20000 });
+// As the browser would: the picked tab comes to the front during the countdown.
+await plain.bringToFront();
+await rec.waitForSelector("text=/Recording · \\d/", { timeout: 20000 });
+await plain.waitForSelector("#sureframe-bubble-frame", { timeout: 10000 }).catch(() => {});
+await plain.waitForTimeout(2500);
+says = await recorderSays();
+ok("one tab: the bubble showing on the recorded tab is the camera in the video", /camera is the floating bubble/.test(says), says);
+// The recorded tab can no longer show it (a page that blocks cameras), while the SureFrame tab's bubble still does.
+await plain.goto(SITE + "/blocked");
+await plain.waitForTimeout(3000);
+says = await recorderSays();
+ok("one tab: not showing on the recorded tab, the circle goes in, even with the bubble on another tab", /isn.t on screen right now/.test(says), says);
+await plain.goto(SITE + "/plain");
+await plain.waitForSelector("#sureframe-bubble-frame", { timeout: 10000 }).catch(() => {});
+await plain.waitForTimeout(3000);
+says = await recorderSays();
+ok("one tab: showing on the recorded tab again, the circle comes out", /camera is the floating bubble/.test(says), says);
+await rec.bringToFront();
+await rec.click("button:has-text('Stop')");
+await rec.waitForURL("**/v/**", { timeout: 30000 }).catch(() => {});
+ok("one tab: Stop saves the video", /\/v\//.test(rec.url()), rec.url());
+
 await ctx.close();
 
 // Typical Mac and Windows screens (a Retina laptop, 125% scaling, a big monitor): the bubble fits, follows the pointer

@@ -170,16 +170,16 @@ export async function thumbFromTrack(videoId: string, track: MediaStreamTrack, k
 const PREVIEW_BYTES = 6 * 1024 * 1024;
 
 /**
- * Makes a still for a recording that doesn't have one yet (recorded before
- * stills, or never opened), from only the start of the recording. True once it's saved.
+ * The start of a framed recording (up to `maxBytes` of it, the rest isn't downloaded), decrypted on this device as a
+ * short playable clip: an object URL (revoke it when done), or null if it couldn't be fetched or nothing of it opened.
  */
-export async function backfillThumb(videoId: string, rawUrl: string, key: CryptoKey, mimeType: string) {
+export async function leadingClip(rawUrl: string, key: CryptoKey, mimeType: string, maxBytes = PREVIEW_BYTES) {
   const res = await fetch(rawUrl).catch(() => null);
-  if (!res?.ok || !res.body) return false;
+  if (!res?.ok || !res.body) return null;
   const reader = res.body.getReader();
   const parts: Uint8Array[] = [];
   let size = 0;
-  while (size < PREVIEW_BYTES) {
+  while (size < maxBytes) {
     const { done, value } = await reader.read();
     if (done) break;
     parts.push(value);
@@ -193,8 +193,17 @@ export async function backfillThumb(videoId: string, rawUrl: string, key: Crypto
     at += p.length;
   }
   const frames = await decryptLeadingFrames(bytes, key);
-  if (!frames.length) return false;
-  const src = URL.createObjectURL(new Blob(frames as BlobPart[], { type: mimeType.split(";")[0] }));
+  if (!frames.length) return null;
+  return URL.createObjectURL(new Blob(frames as BlobPart[], { type: mimeType.split(";")[0] }));
+}
+
+/**
+ * Makes a still for a recording that doesn't have one yet (recorded before
+ * stills, or never opened), from only the start of the recording. True once it's saved.
+ */
+export async function backfillThumb(videoId: string, rawUrl: string, key: CryptoKey, mimeType: string) {
+  const src = await leadingClip(rawUrl, key, mimeType);
+  if (!src) return false;
   try {
     const still = await stillFrom(src);
     return !!still && (await save(videoId, still, key));

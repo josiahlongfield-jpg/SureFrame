@@ -5,6 +5,8 @@ import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
 import { MANY_CHANGES, rateLimit } from "@/lib/rateLimit";
 import { accessOf, clientScopeWhere } from "@/lib/permissions";
 import { NAME_MAX } from "@/lib/clients";
+import { optedOutBefore } from "@/lib/emailOptOut";
+import { forgetMovedClients } from "@/lib/notifications";
 
 // Deleting a client erases their recordings' files, and can wait out a team key reset (lib/clientRemoval.ts).
 export const maxDuration = 120;
@@ -44,11 +46,15 @@ export const PATCH = handle(async (req: Request, ctx: { params: Promise<{ id: st
   if (body.data.assignedToId && !(await db.membership.findUnique({ where: { userId_workspaceId: { userId: body.data.assignedToId, workspaceId: workspace.id } } }))) {
     throw new HttpError(400, "That person isn't on your team");
   }
+  // A new email that turned this business's emails off before (on a client since deleted) starts with them off (MAIL-10).
+  const optedOut = body.data.email ? (await optedOutBefore(workspace.id, [body.data.email])).size > 0 : false;
   const res = await db.client.updateMany({
     where: { ...scope, id, removedAt: null },
-    data: { name: body.data.name, email: body.data.email === undefined ? undefined : body.data.email || null, assignedToId: body.data.assignedToId },
+    data: { name: body.data.name, email: body.data.email === undefined ? undefined : body.data.email || null, assignedToId: body.data.assignedToId, ...(optedOut ? { remindersOff: true } : {}) },
   });
   if (res.count === 0) throw new HttpError(404, "Client not found");
+  // Given to someone else: the previous staff member's bell lines and queued reply emails about them go too.
+  if (body.data.assignedToId !== undefined) await forgetMovedClients(workspace.id, [id]);
   return Response.json({ ok: true });
 });
 

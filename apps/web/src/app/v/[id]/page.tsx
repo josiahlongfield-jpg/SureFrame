@@ -32,6 +32,7 @@ import { emailedNotHere, replacedLinks } from "@/lib/replacedLinks";
 import ClientContactLine from "@/components/ClientContactLine";
 import { contactOf } from "@/lib/clientContact";
 import { clientTitle, isDefaultTitle } from "@/lib/videoTitle";
+import { privateLinkPreview } from "@/lib/sharePreview";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ team?: string; asClient?: string; new?: string; conv?: string }> };
 
@@ -60,7 +61,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
           ? clientTitle(found.video.title, found.video.workspace.name)
           : `${found.video.title} · from ${found.video.workspace.name}`
         : found.video.title;
-  return { title, robots: { index: false } };
+  return { title, robots: { index: false }, ...privateLinkPreview };
 }
 
 export default async function Watch({ params, searchParams }: Props) {
@@ -127,8 +128,8 @@ export default async function Watch({ params, searchParams }: Props) {
   // How many copies deleting this recording takes with it: all of them, including ones for clients this person can't
   // see (a number only, never who).
   const copyCount = access && !video.sourceId ? await db.video.count({ where: { sourceId: video.id } }) : 0;
-  // Staff can open a video they recorded that went to someone else's client: show who, nothing more.
-  // So do paused clients, and those whose link support turned off, who can't open it.
+  // The video's client when they aren't in the Send box's list: paused clients, and those whose link support turned
+  // off, who can't open it.
   const sentTo = access && video.clientId && !clients.some((c) => c.id === video.clientId)
     ? await db.client.findUnique({ where: { id: video.clientId }, select: { id: true, name: true, removedAt: true, pausedAt: true, linkDisabledAt: true, linkOpenedAt: true } })
     : null;
@@ -437,7 +438,7 @@ async function CantOpenVideo({ video, me }: { video: Video; me: Awaited<ReturnTy
           <CantOpen title={forClient ? "This video is for a client you don't look after" : "You can't open this video"} testId="video-no-access">
             <p>
               {forClient
-                ? "Only the person who recorded it, the team members who look after that client, and the owner and admins can open it."
+                ? "Only the team members who look after that client, and the owner and admins, can open it."
                 : membership.pausedAt
                   ? `Your access to ${ws.name} is paused.`
                   : "Your access in this team doesn't include it."}{" "}

@@ -4,7 +4,8 @@
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-function secret() {
+/** The test server's AUTH_SECRET (reminders.mjs signs its own stop-emails links and opt-out markers with it too). */
+export function secret() {
   if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
   try {
     const line = readFileSync(new URL("../.env", import.meta.url), "utf8").match(/^AUTH_SECRET=(.*)$/m)?.[1].trim() ?? "";

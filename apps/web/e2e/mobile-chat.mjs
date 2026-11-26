@@ -200,6 +200,18 @@ ok("own message on the right", await phone.evaluate(() => {
   return !!li?.dataset.mine && getComputedStyle(li).alignItems === "flex-end";
 }));
 await phone.screenshot({ path: `${shots}/phone-390-sheet.png` });
+// With the text size doubled (WC-5), the sheet scrolls so Send reply can still be reached; the messages keep some room.
+await phone.evaluate(() => (document.documentElement.style.fontSize = "200%"));
+await phone.locator("button:has-text('Send reply')").scrollIntoViewIfNeeded();
+const bigText = await phone.evaluate(() => {
+  const send = [...document.querySelectorAll("[data-testid=conversation] button")].find((b) => b.textContent.includes("Send reply"));
+  const r = send?.getBoundingClientRect();
+  const list = document.querySelector("[data-testid=conversation] ul")?.parentElement?.getBoundingClientRect();
+  return { top: r?.top, bottom: r?.bottom, h: innerHeight, list: list?.height, wide: document.documentElement.scrollWidth <= innerWidth };
+});
+ok("text size doubled: Send reply can be scrolled into view, the messages keep some room", bigText.top >= 0 && bigText.bottom <= bigText.h + 1 && bigText.list >= bigText.h * 0.15 - 1, JSON.stringify(bigText));
+await phone.screenshot({ path: `${shots}/phone-390-sheet-text200.png` });
+await phone.evaluate(() => (document.documentElement.style.fontSize = ""));
 
 await phone.tap("[data-testid=chat-close]");
 await phone.waitForSelector("[data-testid=conversation]:not([data-sheet])", { state: "attached", timeout: 5000 });

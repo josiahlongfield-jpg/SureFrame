@@ -5,16 +5,19 @@ import { PLANS, staffSeatLimit, TEAM_PLANS, type Interval, type PaidPlan } from 
 import { HttpError } from "@/lib/session";
 import { stripe } from "@/lib/stripe";
 import { currentSubscription } from "@/lib/subscription";
+import { staffUsage } from "@/lib/team";
 
 export type PlanChange = {
   sub: Stripe.Subscription;
   items: Stripe.SubscriptionUpdateParams.Item[];
   /** True when the plan and interval are already the ones asked for. */
   same: boolean;
-  /** Some items are removed (extra staff when leaving a team plan, or extra client seats the new plan includes). */
+  /** Some items are removed (extra staff when leaving a team plan, or extra client seats or staff logins the new plan includes). */
   removesItems: boolean;
   /** Extra client seats the new plan makes unnecessary, taken off as part of the switch: how many there are now and after. */
   seats: { from: number; to: number } | null;
+  /** The same for extra staff logins (Studio to Agency). */
+  staffSeats: { from: number; to: number } | null;
 };
 
 const clientsUsed = (workspaceId: string) => db.client.count({ where: { workspaceId, removedAt: null } });
@@ -58,7 +61,7 @@ export async function planChange(workspace: Workspace, plan: PaidPlan, interval:
   const founding = hasFoundingPrices(sub);
   const price = await priceId(keyFor(PLAN_ITEM[plan], interval, founding));
   const item = sub.items.data.find((i) => planOf(i.price));
-  if (item?.price.id === price) return { sub, items: [], same: true, removesItems: false, seats: null };
+  if (item?.price.id === price) return { sub, items: [], same: true, removesItems: false, seats: null, staffSeats: null };
 
   await assertFits(workspace, plan);
   // Moving to a plan that includes more clients: extra client seats it now covers come off with the switch (Solo with 12
@@ -71,6 +74,14 @@ export async function planChange(workspace: Workspace, plan: PaidPlan, interval:
   const needed = Math.max(0, (await clientsUsed(workspace.id)) - PLANS[plan].clientSeats);
   const keep = Math.max(needed, bought - more);
   const seats = more > 0 && keep < bought ? { from: bought, to: keep } : null;
+  // Extra staff logins the same way (Studio with 3 logins plus 4 extra moving to Agency, which includes 10, needs none),
+  // never fewer than the team and the invites still waiting to be accepted need.
+  const staffItems = sub.items.data.filter((i) => catalogOf(i.price)?.item === "staff_seat");
+  const staffBought = staffItems.reduce((t, i) => t + (i.quantity ?? 0), 0);
+  const staffMore = fromPlan ? PLANS[plan].staffSeats - PLANS[fromPlan].staffSeats : 0;
+  const staffNeeded = Math.max(0, (await staffUsage(workspace)).used - PLANS[plan].staffSeats);
+  const staffKeep = Math.max(staffNeeded, staffBought - staffMore);
+  const staffSeats = TEAM_PLANS.includes(plan) && staffMore > 0 && staffKeep < staffBought ? { from: staffBought, to: staffKeep } : null;
   // Every item on a subscription bills on the same interval, so extras move with the plan.
   const extras = await Promise.all(
     sub.items.data
@@ -84,13 +95,18 @@ export async function planChange(workspace: Workspace, plan: PaidPlan, interval:
         }
         // Extra staff only exist on team plans.
         if (entry?.item === "staff_seat" && !TEAM_PLANS.includes(plan)) return { id: i.id, deleted: true };
+        // Unneeded extra staff logins: as for client seats.
+        if (staffSeats && entry?.item === "staff_seat") {
+          if (i !== staffItems[0] || staffSeats.to === 0) return { id: i.id, deleted: true };
+          return { id: i.id, quantity: staffSeats.to, ...(entry.interval !== interval ? { price: await priceId(keyFor("staff_seat", interval, founding)) } : {}) };
+        }
         // AI summaries are priced by plan, so the add-on follows the new plan.
         const target = entry && isAiItem(entry.item) ? AI_ITEM[plan] : entry?.item;
         return entry && target && (entry.interval !== interval || target !== entry.item) ? { id: i.id, price: await priceId(keyFor(target, interval, founding)) } : null;
       }),
   );
   const items = [item ? { id: item.id, price } : { price, quantity: 1 }, ...extras.filter((x) => x !== null)];
-  return { sub, items, same: false, removesItems: items.some((i) => i.deleted), seats };
+  return { sub, items, same: false, removesItems: items.some((i) => i.deleted), seats, staffSeats };
 }
 
 /** The card (or other method) the subscription is charged to, for showing to the owner. */

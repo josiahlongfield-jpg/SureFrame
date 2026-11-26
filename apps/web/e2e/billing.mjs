@@ -235,6 +235,34 @@ res = await api("/api/billing/staff", { extraStaff: 0 });
 ok("extra staff removed", res.ok() && !sub.items.data.some((i) => i.price.lookup_key === "sureframe_staff_seat_yearly"));
 await webhook("customer.subscription.updated", sub);
 
+// 4d) Studio to Agency, which includes 10 staff logins: extra staff logins it now covers come off with the switch, as extra
+// client seats do, but never one the team still needs (invites waiting to join hold a login) (lib/planChange.ts).
+// (Billing calls share a limit of 20 per IP per 10 minutes, which the checks above have nearly used up.)
+await prisma.rateLimit.deleteMany({ where: { key: { contains: "billing" } } });
+res = await api("/api/billing/staff", { extraStaff: 1 });
+ok("an extra staff login on Studio again", res.ok() && sub.items.data.find((i) => i.price.lookup_key === "sureframe_staff_seat_yearly")?.quantity === 1);
+await webhook("customer.subscription.updated", sub);
+const waiting = await Promise.all(
+  Array.from({ length: 10 }, (_, i) =>
+    prisma.invite.create({ data: { tokenHash: `billing-agency-${Date.now()}-${i}`, teamKeyWrap: "x", expiresAt: new Date(Date.now() + 86400000), workspaceId, invitedById: owned.id } }),
+  ),
+);
+res = await api("/api/billing/preview", { plan: "AGENCY", interval: "year" });
+const needed = await res.json();
+ok("a login the team still needs stays on through the switch", res.ok() && needed.mode === "change" && !needed.staffSeats, JSON.stringify(needed));
+await prisma.invite.deleteMany({ where: { id: { in: waiting.map((w) => w.id) } } });
+await page.goto(BASE + "/pricing");
+await page.click("[role=radio]:has-text('Yearly')");
+await page.click("[data-testid=plan-AGENCY] button:has-text('Switch to Agency')");
+await page.waitForSelector("[data-testid=plan-confirm]");
+const staffNote = ((await page.textContent("[data-testid=staff-removed]").catch(() => "")) ?? "").replace(/\s+/g, " ");
+ok("the switch to Agency says the extra staff login comes off", staffNote.includes("Agency includes 10 staff logins, so your 1 extra staff login is removed with this switch, and you stop paying for it."), staffNote);
+await page.click("[data-testid=plan-confirm] button:has-text('switch')");
+await page.waitForURL((u) => u.pathname === "/settings/billing", { timeout: 20000 });
+ok("after the switch Stripe bills Agency and no extra staff login", sub.items.data.some((i) => i.price.lookup_key === "sureframe_agency_yearly") && !sub.items.data.some((i) => i.price.lookup_key?.startsWith("sureframe_staff_seat")), keys().join());
+ok("and the workspace has no extra staff logins", (await prisma.workspace.findUnique({ where: { id: workspaceId } })).extraStaffSeats === 0);
+await webhook("customer.subscription.updated", sub);
+
 // 5) Customer portal.
 res = await api("/api/billing/portal");
 const portal = await res.json();

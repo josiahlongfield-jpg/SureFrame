@@ -18,6 +18,8 @@ const latestUpdate = () =>
  */
 export default function Page() {
   const mail = <a href={`mailto:${LEGAL.email}`}>{LEGAL.email}</a>;
+  // The current DPA version's own changes (the wording made clearer with it is listed under that date's version above).
+  const dpaChanges = LEGAL_VERSIONS.filter((v) => v.date === LEGAL.dpaSince).flatMap((v) => v.dpa ?? []);
   return (
     <LegalPage title="Versions and changes" updated={latestUpdate()}>
       <p>
@@ -46,6 +48,21 @@ export default function Page() {
                   <li key={c}>{c}</li>
                 ))}
               </ul>
+              {v.clarified && (
+                <>
+                  Also on {v.date}, wording made clearer to describe what we already do (most of it published earlier that day, before this
+                  version):
+                  <ul data-testid={`clarified-${v.terms}`}>
+                    {(["terms", "privacy", "dpa"] as const).flatMap((doc) =>
+                      (v.clarified?.[doc] ?? []).map((line) => (
+                        <li key={`${doc}-${line}`}>
+                          {DOC_NAMES[doc]}: {line}
+                        </li>
+                      )),
+                    )}
+                  </ul>
+                </>
+              )}
             </li>
           );
         })}
@@ -53,10 +70,15 @@ export default function Page() {
       <p>
         Our <Link href="/legal/dpa">Data Processing Agreement</Link> has its own version numbers. Version {LEGAL.dpaVersion}, in effect from {LEGAL.dpaSince}, is
         the current one.
-        {LEGAL_VERSIONS.filter((v) => "dpa" in v && v.date === LEGAL.dpaSince).flatMap((v) => ("dpa" in v ? v.dpa : [])).map((c) => (
-          <span key={c}> What changed from the version before: {c}</span>
-        ))}
+        {dpaChanges.length > 0 && " What changed from the version before:"}
       </p>
+      {dpaChanges.length > 0 && (
+        <ul>
+          {dpaChanges.map((c) => (
+            <li key={c}>{c}</li>
+          ))}
+        </ul>
+      )}
       <p>
         Earlier versions, including those from before we numbered them, are kept and are available on request. For a copy of any earlier version, or of the
         version you agreed to, email {mail}.

@@ -3,6 +3,7 @@ import { contactOf } from "@/lib/clientContact";
 import { db, type Workspace } from "@/lib/db";
 import { brandOf } from "@/lib/branding";
 import { clientRemovedEmail } from "@/lib/clientRemovedEmail";
+import { rememberOptOut } from "@/lib/emailOptOut";
 import { sendMail } from "@/lib/mail";
 import { clientMailSettings } from "@/lib/reminders";
 import { enforceSeatLimits } from "@/lib/seatLimits";
@@ -56,7 +57,7 @@ async function sentOnlyTo(clientId: string) {
  * with the team key on the device) and how many of their recordings stay.
  */
 export async function deletionPreview(workspace: Workspace, id: string, scope: Prisma.ClientWhereInput = {}) {
-  const c = await db.client.findFirst({ where: { ...scope, id, workspaceId: workspace.id, removedAt: null }, select: { id: true, name: true, email: true, remindersOff: true } });
+  const c = await db.client.findFirst({ where: { ...scope, id, workspaceId: workspace.id, removedAt: null }, select: { id: true, name: true, email: true, remindersOff: true, linkSentAt: true, linkOpenedAt: true } });
   if (!c) throw new HttpError(404, "Client not found");
   const { only, kept } = await sentOnlyTo(c.id);
   const videos = only.length
@@ -95,12 +96,16 @@ export async function deletionPreview(workspace: Workspace, id: string, scope: P
 /**
  * Deletes a client for good, now (owners and admins). The client is emailed
  * that their access has ended (in good faith, as Josiah asked), unless they
- * turned the business's emails off or another current client uses the same
- * address. Returns whether everything was erased straight away.
+ * turned the business's emails off, another current client uses the same
+ * address, or their link was never sent or opened (willBeEmailed). Returns
+ * whether everything was erased straight away.
  */
 export async function deleteClient(workspace: Workspace, id: string, actorId: string) {
   const c = await db.client.findFirst({ where: { id, workspaceId: workspace.id, removedAt: null } });
   if (!c) throw new HttpError(404, "Client not found");
+  // Their "stop emailing me" outlives them (MAIL-10). Usually kept when they turned emails off; this covers clients who
+  // did so before those markers existed. Before anything is deleted, so a failure leaves the client as they were.
+  if (c.email && c.remindersOff) await rememberOptOut(c.id);
   // Made now: the client row (and with it their name and email) is gone once purged.
   const goodbye = await goodbyeFor(workspace, c);
   const now = new Date();
@@ -121,14 +126,19 @@ export async function deleteClient(workspace: Workspace, id: string, actorId: st
   return { deleted: result === "purged", emailed: !!goodbye };
 }
 
-/** Not when they turned the business's emails off, or someone else on the list uses the address (they haven't lost anything). */
-async function willBeEmailed(workspaceId: string, c: { id: string; email: string | null; remindersOff: boolean }) {
-  if (!c.email || c.remindersOff) return false;
+/**
+ * Not when they turned the business's emails off, or someone else on the list uses the address (they haven't lost
+ * anything), nor when they never heard from the business: their personal link was never sent (copied or shared) or
+ * opened, as when a client added with a mistyped address is deleted straight away (MAIL-9).
+ */
+type Emailable = { id: string; email: string | null; remindersOff: boolean; linkSentAt: Date | null; linkOpenedAt: Date | null };
+async function willBeEmailed(workspaceId: string, c: Emailable) {
+  if (!c.email || c.remindersOff || !(c.linkSentAt || c.linkOpenedAt)) return false;
   return !(await db.client.count({ where: { workspaceId, removedAt: null, id: { not: c.id }, email: { equals: c.email, mode: "insensitive" } } }));
 }
 
 /** The email telling a client their access has ended, or null when they aren't emailed. */
-async function goodbyeFor(ws: Workspace, c: { id: string; name: string; email: string | null; remindersOff: boolean; assignedToId: string | null }) {
+async function goodbyeFor(ws: Workspace, c: Emailable & { name: string; assignedToId: string | null }) {
   if (!c.email || !(await willBeEmailed(ws.id, c))) return null;
   // A paused or suspended staff member can't answer, so replies go to the business's address instead (as for reminders).
   const assigned = c.assignedToId ? await db.membership.findFirst({ where: { userId: c.assignedToId, workspaceId: ws.id, ...activeMember } }) : null;

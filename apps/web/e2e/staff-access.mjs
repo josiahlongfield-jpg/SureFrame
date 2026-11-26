@@ -258,20 +258,23 @@ await new Promise((r) => setTimeout(r, 1500));
 ok("a burst of replies sends one email per 15 minutes", outbox().slice(before).filter((m) => m.subject?.includes("Ben replied")).length === 1);
 ok("Bob replies on his client's video", (await status(bob.request.post(`${BASE}/api/videos/${vOwnerBen}/replies`, { data: { kind: "TEXT", body: sealedText(), encrypted: true } }))) === 201);
 
-// Unassigned client: the recorder hears about it (the owner sent Amy's video to Sha).
+// Unassigned client: the owner sent Amy's video to Sha. A sent video is that client's conversation and goes with the
+// client (SEC-7), so Amy, who sees only her own clients, can't open it and the owner hears about Sha's reply.
 const vAmySha = await record(amy, "Amy for Sha", null);
 await owner.request.patch(`${BASE}/api/videos/${vAmySha}`, { data: { clientId: sha.id, clientKeyWrap: wrap("c"), keyFingerprint: fp } });
+ok("Amy can't open her own recording once it's sent to a client she doesn't look after (SEC-7)", (await status(amy.request.get(`${BASE}/api/videos/${vAmySha}`))) === 404 && (await status(amy.request.get(`${BASE}/api/videos/${vAmySha}/replies`))) === 404);
+ok("and it's gone from her library", !(await (await amy.request.get(BASE + "/api/videos")).json()).videos.some((v) => v.id === vAmySha));
 const shaPage = await clientPage(sha);
 const before2 = outbox().length;
 await shaPage.request.post(`${BASE}/api/videos/${vAmySha}/replies`, { data: { kind: "TEXT", body: sealedText(), encrypted: true } });
 const mail2 = await waitFor(() => outbox().slice(before2).find((m) => m.subject?.includes("Sha replied")));
-ok("unassigned client's reply goes to the video's recorder", mail2?.to === amyUser.email, JSON.stringify(mail2));
+ok("unassigned client's reply goes to the owner, not the member who recorded it (SEC-7)", mail2?.to === `sa-owner${stamp}@example.com` && !outbox().slice(before2).some((m) => m.to === amyUser.email), JSON.stringify(mail2));
 const before3 = outbox().length;
 await shaPage.request.post(`${BASE}/api/videos/${vOwnerSha}/replies`, { data: { kind: "TEXT", body: sealedText(), encrypted: true } });
 const mail3 = await waitFor(() => outbox().slice(before3).find((m) => m.subject?.includes("Sha replied")));
 ok("a different conversation isn't throttled, and goes to the owner who recorded it", mail3?.to === `sa-owner${stamp}@example.com`, JSON.stringify(mail3));
 ok("to the person who sent it, the reply email says \"your video\" (S54)", /^Sha replied to your video/.test(mail3?.subject ?? "") && /Sha replied to your video .*on SureFrame\./.test(mail3?.text ?? ""), `${mail3?.subject} | ${mail3?.text}`);
-ok("to someone else (the assigned staff member), it names the video instead", !mail?.subject.includes("your video") && mail2?.subject.startsWith("Sha replied to your video"), `${mail?.subject} | ${mail2?.subject}`);
+ok("to someone else (the assigned staff member, or the owner for Amy's video), it names the video instead", !mail?.subject.includes("your video") && !!mail2?.subject.startsWith("Sha replied to") && !mail2.subject.includes("your video"), `${mail?.subject} | ${mail2?.subject}`);
 
 // ---- A client's link held in a staff member's browser (S41) ----
 // Amy (sees only her own clients) has Ben's personal link in her browser: Ben's video opens as Ben, and says so.
@@ -325,7 +328,8 @@ ok("videos sent in 30 days per staff member", (await cell(owner, ownerUser.id, "
 ok("a client added today isn't counted as quiet", (await cell(owner, amyUser.id, "stale")) === "0" && (await cell(owner, "all", "stale")) === "0");
 ok("but listed under No video yet", (await owner.locator(`[data-testid=no-video-yet] a[href='/clients/${added.client.id}']`).count()) === 1);
 ok("one time control: no separate no-video box (S28)", (await owner.locator("input#stale, input[name=stale]").count()) === 0 && (await owner.locator("[data-testid=team-stats] th", { hasText: "no video in 30d" }).count()) === 1);
-ok("unanswered replies per staff member", (await cell(owner, amyUser.id, "unanswered")) === "1" && (await cell(owner, ownerUser.id, "unanswered")) === "1" && (await cell(owner, bobUser.id, "unanswered")) === "0" && (await cell(owner, "all", "unanswered")) === "2");
+// Sha's reply to Amy's video counts under Unassigned clients, not Amy: she can't open it (SEC-7).
+ok("unanswered replies per staff member", (await cell(owner, amyUser.id, "unanswered")) === "0" && (await cell(owner, ownerUser.id, "unanswered")) === "1" && (await cell(owner, bobUser.id, "unanswered")) === "0" && (await cell(owner, "shared", "unanswered")) === "1" && (await cell(owner, "all", "unanswered")) === "2");
 ok("average reply time only where someone answered", (await cell(owner, bobUser.id, "avg")) !== "–" && (await cell(owner, amyUser.id, "avg")) === "–" && (await cell(owner, "all", "avg")) !== "–");
 ok("overdue to-dos counted for the assigned staff member", (await cell(owner, bobUser.id, "overdue")) === "1" && (await cell(owner, "all", "overdue")) === "1");
 const waiting = await owner.textContent("[data-testid=unanswered]");
@@ -355,6 +359,14 @@ await prisma.video.delete({ where: { id: leftover.id } });
 await owner.goto(BASE + "/team?days=30");
 await owner.screenshot({ path: `${shots}/team-overview.png`, fullPage: true });
 
+// A conversation goes with its client (SEC-7): Amy records for Zed (hers) and Zed replies, then Zed moves to Bob.
+const vAmyZed = await record(amy, "Amy to Zed", added.client.id);
+const zedPage = await clientPage(added.client);
+ok("Zed replies to Amy's video", (await status(zedPage.request.post(`${BASE}/api/videos/${vAmyZed}/replies`, { data: { kind: "TEXT", body: sealedText(7), encrypted: true } }))) === 201);
+const bellOf = async (page) => (await (await page.request.get(BASE + "/api/notifications")).json()).items ?? [];
+ok("Amy's bell has Zed's reply while she looks after Zed", !!(await waitFor(async () => (await bellOf(amy)).some((n) => n.text.includes("Zed")))));
+ok("the Team page says conversations move with the client (SEC-7)", (await owner.textContent("[data-testid=reassign]")).includes("A client's conversations move with them, so the member who looked after them before can no longer open them."));
+
 // Bulk reassign from the overview.
 await owner.check(`input[aria-label="Pick Zed"]`);
 await owner.check(`input[aria-label="Pick Sha"]`);
@@ -363,8 +375,31 @@ await owner.click("button:has-text('Assign 2 clients')");
 await owner.waitForSelector("text=2 clients now with");
 ok("bulk reassign moves both clients", (await prisma.client.count({ where: { id: { in: [added.client.id, sha.id] }, assignedToId: bobUser.id } })) === 2);
 ok("and Amy loses access to Zed straight away", (await status(amy.request.get(`${BASE}/api/items?clientId=${added.client.id}`))) === 404);
+// Including the conversation on the video she recorded for Zed, everywhere it's served.
+ok("Amy can't open the video she recorded for Zed once Zed is Bob's (SEC-7)", (await status(amy.request.get(`${BASE}/api/videos/${vAmyZed}`))) === 404);
+ok("nor read or answer Zed's replies", (await status(amy.request.get(`${BASE}/api/videos/${vAmyZed}/replies`))) === 404 && (await status(amy.request.post(`${BASE}/api/videos/${vAmyZed}/replies`, { data: { kind: "TEXT", body: sealedText(), encrypted: true } }))) === 404);
+ok("nor stream it or react to it", (await status(amy.request.get(`${BASE}/api/videos/${vAmyZed}/stream`))) === 404 && (await status(amy.request.post(`${BASE}/api/videos/${vAmyZed}/reactions`, { data: { emoji: "👍" } }))) === 404);
+ok("it's gone from Amy's library", !(await (await amy.request.get(BASE + "/api/videos")).json()).videos.some((v) => v.id === vAmyZed));
+ok("and from her bell", !(await bellOf(amy)).some((n) => n.text.includes("Zed")));
+const amyExport = await (await amy.request.get(BASE + "/api/account/export")).text();
+ok("and from her data export", !amyExport.includes(vAmyZed) && !amyExport.includes('"Zed"'));
+await amy.goto(`${BASE}/v/${vAmyZed}`);
+const amyCant = await amy.waitForSelector("[data-testid=video-no-access]", { timeout: 10000 }).catch(() => null);
+ok("its page tells Amy it's for a client she doesn't look after", !!amyCant && (await amyCant.textContent()).includes("Only the team members who look after that client, and the owner and admins, can open it.") && !(await amy.textContent("body")).includes("Amy to Zed"));
+ok("Bob, who looks after Zed now, opens it and reads the replies", (await bob.request.get(`${BASE}/api/videos/${vAmyZed}`)).ok() && (await bob.request.get(`${BASE}/api/videos/${vAmyZed}/replies`)).ok());
+ok("Bob answers Zed", (await status(bob.request.post(`${BASE}/api/videos/${vAmyZed}/replies`, { data: { kind: "TEXT", body: sealedText(), encrypted: true } }))) === 201);
+ok("the owner still opens it", (await owner.request.get(`${BASE}/api/videos/${vAmyZed}`)).ok() && (await owner.request.get(`${BASE}/api/videos/${vAmyZed}/replies`)).ok());
+const zedReplies = await zedPage.request.get(`${BASE}/api/videos/${vAmyZed}/replies`);
+ok("Zed loses nothing: the whole conversation is still there", zedReplies.ok() && (await zedReplies.json()).replies.length === 2);
+const before5 = outbox().length;
+ok("Zed replies again", (await status(zedPage.request.post(`${BASE}/api/videos/${vAmyZed}/replies`, { data: { kind: "TEXT", body: sealedText(8), encrypted: true } }))) === 201);
+const zedMail = await waitFor(() => outbox().slice(before5).find((m) => m.subject?.includes("Zed replied")));
+await new Promise((r) => setTimeout(r, 1000));
+ok("Zed's new reply emails Bob, not Amy (SEC-7)", zedMail?.to === bobUser.email && !outbox().slice(before5).some((m) => m.to === amyUser.email), JSON.stringify(zedMail));
+ok("and goes in Bob's bell, not Amy's", (await bellOf(bob)).some((n) => n.text.includes("Zed")) && !(await bellOf(amy)).some((n) => n.text.includes("Zed")));
 await owner.request.post(BASE + "/api/clients/assign", { data: { clientIds: [added.client.id], assignedToId: amyUser.id } });
 await owner.request.post(BASE + "/api/clients/assign", { data: { clientIds: [sha.id], assignedToId: null } });
+ok("given back to Amy, Zed's conversation opens for her again", (await amy.request.get(`${BASE}/api/videos/${vAmyZed}`)).ok() && (await amy.request.get(`${BASE}/api/videos/${vAmyZed}/replies`)).ok());
 
 // Email preferences decide who hears about client replies.
 const mailsTo = (from, who, subject) => outbox().slice(from).filter((m) => m.to === who && m.subject.includes(subject));
@@ -492,6 +527,7 @@ await owner.goto(BASE + "/clients");
 await owner.waitForSelector("a:has-text('Sha')");
 const counts = await Promise.all(["Ana", "Ben", "Sha", "Zed"].map((n) => owner.locator(`a:has-text('${n}')`).count()));
 ok("owner's Clients page lists everyone", counts.every((n) => n > 0), counts.join());
+ok("the owner's second filter says what it counts: Assigned to me (WB-19)", (await owner.locator("role=button[name=/^Assigned to me \\(/]").count()) === 1 && (await owner.locator("role=button[name=/^My clients/]").count()) === 0);
 await owner.goto(BASE + "/library");
 // Older videos are in folders whose videos are only drawn once opened: open them all.
 for (let i = 0; i < 20; i++) {

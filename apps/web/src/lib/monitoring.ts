@@ -50,6 +50,7 @@ export async function teamStats(workspaceId: string, o: { days: number; staleDay
   ]);
 
   const memberIds = new Set(members.map((m) => m.userId));
+  const seesUnassigned = new Set(members.filter((m) => m.role !== "MEMBER" || m.seeAllClients).map((m) => m.userId));
   const clientById = new Map(clients.map((c) => [c.id, c]));
   const staffOf = (clientId: string | null) => {
     const a = clientId ? clientById.get(clientId)?.assignedToId : null;
@@ -75,8 +76,9 @@ export async function teamStats(workspaceId: string, o: { days: number; staleDay
     if (sentAt >= since) sent.set(recorder ?? "former", (sent.get(recorder ?? "former") ?? 0) + 1);
     const client = clientById.get(clientId);
     if (!client) continue; // removed client
-    // Whoever looks after the client, else whoever recorded the video.
-    const staff = staffOf(clientId) ?? (recorder && memberIds.has(recorder) ? recorder : null);
+    // Whoever looks after the client, else whoever recorded the video if they still see it: a member who sees only
+    // their own clients doesn't keep a conversation whose client isn't theirs (lib/permissions.ts canSeeVideo).
+    const staff = staffOf(clientId) ?? (recorder && seesUnassigned.has(recorder) ? recorder : null);
     let waiting: Date | null = null;
     for (const r of v.replies) {
       if (!r.authorUserId) {

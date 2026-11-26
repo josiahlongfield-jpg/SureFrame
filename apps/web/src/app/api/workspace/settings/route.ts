@@ -4,8 +4,19 @@ import { db } from "@/lib/db";
 import { scheduleReminders } from "@/lib/reminders";
 import { isTimeZone } from "@/lib/schedule";
 import { ReminderRules } from "@/lib/scheduleSchema";
-import { ContactFields, tidyContact } from "@/lib/clientContact";
+import { ContactFields, contactOf, tidyContact } from "@/lib/clientContact";
 import { handle, HttpError, requireRole, requireUser } from "@/lib/session";
+
+/**
+ * Whether choosing Email for a client should ask how clients can reach the business (MAIL-11, components/SendRoute.tsx):
+ * for owners and admins while it has neither a reply-to email nor a contact line, so client emails don't go out with
+ * no way to contact it. Nobody's sign-in email is ever used for this instead.
+ */
+export const GET = handle(async () => {
+  const { role, workspace } = await requireUser();
+  const askContact = (role === "OWNER" || role === "ADMIN") && !workspace.reminderReplyTo && !contactOf(workspace);
+  return Response.json({ askContact });
+});
 
 const Body = z.object({
   name: z.string().trim().min(1).max(80).optional(),

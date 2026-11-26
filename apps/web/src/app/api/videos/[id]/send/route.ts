@@ -19,6 +19,8 @@ const Body = z.object({
   keyFingerprint: KeyFingerprint,
   /** Email clients who have an address that a video is waiting. */
   notify: z.boolean().default(true),
+  /** Set by the Send box only for the copies made in the same press that first sent this video: they get its message too. */
+  withMessage: z.boolean().default(false),
 });
 
 /**
@@ -54,6 +56,9 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
   // Someone who already has it keeps their existing conversation.
   const has = new Set([video.clientId, ...already.map((c) => c.clientId)].filter(Boolean));
   const fresh = wanted.filter((r) => !has.has(r.clientId));
+  // The message written before sending goes to everyone chosen in that first Send (sealed with the video's key, which
+  // copies share), never on a later Send to more clients, as it may be personal to whoever already has it.
+  const message = body.data.withMessage && video.sentAt && Date.now() - video.sentAt.getTime() < 10 * 60_000 ? video.message : null;
 
   const copies = fresh.map((r) => ({
     id: newVideoId(),
@@ -76,6 +81,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
     workspaceId: workspace.id,
     clientId: r.clientId,
     clientKeyWrap: r.clientKeyWrap,
+    message,
     createdAt: video.createdAt,
     sentAt: new Date(),
   }));

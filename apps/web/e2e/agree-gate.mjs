@@ -161,7 +161,7 @@ await fresh.waitForURL((u) => u.pathname !== "/welcome", { timeout: 30000 });
 ok("agreeing carries on to where it was going", path(fresh) === "/clients", fresh.url());
 let rec = await rows(newUser.id);
 ok("one agreement recorded", rec.length === 1, JSON.stringify(rec));
-ok("for the current versions", rec[0]?.termsVersion === TERMS_VERSION && rec[0]?.privacyVersion === PRIVACY_VERSION && TERMS_VERSION === "2026-10-24");
+ok("for the current versions", rec[0]?.termsVersion === TERMS_VERSION && rec[0]?.privacyVersion === PRIVACY_VERSION && TERMS_VERSION === "2026-11-26");
 ok("as a sign-up, with the email at the time", rec[0]?.method === "signup" && rec[0]?.email === newEmail);
 ok("with the IP address and browser", !!rec[0]?.ip && /Chrome/.test(rec[0]?.userAgent ?? ""), `${rec[0]?.ip} ${rec[0]?.userAgent}`);
 ok("and when", !!rec[0]?.acceptedAt && Date.now() - rec[0].acceptedAt.getTime() < 120_000);
@@ -193,7 +193,7 @@ await visit(fresh, "/clients", "/agree");
 ok("a newer agreement to older versions: sent back to /agree", path(fresh) === "/agree", fresh.url());
 ok("heading: We've updated our Terms of Service and Privacy Policy", norm(await fresh.textContent("[data-testid=agree-heading]")) === "We’ve updated our Terms of Service and Privacy Policy");
 const changes = await fresh.locator("[data-testid=agree-changes] li").count();
-ok("with a short summary of the changes", changes >= 3 && changes <= 4, String(changes));
+ok("with a short summary of the changes", changes >= 3 && changes <= 5, String(changes));
 // Their last agreement wasn't to the version just before this one, so the earlier versions' changes are linked too.
 ok("and a link to the earlier versions' changes", (await fresh.getAttribute("[data-testid=agree-earlier] a", "href")) === "/legal/archive#versions");
 ok("an existing account can manage or cancel its subscription instead", (await fresh.getAttribute("[data-testid=agree-billing]", "href")) === "/settings/billing");
@@ -217,7 +217,9 @@ const noticeRow = await prisma.termsNotice.findUnique({ where: { userId_termsVer
 const effective = new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "UTC" }).format(new Date((noticeRow?.sentAt?.getTime() ?? 0) + 30 * D));
 const noticeMail = outbox().find((m) => m.to === oldEmail && m.subject === "We're updating our Terms of Service and Privacy Policy");
 ok("notice: the daily job emails existing account holders once, and records it", typeof purgeRun.termsNotices === "number" && purgeRun.termsNotices >= 1 && !!noticeRow && !!noticeMail, JSON.stringify(purgeRun));
-ok("notice: gives the date they apply (30 days on), the changes and links", !!noticeMail && norm(noticeMail.text).includes(`The new versions apply to you from ${effective}`) && noticeMail.text.includes("Removing a client now deletes them permanently") && noticeMail.text.includes("/legal/terms") && noticeMail.text.includes("/legal/privacy") && noticeMail.text.includes("cancel your subscription"), noticeMail?.text);
+ok("notice: gives the date they apply (30 days on), the changes and links", !!noticeMail && norm(noticeMail.text).includes(`The new versions apply to you from ${effective}`) && noticeMail.text.includes("a change can apply sooner where that’s needed to keep people safe or to comply with the law") && noticeMail.text.includes("their emails stay off") &&noticeMail.text.includes("/legal/terms") && noticeMail.text.includes("/legal/privacy") && noticeMail.text.includes("cancel your subscription"), noticeMail?.text);
+// LEGAL-1: the lead no longer says the old versions apply until then without exception; the change already in effect says so.
+ok("notice: says which change is already in effect", !!noticeMail && norm(noticeMail.text).includes("Until then the versions you agreed to still apply, except for a change marked below as already in effect.") && noticeMail.text.includes("Already in effect from 26 November 2026: keeping a client’s choice to turn your emails off") && noticeMail.text.includes("is kept one more day, so the warning reaches you first"), noticeMail?.text);
 ok("notice: links the earlier versions' changes, and says where to cancel", !!noticeMail && noticeMail.text.includes("/legal/archive#versions") && norm(noticeMail.text).includes("cancel your subscription in Settings > Billing, and download your data or delete your account in Settings > Account, before then"), noticeMail?.text);
 await cron("purge");
 ok("notice: not sent twice", outbox().filter((m) => m.to === oldEmail && m.subject === "We're updating our Terms of Service and Privacy Policy").length === 1);
@@ -432,7 +434,7 @@ await reader.goto(BASE + "/legal/dpa");
 ok("the DPA fits 320px without sideways scrolling", await noSideways(reader));
 await reader.goto(BASE + "/legal/archive");
 const archive = norm(await reader.textContent("main"));
-ok("the archive lists the current version and its date", archive.includes(TERMS_VERSION) && archive.includes("24 October 2026"), archive.slice(0, 300));
+ok("the archive lists the current version and its date", archive.includes(TERMS_VERSION) && archive.includes("26 November 2026"), archive.slice(0, 300));
 ok("and says earlier versions are kept and available on request", /earlier versions/i.test(archive) && /on request|ask us/i.test(archive), archive);
 ok("the archive fits 320px", await noSideways(reader));
 await reader.screenshot({ path: `${shots}/legal-archive-320.png`, fullPage: true });

@@ -22,6 +22,39 @@ await page.fill('input[name="email"]', email);
 await page.click("text=Continue");
 await page.waitForURL((u) => u.pathname === "/library");
 
+// The script policy (SEC-9, src/lib/scriptPolicy.ts): every page carries one with a fresh nonce, the site's own
+// scripts run under it with nothing refused, and a handler slipped into a page is refused.
+const refusals = (p) => {
+  const seen = [];
+  p.on("console", (m) => /Content Security Policy/i.test(m.text()) && seen.push(m.text()));
+  return seen;
+};
+const policyOf = (res) => res?.headers()["content-security-policy"] ?? "";
+const nonceOf = (csp) => /'nonce-([^']+)'/.exec(csp)?.[1];
+{
+  const tab = await ctx.newPage();
+  const seen = refusals(tab);
+  const first = policyOf(await tab.goto(BASE + "/library", { waitUntil: "networkidle" }));
+  ok("pages carry a script policy with a nonce", /script-src [^;]*'nonce-[^']+'[^;]*'strict-dynamic'/.test(first) && first.includes("frame-ancestors 'none'"), first);
+  ok("the site's own code runs under it", await tab.evaluate(() => !!window.next?.appDir));
+  await tab.click("header nav a[href='/todos']");
+  await tab.waitForURL((u) => u.pathname === "/todos");
+  const second = policyOf(await tab.reload({ waitUntil: "networkidle" }));
+  ok("each page gets a fresh nonce", !!nonceOf(second) && nonceOf(second) !== nonceOf(first), second);
+  ok("nothing on a signed-in page is refused by the policy", seen.length === 0, seen.join(" | "));
+  await tab.close();
+  const visitor = await browser.newContext();
+  const p = await visitor.newPage();
+  const shut = refusals(p);
+  for (const path of ["/", "/pricing", "/login"]) await p.goto(BASE + path, { waitUntil: "networkidle" });
+  ok("nothing on the public pages or sign-in is refused by the policy", shut.length === 0, shut.join(" | "));
+  ok("the layout's own inline script runs (sign-in sets the time zone cookie)", (await visitor.cookies()).some((c) => c.name === "sf_tz"));
+  await p.evaluate(() => document.body.insertAdjacentHTML("beforeend", '<img src="/csp-probe-missing.png" onerror="window.__injected = 1">'));
+  await p.waitForTimeout(1500);
+  ok("a handler slipped into a page is refused", !(await p.evaluate(() => window.__injected)) && shut.some((t) => /inline event handler/i.test(t)), shut.join(" | "));
+  await visitor.close();
+}
+
 // Open redirect after login.
 for (const bad of ["/%5Cevil.com", "//evil.com", "/\\evil.com", "https://evil.com"]) {
   const res = await page.request.get(`${BASE}/login?next=${encodeURIComponent(bad).replace("%255C", "%5C")}`, { maxRedirects: 0 });

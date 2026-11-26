@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ACTIVE_STATUSES } from "@/lib/billing";
 import {
   billedBefore,
+  discountsWithCode,
   isCodeShaped,
   NEW_CUSTOMERS_ONLY,
   NOT_YOURS,
@@ -41,10 +42,9 @@ export const POST = handle(async (req: Request) => {
     if (!offer) throw new HttpError(400, "That code isn't valid or has ended.");
     if (!offerIsFor(offer, typeof sub.customer === "string" ? sub.customer : sub.customer.id)) throw new HttpError(400, NOT_YOURS);
     if (offer.newCustomersOnly) throw new HttpError(400, NEW_CUSTOMERS_ONLY);
-    if ((sub.discounts ?? []).some((d) => typeof d === "string" || (!d.deleted && !(d.end && d.end * 1000 <= Date.now())))) {
-      throw new HttpError(400, "Your subscription already has a discount, and codes can't be combined.");
-    }
-    await stripe().subscriptions.update(sub.id, { discounts: [{ promotion_code: offer.id }], proration_behavior: "none" });
+    // Beside a referral discount, refused beside any other (lib/offers.ts).
+    const { discounts } = await discountsWithCode(sub, offer.id);
+    await stripe().subscriptions.update(sub.id, { discounts, proration_behavior: "none" });
     return Response.json({ applied: true, subscribed: true, code: offer.code, summary: offer.summary });
   }
   if (isReferralCode(code)) {

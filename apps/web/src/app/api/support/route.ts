@@ -183,11 +183,12 @@ async function post(req: Request) {
       // If the assistant had already handed over before failing, keep its summary.
       const now = await db.supportTicket.findUnique({ where: { id: ticket.id }, select: { status: true } });
       const refused = await handOver(waiting || now?.status === "NEEDS_HUMAN" ? null : "The assistant had a technical problem answering. Please reply to the customer.", ticket.urgent);
-      await say(refused ? "Sorry, I hit a problem answering that. Please try again in a little while." : "Sorry, I hit a problem answering that. I've passed your message to the team, and a person will reply.");
+      // Someone who can't be passed on gets the support address while the assistant is down, so they can still reach a person.
+      await say(refused ? `Sorry, I hit a problem answering that. Please try again in a little while, or email ${LEGAL.email} and a person will get back to you.` : "Sorry, I hit a problem answering that. I've passed your message to the team, and a person will reply.");
     }
   } else {
     const refused = await handOver(ticket.status === "NEEDS_HUMAN" ? null : "New message (the assistant is switched off).", ticket.urgent);
-    await say(refused ? "Sorry, the help chat can't answer right now. Please try again later, or look in the FAQ." : "Thanks. Your message is with the team, and a person will reply.");
+    await say(refused ? `Sorry, the help chat can't answer right now. Please try again later, or email ${LEGAL.email} and a person will get back to you.` : "Thanks. Your message is with the team, and a person will reply.");
   }
   const fresh = await load(ticket.accessToken);
   return Response.json({ token: fresh.accessToken, ...publicTicket(fresh) });

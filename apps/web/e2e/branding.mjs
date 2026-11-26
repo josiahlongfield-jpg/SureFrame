@@ -62,6 +62,34 @@ const contactWs = (await prisma.membership.findFirst({ where: { user: { email: l
 ok("contact: stored", contactWs.contactEmail === "hello@business-b.example" && contactWs.contactPhone === "+61 7 3000 0000", JSON.stringify([contactWs.contactEmail, contactWs.contactPhone]));
 ok("contact: the server refuses a bad phone", (await page.request.patch(BASE + "/api/workspace/settings", { data: { contactPhone: "<b>12</b>" } })).status() === 400);
 ok("contact: the server refuses a bad email", (await page.request.patch(BASE + "/api/workspace/settings", { data: { contactEmail: "hello@" } })).status() === 400);
+
+// MAIL-11: with no contact line and no reply-to, choosing Email for a client asks how clients can reach the business,
+// and saves the answer as the contact line. Never the owner's sign-in email.
+await page.request.patch(BASE + "/api/workspace/settings", { data: { contactEmail: "", contactPhone: "" } });
+const askNow = async () => (await (await page.request.get(BASE + "/api/workspace/settings")).json()).askContact;
+ok("no contact detail: choosing Email will ask", (await askNow()) === true);
+await page.goto(BASE + "/clients");
+await page.click("text=I've saved it", { timeout: 5000 }).catch(() => {});
+const canAdd = await visible(page, "[data-testid=route-email]", 15000);
+ok("Clients: the add form is there", canAdd);
+if (canAdd) {
+  await page.check("[data-testid=route-email]");
+  ok("adding a client by email: asks how clients can reach you", await visible(page, "[data-testid=route-contact-ask]") && (await page.textContent("[data-testid=route-contact-ask]")).includes("How can clients reach you?"));
+  await page.setViewportSize({ width: 320, height: 720 });
+  ok("the ask fits 320px", await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const askBox = 'input[aria-label="How clients can reach you"]';
+  await page.fill(askBox, "call me");
+  await page.press(askBox, "Enter");
+  ok("the answer is checked, and Enter doesn't add the client", await visible(page, "[data-testid=route-contact-ask] >> role=alert") && (await prisma.client.count({ where: { workspaceId: contactWs.id } })) === 0);
+  await page.fill(askBox, "+61 7 3000 0000");
+  await page.press(askBox, "Enter");
+  ok("saved as the business's contact line, and says so", await visible(page, "[data-testid=route-contact-saved]") && (await prisma.workspace.findUnique({ where: { id: contactWs.id } })).contactPhone === "+61 7 3000 0000");
+  ok("not the sign-in email", !(await prisma.workspace.findUnique({ where: { id: contactWs.id } })).contactEmail);
+}
+ok("once there's a contact detail, nothing is asked", (await askNow()) === false);
+await page.request.patch(BASE + "/api/workspace/settings", { data: { contactEmail: "hello@business-b.example", contactPhone: "+61 7 3000 0000" } });
+await page.goto(BASE + "/settings/branding");
 // Decision 13: the business's reply-to and personal message for client emails are here now, on every plan.
 ok("Client emails section on Branding (Decision 13)", await visible(page, "[data-testid=client-emails] >> input[aria-label='Reply-to email']") && await page.isVisible("[data-testid=client-emails] >> textarea[aria-label='Personal message']"));
 await page.setViewportSize({ width: 320, height: 720 });

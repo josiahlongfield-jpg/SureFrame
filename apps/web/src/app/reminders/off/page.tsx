@@ -4,6 +4,7 @@ import ClientHeader from "@/components/ClientHeader";
 import MadeWith from "@/components/MadeWith";
 import { brandOf, brandStyle } from "@/lib/branding";
 import { db } from "@/lib/db";
+import { forgetOptOut, rememberOptOut } from "@/lib/emailOptOut";
 import { validUnsubscribe } from "@/lib/reminders";
 import { clientHelpLimitText } from "@/lib/support/clientHelp";
 import ClientContactLine from "@/components/ClientContactLine";
@@ -33,12 +34,15 @@ export default async function RemindersOff({ searchParams }: { searchParams: Pro
     "use server";
     if (!c || !s || !validUnsubscribe(c, s)) return;
     await db.client.update({ where: { id: c }, data: { remindersOff: false } });
+    await forgetOptOut(c);
     redirect(`${back}&done=on`);
   }
   async function turnOff() {
     "use server";
     if (!c || !s || !validUnsubscribe(c, s)) return;
     await db.client.update({ where: { id: c }, data: { remindersOff: true } });
+    // Kept for this business even if the client is later deleted and added again (MAIL-10).
+    await rememberOptOut(c);
     redirect(`${back}&done=off`);
   }
 

@@ -89,14 +89,17 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // so each device can tell which it hasn't seen (components/LibraryTools.tsx). Held and uploading replies don't count yet.
   // A recording kept while its deleted client's conversation is still being erased: not that conversation's replies.
   const gone = new Set(found.filter((v) => v.client?.removedAt).map((v) => v.id));
-  const convIdsOf = (v: { id: string; copies: { id: string }[] }) => [...(gone.has(v.id) ? [] : [v.id]), ...v.copies.map((c) => c.id)];
+  // Only the conversations this person can open: staff who see only their own clients don't get others' replies.
+  type Copies = { id: string; copies: { id: string; client: { assignedToId: string | null } | null }[] };
+  const openable = (c: Copies["copies"][number]) => seesAllClients(access) || c.client?.assignedToId === user.id;
+  const convIdsOf = (v: Copies) => [...(gone.has(v.id) ? [] : [v.id]), ...v.copies.filter(openable).map((c) => c.id)];
   const convIds = videos.flatMap(convIdsOf);
   const clientReplies = convIds.length
     ? await db.reply.findMany({ where: { videoId: { in: convIds }, authorUserId: null, ...visibleReplies }, orderBy: { createdAt: "desc" }, select: { videoId: true, createdAt: true } })
     : [];
   const fromClients = new Map<string, string[]>();
   for (const r of clientReplies) fromClients.set(r.videoId, [...(fromClients.get(r.videoId) ?? []), r.createdAt.toISOString()]);
-  const convsOf = (v: { id: string; copies: { id: string }[] }): Conv[] => convIdsOf(v).map((id) => ({ id, fromClient: fromClients.get(id) ?? [] }));
+  const convsOf = (v: Copies): Conv[] => convIdsOf(v).map((id) => ({ id, fromClient: fromClients.get(id) ?? [] }));
   // A new owner's first steps (components/FirstSteps.tsx) include the clients step; staff get "Start here" below.
   const steps = await firstStepsFor(me);
   // A new business starts on its clients: once they're in, sending a video is picking them from a list.

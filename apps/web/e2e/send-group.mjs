@@ -76,6 +76,12 @@ ok("Copy link clients are saved with no email", !(await byName("Client L")).emai
 for (const n of ["Client A", "Client L", "Client O"]) await prisma.client.update({ where: { id: (await byName(n)).id }, data: { linkOpenedAt: new Date() } });
 await prisma.client.update({ where: { id: (await byName("Client O")).id }, data: { remindersOff: true } });
 await owner.goto(videoUrl);
+// A message written before sending goes to everyone chosen in that Send (APP-1).
+await owner.click("[data-testid=message-editor] >> text=Add message");
+await owner.fill("textarea[aria-label^='Message to']", "Here's this week's plan.");
+await owner.click("text=Save message");
+await owner.waitForSelector("[data-testid=message-saved]", { timeout: 10000 });
+ok("before sending: the message is for each client chosen", norm(await owner.textContent("[data-testid=message-editor]")).includes("Each client you send this video to sees it in their own conversation."));
 
 await chooseClients(owner, "Client A");
 ok("one client: the button says Send to client", norm(await owner.textContent("[data-testid=send]")) === "Send to client");
@@ -89,6 +95,9 @@ await owner.click("[data-testid=send]");
 await owner.waitForSelector("[data-testid=sec-first]", { timeout: 15000 });
 const id = videoUrl.split("/v/")[1];
 ok("everyone got the video", (await prisma.video.count({ where: { OR: [{ id }, { sourceId: id }], clientId: { not: null } } })) === 5);
+const sealedMsg = (await prisma.video.findUnique({ where: { id } })).message;
+const copyMsgs = (await prisma.video.findMany({ where: { sourceId: id } })).map((c) => c.message);
+ok("everyone chosen in that Send got the message", !!sealedMsg && copyMsgs.length === 4 && copyMsgs.every((m) => m === sealedMsg), JSON.stringify(copyMsgs.map((m) => !!m)));
 const names = async (sec) => owner.$$eval(`[data-testid=sec-${sec}] [data-testid=sent-row]`, (rs) => rs.map((r) => r.querySelector("[data-testid=row-name]").textContent.trim()));
 const [em, li, fi] = [await names("email"), await names("link"), await names("first")];
 ok("Emailed to: only the Email client who can be emailed", JSON.stringify(em) === '["Client A"]', JSON.stringify(em));

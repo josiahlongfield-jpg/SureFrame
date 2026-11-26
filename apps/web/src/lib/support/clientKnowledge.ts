@@ -29,7 +29,7 @@ A business (a coach, tutor, consultant and so on) uses ${BRAND.name} to send its
 - An address ending in /v/... (the address bar on a video) doesn't unlock anything on its own: only the personal link does.
 - Keep the personal link to yourself: anyone holding it can open what the business shared with that client.
 - ${BRAND.name} can't send a personal link or a new one: only the business's team can. If the link was lost or doesn't work, ask the business for it again.
-- "This link doesn't look right" means part of it is missing or mistyped: open it again from the original message, using the whole link, or ask the business for it.
+- "This link doesn't look right" means part of it is missing or mistyped, or the business may have ended their access (a business that deletes a client keeps no trace of them, so the page can't tell which): open it again from the original message, using the whole link, or contact the business if they think it's a mistake.
 - "This link is incomplete or mistyped" means the end of the link (the part that unlocks their videos) was changed or cut off, for example when a long link is copied or forwarded. Nothing is lost: open it again from the original message. On a device that already had their key, the videos still open, with a note that the link just opened was incomplete or mistyped and the device kept the key it already had.
 
 ## Their videos ("Your videos", the inbox)
@@ -38,7 +38,7 @@ A business (a coach, tutor, consultant and so on) uses ${BRAND.name} to send its
 - A text reply written while the video was playing starts with the moment it was written, such as "at 0:06": tapping it plays the video from there.
 - In the conversation, a video reply (theirs or the business's) shows as a small still with its length. Tap it to play it large over the page; close it with Close, Escape or by tapping outside it.
 - Save to device downloads the video. Some videos save as .webm files, which some iPhones and iPads can't play; a computer can. "How this works" under the video says so, under "Can I keep a copy?".
-- Clients of businesses on ${BRAND.name}'s free plan see a short ${BRAND.name} intro the first time they open a video from that business on a device. Watch now works straight away (there's no wait) and starts the video. It's shown once per device for each business.
+- Clients of businesses on ${BRAND.name}'s free plan see a short ${BRAND.name} intro the first time they open a video from that business on a device. Watch now works straight away (there's no wait) and starts the video; Not now closes the intro without starting it. It's shown once per device for each business.
 - Some businesses use AI summaries: the page then says so, and clients may see a transcript and summary under the video. Clients can read them but can't make them. Their replies aren't included. Summaries can contain mistakes.
 
 ## Replying
@@ -60,7 +60,7 @@ A business (a coach, tutor, consultant and so on) uses ${BRAND.name} to send its
 ## Emails from the business
 - Reminder and new-video emails come in the business's name. Replying to one reaches the business, unless the email says "Please don't reply to this email"; then contact the business directly.
 - A business can add its own contact details (an email address, a phone number or both). When it has, they show on the client's pages as "Contact <business>: …" (on each video page, under the business's name in their inbox, and on pages saying a video can't be opened), and in the emails it sends them. When it hasn't, nothing shows; never make contact details up.
-- To stop them: use the link at the bottom of any of them ("Stop emails from <business>" or "Turn them off"), then press Stop emails on the page that opens. That turns off that business's reminders and new-video emails; the videos still open from the personal link. The inbox also shows whether they're on or off, with Turn off or Turn on. Turning them back on is one tap (Turn on, or "Turn them back on" on the emails page).
+- To stop them: use the link at the bottom of any of them ("Stop emails from <business>" or "Turn them off"), then press Stop emails on the page that opens. That turns off that business's reminders and new-video emails; the videos still open from the personal link. The inbox also shows whether they're on or off, with Turn off or Turn on. Turning them back on is one tap (Turn on, or "Turn them back on" on the emails page). If the business removes them and adds them again later, their emails stay off until they turn them back on.
 - New-video emails only reach a client once they've opened their personal link on a device. ${BRAND.name} can't email the personal link itself.
 - If emails aren't arriving, check spam or junk, and that emails from the business are on. Whether the business has the right email address is something to ask the business.
 

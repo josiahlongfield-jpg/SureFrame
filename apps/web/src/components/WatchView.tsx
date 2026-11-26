@@ -10,7 +10,7 @@ import MediaPlayer, { fixDuration } from "./MediaPlayer";
 import PosterCover, { usePoster, useStoredStill } from "./PosterCover";
 import ReplyComposer, { deleteReply, sendHeldReply, type ReplyComposerHandle } from "./ReplyComposer";
 import { NOTIFICATIONS_CHANGED } from "./NotificationBell";
-import SecureMedia, { useDecryptedUrl } from "./SecureMedia";
+import SecureMedia, { useDecryptedUrl, useLeadingClip, usePlayback } from "./SecureMedia";
 import TeamKeyGate from "./TeamKeyGate";
 import AiInsight, { type SealedInsight } from "./AiInsight";
 import AiNotice from "./AiNotice";
@@ -26,6 +26,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import { readyIn, recoverInterrupted } from "@/lib/recorder/uploader";
 import { useVideoFrame } from "@/lib/videoFrame";
 import { makeThumb } from "@/lib/thumb";
+import { canSaveToFile, saveToFile, saveWhole } from "@/lib/playback";
 import { decryptText, encryptText, unwrapKey } from "@/lib/e2e/crypto";
 import { loadClientKey } from "@/lib/e2e/keystore";
 import { takeLinkKey } from "@/lib/e2e/linkKey";
@@ -228,6 +229,8 @@ function Locked({ text }: { text: string }) {
 
 /** Statuses where the recording is fully uploaded and safe on the server. */
 const UPLOAD_DONE = new Set(["UPLOADED", "PROCESSING", "READY"]);
+/** From this long, Save to device writes the video to a file piece by piece where the browser can (it may not fit in memory). */
+const LONG_SAVE_MS = 20 * 60_000;
 
 const fmt = (ms: number) => {
   const s = Math.floor(ms / 1000);
@@ -593,27 +596,40 @@ function WatchBody({
   // A reaction on its way to the server (a ref, so taps in the same instant see it too).
   const inFlight = useRef(false);
 
-  // Encrypted recordings are downloaded and decrypted here, on the viewer's device.
+  // Encrypted recordings are downloaded and decrypted here, on the viewer's device: played as they load where the
+  // browser can, otherwise downloaded whole first (SecureMedia.tsx usePlayback).
   const expired = video.status === "EXPIRED";
-  const { src, error: playError } = useDecryptedUrl(
+  const playback = usePlayback(
     video.status === "RECORDING" || expired ? null : video.rawUrl,
     video.encrypted ? rootKey : null,
     video.mimeType,
+    video.durationMs,
+    player,
   );
+  const { src, error: playError } = playback;
   const playable = video.encrypted ? src : video.rawUrl;
+  // A copy of (at least) its start, for pictures: the whole recording, or its first seconds while it streams.
+  const preview = video.encrypted ? playback.preview : playable;
+  // Ready to play: at once for a whole file; while streaming, once the player has the first seconds (onCanPlay).
+  const [canPlayOn, setCanPlayOn] = useState<string>();
+  const ready = !!playable && (!playback.streaming || canPlayOn === playable);
+  const readyNow = useRef(false);
+  useEffect(() => {
+    readyNow.current = ready;
+  }, [ready]);
   // A picture from the recording over the player until it's played: phones show it as a black box until then.
   // The library still shows at once; a full-size frame from the recording replaces it once that's unlocked here.
-  const stored = useStoredStill(video.id, rootKey, video.encrypted && !expired && video.status !== "RECORDING", !!playable);
-  const fullFrame = usePoster(playable);
+  const stored = useStoredStill(video.id, rootKey, video.encrypted && !expired && video.status !== "RECORDING", ready);
+  const fullFrame = usePoster(preview);
   const poster = fullFrame ?? stored;
   const [started, setStarted] = useState(false);
   // The first time the team opens a recording, its library still is made here (the server can't see the video).
   const thumbTried = useRef(false);
   useEffect(() => {
-    if (!canEdit || hasThumb || !video.encrypted || !src || thumbTried.current) return;
+    if (!canEdit || hasThumb || !video.encrypted || !preview || thumbTried.current) return;
     thumbTried.current = true;
-    void makeThumb(video.id, src, rootKey).catch(() => {});
-  }, [canEdit, hasThumb, video.encrypted, video.id, src, rootKey]);
+    void makeThumb(video.id, preview, rootKey).catch(() => {});
+  }, [canEdit, hasThumb, video.encrypted, video.id, preview, rootKey]);
   // The recording downloaded fine but this device can't decode its format.
   const [unplayable, setUnplayable] = useState(false);
   // Pressing "Watch now" on the intro starts the video, even if it's still unlocking then.
@@ -625,14 +641,18 @@ function WatchBody({
     if (!el || !playable) return;
     const undo = fixDuration(el);
     el.src = playable;
+    return undo;
+  }, [playable]);
+  useEffect(() => {
+    const el = player.current;
+    if (!el || !ready) return;
     // Started here, not from the tap itself, so a phone may refuse (iPhones do, for a video with sound): the cover
     // then shows its play button again and the next tap starts it. When it does start, onPlay takes the cover away.
     if (playWhenReady.current) void el.play().catch(() => {}).finally(() => setWaiting(false));
-    return undo;
-  }, [playable]);
+  }, [ready]);
   const watchNow = useCallback(() => {
     playWhenReady.current = true;
-    if (player.current?.src) void player.current.play().catch(() => {});
+    if (readyNow.current) void player.current?.play().catch(() => {});
     else setWaiting(true);
   }, []);
   // The cover was pressed from the keyboard: when it goes, focus moves to the player (it would otherwise drop to the
@@ -647,7 +667,7 @@ function WatchBody({
   const playFromCover = (fromKeyboard: boolean) => {
     focusPlayer.current = fromKeyboard;
     const el = player.current;
-    if (!el?.src) return watchNow();
+    if (!el || !readyNow.current) return watchNow();
     setStarted(true);
     // Refused by the browser: the cover comes back with its play button.
     void el.play().catch((err) => (err as { name?: string })?.name === "NotAllowedError" && setStarted(false));
@@ -790,6 +810,24 @@ function WatchBody({
   }
 
   const [saving, setSaving] = useState(false);
+  // Saving a long video straight to a file, piece by piece, while it plays as it loads (lib/playback.ts saveToFile).
+  const [saveFile, setSaveFile] = useState<null | "writing" | "saved" | "failed">(null);
+  /** Save to device while the video plays as it loads: there's no whole copy on this device yet, so it's made now. */
+  async function saveStreamed() {
+    if (saving || saveFile === "writing") return;
+    // A long one is written to a file as it's decrypted, where the browser can, so it needn't fit in memory.
+    if ((video.durationMs ?? 0) >= LONG_SAVE_MS && canSaveToFile()) {
+      setSaveFile("writing");
+      const done = await saveToFile(video.rawUrl, rootKey, video.mimeType, saveName).catch(() => "failed" as const);
+      return setSaveFile(done === "cancelled" ? null : done);
+    }
+    setSaveFile(null);
+    setSaving(true);
+    const ok = await saveWhole(video.rawUrl, rootKey, video.mimeType, saveName).then(() => true, () => false);
+    // Said under the button for long enough to be seen (O65), from when the download starts.
+    setTimeout(() => setSaving(false), ok ? 12000 : 0);
+    if (!ok) setSaveFile("failed");
+  }
   const titleBox = useRef<HTMLTextAreaElement>(null);
   // The title box grows with its text, so a long title wraps instead of being cut off.
   useLayoutEffect(() => {
@@ -858,7 +896,8 @@ function WatchBody({
       initial={ai.insight}
       // Only once the upload has fully finished, so it never competes with the recording.
       canMake={ai.canMake && canEdit && UPLOAD_DONE.has(video.status)}
-      mediaUrl={playable || null}
+      // While streaming there is no whole copy here: it's fetched when the transcript is made.
+      mediaUrl={playback.streaming ? playback.whole : playable || null}
       durationMs={video.durationMs}
       canRemove={canEdit}
       onSeek={seek}
@@ -901,16 +940,19 @@ function WatchBody({
               playsInline
               // Under the cover (PosterCover shows with a picture, or while the recording is still getting ready) the
               // player's own controls are hidden, so the keyboard skips them until it has been played.
-              inert={!started && (!!poster || !playable)}
+              inert={!started && (!!poster || !ready)}
               onPlay={() => (setEnded(false), setStarted(true))}
               onEnded={() => setEnded(true)}
-              onError={(e) => e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED && setUnplayable(true)}
+              onCanPlay={() => setCanPlayOn(playable ?? undefined)}
+              // While streaming, a problem switches to the whole file by itself (lib/playback.ts); only then is it this device.
+              onError={(e) => !playback.streaming && e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED && setUnplayable(true)}
+              data-playback={playback.streaming ? "stream" : "file"}
               className="absolute inset-0 h-full w-full bg-black object-contain"
             />
           )}
           {showPlayer && !started && !unplayable && !playError && (
             // Until the recording is ready to play, the cover stays: with the picture, or with nothing but the "getting ready" line.
-            <PosterCover poster={poster} label={`Play ${video.title}`} busy={!playable && (waiting || !poster)} onPlay={playFromCover} />
+            <PosterCover poster={poster} label={`Play ${video.title}`} busy={!ready && (waiting || !poster)} onPlay={playFromCover} />
           )}
           <div className="pointer-events-none absolute bottom-16 right-6 flex flex-col items-center">
             {burst.map((b) => (
@@ -919,6 +961,13 @@ function WatchBody({
             ))}
           </div>
         </div>
+        {/* A recording made since chunks carry their place in it, whose chunks stop being in order part way (damaged, or
+            changed by someone with the stored file): what came before plays, and it ends there (lib/e2e/crypto.ts). */}
+        {playback.cut && !playError && (
+          <p role="status" data-testid="playback-cut" className="mt-3 rounded-xl border border-line bg-surface px-3 py-2 text-sm text-muted">
+            Part of this recording couldn&apos;t be unlocked, so it stops early.
+          </p>
+        )}
 
         {ended && !canEdit && (
           <div data-testid="end-prompt" className="mt-4 flex flex-col gap-3 rounded-2xl border border-primary-line bg-primary-soft p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1007,7 +1056,18 @@ function WatchBody({
             )}
           </div>
           <div className="flex flex-wrap gap-2 sm:shrink-0">
-            {playable && (
+            {playable && playback.streaming ? (
+              <button
+                type="button"
+                onClick={() => void saveStreamed()}
+                disabled={saving || saveFile === "writing"}
+                data-testid="save-to-device"
+                title={isWebm ? "Saves as a .webm file. Some iPhones and iPads can't play these; a computer can." : undefined}
+                className="rounded-xl border border-line-strong px-4 py-2 text-sm text-muted hover:bg-hover disabled:cursor-wait"
+              >
+                Save to device
+              </button>
+            ) : playable && (
               <a
                 href={playable}
                 onClick={() => {
@@ -1054,6 +1114,17 @@ function WatchBody({
         {saving && (
           <p role="status" className="mt-2 px-1 text-xs text-ok-fg" data-testid="saving-note">
             Saving &ldquo;{saveName}&rdquo; to your device. Look in your browser&apos;s downloads (on a phone, your Files or Downloads app).
+          </p>
+        )}
+        {saveFile && (
+          <p role="status" className={`mt-2 px-1 text-xs ${saveFile === "failed" ? "text-danger-fg" : "text-ok-fg"}`} data-testid="save-file-note">
+            {saveFile === "writing" ? (
+              <>Saving &ldquo;{saveName}&rdquo;&hellip; Keep this page open until it&apos;s finished.</>
+            ) : saveFile === "saved" ? (
+              <>Saved &ldquo;{saveName}&rdquo; to your device.</>
+            ) : (
+              "Couldn't save the video. Check your connection and try again."
+            )}
           </p>
         )}
 
@@ -1220,8 +1291,10 @@ function WatchBody({
         tabIndex={sheet ? -1 : undefined}
         onKeyDown={sheet ? trapSheet : undefined}
         className={
+          // The sheet itself scrolls only when its title and reply box don't fit (the phone's text size made much
+          // bigger), so Send reply can always be reached. At normal text size the message list takes the slack instead.
           sheet
-            ? "fixed inset-0 z-[60] flex h-[100dvh] flex-col bg-surface pb-[env(safe-area-inset-bottom)] outline-none lg:hidden"
+            ? "fixed inset-0 z-[60] flex h-[100dvh] flex-col overflow-y-auto overscroll-contain bg-surface pb-[env(safe-area-inset-bottom)] outline-none lg:hidden"
             : expanded
               ? "fixed inset-x-4 inset-y-6 z-50 mx-auto flex max-w-3xl flex-col rounded-2xl border border-line bg-surface shadow-2xl"
               : // Kept mounted (just hidden) on phones, so a reply in progress is never lost.
@@ -1316,7 +1389,8 @@ function WatchBody({
             })}
           </ul>
         )}
-        <div ref={listBox} className={`min-h-0 flex-1 overflow-y-auto px-5 py-4 ${convId === null ? "hidden" : ""}`}>
+        {/* In the phone sheet the messages keep a little room (15% of the screen) even when very large text fills the rest. */}
+        <div ref={listBox} className={`${sheet ? "min-h-[15dvh]" : "min-h-0"} flex-1 overflow-y-auto px-5 py-4 ${convId === null ? "hidden" : ""}`}>
           <ul ref={listContent} className="space-y-4 text-sm">
             {loadedFor !== conv ? (
               <li className="text-dim" data-testid="conversation-loading">
@@ -1522,9 +1596,35 @@ function ReplyMedia({ reply, conversationKey }: { reply: ReplyDTO; conversationK
   if (media.expired) {
     return <p className="rounded-lg bg-surface-2 px-3 py-3 text-xs text-dim">This reply has been deleted from SureFrame.</p>;
   }
-  if (reply.kind === "AUDIO") return <SecureMedia url={media.url} mediaKey={key} mimeType={media.mimeType} kind="AUDIO" />;
+  if (reply.kind === "AUDIO") return <VoiceReply media={media} mediaKey={key} />;
   return <VideoReplyChip reply={reply} mediaKey={key} />;
 }
+
+/**
+ * A voice reply: a play button, and its player once that's tapped. The recording is only downloaded then, so a
+ * conversation with many replies doesn't fetch them all when the page opens.
+ */
+function VoiceReply({ media, mediaKey }: { media: NonNullable<ReplyDTO["media"]>; mediaKey: CryptoKey | null }) {
+  const [wanted, setWanted] = useState(false);
+  if (wanted) return <SecureMedia url={media.url} mediaKey={mediaKey} mimeType={media.mimeType} kind="AUDIO" autoPlay />;
+  return (
+    <button
+      type="button"
+      onClick={() => setWanted(true)}
+      disabled={!mediaKey}
+      data-testid="reply-audio-load"
+      className="flex min-h-12 w-full items-center gap-3 rounded-lg bg-surface-2 px-3 py-2 text-left text-sm text-ink hover:bg-hover disabled:cursor-wait"
+    >
+      <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-on-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z" /></svg>
+      </span>
+      <span>Play voice reply{media.durationMs ? ` · ${clock(media.durationMs)}` : ""}</span>
+    </button>
+  );
+}
+
+/** How much of the start of a video reply is fetched for its still; the rest only when it's opened. */
+const CHIP_CLIP_BYTES = 3 * 1024 * 1024;
 
 /** A recording's length from the file itself (WebM recordings don't say until asked: see fixDuration). */
 function useMediaLength(src: string | null | undefined) {
@@ -1556,19 +1656,22 @@ const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms 
  */
 function VideoReplyChip({ reply, mediaKey }: { reply: ReplyDTO; mediaKey: CryptoKey | null }) {
   const media = reply.media!;
-  const { src, error } = useDecryptedUrl(media.url, mediaKey, media.mimeType);
+  // Only its first seconds are fetched for the still; the whole reply once it's opened (then kept for another look).
+  const { clip, error: clipError } = useLeadingClip(media.url, mediaKey, media.mimeType, CHIP_CLIP_BYTES);
+  const [wanted, setWanted] = useState(false);
+  const { src, error } = useDecryptedUrl(wanted ? media.url : null, mediaKey, media.mimeType);
   const dialog = useRef<HTMLDialogElement>(null);
   const player = useRef<HTMLMediaElement | null>(null);
-  const poster = usePoster(src);
+  const poster = usePoster(clip ?? src);
   const [open, setOpen] = useState(false);
   // The recording's own length once it's unlocked, so the still says what the player says (C35); until then, the timed one.
   const length = useMediaLength(src) ?? media.durationMs;
-  // Opened by a tap, so it may start playing straight away.
+  // Opened by a tap, so it may start playing straight away (once it has arrived).
   useEffect(() => {
     if (open) player.current?.play().catch(() => {});
-  }, [open]);
+  }, [open, src]);
   const who = reply.mine ? "your" : `${reply.authorName}'s`;
-  if (error) {
+  if (error || clipError) {
     return (
       <p className="rounded-lg bg-surface-2 px-3 py-3 text-xs text-dim">
         {error === "expired" ? "This recording has been deleted from SureFrame." : "Couldn't unlock this recording on this device."}
@@ -1576,6 +1679,7 @@ function VideoReplyChip({ reply, mediaKey }: { reply: ReplyDTO; mediaKey: Crypto
     );
   }
   const show = () => {
+    setWanted(true);
     setOpen(true);
     dialog.current?.showModal();
   };
@@ -1588,7 +1692,7 @@ function VideoReplyChip({ reply, mediaKey }: { reply: ReplyDTO; mediaKey: Crypto
       <button
         type="button"
         onClick={show}
-        disabled={!src}
+        disabled={!mediaKey}
         aria-label={`Play ${who} video reply`}
         data-testid="reply-video-chip"
         className="group relative block h-24 w-40 overflow-hidden rounded-xl border border-line bg-solid text-left disabled:cursor-wait"
@@ -1597,7 +1701,7 @@ function VideoReplyChip({ reply, mediaKey }: { reply: ReplyDTO; mediaKey: Crypto
           // A picture from the reply, made on this device (a video that hasn't played shows black on phones).
           // eslint-disable-next-line @next/next/no-img-element
           <img src={poster} alt="" data-testid="reply-video-still" className="pointer-events-none h-full w-full object-cover" />
-        ) : !src ? (
+        ) : clip === undefined ? (
           <span className="grid h-full w-full place-items-center text-xs text-on-solid/70">Unlocking…</span>
         ) : null}
         <span className="absolute inset-0 grid place-items-center bg-black/20 transition group-hover:bg-black/30">
@@ -1631,6 +1735,11 @@ function VideoReplyChip({ reply, mediaKey }: { reply: ReplyDTO; mediaKey: Crypto
         </div>
         {/* Drawn only while open, so it starts from the beginning each time and nothing plays hidden. */}
         {open && src && <MediaPlayer ref={player} src={src} kind="VIDEO" className="mx-auto block max-h-[80svh] w-auto max-w-full rounded-xl bg-black" />}
+        {open && !src && (
+          <p role="status" data-testid="reply-video-loading" className="grid min-h-40 place-items-center rounded-xl bg-black text-sm text-white/80">
+            Unlocking…
+          </p>
+        )}
       </dialog>
     </>
   );
@@ -1691,8 +1800,8 @@ function MessageEditor({ videoId, rootKey, sealed, to }: { videoId: string; root
           <p className="text-sm font-medium text-ink">Message to {who}</p>
           {!open && (
             <p className="mt-1 whitespace-pre-wrap text-sm text-muted [overflow-wrap:anywhere]">
-              {/* Before it's sent: the message stays with the video itself, which goes to the first client chosen (others get a copy without it). */}
-              {saved ?? (to ? `Add a short note, shown to ${to} above the video.` : "Add a short note, shown above the video to the first client you send it to.")}
+              {/* Before it's sent: everyone chosen in that first Send gets it, each in their own conversation (send/route.ts). */}
+              {saved ?? (to ? `Add a short note, shown to ${to} above the video.` : "Add a short note, shown above the video to each client you send it to.")}
             </p>
           )}
         </div>
@@ -1727,7 +1836,7 @@ function MessageEditor({ videoId, rootKey, sealed, to }: { videoId: string; root
       <p className="mt-2 text-xs text-dim">
         {state === "saved" && <span className="font-medium text-ok-fg" role="status" data-testid="message-saved">Saved. </span>}
         {state === "failed" && <span className="font-medium text-danger-fg" role="alert">Couldn&apos;t save. Check your connection and try again. </span>}
-        End-to-end encrypted, like replies. {!to && (saved || open) ? "Only the first client you send this video to sees it." : "Only this conversation sees it."}
+        End-to-end encrypted, like replies. {!to && (saved || open) ? "Each client you send this video to sees it in their own conversation." : "Only this conversation sees it."}
       </p>
     </div>
   );

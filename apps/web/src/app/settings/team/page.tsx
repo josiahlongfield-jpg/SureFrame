@@ -46,7 +46,7 @@ export default async function TeamSettings({ searchParams }: { searchParams: Pro
               )}
             </>
           ) : (
-            "You choose who looks after each client. Members see only the clients assigned to them, plus the conversations on videos they recorded themselves, unless you let them see all clients. Clients see the name of the person who sent their video, never their email."
+            "You choose who looks after each client. Members see only the clients assigned to them and those clients' conversations, unless you let them see all clients. Give a client to someone else and their conversations go with them. Clients see the name of the person who sent their video, never their email."
           )}
         </p>
         {role !== "MEMBER" && (members.length > 1 || isTeamPlan) && (

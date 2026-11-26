@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { clientLink, NAME_MAX, newClientToken, seatUsage } from "@/lib/clients";
+import { optedOutBefore } from "@/lib/emailOptOut";
 import { handle, HttpError, requireUser } from "@/lib/session";
 import { limitByIp, MANY_CHANGES } from "@/lib/rateLimit";
 import { KeyFingerprint, requireCurrentKey } from "@/lib/keys";
@@ -89,9 +90,12 @@ export const POST = handle(async (req: Request) => {
     const left = seats.limit - seats.used;
     if (left <= 0) throw new HttpError(402, `All ${seats.limit} client seats are in use. Add more seats or delete a client first.`);
     if (wanted.length > left) throw new HttpError(402, `That's ${wanted.length} clients, but only ${left} client ${left === 1 ? "seat is" : "seats are"} left. Add more seats, or add fewer clients.`);
+    // An address that turned this business's emails off before (a deleted client added again) starts with them off (MAIL-10).
+    const optedOut = await optedOutBefore(workspace.id, wanted.map((c) => c.email), tx);
     const out = [];
     for (const c of wanted) {
-      out.push(await tx.client.create({ data: { name: c.name, email: c.email, teamKeyWrap: c.teamKeyWrap, token: newClientToken(), workspaceId: workspace.id, assignedToId: role === "MEMBER" ? user.id : null } }));
+      const remindersOff = !!c.email && optedOut.has(c.email.trim().toLowerCase());
+      out.push(await tx.client.create({ data: { name: c.name, email: c.email, remindersOff, teamKeyWrap: c.teamKeyWrap, token: newClientToken(), workspaceId: workspace.id, assignedToId: role === "MEMBER" ? user.id : null } }));
     }
     return out;
   });

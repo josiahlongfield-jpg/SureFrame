@@ -134,7 +134,7 @@ export function Delegations({ meId, initialStaff, initialClients }: { meId: stri
       {!alone && (
       <section className="rounded-2xl border border-line bg-surface p-5" data-testid="reassign">
         <h3 className="font-semibold text-ink">Reassign clients</h3>
-        <p className="mt-1 text-xs text-dim">Tick clients, then choose who looks after them. Members only see the clients assigned to them, unless they can see all clients. They also keep the conversations on videos they recorded themselves, even after that client is given to someone else. Unassigned clients are looked after by the owner and admins.</p>
+        <p className="mt-1 text-xs text-dim">Tick clients, then choose who looks after them. Members only see the clients assigned to them, unless they can see all clients. A client&apos;s conversations move with them, so the member who looked after them before can no longer open them. Unassigned clients are looked after by the owner and admins.</p>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <button type="button" onClick={() => setPicked(new Set(clients.filter((c) => !c.assignedToId).map((c) => c.id)))} className="rounded-full border border-line-strong px-3 py-1 hover:bg-hover">Pick unassigned</button>
           <button type="button" onClick={() => setPicked(new Set(clients.map((c) => c.id)))} className="rounded-full border border-line-strong px-3 py-1 hover:bg-hover">Pick all</button>

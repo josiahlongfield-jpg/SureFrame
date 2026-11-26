@@ -53,18 +53,21 @@ export async function fingerprint(key: CryptoKey) {
   return b64url(digest).slice(0, 22);
 }
 
-async function seal(plain: Uint8Array, key: CryptoKey) {
+/** `aad`: authenticated context (a recording chunk's position); it isn't stored, so opening needs the same again. */
+async function seal(plain: Uint8Array, key: CryptoKey, aad?: Uint8Array) {
   const iv = globalThis.crypto.getRandomValues(new Uint8Array(IV_BYTES));
-  const ct = new Uint8Array(await subtle().encrypt({ name: "AES-GCM", iv }, key, plain as BufferSource));
+  const params: AesGcmParams = aad ? { name: "AES-GCM", iv, additionalData: aad as BufferSource } : { name: "AES-GCM", iv };
+  const ct = new Uint8Array(await subtle().encrypt(params, key, plain as BufferSource));
   const out = new Uint8Array(IV_BYTES + ct.length);
   out.set(iv);
   out.set(ct, IV_BYTES);
   return out;
 }
 
-async function open(sealed: Uint8Array, key: CryptoKey) {
-  const iv = sealed.subarray(0, IV_BYTES);
-  return new Uint8Array(await subtle().decrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, sealed.subarray(IV_BYTES) as BufferSource));
+async function open(sealed: Uint8Array, key: CryptoKey, aad?: Uint8Array) {
+  const iv = sealed.subarray(0, IV_BYTES) as BufferSource;
+  const params: AesGcmParams = aad ? { name: "AES-GCM", iv, additionalData: aad as BufferSource } : { name: "AES-GCM", iv };
+  return new Uint8Array(await subtle().decrypt(params, key, sealed.subarray(IV_BYTES) as BufferSource));
 }
 
 export async function wrapKey(key: CryptoKey, wrappingKey: CryptoKey) {
@@ -93,18 +96,142 @@ export async function decryptBytes(sealed: string, key: CryptoKey) {
 }
 
 /**
- * Encrypt one recorder chunk into a self-delimiting frame:
+ * Recordings are sealed chunk by chunk into self-delimiting frames:
  *   [4-byte big-endian length][12-byte IV][ciphertext + 16-byte tag]
  * Frames concatenate into the stored file, so parts can be uploaded,
  * retried and joined without the server understanding them.
+ *
+ * Two kinds, and a file is all one or the other:
+ * - position-bound (every recording made from 26 November 2026): the length's top bit is set, and each chunk is
+ *   sealed with its place in the recording (0, 1, 2 ...) as authenticated data, so a chunk moved, repeated or taken
+ *   out by anyone holding the stored file no longer opens where it ends up;
+ * - the first kind (recordings made before then), with no position: still read exactly as before.
+ * A cut-off end can't be told from a recording that stopped there (the server finishes interrupted ones as they are).
  */
-export async function encryptFrame(chunk: Blob | Uint8Array, key: CryptoKey) {
+const POSITIONED = 0x80000000;
+const CHUNK_LABEL = new TextEncoder().encode("sureframe recording chunk v2 #");
+
+function chunkAad(index: number) {
+  const aad = new Uint8Array(CHUNK_LABEL.length + 4);
+  aad.set(CHUNK_LABEL);
+  new DataView(aad.buffer).setUint32(CHUNK_LABEL.length, index);
+  return aad;
+}
+
+/** Encrypt one recorder chunk into a frame. `index`: its place in the recording (use frameSealer); without it, the first kind. */
+export async function encryptFrame(chunk: Blob | Uint8Array, key: CryptoKey, index?: number) {
   const plain = chunk instanceof Blob ? new Uint8Array(await chunk.arrayBuffer()) : chunk;
-  const sealed = await seal(plain, key);
+  const positioned = index !== undefined;
+  const sealed = await seal(plain, key, positioned ? chunkAad(index) : undefined);
   const frame = new Uint8Array(4 + sealed.length);
-  new DataView(frame.buffer).setUint32(0, sealed.length);
+  new DataView(frame.buffer).setUint32(0, positioned ? POSITIONED + sealed.length : sealed.length);
   frame.set(sealed, 4);
   return frame;
+}
+
+/**
+ * Seals one recording's chunks, each with its place in it: one sealer per recording. Chunks are taken in the order
+ * they're given, one at a time, and a chunk that fails to seal uses up no place (so what follows still opens).
+ */
+export function frameSealer(key: CryptoKey) {
+  let next = 0;
+  let queue: Promise<unknown> = Promise.resolve();
+  return (chunk: Blob | Uint8Array): Promise<Uint8Array> => {
+    const run = queue.then(async () => {
+      const frame = await encryptFrame(chunk, key, next);
+      next++;
+      return frame;
+    });
+    queue = run.catch(() => {});
+    return run;
+  };
+}
+
+/**
+ * Reads a framed file in order, as it arrives (push each piece) or all at once. The first kind reads as it always
+ * has: a frame that doesn't open fails the whole file. In a position-bound file, a frame that doesn't open at its
+ * place (moved, repeated, taken out or damaged) ends the reading there: what came before is kept and `cut` is set.
+ */
+export class FrameReader {
+  cut = false;
+  private parts: Uint8Array[] = [];
+  private size = 0;
+  private positioned?: boolean;
+  private index = 0;
+  private key: CryptoKey;
+
+  constructor(key: CryptoKey) {
+    this.key = key;
+  }
+
+  /** Adds the next bytes of the file; resolves with the chunks they complete. */
+  async push(bytes: Uint8Array): Promise<Uint8Array[]> {
+    const out: Uint8Array[] = [];
+    if (this.cut) return out;
+    if (bytes.length) {
+      this.parts.push(bytes);
+      this.size += bytes.length;
+    }
+    while (this.size >= 4) {
+      const head = this.first(4);
+      const word = new DataView(head.buffer, head.byteOffset, 4).getUint32(0);
+      this.positioned ??= word >= POSITIONED;
+      if (this.positioned && word < POSITIONED) {
+        // A frame of the first kind in a position-bound file (something else sealed with the same key): not this recording.
+        this.stop();
+        break;
+      }
+      const len = this.positioned ? word - POSITIONED : word;
+      if (this.size < 4 + len) break;
+      const frame = this.first(4 + len).subarray(4);
+      this.drop(4 + len);
+      if (!this.positioned) {
+        out.push(await open(frame, this.key));
+        continue;
+      }
+      try {
+        out.push(await open(frame, this.key, chunkAad(this.index)));
+        this.index++;
+      } catch {
+        this.stop();
+        break;
+      }
+    }
+    return out;
+  }
+
+  /** The end of the file. Bytes left over are a frame cut short: the first kind fails as before, the other is kept up to there. */
+  finish() {
+    if (this.cut || !this.size) return;
+    if (!this.positioned) throw new Error("Recording is truncated");
+    this.stop();
+  }
+
+  private stop() {
+    this.cut = true;
+    this.parts = [];
+    this.size = 0;
+  }
+
+  /** The first `n` bytes (there are at least that many), joined into one piece if they're spread over several. */
+  private first(n: number) {
+    if (this.parts[0].length < n) {
+      const joined = new Uint8Array(this.size);
+      let at = 0;
+      for (const p of this.parts) {
+        joined.set(p, at);
+        at += p.length;
+      }
+      this.parts = [joined];
+    }
+    return this.parts[0].subarray(0, n);
+  }
+
+  private drop(n: number) {
+    this.parts[0] = this.parts[0].subarray(n);
+    if (!this.parts[0].length) this.parts.shift();
+    this.size -= n;
+  }
 }
 
 /**
@@ -112,31 +239,18 @@ export async function encryptFrame(chunk: Blob | Uint8Array, key: CryptoKey) {
  * from only the first part of a recording. A frame cut off at the end is left out.
  */
 export async function decryptLeadingFrames(bytes: Uint8Array, key: CryptoKey): Promise<Uint8Array[]> {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const out: Uint8Array[] = [];
-  let at = 0;
-  while (at + 4 <= bytes.length) {
-    const len = view.getUint32(at);
-    if (at + 4 + len > bytes.length) break;
-    out.push(await open(bytes.subarray(at + 4, at + 4 + len), key));
-    at += 4 + len;
-  }
-  return out;
+  return new FrameReader(key).push(bytes);
 }
 
-/** Decrypt a whole framed file back into the original recording bytes. */
-export async function decryptFrames(data: ArrayBuffer, key: CryptoKey): Promise<Uint8Array[]> {
-  const bytes = new Uint8Array(data);
-  const view = new DataView(data);
-  const out: Uint8Array[] = [];
-  let at = 0;
-  while (at < bytes.length) {
-    if (at + 4 > bytes.length) throw new Error("Recording is truncated");
-    const len = view.getUint32(at);
-    at += 4;
-    if (at + len > bytes.length) throw new Error("Recording is truncated");
-    out.push(await open(bytes.subarray(at, at + len), key));
-    at += len;
-  }
-  return out;
+/**
+ * Decrypt a whole framed file back into the original recording bytes. `cut`: a position-bound recording whose
+ * frames stop being in order part way; only what came before is returned.
+ */
+export async function decryptFrames(data: ArrayBuffer, key: CryptoKey): Promise<Uint8Array[] & { cut?: boolean }> {
+  const reader = new FrameReader(key);
+  const out = await reader.push(new Uint8Array(data));
+  reader.finish();
+  // Nothing in order at all: as unreadable as with the wrong key.
+  if (reader.cut && !out.length) throw new Error("Recording is damaged");
+  return Object.assign(out, { cut: reader.cut });
 }

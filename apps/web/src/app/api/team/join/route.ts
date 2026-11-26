@@ -71,7 +71,14 @@ export const POST = handle(async (req: Request) => {
       }
       const res = await tx.invite.updateMany({ where: { id: invite.id, acceptedAt: null }, data: { acceptedAt: new Date(), acceptedById: userId } });
       if (res.count === 0) throw new HttpError(410, "This invite has already been used. Ask for a new one.");
-      if (!existing) await tx.membership.create({ data: { userId, workspaceId: invite.workspaceId, role: invite.role } });
+      if (!existing) {
+        await tx.membership.create({ data: { userId, workspaceId: invite.workspaceId, role: invite.role } });
+        // The same login coming back: what they recorded and wrote before they left is theirs again, under their name
+        // (WB-20). They open only what their access allows now (lib/permissions.ts): their clients went back to the
+        // shared list when they left, so sent recordings stay with whoever looks after those clients.
+        await tx.video.updateMany({ where: { workspaceId: invite.workspaceId, formerOwnerId: userId }, data: { ownerId: userId, formerStaffAt: null, formerOwnerId: null } });
+        await tx.reply.updateMany({ where: { formerAuthorId: userId, video: { workspaceId: invite.workspaceId } }, data: { authorUserId: userId, formerStaffAt: null, formerAuthorId: null } });
+      }
     });
   }
   if (!existing && again) throw new HttpError(410, "You were removed from this team. Ask for a new invite.");

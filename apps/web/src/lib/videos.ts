@@ -44,6 +44,10 @@ export async function uploadableVideo(req: Request, id: string) {
   }
   // A recording already under way finishes even if the terms changed meanwhile (lib/terms.ts).
   const me = await requireUser({ allowTermsPending: true });
+  // The recorder's own upload finishes even if the client it was sent to has meanwhile been given to someone else,
+  // which takes the conversation away from them (lib/permissions.ts canSeeVideo): a recording is never lost to that.
+  const own = await db.video.findUnique({ where: { id } });
+  if (own && own.workspaceId === me.workspace.id && !own.replyToId && own.ownerId === me.user.id) return own;
   const video = await visibleVideo(accessOf(me), id);
   if (video.replyToId || video.ownerId !== me.user.id) throw new HttpError(403, "Only the person recording this can upload it");
   return video;

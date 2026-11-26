@@ -101,7 +101,8 @@ const business = `Peak ${stamp}`;
 await prisma.workspace.update({ where: { id: ws }, data: { name: business, timezone: TZ } });
 const mk = (wsId, name, email, i, data = {}) =>
   prisma.client.create({ data: { name, email, token: `rm-${stamp}-${wsId.slice(-4)}-${i}-${"x".repeat(20)}`, workspaceId: wsId, createdAt: new Date(Date.now() - (50 - i) * 60000), ...data } });
-const ana = await mk(ws, `Ana ${stamp}`, `ana${stamp}@example.com`, 0);
+// Ana was sent her personal link, so deleting her emails her that her access has ended (MAIL-9: only clients who were).
+const ana = await mk(ws, `Ana ${stamp}`, `ana${stamp}@example.com`, 0, { linkSentAt: new Date(Date.now() - D) });
 const ben = await mk(ws, `Ben ${stamp}`, `ben${stamp}@example.com`, 1);
 const cal = await mk(ws, `Cal ${stamp}`, null, 2);
 
@@ -217,6 +218,8 @@ ok("email: no restore date", !!gone && !/restore|until/i.test(gone.text), gone?.
 const fresh = await (await browser.newContext({ timezoneId: TZ })).newPage();
 await fresh.goto(`${BASE}/c/${ana.token}`);
 ok("old link: doesn't work any more", new URL(fresh.url()).searchParams.get("invalid") === "1", fresh.url());
+// Nothing about Ana is kept, so the page can't name her or the business, but it says access may have ended (WC-1).
+ok("old link: says the business may have ended their access", (await fresh.textContent("[data-testid=client-invalid]", { timeout: 10000 }).catch(() => "")).includes("the business may have ended your access"));
 ok("old link: remembers nothing on this device", !(await fresh.context().cookies()).some((c) => c.name.startsWith("fc_client_")));
 await anaPage.goto(BASE + "/inbox");
 ok("Ana's own device: nothing from the business", !(await anaPage.textContent("body")).includes(business));
@@ -246,6 +249,15 @@ ok("added again: a new client with a new link and nothing from before", !!anaNew
 // ---- Cal: no email, through the API ----
 ok("API: deleting needs no notify flag", (await owner.request.delete(`${BASE}/api/clients/${cal.id}`)).ok());
 ok("Cal deleted", !(await prisma.client.findUnique({ where: { id: cal.id } })));
+
+// ---- MAIL-9: added with an email but never sent or opened their link (a mistyped address, say): not emailed ----
+const dot = await mk(ws, `Dot ${stamp}`, `dot${stamp}@example.com`, 3);
+const dotPreview = await (await owner.request.get(`${BASE}/api/clients/${dot.id}/deletion`)).json();
+ok("never contacted: the box won't say we'll email them", dotPreview.willEmail === false, JSON.stringify(dotPreview.willEmail));
+const dotDel = await owner.request.delete(`${BASE}/api/clients/${dot.id}`);
+ok("never contacted: deleted, and not emailed", dotDel.ok() && (await dotDel.json()).emailed === false && !(await prisma.client.findUnique({ where: { id: dot.id } })));
+await new Promise((r) => setTimeout(r, 1500));
+ok("never contacted: no 'access has ended' email", !mailTo(dot.email).length);
 
 // ---- Members ----
 const memberEmail = `rm-member${stamp}@example.com`;

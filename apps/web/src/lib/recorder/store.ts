@@ -24,6 +24,11 @@ export type PendingSession = {
   discarding?: boolean;
   /** Sent as pieces the server joins (lib/pieces.ts), not as parts cut here; nextPart and skip then go unused. */
   pieces?: boolean;
+  /**
+   * The server finished this recording early from its own copy, and the chunks still here are the part it never got.
+   * They're kept, not uploaded, until the person saves the whole recording as a file or removes them (lib/recorder/leftover.ts).
+   */
+  leftover?: boolean;
 };
 
 /** `offset`: where the chunk starts in the recording, in bytes (recordings sent as pieces). */
@@ -96,6 +101,12 @@ export async function confirmPiece(videoId: string, seq: number) {
   const tx = (await open()).transaction("chunks", "readwrite");
   tx.objectStore("chunks").delete([videoId, seq]);
   await done(tx);
+}
+
+/** One stored chunk. Read back from the browser's store it's kept on disk, not in memory, until it's used. */
+export async function getChunk(videoId: string, seq: number): Promise<ChunkRow | undefined> {
+  const tx = (await open()).transaction("chunks", "readonly");
+  return request(tx.objectStore("chunks").get([videoId, seq]));
 }
 
 export async function getChunks(videoId: string): Promise<ChunkRow[]> {

@@ -153,7 +153,8 @@ export function start(port = Number(process.env.FAKE_STRIPE_PORT ?? 12111)) {
         { amount: credit, pricing: null },
       ]);
       // A code's percentage off the new items (the whole invoice, for simplicity), before tax.
-      const promoId = [].concat(form.discounts || [])[0]?.promotion_code;
+      // The code may come after a discount kept from the subscription (a referral one).
+      const promoId = [].concat(form.discounts || []).find((d) => d.promotion_code)?.promotion_code;
       const pct = promoId ? Number(state.promos.find((x) => x.id === promoId)?.promotion.coupon.percent_off ?? 0) : 0;
       const discount = Math.round((full * pct) / 100);
       const total = full + credit - discount + tax;

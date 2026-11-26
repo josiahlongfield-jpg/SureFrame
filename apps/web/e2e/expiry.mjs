@@ -3,7 +3,9 @@
 // from our servers", and a "Deleting soon" filter (within 7 days, soonest
 // first, only what this person may see). The reminders job emails each
 // recorder once, ~24 hours ahead, grouped into one email, naming each by its title,
-// and never for cloud-backup workspaces, replies or already-deleted copies.
+// with their clients' video and voice replies due then as a line per conversation (MAIL-8),
+// and never for cloud-backup workspaces, the team's own replies or already-deleted copies.
+// One due with no warning sent is kept one more day so the warning goes first, once (MAIL-3).
 //
 // Run against a dev server with no RESEND_API_KEY (mail goes to .data/outbox)
 // and CRON_SECRET set:
@@ -122,6 +124,26 @@ await cloud.$$eval("[data-testid=day-folder]", (els) => els.forEach((e) => (e.op
 await cloud.waitForSelector(`a[href="/v/${kept.id}"]`);
 ok("cloud backup: said once at the top, not on every card", norm(await cloud.textContent("[data-testid=deletion-note]")).startsWith("Cloud backup is on") && (await cloud.locator("main [data-testid=storage-status]").count()) === 0);
 
+// MAIL-8: a client's video and voice replies due within 24 hours go in the same email, as a line per conversation.
+// Not the team's own replies, nor one the client is still reviewing (held).
+const conv = await vid("cv", { purgeAt: new Date(now + 15 * D), createdAt: new Date(now - 15 * D), clientId: client.id });
+const replyMedia = async (suffix, reply) => {
+  const media = await vid(suffix, { purgeAt: new Date(now + 21 * H), replyToId: conv.id, title: `Reply from Ana ${stamp}` });
+  await prisma.reply.create({ data: { kind: "VIDEO", authorName: `Ana ${stamp}`, videoId: conv.id, mediaId: media.id, ...reply } });
+  return media;
+};
+const anaReply1 = await replyMedia("ar1", { byClient: true });
+const anaReply2 = await replyMedia("ar2", { byClient: true });
+const teamReply = await replyMedia("tr", { byClient: false, authorUserId: ownerUser.id, authorName: "Owner" });
+const heldReply = await replyMedia("hr", { byClient: true, heldAt: new Date() });
+
+// SEC-7: a recording goes with its client. One the staff member recorded for a client now looked after by someone else is
+// that person's to be warned about, not the recorder's (who can no longer open it).
+const staff2Email = `ex-staff2${stamp}@example.com`;
+const staff2 = await prisma.user.create({ data: { email: staff2Email, activeWorkspaceId: workspaceId, memberships: { create: { workspaceId, role: "MEMBER" } } } });
+const movedClient = await prisma.client.create({ data: { name: `Cy ${stamp}`, token: `tok${stamp}c`, workspaceId, assignedToId: staff2.id } });
+const movedVid = await vid("mv", { purgeAt: new Date(now + 21 * H), ownerId: staffUser.id, clientId: movedClient.id });
+
 // ---- The 24-hour warning ----
 const before = outbox().length;
 ok("warning job needs the secret", (await cron("reminders", "")).status === 401);
@@ -144,11 +166,21 @@ ok("owner on a paid plan is told about cloud backup", m.text.includes("/settings
 ok("each recording is named by its title", m.text.includes(`\u201c${soon1.title}\u201d, recorded`) && m.text.includes(`\u201c${soon2.title}\u201d, recorded`) && m.html.includes(soon1.title), m.text);
 ok("titles stay out of the subject", !mails.some((x) => x.subject.includes("Secret title")));
 ok("staff recorder gets their own email (not the owner)", toStaff.length === 1 && /^A recording is deleted from SureFrame in (21|22) hours$/.test(toStaff[0].subject) && toStaff[0].text.includes(`/v/${staffVid.id}`) && !toOwner.some((x) => x.text.includes(staffVid.id)));
+const toStaff2 = outbox().slice(before).filter((x) => x.to === staff2Email);
+ok("a recording for a client someone else looks after now warns them, not its recorder (SEC-7)",
+  toStaff2.length === 1 && toStaff2[0].text.includes(`/v/${movedVid.id}`) && toStaff2[0].text.includes(`sent to Cy ${stamp}`) && norm(toStaff2[0].text).includes("made by your team") && !mails.some((x) => x.text.includes(movedVid.id)), JSON.stringify(toStaff2.map((x) => x.text)));
 ok("staff aren't sent the billing link", toStaff[0] && !toStaff[0].text.includes("/settings/billing") && toStaff[0].text.includes("team owner"));
 ok("no email for the cloud backup workspace", !mails.some((x) => x.to === cloudEmail));
 const warned = await prisma.video.findMany({ where: { id: { in: [soon1.id, soon1copy.id, soon2.id, staffVid.id, in3days.id, reply.id, keptStale.id] } }, select: { id: true, expiryWarnedAt: true } });
 const w = Object.fromEntries(warned.map((v) => [v.id, !!v.expiryWarnedAt]));
 ok("warned state recorded", w[soon1.id] && w[soon1copy.id] && w[soon2.id] && w[staffVid.id] && !w[in3days.id] && !w[reply.id] && !w[keptStale.id], JSON.stringify(w));
+// MAIL-8: the client's two replies are one line in the same email, by her name and the video's date (no title, no content).
+ok("client replies: one line in the same email, with a link to the conversation", toOwner.length === 1 && norm(m.text).includes(`2 replies from Ana ${stamp}, on the video recorded`) && m.text.includes(`/v/${conv.id}?team=1`) && m.text.split(`/v/${conv.id}`).length === 2, m.text);
+ok("client replies: the lead says so, and says to watch them first", norm(m.text).includes("So are 2 video or voice replies from your clients.") && norm(m.text).includes("Watch or listen to the replies before then too."), m.text);
+ok("client replies: the conversation's title isn't added for them", !m.text.includes(conv.title));
+const rw = await prisma.video.findMany({ where: { id: { in: [anaReply1.id, anaReply2.id, teamReply.id, heldReply.id] } }, select: { id: true, expiryWarnedAt: true } });
+const rws = Object.fromEntries(rw.map((v) => [v.id, !!v.expiryWarnedAt]));
+ok("client replies warned; not the team's own reply or one still held for review", rws[anaReply1.id] && rws[anaReply2.id] && !rws[teamReply.id] && !rws[heldReply.id], JSON.stringify(rws));
 
 const mid = outbox().length;
 await cron();
@@ -161,6 +193,27 @@ const mid2 = outbox().length;
 await cron();
 const late = outbox().slice(mid2).filter((x) => x.to === ownerEmail);
 ok("a video newly inside the window is warned separately", late.length === 1 && late[0].subject === "A recording is deleted from SureFrame in 24 hours" && late[0].text.includes(`/v/${in3days.id}`));
+
+// ---- MAIL-3: due with no warning sent (jobs paused, a hold lifted, email down): kept one more day, warned first ----
+const unwarned = await vid("uw", { purgeAt: new Date(Date.now() - 2 * H) });
+// Already held a day once and still not warned: deleted on its date, so nothing stays more than a day past it.
+const heldOnce = await vid("ho", { purgeAt: new Date(Date.now() - 2 * H), expiryWarnedAt: new Date(0) });
+// A cloud-backup workspace's stale date: neither held nor deleted, as before.
+const cloudDue = await prisma.video.create({ data: { id: `ekd${stamp.toString(36)}`, mimeType: "video/webm", storageKey: `test/${stamp}/kd`, status: "UPLOADED", workspaceId: cloudWs, ownerId: cloudUser.id, purgeAt: new Date(Date.now() - 2 * H) } });
+const mid3 = outbox().length;
+await cron("purge");
+const uw1 = await prisma.video.findUnique({ where: { id: unwarned.id } });
+ok("not warned yet: kept, with its date moved a day on", uw1.status === "UPLOADED" && Math.abs(uw1.purgeAt.getTime() - (Date.now() + D)) < 10 * 60_000, JSON.stringify(uw1.purgeAt));
+ok("held once already: deleted on its date", (await prisma.video.findUnique({ where: { id: heldOnce.id } })).status === "EXPIRED");
+const cd = await prisma.video.findUnique({ where: { id: cloudDue.id } });
+ok("cloud backup: a stale date is neither held nor deleted", cd.status === "UPLOADED" && cd.purgeAt.getTime() === cloudDue.purgeAt.getTime() && !cd.expiryWarnedAt);
+await cron();
+const heldMail = outbox().slice(mid3).filter((x) => x.to === ownerEmail && x.text.includes(`/v/${unwarned.id}`));
+ok("held: the 24-hour warning goes, a day ahead", heldMail.length === 1 && heldMail[0].subject === "A recording is deleted from SureFrame in 24 hours", JSON.stringify(heldMail.map((x) => x.subject)));
+ok("held: then marked as warned", (await prisma.video.findUnique({ where: { id: unwarned.id } })).expiryWarnedAt?.getTime() > 0);
+await prisma.video.update({ where: { id: unwarned.id }, data: { purgeAt: new Date(Date.now() - 60_000) } });
+await cron("purge");
+ok("warned: deleted when its new date comes", (await prisma.video.findUnique({ where: { id: unwarned.id } })).status === "EXPIRED");
 
 await prisma.video.deleteMany({ where: { workspaceId: { in: [workspaceId, cloudWs] } } });
 await browser.close();

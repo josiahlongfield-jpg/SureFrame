@@ -121,7 +121,7 @@ export default async function Discounts({ searchParams }: { searchParams: Promis
       <h1 className="text-2xl font-semibold tracking-tight text-ink">Discounts</h1>
       <p className="mt-2 text-sm text-muted">
         Discount codes you give to one business at a time. Each code works once and only for the business it&rsquo;s given to: Stripe refuses it for anyone
-        else, so passing it on does nothing. A business can hold more than one code, but a subscription takes only one discount, so only one of them can be
+        else, so passing it on does nothing. A business can hold more than one code, but a subscription takes only one code (beside a referral discount, if it has one), so only one of them can be
         used. Only you can give or cancel codes. Send the business its code or link yourself; they use it when they start a
         paid plan, add it to the plan they already pay for on Settings &gt; Billing (from their next bill), or when they move up to a bigger plan as long as it doesn&rsquo;t bring the new plan below what they pay now. Referral codes (REF-) are
         separate and work by themselves.

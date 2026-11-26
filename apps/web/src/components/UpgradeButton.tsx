@@ -20,6 +20,8 @@ type Preview = {
   cancelling?: boolean;
   /** Extra client seats the new plan covers, taken off with the switch (lib/planChange.ts). */
   seats?: { from: number; to: number } | null;
+  /** The same for extra staff logins (Studio to Agency). */
+  staffSeats?: { from: number; to: number } | null;
   /** A code taken off this switch (lib/offers.ts upgradeOffer). */
   offer: { code: string; summary: string } | null;
 };
@@ -220,8 +222,17 @@ export default function UpgradeButton({
               {confirm.seats
                 ? `Your cloud backup and AI add-on carry over (the AI add-on moves to ${name}'s price).`
                 : `Your extra clients, cloud backup and AI add-on carry over (the AI add-on moves to ${name}'s price).`}{" "}
-              Extra staff logins are only on Studio and Agency.
+              {!confirm.staffSeats && "Extra staff logins are only on Studio and Agency."}
             </p>
+            {confirm.staffSeats && (
+              <p className="mt-3 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="staff-removed">
+                {name} includes {PLANS[plan].staffSeats} staff logins, so{" "}
+                {confirm.staffSeats.to === 0
+                  ? `your ${confirm.staffSeats.from} extra staff ${confirm.staffSeats.from === 1 ? "login is" : "logins are"} removed`
+                  : `${confirm.staffSeats.from - confirm.staffSeats.to} of your ${confirm.staffSeats.from} extra staff logins ${confirm.staffSeats.from - confirm.staffSeats.to === 1 ? "is" : "are"} removed (you keep ${confirm.staffSeats.to})`}{" "}
+                with this switch, and you stop paying for {confirm.staffSeats.from - confirm.staffSeats.to === 1 ? "it" : "them"}.
+              </p>
+            )}
             {confirm.seats && (
               <p className="mt-3 rounded-xl border border-ok-line bg-ok-bg p-3 text-sm text-ok-fg" data-testid="seats-removed">
                 {name} includes {PLANS[plan].clientSeats} clients, so{" "}

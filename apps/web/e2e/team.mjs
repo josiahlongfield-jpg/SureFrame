@@ -193,14 +193,21 @@ ok("assigning says Saved", (await owner.textContent("[data-testid=assign-saved]"
 await staff.goto(BASE + "/clients");
 await staff.waitForSelector("text=Avery");
 ok("staff sees the client once it's assigned to them", await staff.isVisible("a:has-text('Avery')") && !(await staff.isVisible("text=/All clients \\(/")));
+// A video the staff member recorded for Avery goes with Avery (SEC-7): theirs while they look after Avery, not after.
+const staffVideo = await prisma.video.create({ data: { id: `tm${stamp.toString(36)}`.slice(0, 12), mimeType: "video/webm", storageKey: `test/${stamp}/tm`, status: "UPLOADED", workspaceId, ownerId: staffUser.id, clientId: avery.id, sentAt: new Date() } });
+ok("staff open the video they recorded for their client", (await staff.request.get(`${BASE}/api/videos/${staffVideo.id}`)).ok());
 // The client's own page says who looks after them, and owners can change it there (S43).
 await owner.goto(`${BASE}/clients/${avery.id}`);
 const lookSelect = await owner.waitForSelector("select[aria-label='Who looks after Avery']", { timeout: 15000 }).catch(() => null);
 ok("client page: who looks after them, with the assign control", !!lookSelect && (await lookSelect.inputValue()) === staffUser.id);
 await owner.selectOption("select[aria-label='Who looks after Avery']", "");
 ok("changing it there says Saved", !!(await owner.waitForSelector("[data-testid=client-assign-saved] >> text=Avery is unassigned", { timeout: 10000 }).catch(() => null)) && (await prisma.client.findUnique({ where: { id: avery.id } })).assignedToId === null);
+ok("once Avery is unassigned, the staff member can't open the video they recorded for Avery (SEC-7)", (await staff.request.get(`${BASE}/api/videos/${staffVideo.id}`)).status() === 404 && (await staff.request.get(`${BASE}/api/videos/${staffVideo.id}/replies`)).status() === 404);
+ok("the owner still can", (await owner.request.get(`${BASE}/api/videos/${staffVideo.id}`)).ok());
 await owner.selectOption("select[aria-label='Who looks after Avery']", staffUser.id);
 await owner.waitForSelector("[data-testid=client-assign-saved] >> text=Team member 1 looks after Avery");
+ok("given Avery again, they open it again", (await staff.request.get(`${BASE}/api/videos/${staffVideo.id}`)).ok());
+await prisma.video.delete({ where: { id: staffVideo.id } });
 await staff.goto(`${BASE}/clients/${avery.id}`);
 ok("the member's view of the client says they look after them", (await (await staff.waitForSelector("[data-testid=looked-after-by]", { timeout: 15000 })).textContent()).includes("Looked after by you."));
 
@@ -275,6 +282,10 @@ ok("owner with staff can't delete their account", !!(await prisma.user.findUniqu
 
 // Removing staff puts their clients back in the shared list.
 for (const i of await prisma.invite.findMany({ where: { workspaceId, acceptedAt: null, revokedAt: null } })) await owner.request.delete(`${BASE}/api/team/invites/${i.id}`);
+// What they recorded and wrote (WB-20): one recording never sent, one sent to Avery with a reply of theirs in it.
+const staffDraft = await prisma.video.create({ data: { id: `td${stamp.toString(36)}`.slice(0, 12), title: "Staff draft", mimeType: "video/webm", storageKey: `test/${stamp}/td`, status: "UPLOADED", workspaceId, ownerId: staffUser.id } });
+const staffSent = await prisma.video.create({ data: { id: `ts${stamp.toString(36)}`.slice(0, 12), title: "Staff to Avery", mimeType: "video/webm", storageKey: `test/${stamp}/ts`, status: "UPLOADED", workspaceId, ownerId: staffUser.id, clientId: avery.id, sentAt: new Date() } });
+const staffReply = await prisma.reply.create({ data: { kind: "TEXT", body: "sealed-text".padEnd(44, "x"), encrypted: true, authorName: "Team member 1", videoId: staffSent.id, authorUserId: staffUser.id } });
 await owner.goto(BASE + "/settings/team");
 // An in-page confirmation listing the clients whose links change (not the browser's own box).
 await owner.click("[data-testid=remove-member]");
@@ -297,6 +308,14 @@ await owner.reload();
 await owner.waitForSelector("text=Staff logins");
 ok("once saved, the panel is gone after a reload", (await owner.locator("[data-testid=key-reset]").count()) === 0);
 ok("their client goes back to shared", (await prisma.client.findUnique({ where: { id: avery.id } })).assignedToId === null);
+const ownerId = (await prisma.user.findUnique({ where: { email: `owner${stamp}@example.com` } })).id;
+const asFormer = async () => {
+  const [d, v, r] = await Promise.all([prisma.video.findUnique({ where: { id: staffDraft.id } }), prisma.video.findUnique({ where: { id: staffSent.id } }), prisma.reply.findUnique({ where: { id: staffReply.id } })]);
+  return { d, v, r };
+};
+const gone = await asFormer();
+ok("their recordings and reply move to the owner as a former team member's, noting who they were (WB-20)",
+  [gone.d, gone.v].every((x) => x.ownerId === ownerId && !!x.formerStaffAt && x.formerOwnerId === staffUser.id) && gone.r.authorUserId === ownerId && !!gone.r.formerStaffAt && gone.r.formerAuthorId === staffUser.id, JSON.stringify(gone));
 await staff.goto(BASE + "/clients");
 // With no team left they are sent on to /start; let that finish so it can't interrupt the next page load.
 await staff.waitForURL(/\/start/, { timeout: 15000 }).catch(() => null);
@@ -308,6 +327,27 @@ await owner.goto(BASE + "/team");
 ok("Team overview stays for an owner on their own", !!(await owner.waitForSelector("[data-testid=team-alone]", { timeout: 15000 }).catch(() => null)) && new URL(owner.url()).pathname === "/team");
 ok("and Team stays in the menu", (await owner.locator("header nav a").evaluateAll((els) => els.map((e) => e.getAttribute("href")))).includes("/team"));
 ok("owner can't be removed", (await owner.request.post(`${BASE}/api/team/members/${(await prisma.user.findUnique({ where: { email: `owner${stamp}@example.com` } })).id}/remove`, { data: {} })).status() === 403);
+
+// The same login invited back (WB-20): their earlier recordings and replies are theirs again, under their name.
+await owner.goto(BASE + "/settings/team");
+await owner.fill('input[aria-label="Staff email"]', `staff${stamp}@example.com`);
+await owner.click("text=Create invite link");
+const link2 = await (await owner.waitForSelector("[data-testid=invite-link]")).textContent();
+await staff.goto(link2);
+await staff.click("text=Join the team");
+ok("the removed person rejoins with the same login", !!(await staff.waitForURL((u) => u.pathname === "/library", { timeout: 15000 }).then(() => true, () => false)) && !!(await prisma.membership.findFirst({ where: { workspaceId, userId: staffUser.id } })));
+const back = await asFormer();
+ok("rejoining puts their recordings and reply back under their name (WB-20)",
+  [back.d, back.v].every((x) => x.ownerId === staffUser.id && !x.formerStaffAt && !x.formerOwnerId) && back.r.authorUserId === staffUser.id && !back.r.formerStaffAt && !back.r.formerAuthorId, JSON.stringify(back));
+const backVideos = (await (await staff.request.get(BASE + "/api/videos")).json()).videos.map((v) => v.id);
+ok("their library has the recording they never sent again", backVideos.includes(staffDraft.id));
+ok("but not the one sent to Avery, who is unassigned now (SEC-7)", !backVideos.includes(staffSent.id) && (await staff.request.get(`${BASE}/api/videos/${staffSent.id}`)).status() === 404);
+await owner.goto(`${BASE}/v/${staffSent.id}`);
+ok("the owner sees it as theirs again, not a former team member's", !!(await owner.waitForSelector("main", { timeout: 15000 }).catch(() => null)) && !(await owner.textContent("main")).includes("Former team member"));
+// Back to the owner on their own, for the plan checks below (test data only).
+await prisma.reply.delete({ where: { id: staffReply.id } });
+await prisma.video.deleteMany({ where: { id: { in: [staffDraft.id, staffSent.id] } } });
+await prisma.membership.deleteMany({ where: { workspaceId, userId: staffUser.id } });
 
 // Now Solo works, and drops the extra staff item.
 ok("downgrade to Solo once alone", (await owner.request.post(BASE + "/api/billing/checkout", { data: { plan: "SOLO" } })).ok());

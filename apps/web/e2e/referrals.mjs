@@ -145,6 +145,37 @@ ok("B never gets a code of its own", (await prisma.referralCode.count({ where: {
 t = await text(A.page, "/settings/billing", '[data-testid="referral-status"]');
 ok("A sees the code was used and when the 10% starts", t.includes(`Your code ${codeA} was used on`) && /starts with your next bill, on \w+ \d{1,2}, \d{4}, and then comes off every bill after that/.test(t), t);
 
+// 3b) Apart from a referral discount, one discount at a time (Terms, Discounts): a code we give B goes beside B's referral
+// discount, on Settings > Billing or when moving up, and a second code is still refused. (A's code first, then the
+// referral, is in 5 below.)
+await prisma.rateLimit.deleteMany({ where: { key: { contains: "billing" } } });
+const bCodeCoupon = await fake.coupons.create({ name: "BCODE", percent_off: 20, duration: "repeating", duration_in_months: 3, metadata: { sureframe_scope: "plan" } });
+const BCODE = `BCODE-${String(stamp).slice(-6)}`;
+await fake.promotionCodes.create({ promotion: { type: "coupon", coupon: bCodeCoupon.id }, code: BCODE });
+const bUpCoupon = await fake.coupons.create({ name: "BUP", percent_off: 20, duration: "repeating", duration_in_months: 3, metadata: { sureframe_scope: "plan" } });
+const BUPCODE = `BUP-${String(stamp).slice(-6)}`;
+await fake.promotionCodes.create({ promotion: { type: "coupon", coupon: bUpCoupon.id }, code: BUPCODE });
+const bCoupons = () => subB.discounts.map((d) => d.source.coupon.id).sort().join(",");
+await text(bPage, "/settings/billing");
+ok("with only a referral discount, B still gets a code box", (await bPage.locator('[data-testid="have-code"]').count()) === 1);
+res = await api(bPage, "/api/billing/code", { code: BCODE });
+ok("a code goes on beside the referral discount, from the next bill", res.ok() && bCoupons() === [COUPON, bCodeCoupon.id].sort().join(",") && subB.lastUpdate?.proration_behavior === "none", bCoupons());
+res = await api(bPage, "/api/billing/preview", { plan: "STUDIO", code: BUPCODE });
+ok("but a second code is still refused", res.status() === 400 && /already has a discount/.test((await res.json()).error));
+await webhook(bPage, "customer.subscription.updated", subB);
+await text(bPage, "/settings/billing");
+t = squash(await bPage.textContent('[data-testid="discount"]').catch(() => ""));
+ok("B's billing shows both discounts, and no code box", t.includes("Referral: 10% off your plan") && t.includes(`${BCODE}: 20% off your plan`) && (await bPage.locator('[data-testid="have-code"]').count()) === 0, t);
+// Taken off again in the stand-in Stripe, so the move up below starts from the referral discount alone.
+subB.discounts = subB.discounts.filter((d) => d.source.coupon.id === COUPON);
+await webhook(bPage, "customer.subscription.updated", subB);
+res = await api(bPage, "/api/billing/preview", { plan: "STUDIO", code: BUPCODE });
+body = await res.json();
+ok("moving up: the switch box takes a code beside the referral discount", res.ok() && body.offer?.code === BUPCODE && body.discount > 0, JSON.stringify(body));
+res = await api(bPage, "/api/billing/checkout", { plan: "STUDIO", code: BUPCODE });
+ok("and the switch keeps both", res.ok() && subB.items.data.some((i) => i.price.lookup_key === "sureframe_studio_monthly") && bCoupons() === [COUPON, bUpCoupon.id].sort().join(","), bCoupons());
+await webhook(bPage, "customer.subscription.updated", subB);
+
 // 4) The code works once: C's saved code no longer applies, and the share link says it has ended.
 res = await api(cPage, "/api/billing/checkout", { plan: "SOLO" });
 session = lastSession();

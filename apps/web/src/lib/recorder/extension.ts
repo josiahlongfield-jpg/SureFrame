@@ -13,7 +13,7 @@ const FROM = "from-extension";
 type FromExtension =
   | { type: "hello"; version: string }
   | { type: "command"; id: string; action: "pause" | "resume" | "stop" }
-  | { type: "health"; id: string; onScreen: boolean; anywhere: boolean };
+  | { type: "health"; id: string; onScreen: boolean; anywhere: boolean; recorded?: boolean };
 
 const post = (msg: object) => window.postMessage({ sureframe: TO, ...msg }, location.origin);
 
@@ -39,8 +39,11 @@ export function watchExtension(onVersion: (version: string) => void) {
 export type ExtensionMode = "screen+camera" | "screen";
 export type Phase = "starting" | "recording" | "paused";
 
-/** Whether the camera bubble is on screen: in the browser window in front, or anywhere at all (for a shared tab). */
-export type BubbleHealth = { onScreen: boolean; anywhere: boolean };
+/**
+ * Whether the camera bubble is on screen: in the browser window in front, anywhere at all, or (`recorded`, for a shared
+ * tab) on the tab being recorded. `recorded` comes from version 1.0.12 on, once it's been told which tab that is.
+ */
+export type BubbleHealth = { onScreen: boolean; anywhere: boolean; recorded?: boolean };
 
 /**
  * One recording's bubble. `update()` tells the extension where the recording is up to (call it on every change and
@@ -62,7 +65,8 @@ export function bubbleRecording(
   const stop = listen((m) => {
     if (ended) return;
     if (m.type === "command" && m.id === rec.id) on.command(m.action);
-    else if (m.type === "health" && m.id === rec.id) on.health?.({ onScreen: !!m.onScreen, anywhere: !!m.anywhere });
+    else if (m.type === "health" && m.id === rec.id)
+      on.health?.({ onScreen: !!m.onScreen, anywhere: !!m.anywhere, recorded: typeof m.recorded === "boolean" ? m.recorded : undefined });
     // The extension was updated or reinstalled mid-recording: tell its new copy about this recording.
     else if (m.type === "hello") {
       send();
@@ -74,6 +78,13 @@ export function bubbleRecording(
     update(phase: Phase, ms: number) {
       last = { phase, ms };
       send();
+    },
+    /**
+     * A tab is being recorded and is in front now: the extension notes which one, and from then on says whether the
+     * bubble is showing on it. Older versions don't know this message and carry on as before.
+     */
+    recordedTab() {
+      if (!ended) post({ type: "recorded-tab", id: rec.id });
     },
     /** Switches what the bubble shows, such as to just Pause and Stop once the camera goes in the video instead. */
     setMode(mode: ExtensionMode) {

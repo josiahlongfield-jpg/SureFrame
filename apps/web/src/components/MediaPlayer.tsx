@@ -19,9 +19,10 @@ export function fixDuration(el: HTMLMediaElement) {
   return () => el.removeEventListener("loadedmetadata", run);
 }
 
-type Props = { src: string; kind: "VIDEO" | "AUDIO"; className?: string };
+/** `autoPlay`: starts by itself once it has loaded (a voice reply loaded by a tap on it). */
+type Props = { src: string; kind: "VIDEO" | "AUDIO"; className?: string; autoPlay?: boolean };
 
-const MediaPlayer = forwardRef<HTMLMediaElement | null, Props>(function MediaPlayer({ src, kind, className }, ref) {
+const MediaPlayer = forwardRef<HTMLMediaElement | null, Props>(function MediaPlayer({ src, kind, className, autoPlay }, ref) {
   const el = useRef<HTMLVideoElement & HTMLAudioElement>(null);
   useImperativeHandle(ref, () => el.current!, []);
   useEffect(() => (el.current ? fixDuration(el.current) : undefined), [src]);
@@ -49,7 +50,7 @@ const MediaPlayer = forwardRef<HTMLMediaElement | null, Props>(function MediaPla
       </p>
     );
   }
-  if (kind === "AUDIO") return <audio ref={el} src={src} controls preload="metadata" onError={onError} className={className ?? "w-full"} />;
+  if (kind === "AUDIO") return <audio ref={el} src={src} controls preload="metadata" autoPlay={autoPlay} onError={onError} className={className ?? "w-full"} />;
   if (className) return <video ref={el} src={src} controls playsInline preload="metadata" onError={onError} className={className} />;
   return (
     <div style={frame.style} className="relative mx-auto overflow-hidden rounded-lg bg-black">

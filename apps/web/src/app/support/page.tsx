@@ -25,12 +25,12 @@ type View = keyof typeof VIEWS;
 const insensitive = (q: string) => ({ contains: q, mode: "insensitive" as const });
 
 /** The founder's support inbox: conversations handed to a person come first; closed ones can be found and reopened. */
-export default async function SupportInbox({ searchParams }: { searchParams: Promise<{ show?: string; q?: string; cleared?: string }> }) {
+export default async function SupportInbox({ searchParams }: { searchParams: Promise<{ show?: string; q?: string }> }) {
   const { user } = await requirePageUser("/support", { allowPaused: true, allowSuspended: true, allowTermsPending: true });
   if (!isSupportAgent(user.email)) notFound();
   // A suspended agent is cut off; only a support admin keeps working while their own login is suspended.
   if (user.suspendedAt && !isSupportAdmin(user.email)) redirect("/suspended");
-  const { show, q: raw = "", cleared } = await searchParams;
+  const { show, q: raw = "" } = await searchParams;
   // "all" was the old name for every conversation.
   const view: View = show === "closed" ? "closed" : show === "open" || show === "all" ? "open" : "needs";
   const q = raw.trim().slice(0, 200);
@@ -70,7 +70,6 @@ export default async function SupportInbox({ searchParams }: { searchParams: Pro
   return (
     <div>
       <h1 className="text-2xl font-semibold tracking-tight text-ink">Support inbox</h1>
-      {cleared && <p className="mt-6 rounded-xl bg-ok-bg p-3 text-sm text-ok-fg">Every conversation was deleted.</p>}
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <nav className="flex flex-wrap gap-2" aria-label="Which conversations">
           {(Object.keys(VIEWS) as View[]).map((v) => (
@@ -148,13 +147,8 @@ export default async function SupportInbox({ searchParams }: { searchParams: Pro
           })}
         </ul>
       )}
-      <p className="mt-10 text-xs text-dim">
-        Test chats and spam can be deleted one at a time from each conversation, or{" "}
-        <Link href="/support/clear" className="underline hover:text-ink" data-testid="clear-link">
-          all at once
-        </Link>
-        .
-      </p>
+      {/* No "delete every conversation" any more (26 November 2026): it would take real customers' open conversations with it. */}
+      <p className="mt-10 text-xs text-dim">Test chats and spam can be deleted one at a time from each conversation.</p>
     </div>
   );
 }

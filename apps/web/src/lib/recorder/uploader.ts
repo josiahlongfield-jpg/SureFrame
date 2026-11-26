@@ -43,7 +43,7 @@ export class FatalUploadError extends Error {
 
 /** Shown when a recording still going on this page was finished by the server meanwhile (it looked abandoned). */
 const FINISHED_ELSEWHERE =
-  "This recording was paused or offline for a while, so SureFrame finished it from what had already uploaded. What you recorded after that couldn't be added. You'll find the saved part in your library.";
+  "This recording was offline for a while, so SureFrame finished it from what had already uploaded. That part is in your library. Anything recorded after it is kept in this browser, for you to save as a file.";
 
 /**
  * Refusals that can clear up on their own: signed out (401), access paused or
@@ -54,6 +54,9 @@ const FINISHED_ELSEWHERE =
  */
 const KEEP_FOR_MS = 8 * 86_400_000;
 export const mayRecover = (err: unknown) => err instanceof FatalUploadError && [401, 403, 404].includes(err.status ?? 0);
+
+/** How many chunks waiting to be sent are also kept in memory (a few seconds each); the rest wait on disk only. */
+const IN_MEMORY = 3;
 
 /** Set at build time when videos go straight to object storage (see next.config.ts). */
 const DIRECT = process.env.NEXT_PUBLIC_DIRECT_UPLOADS === "1";
@@ -137,6 +140,8 @@ export class ChunkedUploader {
   private intake: Promise<void> = Promise.resolve();
   private uploadedBytes = 0;
   private pendingBytes = 0;
+  /** Chunks queued to send that haven't had their turn yet. */
+  private waiting = 0;
   private fatal?: Error;
   private unsaved = false;
   private cancelled = false;
@@ -164,10 +169,18 @@ export class ChunkedUploader {
       if (this.cancelled) return;
       // If the local copy can't be written (storage full), keep going from memory:
       // the upload still has the chunk, only the crash safety net is gone.
-      await store.putChunk(this.videoId, seq, blob, offset).catch(this.lostLocalCopy);
+      const kept = await store.putChunk(this.videoId, seq, blob, offset).then(
+        () => true,
+        (err) => {
+          this.lostLocalCopy(err);
+          return false;
+        },
+      );
       this.pendingBytes += blob.size;
       this.emit(false);
-      this.send(seq, offset, blob);
+      // Offline, chunks pile up waiting their turn. Past the first few, one that's safely stored is left on disk only
+      // and read back just before it's sent, so a long recording made offline isn't held in memory too (REC-20).
+      this.send(seq, offset, kept && this.waiting >= IN_MEMORY ? null : blob, blob.size);
     });
     return this.intake;
   }
@@ -184,7 +197,7 @@ export class ChunkedUploader {
   restore(chunks: { seq: number; blob: Blob; offset?: number }[]) {
     for (const c of chunks) {
       this.pendingBytes += c.blob.size;
-      this.send(c.seq, c.offset ?? 0, c.blob);
+      this.send(c.seq, c.offset ?? 0, c.blob, c.blob.size);
     }
   }
 
@@ -193,8 +206,22 @@ export class ChunkedUploader {
     await this.intake;
     await this.queue;
     if (this.fatal) throw this.fatal;
-    await withRetry(() => sendFinish(this.videoId, durationMs, this.headers), (r) => this.emit(r));
+    try {
+      await withRetry(() => sendFinish(this.videoId, durationMs, this.headers), (r) => this.emit(r));
+    } catch (err) {
+      throw (await this.closedBy(err)) ? new FatalUploadError(FINISHED_ELSEWHERE, 409, true) : err;
+    }
     await store.removeSession(this.videoId).catch(this.lostLocalCopy);
+  }
+
+  /**
+   * Whether this refusal means the server had already finished the recording from its own copy. A piece is refused
+   * with 409 then; a reply's with 404, as its upload token is cleared once it's finished, so the server is asked.
+   */
+  private async closedBy(err: unknown) {
+    if (!(err instanceof FatalUploadError)) return false;
+    if (err.status === 409) return true;
+    return err.status === 404 && !!this.headers["x-upload-token"] && (await finishedOnServer(this.videoId));
   }
 
   private lostLocalCopy = (err: unknown) => {
@@ -202,19 +229,25 @@ export class ChunkedUploader {
     this.unsaved = true;
   };
 
-  private send(seq: number, offset: number, blob: Blob) {
+  /** `blob` is null when the chunk is only on disk: it's read back from the store when its turn comes. */
+  private send(seq: number, offset: number, blob: Blob | null, size: number) {
+    this.waiting++;
     this.queue = this.queue.then(async () => {
+      this.waiting--;
       if (this.fatal || this.cancelled) return;
       try {
-        await withRetry(() => sendPiece(this.videoId, seq, offset, blob, this.duration(), this.headers), (r) => this.emit(r));
+        // Not found means it can't be sent, so nothing after it is either; the local copy stays for recovery to try again.
+        const body = blob ?? (await store.getChunk(this.videoId, seq))?.blob;
+        if (!body) throw new Error("Part of the recording couldn't be read back from this browser");
+        await withRetry(() => sendPiece(this.videoId, seq, offset, body, this.duration(), this.headers), (r) => this.emit(r));
         await store.confirmPiece(this.videoId, seq).catch(this.lostLocalCopy);
-        this.uploadedBytes += blob.size;
-        this.pendingBytes -= blob.size;
+        this.uploadedBytes += size;
+        this.pendingBytes -= size;
         this.emit(false);
       } catch (err) {
-        // A piece is only refused with 409 when the server has already finished the recording from its own copy
-        // (it went quiet for too long): said in plain words, and the status is kept for recovery (below).
-        const closed = err instanceof FatalUploadError && err.status === 409;
+        // Refused because the server has already finished the recording from its own copy (it went quiet for too
+        // long): said in plain words, and the status is kept for recovery (below).
+        const closed = !this.cancelled && (await this.closedBy(err));
         this.fatal = closed ? new FatalUploadError(FINISHED_ELSEWHERE, 409, true) : (err as Error);
         if (this.cancelled) return;
         // Upload failures otherwise only show in the customer's browser.
@@ -374,6 +407,12 @@ export async function recoverInterrupted(
     // A recording still running in another tab holds this lock; leave it alone.
     await navigator.locks.request(lockName(s.videoId), { ifAvailable: true }, async (lock) => {
       if (!lock) return;
+      // Kept for the person to save as a file (keepLeftover below): the server takes no more of it. A reply's can't be
+      // offered here (it's opened with its conversation's key), so it goes once it's as old as other copies kept.
+      if (s.leftover) {
+        if (s.replyTo && Date.now() - s.startedAt > KEEP_FOR_MS) await store.removeSession(s.videoId);
+        return;
+      }
       if (s.discarding && !s.stopped) {
         // They were about to discard it when the page closed: finish the discard, don't upload it (or use up a free video).
         const res = await fetch(`/api/videos/${s.videoId}`, { method: "DELETE" }).catch(() => null);
@@ -404,8 +443,8 @@ export async function recoverInterrupted(
         onRecovered(s.videoId, s);
       } catch (err) {
         const stale = Date.now() - s.startedAt > KEEP_FOR_MS;
-        // Already finished elsewhere (the server's copy, from another browser): nothing left to do here.
-        if (err instanceof FatalUploadError && err.finishedElsewhere && s.pieces) await store.removeSession(s.videoId);
+        // Already finished elsewhere (the server's copy, from another browser): what's still here never got there.
+        if (err instanceof FatalUploadError && err.finishedElsewhere && s.pieces) await keepLeftover(s);
         // The finish call's own 409 ("Nothing was recorded"): the server has nothing to finish it from yet. That isn't
         // "finished elsewhere", so the copy here is kept and tried again, for as long as other refusals are.
         else if (err instanceof FatalUploadError && err.status === 409 && s.pieces && !stale) console.warn("Recovery deferred", s.videoId, err);
@@ -431,6 +470,35 @@ export async function recoverInterrupted(
     await new Promise((r) => setTimeout(r, quiet ? data.retryInMs! : STILL_GOING_MS));
   }
   onWaiting(null);
+}
+
+/**
+ * The server finished this recording early from its own copy (it heard nothing for too long) and takes no more of it.
+ * What this browser still holds past that point never got there: it's kept, marked as left over, for the person to
+ * save the whole recording as a file from the Record page (lib/recorder/leftover.ts). The copy goes only once it's
+ * clear the server's copy has all of it; when that can't be told now (offline, signed out), it's asked again next
+ * time. A reply is opened with its conversation's key, which the Record page doesn't have: its review offers the file
+ * while it's on screen (components/ReplyComposer.tsx), and the part kept here is only held for as long as other
+ * copies are (KEEP_FOR_MS), not offered.
+ */
+export async function keepLeftover(s: Pick<store.PendingSession, "videoId" | "replyTo" | "startedAt">) {
+  const res = await fetch(`/api/videos/${s.videoId}`).catch(() => null);
+  // Deleted from the library meanwhile: there's nothing left to put the rest with.
+  if (res?.status === 404 && Date.now() - s.startedAt > KEEP_FOR_MS) return store.removeSession(s.videoId);
+  type Finished = { video?: { status: string; sizeBytes: number } };
+  const video = res?.ok ? ((await res.json().catch(() => null)) as Finished | null)?.video : undefined;
+  if (!video || video.status === "RECORDING" || !Number.isFinite(video.sizeBytes)) return;
+  const chunks = await store.getChunks(s.videoId);
+  // Each chunk knows where it starts in the recording: one ending past the server's copy holds something it hasn't.
+  if (chunks.some((c) => (c.offset ?? 0) + c.blob.size > video.sizeBytes)) await store.updateSession(s.videoId, { leftover: true });
+  else await store.removeSession(s.videoId);
+}
+
+/** Whether the server has finished this recording (asked when its upload is refused as not found). */
+async function finishedOnServer(videoId: string) {
+  const res = await fetch(`/api/videos/${videoId}`).catch(() => null);
+  const video = res?.ok ? ((await res.json().catch(() => null)) as { video?: { status?: string } } | null)?.video : undefined;
+  return !!video?.status && video.status !== "RECORDING";
 }
 
 /** Pieces arrive every couple of seconds while recording: quieter than this, a recording was most likely interrupted. */

@@ -14,6 +14,8 @@ const extensionOrigins = extensionIds.map((id) => ` "chrome-extension://${id}"`)
 
 // Applied to every response. Client keys travel only in URL fragments, which
 // browsers never send anywhere, and "same-origin" keeps paths out of other sites' logs.
+// Pages get a fuller Content-Security-Policy, with a per-page script nonce, from middleware
+// (src/lib/scriptPolicy.ts); keep its frame-ancestors, object-src and base-uri the same as here.
 const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   { key: "X-Content-Type-Options", value: "nosniff" },

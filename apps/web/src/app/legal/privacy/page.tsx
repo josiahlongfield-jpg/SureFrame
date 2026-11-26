@@ -179,14 +179,15 @@ export default function Page() {
       <p>If a business has staff on {LEGAL.product}, some information is shared inside that business:</p>
       <ul>
         <li>
-          <strong>What staff can see:</strong> staff see the clients assigned to them, those clients&rsquo; videos and conversations, and the videos they recorded
-          themselves, unless the owner or an admin gives them access to more. Owners and admins can see every client and video in the business.
+          <strong>What staff can see:</strong> staff see the clients assigned to them, those clients&rsquo; videos and conversations, and recordings they have
+          made but not yet sent, unless the owner or an admin gives them access to more. A sent video goes with the client&rsquo;s conversation: if the client
+          is given to someone else, the staff member who recorded it can no longer open it. Owners and admins can see every client and video in the business.
         </li>
         <li>
           <strong>Names:</strong> everyone on a team can see the others&rsquo; names, email addresses and roles. If a team member has set their name, clients see it on
           the videos that person sends, as &ldquo;Name from Business&rdquo;, but never their email address. Without a name set, clients see the business&rsquo;s name.
           When someone leaves a team, the videos and replies they made stay with the business and are shown as &ldquo;Former team member&rdquo;, without their
-          name.
+          name. If they left on or after 26 November 2026 and rejoin that business with the same login, those show their name again.
         </li>
         <li>
           <strong>Team overview:</strong> owners and admins can see how the team is keeping up with clients, worked out from dates and who sent what: for example
@@ -311,9 +312,10 @@ export default function Page() {
       <h2>How long we keep it</h2>
       <ul>
         <li>
-          Without cloud backup, the encrypted copy of a video on our servers is deleted {LEGAL.retentionDays} days after it&rsquo;s recorded, and after that it
-          can&rsquo;t be watched from its link. Video and voice replies follow the same rule. A recording stays on the device it was made on only until its upload
-          finishes; to keep your own copy, open the video and choose Save to device. We try to email the person who recorded a video about a day before, but please
+          Without cloud backup, the encrypted copy of a video on our servers is deleted {LEGAL.retentionDays} days after it&rsquo;s recorded (one day later if
+          our warning email couldn&rsquo;t go out first, never longer), and after that it can&rsquo;t be watched from its link. Video and voice replies follow
+          the same rule. A recording stays on the device it was made on only until its upload finishes; to keep your own copy, open the video and choose Save to
+          device. We try to email the business&rsquo;s team about a day before, listing the videos and client replies about to be deleted, but please
           don&rsquo;t rely on that email alone.
         </li>
         <li>
@@ -338,6 +340,12 @@ export default function Page() {
           reply and reaction, the team&rsquo;s too. Recordings the business also sent to other clients stay with those clients, without the removed client. We
           don&rsquo;t keep a copy, so a removed client can&rsquo;t be restored; if the business adds them again, they start as a new client. Where a legal hold
           applies, we may finish the deletion when it ends.
+        </li>
+        <li id="emails-off" className="scroll-mt-24">
+          If a client turns a business&rsquo;s emails off, we keep a scrambled marker of their email address for that business: a code made from the address
+          with a secret key, which can&rsquo;t be turned back into the address. It stays if the client is removed, so if the business adds the same address
+          again, that client&rsquo;s emails stay off. It&rsquo;s deleted when they turn that business&rsquo;s emails back on, or with the business&rsquo;s
+          account.
         </li>
         <li>
           Your business&rsquo;s referral code and its record are kept while your account is open, and deleted with it. If your business used another
@@ -367,6 +375,10 @@ export default function Page() {
           After {LEGAL.deletionGraceDays} days we permanently delete your account, workspace and content, and ask our payment provider to delete your customer
           record and saved cards. If you&rsquo;re on someone else&rsquo;s team, deleting your account takes you off that team straight away, and the recordings and replies you
           made for it stay with the team, shown as &ldquo;Former team member&rdquo;.
+        </li>
+        <li>
+          When someone leaves a team, we keep an internal account number (not their name or email address) on the recordings and replies they made for it, so
+          they show the person&rsquo;s name again if they rejoin with the same login. It&rsquo;s removed when they rejoin or when their login is deleted.
         </li>
         <li>
           If we close an account under our terms, we permanently delete the account, its workspaces and their content {LEGAL.closureDeleteDays} days later (the {LEGAL.reviewDays} days its holder has to ask for a review or a
@@ -502,8 +514,9 @@ export default function Page() {
       </p>
       <p>
         If a business removes you as a client, your link stops working straight away, and your details, videos, messages and shared to-dos with that business
-        are deleted for good at the same time. It can&rsquo;t be undone. Unless you&rsquo;ve turned that business&rsquo;s emails off, or the business has another client at the same email
-        address, we email you to let you know. If the business works with you again, they&rsquo;ll send you a new personal link.
+        are deleted for good at the same time. It can&rsquo;t be undone. If the business had sent you your link or you&rsquo;d opened it, we email you to let
+        you know, unless you&rsquo;ve turned that business&rsquo;s emails off or it has another client at the same email address. If the business works with you again, they&rsquo;ll send you a new personal link. If you&rsquo;d turned its
+        emails off, they stay off (see <a href="#emails-off">How long we keep it</a>).
       </p>
       <p>
         If a business deletes its {LEGAL.product} account, your link stops working and says the business has closed its account. Your details and conversations
@@ -628,7 +641,8 @@ export default function Page() {
       <p>
         We&rsquo;ll update this page when our practices change. If a change is significant, we give it a new version number, email account holders about it,
         and ask them to read and agree to the new version before carrying on, and we keep a record of that. If you already have an account, you can carry on for{" "}
-        {LEGAL.changeNoticeDays} days after that email before you need to agree. Smaller changes that only clarify, add to what you get, or keep less of your
+        {LEGAL.changeNoticeDays} days after that email before you need to agree. A change can apply sooner, from the date we give in that email, where
+        that&rsquo;s needed to keep people safe or to comply with the law. Smaller changes that only clarify, add to what you get, or keep less of your
         information don&rsquo;t get a new version: we update the &ldquo;Last updated&rdquo; date, note them in our{" "}
         <Link href="/legal/archive#wording-updates">list of versions and changes</Link>, and they apply from that date. Each version has a number, shown at the
         top. Versions from 11 October 2026 onwards are listed in our <Link href="/legal/archive">archive of versions</Link>, and we&rsquo;ll send you a copy of any

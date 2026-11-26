@@ -58,17 +58,3 @@ export async function deleteTicket(ticketId: string) {
   revalidatePath("/support");
   redirect("/support?show=open");
 }
-
-/** Permanently removes every conversation (/support/clear). The form must carry confirm=DELETE. */
-export async function deleteAllTickets(form: FormData) {
-  const agent = await requireAgent();
-  if (String(form.get("confirm") ?? "").trim() !== "DELETE") redirect("/support/clear?error=confirm");
-  await db.$transaction(async (tx) => {
-    // The ids, so an old conversation's address can say it was deleted (app/support/[id]); never what was said.
-    const ids = (await tx.supportTicket.findMany({ select: { id: true }, take: 5000 })).map((t) => t.id);
-    const { count } = await tx.supportTicket.deleteMany({});
-    await logAdmin(tx, agent, { action: "support.delete_all", target: `${count} conversation${count === 1 ? "" : "s"}`, details: { count, ticketIds: ids } });
-  });
-  revalidatePath("/support");
-  redirect("/support?cleared=1");
-}

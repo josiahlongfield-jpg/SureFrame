@@ -73,7 +73,9 @@ export default function LegalPage({
   // What changed on the last-updated date: a wording update, or a new version people agree to (LEGAL_VERSIONS).
   const wording = doc ? WORDING_UPDATES.find((u) => u.date === updated)?.[doc] : undefined;
   const release = doc && !wording ? LEGAL_VERSIONS.find((v) => v.date === updated) : undefined;
-  const latest = wording ?? (release && (doc === "dpa" ? ("dpa" in release ? release.dpa : undefined) : release.changes));
+  // A new version lists its changes, then any wording made clearer with it (`clarified`, 26 November 2026).
+  const latest =
+    wording ?? (release && doc && [...((doc === "dpa" ? release.dpa : release.changes) ?? []), ...(release.clarified?.[doc] ?? [])]);
   const since = version ? (LEGAL_VERSIONS.find((v) => v.terms === version || v.privacy === version)?.date ?? (version === LEGAL.dpaVersion ? LEGAL.dpaSince : undefined)) : undefined;
   return (
     <div data-theme="fresh" className="min-h-screen bg-canvas text-ink">

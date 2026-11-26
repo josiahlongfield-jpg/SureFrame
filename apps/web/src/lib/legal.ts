@@ -57,12 +57,12 @@ export const LEGAL = {
    * people should agree to again, add the new version to LEGAL_VERSIONS, and keep the old text (git history,
    * and on request).
    */
-  termsVersion: "2026-10-24",
-  privacyVersion: "2026-10-24",
-  dpaVersion: "1.1",
+  termsVersion: "2026-11-26",
+  privacyVersion: "2026-11-26",
+  dpaVersion: "1.2",
   /** When the DPA's current version took effect (it has its own numbering, not the dated versions in LEGAL_VERSIONS). */
-  dpaSince: "24 October 2026",
-  updated: "24 October 2026",
+  dpaSince: "26 November 2026",
+  updated: "26 November 2026",
   /**
    * The Terms page's own "last updated" date. A change that only adds to what customers get (founding prices and
    * discount offers, 13 October 2026) isn't one to agree to again, so it keeps termsVersion and moves only this.
@@ -96,8 +96,11 @@ export const LEGAL = {
    * 24 October 2026: new version 2026-10-24 (Josiah): removing a client deletes them permanently, straight away (section 4).
    * 27 October 2026: section 24 says the extension comes from the Chrome Web Store, in Microsoft Edge too (there's no Edge
    * Add-ons listing). A correction, so it keeps termsVersion.
+   * 26 November 2026: new version 2026-11-26 (Josiah, LEGAL-1 and MAIL-10): section 18 lets a change apply sooner where
+   * that's needed for safety or the law, and section 4 says a removed client who had turned the business's emails off
+   * stays opted out if added again (a keyed marker of their address, lib/emailOptOut.ts).
    */
-  termsUpdated: "27 October 2026",
+  termsUpdated: "26 November 2026",
   /**
    * The Data Processing Agreement's own "last updated" date: "Keep me signed in" added to its security measures (17 October 2026).
    * Google sign-in taken out of its security measures, since only email sign-in links are offered, and file storage's location
@@ -124,6 +127,9 @@ export const LEGAL = {
    * emails to clients it carries. They describe what we already do, so they keep dpaVersion. Also 26 November 2026: the
    * sign-in code for connecting Claude is 8 digits, not 6 (lib/signInCodeRules.ts): a longer code, nothing taken away, so it
    * keeps dpaVersion.
+   * 26 November 2026 (later): version 1.2, with Terms and Privacy 2026-11-26: section 10 says a removed client who had
+   * turned your emails off leaves a keyed marker of their address (MAIL-10). The wording updates above went live under 1.1
+   * earlier the same day (01:09 UTC); to keep one 26 November entry, they're listed with 1.2 (LEGAL_VERSIONS `clarified`).
    */
   dpaUpdated: "26 November 2026",
   /**
@@ -179,6 +185,11 @@ export const LEGAL = {
    * carries. They describe what the app already does, so they keep privacyVersion. Also 26 November 2026: the sign-in code
    * for connecting Claude is 8 digits, not 6 (lib/signInCodeRules.ts): a longer code, nothing taken away, so it keeps
    * privacyVersion.
+   * 26 November 2026 (later): new version 2026-11-26 (Josiah, LEGAL-1 and MAIL-10): a keyed marker of a removed client's
+   * address is kept when they had turned the business's emails off, and "Changes" lets a change apply sooner where that's
+   * needed for safety or the law, as Terms section 18 does. The wording updates above went live under 2026-10-24 earlier the
+   * same day (01:09 UTC); to keep one 26 November entry, they're listed with the new version (LEGAL_VERSIONS `clarified`),
+   * with "What staff can see" (SEC-7: a sent video goes with the client's conversation), which describes what the app does.
    */
   privacyUpdated: "26 November 2026",
 };
@@ -189,6 +200,54 @@ export const LEGAL = {
  * that version, so its numbers are written out rather than read from today's settings.
  */
 export const LEGAL_VERSIONS = [
+  {
+    // Josiah, 26 November 2026 (LEGAL-1, MAIL-10): Terms section 18 lets a change apply sooner where that's needed for safety
+    // or the law, and a client's "stop emailing me" outlives their client record (lib/emailOptOut.ts). DPA 1.2 the same day.
+    terms: "2026-11-26",
+    privacy: "2026-11-26",
+    date: "26 November 2026",
+    changes: [
+      "Section 18 of the Terms, and “Changes” in the Privacy Policy: we still email you 30 days before a new version applies to you, but a change can apply sooner where that’s needed to keep people safe or to comply with the law. The email will say so.",
+      "If a client turns your emails off, we keep a scrambled marker of their email address that can’t be turned back into the address. If you remove that client and add the same address again, their emails stay off. The marker is deleted if they turn your emails back on, or with your account.",
+      "Without cloud backup, a recording or client reply whose warning email couldn’t go out in time is kept one more day, so the warning reaches you first, and never longer.",
+      "Already in effect from 26 November 2026: keeping a client’s choice to turn your emails off, because it carries out the client’s own request, and the extra day, because it only keeps a recording a little longer so you’re warned first.",
+      "We also reworded parts of the Privacy Policy and Data Processing Agreement to describe more of what we already do, such as the notifications in the app. Each change is listed on our versions page.",
+    ],
+    // Shown under the DPA's title (version 1.2); the DPA isn't agreed to on /agree, so it isn't in `changes`.
+    dpa: [
+      "Section 10: if a client you remove had turned your emails off, we keep a scrambled marker of their email address (a keyed hash, not the address), so their emails stay off if you add them again. It’s deleted if they turn your emails back on, or with your account.",
+      "Section 10: without cloud backup, a recording whose warning email couldn’t go out in time is kept one more day, never longer.",
+    ],
+    // Wording made clearer the same day, describing what we already do. Most went live as wording updates to the versions
+    // before, at 01:09 UTC that day, ahead of this version; to keep one 26 November entry they're listed here (on
+    // /legal/archive and under each document's title) instead of in WORDING_UPDATES, and summed up in one line of `changes`.
+    clarified: {
+      terms: [
+        "Section 4: a removed client is told their access has ended only if you’d sent them their link or they’d opened it.",
+        "Sections 2 and 17: a team member who left on or after 26 November 2026 and rejoins the same business with the same login gets their earlier videos and replies back under their name.",
+      ],
+      privacy: [
+        "Notifications in the app (the list behind the bell): what they hold, and that they’re deleted 30 days after you read them, or after 90 days if you never do.",
+        "Cookies: sf_signin_at, sf_joining and sf_bell are listed, and the client link cookie’s name (fc_client_<business>) is given.",
+        "Email addresses typed at sign-in are counted, like IP addresses, to limit repeated attempts, and deleted within about two days.",
+        "A removed client is deleted straight away (one line still said “removed and then deleted”), and isn’t emailed when the business has another client at the same email address, as the Terms already say.",
+        "Stripe is given your own name, not a business name, when you start a new business at checkout.",
+        "For owners and admins, the online Claude connector can also read how each team member is keeping up with their clients.",
+        "Our email provider’s entry names the emails to clients it carries: new-video emails and replacement links.",
+        "The sign-in code emailed when you connect Claude is now 8 digits long (it was 6).",
+        "What staff can see: a video, once sent, goes with the client’s conversation, so staff see their clients’ videos and conversations and their own recordings not yet sent.",
+        "The email about a day before recordings are deleted goes to the business’s team and lists clients’ video and voice replies too.",
+        "A removed client is told their access has ended only if the business had sent them their link or they’d opened it.",
+        "When a team member leaves, we keep an internal account number (not their name or email address) on what they made for the team, so it shows their name again if they rejoin with the same login; it’s removed when they rejoin or their login is deleted.",
+      ],
+      dpa: [
+        "Section 3: notifications shown in the app, kept for up to 90 days.",
+        "Annex 2: sign-in email addresses are counted for rate limits, like IP addresses, and deleted within about two days.",
+        "Annex 3: our email provider’s entry names the emails to clients it carries: new-video emails and replacement links.",
+        "Annex 2: the sign-in code emailed when someone connects Claude is now 8 digits long (it was 6).",
+      ],
+    } as Partial<Record<"terms" | "privacy" | "dpa", string[]>>,
+  },
   {
     // Josiah, 24 October 2026: removing a client deletes them permanently, straight away (lib/clientRemoval.ts), with a new version to agree to.
     // DPA 1.1 the same day: section on deletion says the same.
@@ -224,25 +283,7 @@ export const LEGAL_VERSIONS = [
  */
 export type WordingUpdate = { date: string; terms?: string[]; privacy?: string[]; dpa?: string[] };
 export const WORDING_UPDATES: WordingUpdate[] = [
-  {
-    date: "26 November 2026",
-    privacy: [
-      "Notifications in the app (the list behind the bell): what they hold, and that they’re deleted 30 days after you read them, or after 90 days if you never do.",
-      "Cookies: sf_signin_at, sf_joining and sf_bell are listed, and the client link cookie’s name (fc_client_<business>) is given.",
-      "Email addresses typed at sign-in are counted, like IP addresses, to limit repeated attempts, and deleted within about two days.",
-      "A removed client is deleted straight away (one line still said “removed and then deleted”), and isn’t emailed when the business has another client at the same email address, as the Terms already say.",
-      "Stripe is given your own name, not a business name, when you start a new business at checkout.",
-      "For owners and admins, the online Claude connector can also read how each team member is keeping up with their clients.",
-      "Our email provider’s entry names the emails to clients it carries: new-video emails and replacement links.",
-      "The sign-in code emailed when you connect Claude is now 8 digits long (it was 6).",
-    ],
-    dpa: [
-      "Section 3: notifications shown in the app, kept for up to 90 days.",
-      "Annex 2: sign-in email addresses are counted for rate limits, like IP addresses, and deleted within about two days.",
-      "Annex 3: our email provider’s entry names the emails to clients it carries: new-video emails and replacement links.",
-      "Annex 2: the sign-in code emailed when someone connects Claude is now 8 digits long (it was 6).",
-    ],
-  },
+  // The 26 November 2026 wording updates (live from 01:09 UTC that day) are listed with that day's new versions: see `clarified` in LEGAL_VERSIONS.
   {
     date: "27 October 2026",
     terms: ["Section 24: the extension is installed from the Chrome Web Store, in Microsoft Edge too."],
