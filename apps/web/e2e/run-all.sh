@@ -44,10 +44,10 @@ group() { # name, build env, server env, suite env, suites...
 # Group A: dev login, rate limits off. (ai-model needs huggingface.co for the speech model; skip it where that's blocked.)
 A="connectors account-grace agree-gate ai-assist ai-position branding-name branding bubble camera-fill camera-later client-help client-removal client-rows comp compose expiry extension first-link frames-fit free-limit fx-client fx-send fx-shell fx-site library-days library-groups link-off mic-level mobile-chat multipart page-end personal-link phone-cameras phone-inputs phone-reply planner record recorder-notes referrals rekey reminders replies reply-composer seat-pause security sendmany server-backup session-timeout sharp-stills staff-access staff-self support-console suspend team-links team video-frame leftovers-a staff-own refresh-top bell conversations send-group"
 if [ -n "${ONLY:-}" ]; then
-  group A "" "RATE_LIMITS=off UPLOAD_JOIN_BYTES=65536 AUTH_DEV_LOGIN=true" "RATE_LIMITS=off" $ONLY
+  group A "NEXT_PUBLIC_CHUNK_V2_FROM=2000-01-01T00:00:00Z" "RATE_LIMITS=off UPLOAD_JOIN_BYTES=65536 AUTH_DEV_LOGIN=true" "RATE_LIMITS=off" $ONLY
   exit 0
 fi
-group A "" "RATE_LIMITS=off UPLOAD_JOIN_BYTES=65536 AUTH_DEV_LOGIN=true" "RATE_LIMITS=off" $A
+group A "NEXT_PUBLIC_CHUNK_V2_FROM=2000-01-01T00:00:00Z" "RATE_LIMITS=off UPLOAD_JOIN_BYTES=65536 AUTH_DEV_LOGIN=true" "RATE_LIMITS=off" $A
 # Group B: billing and support need rate limits ON.
 group B "" "AUTH_DEV_LOGIN=true" "" billing support
 # Group C: founding prices are only offered while FOUNDING_ENDS is in the future.

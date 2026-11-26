@@ -4,9 +4,10 @@ import { viewerFor } from "@/lib/access";
 
 /**
  * Serves the stored recording. An encrypted one (every recording made in the browser) is never played from here: the
- * watch page downloads the whole file, decrypts it on the device and plays that copy (components/SecureMedia.tsx
- * useDecryptedUrl), so nothing seeks through this address. With object storage the request is sent on to the bucket;
- * Range requests are answered here only when files are kept on this server's own disk (development).
+ * watch page downloads it in order and decrypts it on the device, playing it as it arrives where the browser can
+ * (lib/playback.ts), otherwise once it has all arrived (components/SecureMedia.tsx). A dropped download carries on
+ * with a Range request from where it stopped. With object storage the request is sent on to the bucket, which answers
+ * ranges itself; here they're answered only when files are kept on this server's own disk (development).
  */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;

@@ -63,6 +63,11 @@ const prisma = new PrismaClient();
 const stored = await prisma.video.findUnique({ where: { id: firstUrl.split("/v/")[1].split("?")[0] }, select: { durationMs: true } });
 ok("stored length covers the whole recording after the countdown (O30)", stored?.durationMs >= 5500 && stored.durationMs <= 6000 + 3000, `${stored?.durationMs}ms for ~6000ms recorded`);
 ok("the player's length matches (O30)", !Number.isFinite(dur) || (dur >= 5.3 && dur <= 9.5), `player ${dur}s, page time ${elapsed}ms`);
+// REC-1: Chromium plays it as it loads (MediaSource), rather than downloading it all first.
+ok("plays as it loads", (await page.getAttribute("main video", "data-playback")) === "stream");
+// REC-14: a new recording's chunks carry their place in it (the top bit of each frame's length, lib/e2e/crypto.ts).
+const firstByte = await page.evaluate(async (u) => new Uint8Array(await (await fetch(u)).arrayBuffer())[0], `/api/videos/${firstUrl.split("/v/")[1].split("?")[0]}/stream`);
+ok("new recordings use the position-bound chunk format", firstByte >= 0x80, String(firstByte));
 await prisma.$disconnect();
 await page.fill('textarea[aria-label="Reply"]', "Looks great, ship it");
 await page.click("button:has-text('Send reply')");

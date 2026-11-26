@@ -107,6 +107,10 @@ await client.waitForSelector("text=/Recording · \\d/");
 await client.waitForTimeout(3000);
 await client.click("button:has-text('Stop recording')");
 await client.click("button:has-text('Send voice reply')");
+// A voice reply is a play button until it's tapped: nothing of it is downloaded before then (REC-11).
+await client.waitForSelector("aside ul [data-testid=reply-audio-load]:not([disabled])", { timeout: 30000 });
+console.log("voice reply not downloaded until tapped:", (await client.locator("aside ul audio").count()) === 0);
+await client.click("aside ul [data-testid=reply-audio-load]");
 await client.waitForSelector("aside ul audio", { timeout: 30000 });
 console.log("voice reply duration", await client.$eval("aside ul audio", finiteDuration));
 
@@ -154,7 +158,7 @@ await coach.waitForSelector("aside ul >> text=Felt strong this week!");
 await coach.fill('textarea[aria-label="Reply"]', "Great work Sam.");
 await coach.click("button:has-text('Send reply')");
 await coach.waitForSelector("aside ul >> text=Great work Sam.");
-await coach.waitForFunction(() => document.querySelectorAll("aside ul audio").length === 1 && document.querySelectorAll("aside ul [data-testid=reply-video-still]").length === 2, null, { timeout: 20000 });
+await coach.waitForFunction(() => document.querySelectorAll("aside ul [data-testid=reply-audio-load]").length === 1 && document.querySelectorAll("aside ul [data-testid=reply-video-still]").length === 2, null, { timeout: 20000 });
 console.log("coach sees all replies decrypted");
 await coach.screenshot({ path: `${shots}/reply-coach.png` });
 

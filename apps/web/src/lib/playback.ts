@@ -28,8 +28,10 @@ const baseType = (mimeType: string) => mimeType.split(";")[0].trim();
 
 /** Refused by the server: deleted ("expired"), or not this viewer's to open ("unavailable"). Not worth retrying. */
 export class PlaybackRefused extends Error {
-  constructor(readonly reason: "expired" | "unavailable") {
+  readonly reason: "expired" | "unavailable";
+  constructor(reason: "expired" | "unavailable") {
     super(reason);
+    this.reason = reason;
   }
 }
 

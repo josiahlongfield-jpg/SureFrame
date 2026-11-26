@@ -102,13 +102,15 @@ export async function decryptBytes(sealed: string, key: CryptoKey) {
  * retried and joined without the server understanding them.
  *
  * Two kinds, and a file is all one or the other:
- * - position-bound (every recording made from 26 November 2026): the length's top bit is set, and each chunk is
+ * - position-bound (every recording made from 3 December 2026, see POSITIONED_FROM): the length's top bit is set, and each chunk is
  *   sealed with its place in the recording (0, 1, 2 ...) as authenticated data, so a chunk moved, repeated or taken
  *   out by anyone holding the stored file no longer opens where it ends up;
  * - the first kind (recordings made before then), with no position: still read exactly as before.
  * A cut-off end can't be told from a recording that stopped there (the server finishes interrupted ones as they are).
  */
 const POSITIONED = 0x80000000;
+/** When new recordings start being position-bound: a week after the reader shipped (tests set it earlier). */
+const POSITIONED_FROM = Date.parse(process.env.NEXT_PUBLIC_CHUNK_V2_FROM || "2026-12-03T00:00:00Z");
 const CHUNK_LABEL = new TextEncoder().encode("sureframe recording chunk v2 #");
 
 function chunkAad(index: number) {
@@ -134,11 +136,14 @@ export async function encryptFrame(chunk: Blob | Uint8Array, key: CryptoKey, ind
  * they're given, one at a time, and a chunk that fails to seal uses up no place (so what follows still opens).
  */
 export function frameSealer(key: CryptoKey) {
+  // Before POSITIONED_FROM new recordings still use the first kind, so a tab left open from before the release
+  // (or a rollback to it) can open everything made until then; from then on every new recording is position-bound.
+  const positioned = !(Date.now() < POSITIONED_FROM);
   let next = 0;
   let queue: Promise<unknown> = Promise.resolve();
   return (chunk: Blob | Uint8Array): Promise<Uint8Array> => {
     const run = queue.then(async () => {
-      const frame = await encryptFrame(chunk, key, next);
+      const frame = await encryptFrame(chunk, key, positioned ? next : undefined);
       next++;
       return frame;
     });

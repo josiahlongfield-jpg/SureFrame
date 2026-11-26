@@ -185,7 +185,8 @@ ok("deletion note: one short line, the detail in How this works (C13)", /^End-to
 ok("How this works: keeping a copy, and replying after the date", how.includes("Can I keep a copy?") && how.includes("You can still reply after that date."), how);
 ok("How this works: no '#k=' for clients (C47)", !how.includes("#k=") && how.includes("the whole link from their message"), how);
 ok("client: the page says who it's for (S17)", (await phone.textContent("[data-testid=video-for]")) === "For Client A");
-ok("client: download names the business and title", (await phone.getAttribute("a:has-text('Save to device')", "download"))?.startsWith("Business A - Week 1 plan"));
+// A link with the file's name, or (while the video plays as it loads, REC-1) a button that makes the file when pressed.
+ok("client: download names the business and title", (await phone.getAttribute("[data-testid=save-to-device]", "data-file"))?.startsWith("Business A - Week 1 plan"));
 ok("no floating button over the video, title or reactions", !(await phone.isVisible("[data-testid=chat-bubble]")));
 
 // Decision 10: an untitled video (still the date-made default) reads "A video from Business A" to the client, on the

@@ -1062,6 +1062,7 @@ function WatchBody({
                 onClick={() => void saveStreamed()}
                 disabled={saving || saveFile === "writing"}
                 data-testid="save-to-device"
+                data-file={saveName}
                 title={isWebm ? "Saves as a .webm file. Some iPhones and iPads can't play these; a computer can." : undefined}
                 className="rounded-xl border border-line-strong px-4 py-2 text-sm text-muted hover:bg-hover disabled:cursor-wait"
               >
@@ -1077,6 +1078,7 @@ function WatchBody({
                 }}
                 download={saveName}
                 data-testid="save-to-device"
+                data-file={saveName}
                 title={isWebm ? "Saves as a .webm file. Some iPhones and iPads can't play these; a computer can." : undefined}
                 className="rounded-xl border border-line-strong px-4 py-2 text-sm text-muted hover:bg-hover"
               >
