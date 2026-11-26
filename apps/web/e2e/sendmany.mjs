@@ -176,7 +176,7 @@ await owner.waitForSelector("text=Ben's private reply");
 ok("team sees Ben's reply in his conversation", await owner.isVisible("text=See the original"));
 await staff.goto(BASE + "/library?show=mine");
 // Staff see their clients' copies, not the original (another client's conversation).
-ok("staff's library shows the copy sent to their client, not the original", (await staff.locator(`a[href="/v/${benCopy.id}"]`).count()) === 1 && (await staff.locator(`a[href="/v/${videoId}"]`).count()) === 0);
+ok("staff's library shows the copy sent to their client, not the original", (await staff.locator(`a[href="/v/${benCopy.id}"]`).count()) === 1 && (await staff.locator(`a[href="/v/${videoId}"]`).count()) === 0, JSON.stringify({ ben: benCopy.id, original: videoId, url: staff.url(), links: await staff.$$eval('a[href^="/v/"]', (as) => as.map((a) => a.getAttribute("href"))), text: (await staff.textContent("main")).slice(0, 700) }));
 await owner.goto(BASE + "/library");
 ok("library lists the recording once", (await owner.locator(`a[href^="/v/"]`).count()) === 1);
 

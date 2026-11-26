@@ -30,19 +30,17 @@ const measure = (sel) => {
   const r = v.getBoundingClientRect();
   return { video: v.videoWidth / v.videoHeight, frame: box.width / box.height, box: r.width / r.height, wide: box.width <= document.documentElement.clientWidth + 1 };
 };
-// Waits for the frame to settle on the video's shape; on timeout, reports what's there.
-const shape = (page, selector) =>
-  page
-    .waitForFunction(
-      ([sel, src]) => {
-        const m = new Function(`return (${src})`)()(sel);
-        return m && Math.abs(m.frame - m.video) / m.video < 0.02 ? m : null;
-      },
-      [selector, measure.toString()],
-      { timeout: 15000 },
-    )
-    .then((h) => h.jsonValue())
-    .catch(() => page.evaluate(([sel, src]) => new Function(`return (${src})`)()(sel), [selector, measure.toString()]));
+// Waits for the frame to settle on the video's shape; on timeout, reports what's there. Polled from here rather than
+// with waitForFunction, whose string form needs eval, which the site's script policy refuses.
+const shape = async (page, selector) => {
+  let m = null;
+  for (let i = 0; i < 75; i++) {
+    m = await page.evaluate(measure, selector).catch(() => null);
+    if (m && Math.abs(m.frame - m.video) / m.video < 0.02) return m;
+    await page.waitForTimeout(200);
+  }
+  return m;
+};
 const fills = (s) => Math.abs(s.frame - s.video) / s.video < 0.02 && Math.abs(s.box - s.frame) / s.frame < 0.02;
 
 const ctx = await browser.newContext({ permissions: ["camera", "microphone"], viewport: { width: 1360, height: 900 } });

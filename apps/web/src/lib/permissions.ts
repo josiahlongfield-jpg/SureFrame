@@ -81,7 +81,13 @@ export function libraryWhere(a: Access): Prisma.VideoWhereInput {
     NOT: deletedClientsOnly,
     OR: [
       { sourceId: null, ...original },
-      { sourceId: { not: null }, client: { assignedToId: a.userId }, source: { NOT: original } },
+      // Its original isn't one they can open. Written out rather than as NOT(original): in SQL a client with no
+      // one assigned makes NOT(...) unknown, which would hide the copy.
+      {
+        sourceId: { not: null },
+        client: { assignedToId: a.userId },
+        source: { OR: [{ clientId: null, ownerId: { not: a.userId } }, { client: { OR: [{ assignedToId: null }, { assignedToId: { not: a.userId } }] } }] },
+      },
     ],
   };
 }

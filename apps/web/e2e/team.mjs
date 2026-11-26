@@ -315,7 +315,7 @@ const asFormer = async () => {
 };
 const gone = await asFormer();
 ok("their recordings and reply move to the owner as a former team member's, noting who they were (WB-20)",
-  [gone.d, gone.v].every((x) => x.ownerId === ownerId && !!x.formerStaffAt && x.formerOwnerId === staffUser.id) && gone.r.authorUserId === ownerId && !!gone.r.formerStaffAt && gone.r.formerAuthorId === staffUser.id, JSON.stringify(gone));
+  [gone.d, gone.v].every((x) => x.ownerId === ownerId && !!x.formerStaffAt && x.formerOwnerId === staffUser.id) && gone.r.authorUserId === ownerId && !!gone.r.formerStaffAt && gone.r.formerAuthorId === staffUser.id, JSON.stringify(gone, (k, v) => (typeof v === "bigint" ? Number(v) : v)));
 await staff.goto(BASE + "/clients");
 // With no team left they are sent on to /start; let that finish so it can't interrupt the next page load.
 await staff.waitForURL(/\/start/, { timeout: 15000 }).catch(() => null);
@@ -338,7 +338,7 @@ await staff.click("text=Join the team");
 ok("the removed person rejoins with the same login", !!(await staff.waitForURL((u) => u.pathname === "/library", { timeout: 15000 }).then(() => true, () => false)) && !!(await prisma.membership.findFirst({ where: { workspaceId, userId: staffUser.id } })));
 const back = await asFormer();
 ok("rejoining puts their recordings and reply back under their name (WB-20)",
-  [back.d, back.v].every((x) => x.ownerId === staffUser.id && !x.formerStaffAt && !x.formerOwnerId) && back.r.authorUserId === staffUser.id && !back.r.formerStaffAt && !back.r.formerAuthorId, JSON.stringify(back));
+  [back.d, back.v].every((x) => x.ownerId === staffUser.id && !x.formerStaffAt && !x.formerOwnerId) && back.r.authorUserId === staffUser.id && !back.r.formerStaffAt && !back.r.formerAuthorId, JSON.stringify(back, (k, v) => (typeof v === "bigint" ? Number(v) : v)));
 const backVideos = (await (await staff.request.get(BASE + "/api/videos")).json()).videos.map((v) => v.id);
 ok("their library has the recording they never sent again", backVideos.includes(staffDraft.id));
 ok("but not the one sent to Avery, who is unassigned now (SEC-7)", !backVideos.includes(staffSent.id) && (await staff.request.get(`${BASE}/api/videos/${staffSent.id}`)).status() === 404);

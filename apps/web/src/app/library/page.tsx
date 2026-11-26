@@ -52,9 +52,10 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   // On a team, "Mine" is what I recorded plus anything for the clients I look after.
   // Staff start on "Mine"; owners and admins on everything.
   const mine = team && (show === "mine" || (!isManager(access) && show !== "all"));
-  const scope: Prisma.VideoWhereInput = { ...libraryWhere(access), ...(mine ? { OR: [{ ownerId: user.id }, { client: { assignedToId: user.id } }, { copies: { some: { client: { assignedToId: user.id } } } }] } : {}) };
+  // AND, not a spread: both have an OR, and a spread would let "Mine" replace what this person may see.
+  const scope: Prisma.VideoWhereInput = { AND: [libraryWhere(access), ...(mine ? [{ OR: [{ ownerId: user.id }, { client: { assignedToId: user.id } }, { copies: { some: { client: { assignedToId: user.id } } } }] }] : [])] };
   // "Deleting soon": server copies deleted within a week (no cloud backup), soonest first.
-  const soonWhere: Prisma.VideoWhereInput = { ...scope, AND: [{ purgeAt: { not: null, lte: new Date(Date.now() + 7 * 86_400_000) } }, { status: { notIn: ["EXPIRED", "RECORDING"] } }] };
+  const soonWhere: Prisma.VideoWhereInput = { AND: [scope, { purgeAt: { not: null, lte: new Date(Date.now() + 7 * 86_400_000) } }, { status: { notIn: ["EXPIRED", "RECORDING"] } }] };
   const soon = filter === "soon";
   // Client replies are found with the bell in the top menu (lib/notifications.ts), which replaced the "With replies"
   // filter (Josiah, 23 October 2026); an old link to it shows everything.
