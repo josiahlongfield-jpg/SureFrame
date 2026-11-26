@@ -313,10 +313,10 @@ export default function Page() {
       <ul>
         <li>
           Without cloud backup, the encrypted copy of a video on our servers is deleted {LEGAL.retentionDays} days after it&rsquo;s recorded (one day later if
-          our warning email couldn&rsquo;t go out first, never longer), and after that it can&rsquo;t be watched from its link. Video and voice replies follow
-          the same rule. A recording stays on the device it was made on only until its upload finishes; to keep your own copy, open the video and choose Save to
-          device. We try to email the business&rsquo;s team about a day before, listing the videos and client replies about to be deleted, but please
-          don&rsquo;t rely on that email alone.
+          our warning email couldn&rsquo;t go out first, never longer), and after that it can&rsquo;t be watched from its link. Video and voice replies are
+          deleted {LEGAL.retentionDays} days after they&rsquo;re recorded too, without the extra day. A recording stays on the device it was made on only until
+          its upload finishes; to keep your own copy, open the video and choose Save to device. We try to email the business&rsquo;s team about a day before
+          a video is deleted, listing any client replies in the same conversation due then too, but please don&rsquo;t rely on that email alone.
         </li>
         <li>
           While you record, the recording is encrypted on your device and uploaded in pieces every few seconds. If recording stops unexpectedly (for example the
@@ -514,7 +514,7 @@ export default function Page() {
       </p>
       <p>
         If a business removes you as a client, your link stops working straight away, and your details, videos, messages and shared to-dos with that business
-        are deleted for good at the same time. It can&rsquo;t be undone. If the business had sent you your link or you&rsquo;d opened it, we email you to let
+        are deleted for good at the same time. It can&rsquo;t be undone. If the business had sent you your link or a video by email, or you&rsquo;d opened it, we email you to let
         you know, unless you&rsquo;ve turned that business&rsquo;s emails off or it has another client at the same email address. If the business works with you again, they&rsquo;ll send you a new personal link. If you&rsquo;d turned its
         emails off, they stay off (see <a href="#emails-off">How long we keep it</a>).
       </p>

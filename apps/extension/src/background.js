@@ -41,6 +41,9 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   if (rec?.tabId === tabId) await chrome.storage.session.remove(["rec", "recorded"]);
 });
 
+/** How long after a tab is picked to record the browser may take to bring it to the front. */
+const RECORDED_WAIT_MS = 1500;
+
 /** When each tab's bubble last had its camera showing, by tab. */
 const showing = new Map();
 
@@ -99,11 +102,25 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       return;
     }
     case "recorded-tab":
-      // The SureFrame tab is recording a tab, and the browser brought that tab to the front when it was picked: the
-      // tab in front now is the one in the video. Only the recording's own tab can say so.
+      // A tab has just been picked to record, and the browser brings it to the front: the tab in front once it has is
+      // the one in the video. That happens a moment after the pick, so the tab is taken just after the next tab or
+      // window change, or after RECORDED_WAIT_MS if none comes (it was already in front, or it's the SureFrame tab
+      // itself). Only the recording's own tab can say so. Browsers tell extensions nothing more about a shared tab.
       void (async () => {
         const { rec } = await chrome.storage.session.get("rec");
         if (!rec?.tabId || rec.tabId !== tabId || rec.id !== msg.id) return;
+        await new Promise((done) => {
+          const settle = () => {
+            chrome.tabs.onActivated.removeListener(soon);
+            chrome.windows.onFocusChanged.removeListener(soon);
+            clearTimeout(timer);
+            done();
+          };
+          const soon = () => setTimeout(settle, 150);
+          const timer = setTimeout(settle, RECORDED_WAIT_MS);
+          chrome.tabs.onActivated.addListener(soon);
+          chrome.windows.onFocusChanged.addListener(soon);
+        });
         const win = await chrome.windows.getLastFocused().catch(() => null);
         const [tab] = win ? await chrome.tabs.query({ active: true, windowId: win.id }).catch(() => []) : [];
         if (tab?.id === undefined) return;

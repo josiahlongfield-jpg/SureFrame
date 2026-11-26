@@ -191,7 +191,8 @@ export async function exportAccount(userId: string, { wraps = false } = {}) {
       const access = { userId, workspaceId: w.id, role: m.role, perms: permsOf(m) };
       const all = seesAllClients(access);
       // Their recordings not sent to anyone, and their clients' conversations (a sent one goes with its client).
-      const theirs = { OR: [{ ownerId: userId, clientId: null }, { client: { assignedToId: userId } }] };
+      // replyToId null: a reply's media also has no client, but it belongs to its conversation (the asReply branch below).
+      const theirs = { OR: [{ ownerId: userId, clientId: null, replyToId: null }, { client: { assignedToId: userId } }] };
       const mineOnly = { OR: [...theirs.OR, { asReply: { video: theirs } }] };
       const [clients, videos, items, notices] = await Promise.all([
         db.client.findMany({

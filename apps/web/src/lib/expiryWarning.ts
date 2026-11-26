@@ -28,11 +28,11 @@ async function release(videos: { id: string; expiryWarnedAt: Date | null }[], st
 /**
  * Email once, about 24 hours before our encrypted copy of a recording is
  * deleted (no cloud backup), with the clients' video and voice replies in those
- * conversations due then (MAIL-8). Each goes to whoever can open it now: a
- * recording not sent to anyone to its recorder; a client's conversation to
- * whoever looks after that client (lib/teamNotify.ts lookingAfter: the assigned
- * staff member, else the recorder while they can still see the client, else the
- * owner), so nobody is told about a conversation they can no longer open (SEC-7). Runs from both cron jobs: the
+ * conversations listed in it (MAIL-8: never an email of replies alone). It goes
+ * to whoever recorded it while they're on the team and can still open it; once
+ * they can't (its client was given to someone else, SEC-7), to whoever looks
+ * after that client now (lib/teamNotify.ts lookingAfter, the owner when nobody
+ * does). A client's reply goes by the conversation's recorder the same way. Runs from both cron jobs: the
  * reminders job (every 5 minutes) sends it close to 24 hours ahead, and the
  * daily job catches any it missed. The purge that deletes the file runs from
  * both jobs too, soon after purgeAt. One due with no warning sent is held back a
@@ -65,14 +65,18 @@ export async function warnExpiring(now = new Date()) {
     take: 500,
   });
   // Who each one goes to (see above). Paused or suspended people, and people who have left, aren't told: the owner is.
+  // A reply media's ownerId is its conversation's recorder (api/videos/[id]/replies).
   const workspaceIds = [...new Set(due.map((v) => v.workspaceId))];
   const active = await db.membership.findMany({ where: { workspaceId: { in: workspaceIds }, ...activeMember }, select: { userId: true, workspaceId: true, role: true, seeAllClients: true } });
   const membersOf = (workspaceId: string) => active.filter((m) => m.workspaceId === workspaceId);
   const recipientOf = (v: (typeof due)[number]) => {
     const members = membersOf(v.workspaceId);
     const client = v.replyToId ? v.asReply?.video.client : v.client;
+    const recorder = members.find((m) => m.userId === v.ownerId);
+    // The recorder while they can still open it (lib/permissions.ts canSeeVideo), as before SEC-7.
+    if (recorder && (!client || recorder.role !== "MEMBER" || recorder.seeAllClients || client.assignedToId === recorder.userId)) return recorder.userId;
     if (client) return lookingAfter(members, { assignedToId: client.assignedToId, recorderId: v.ownerId }).primary?.userId ?? null;
-    return (members.find((m) => m.userId === v.ownerId) ?? members.find((m) => m.role === "OWNER"))?.userId ?? null;
+    return members.find((m) => m.role === "OWNER")?.userId ?? null;
   };
   const groups = new Map<string, { to: string | null; videos: typeof due }>();
   for (const v of due) {
@@ -85,12 +89,19 @@ export async function warnExpiring(now = new Date()) {
   /** One person's warning. `claim` says which stamp marks its recordings as warned, and whether the email went. */
   const warnGroup = async (recipient: string | null, videos: typeof due, claim: { stamp: Date; mailed: boolean }) => {
     const { workspaceId } = videos[0];
+    // Client replies only ride along with a recording this person is being warned about (MAIL-8): never on their own.
+    if (!videos.some((v) => !v.replyToId)) return;
     // Claim with a stamp of our own so a concurrent run can't send the same ones.
     const { stamp } = claim;
     await db.video.updateMany({ where: { id: { in: videos.map((v) => v.id) }, OR: [{ expiryWarnedAt: null }, { expiryWarnedAt: HELD_FOR_WARNING }] }, data: { expiryWarnedAt: stamp } });
     const claimed = new Set((await db.video.findMany({ where: { id: { in: videos.map((v) => v.id) }, expiryWarnedAt: stamp }, select: { id: true } })).map((v) => v.id));
     const mine = videos.filter((v) => claimed.has(v.id));
     if (!mine.length) return;
+    // A concurrent run took the recordings: the replies go back for an email that has one.
+    if (!mine.some((v) => !v.replyToId)) {
+      await release(mine, stamp);
+      return;
+    }
 
     const [ws, membership] = await Promise.all([
       db.workspace.findUnique({ where: { id: workspaceId } }),
@@ -140,9 +151,9 @@ export async function warnExpiring(now = new Date()) {
     const list = [...recordings.values()].sort((a, b) => a.purgeAt.getTime() - b.purgeAt.getTime());
     const replyList = [...replies.values()].sort((a, b) => a.purgeAt.getTime() - b.purgeAt.getTime());
     const n = list.length;
-    /** How many client replies are listed, and the soonest of what the subject is about (recordings first). */
+    /** How many client replies are listed, and the soonest recording, which the subject is about. */
     const k = replyList.reduce((sum, r) => sum + r.count, 0);
-    const first = n ? list[0] : replyList[0];
+    const first = list[0];
     const brand = brandOf(ws, appUrl(""));
     const backup =
       ws.plan === "FREE"
@@ -162,23 +173,13 @@ export async function warnExpiring(now = new Date()) {
       subject:
         n === 1
           ? `A recording is deleted from ${BRAND.name} in ${inHours}`
-          : n > 1
-            ? onTime
-              ? `${n} recordings are deleted from ${BRAND.name} in 24 hours`
-              : `${n} recordings are deleted from ${BRAND.name}, the first in ${inHours}`
-            : k === 1
-              ? `A client's reply is deleted from ${BRAND.name} in ${inHours}`
-              : onTime
-                ? `${k} replies from clients are deleted from ${BRAND.name} in 24 hours`
-                : `${k} replies from clients are deleted from ${BRAND.name}, the first in ${inHours}`,
+          : onTime
+            ? `${n} recordings are deleted from ${BRAND.name} in 24 hours`
+            : `${n} recordings are deleted from ${BRAND.name}, the first in ${inHours}`,
       lead:
         n === 1
           ? `Our encrypted copy of a recording ${made} is scheduled to be deleted from our servers ${about}.${k ? ` So ${k === 1 ? "is a video or voice reply" : `are ${k} video or voice replies`} from your clients.` : ""}`
-          : n > 1
-            ? `Our encrypted copies of ${n} recordings ${made} are scheduled to be deleted from our servers ${onTime ? "in about 24 hours" : `within 24 hours, the first ${about}`}.${k ? ` So ${k === 1 ? "is a video or voice reply" : `are ${k} video or voice replies`} from your clients.` : ""}`
-            : k === 1
-              ? `Our encrypted copy of a video or voice reply from your client is scheduled to be deleted from our servers ${about}.`
-              : `Our encrypted copies of ${k} video or voice replies from your clients are scheduled to be deleted from our servers ${onTime ? "in about 24 hours" : `within 24 hours, the first ${about}`}.`,
+          : `Our encrypted copies of ${n} recordings ${made} are scheduled to be deleted from our servers ${onTime ? "in about 24 hours" : `within 24 hours, the first ${about}`}.${k ? ` So ${k === 1 ? "is a video or voice reply" : `are ${k} video or voice replies`} from your clients.` : ""}`,
       lines: [
         ...list.map((r) => ({
           // Named by its title once it has one (O72's ask, for this email too); the date says which while it doesn't.
@@ -192,16 +193,10 @@ export async function warnExpiring(now = new Date()) {
         })),
       ],
       note:
-        (n
-          ? `If you or your clients still need ${n === 1 ? "it" : "them"}, open ${n === 1 ? "the recording" : "each recording"} and choose Save to device before then. ` +
-            `After that, ${n === 1 ? "it" : "they"} can no longer be watched from the link.${k ? ` Watch or listen to ${theReplies} before then too.` : ""}`
-          : `Watch or listen to ${theReplies} before then. After that, ${k === 1 ? "it" : "they"} can no longer be played.`) + backup,
-      button:
-        n === 1
-          ? { label: "Open the recording", link: list[0].link }
-          : n > 1
-            ? { label: "See recordings deleting soon", link: appUrl(teamPath("/library?filter=soon", ws.id)) }
-            : { label: "Open the conversation", link: replyList[0].link },
+        `If you or your clients still need ${n === 1 ? "it" : "them"}, open ${n === 1 ? "the recording" : "each recording"} and choose Save to device before then. ` +
+        `After that, ${n === 1 ? "it" : "they"} can no longer be watched from the link.${k ? ` Watch or listen to ${theReplies} before then too.` : ""}` +
+        backup,
+      button: n === 1 ? { label: "Open the recording", link: list[0].link } : { label: "See recordings deleting soon", link: appUrl(teamPath("/library?filter=soon", ws.id)) },
       footer: ws.timezone ? `Times are in your business's time zone (${dates.zone}).` : `Times are in UTC. Set your business's time zone in Settings > Account.`,
       logoUrl: brand.logoUrl,
       color: brand.color,
@@ -213,11 +208,7 @@ export async function warnExpiring(now = new Date()) {
       // In their bell too (lib/notifications.ts): the recording, or the Library's "Deleting soon" for several. The bell
       // is read days later, so it gives the time where the email's subject says "in 24 hours".
       const after = `${dates.shortDayTime(first.purgeAt)} ${dates.zoneName(first.purgeAt)}`;
-      const bell =
-        n === 1 ? `A recording is deleted from ${BRAND.name} after ${after}`
-        : n > 1 ? `${n} recordings are deleted from ${BRAND.name}, the first after ${after}`
-        : k === 1 ? `A client's reply is deleted from ${BRAND.name} after ${after}`
-        : `${k} replies from clients are deleted from ${BRAND.name}, the first after ${after}`;
+      const bell = n === 1 ? `A recording is deleted from ${BRAND.name} after ${after}` : `${n} recordings are deleted from ${BRAND.name}, the first after ${after}`;
       await notify([{ userId: membership.userId, workspaceId, kind: "EXPIRING", text: bell, href: n > 1 ? "/library?filter=soon" : new URL(first.link).pathname }]);
     } catch (err) {
       // Release them so the next run tries again.

@@ -80,8 +80,8 @@ export function bubbleRecording(
       send();
     },
     /**
-     * A tab is being recorded and is in front now: the extension notes which one, and from then on says whether the
-     * bubble is showing on it. Older versions don't know this message and carry on as before.
+     * A tab has just been picked to record: the extension notes the tab the browser brings to the front for it, and
+     * from then on says whether the bubble is showing on it. Older versions don't know this message and carry on as before.
      */
     recordedTab() {
       if (!ended) post({ type: "recorded-tab", id: rec.id });

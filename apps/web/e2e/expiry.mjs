@@ -2,8 +2,9 @@
 // is deleted (in the viewer's time zone), "Saved to cloud backup" or "Deleted
 // from our servers", and a "Deleting soon" filter (within 7 days, soonest
 // first, only what this person may see). The reminders job emails each
-// recorder once, ~24 hours ahead, grouped into one email, naming each by its title,
-// with their clients' video and voice replies due then as a line per conversation (MAIL-8),
+// recorder once (or, once they can no longer open it, whoever looks after its client now: SEC-7), ~24 hours ahead,
+// grouped into one email, naming each by its title, with their clients' video and voice replies due then as a line per
+// conversation (MAIL-8; replies alone get no email, and are never held a day),
 // and never for cloud-backup workspaces, the team's own replies or already-deleted copies.
 // One due with no warning sent is kept one more day so the warning goes first, once (MAIL-3).
 //
@@ -193,6 +194,27 @@ const mid2 = outbox().length;
 await cron();
 const late = outbox().slice(mid2).filter((x) => x.to === ownerEmail);
 ok("a video newly inside the window is warned separately", late.length === 1 && late[0].subject === "A recording is deleted from SureFrame in 24 hours" && late[0].text.includes(`/v/${in3days.id}`));
+
+// ---- MAIL-8: a client's replies only ride along with a recording's warning: never an email of their own ----
+const conv2 = await vid("cv2", { purgeAt: new Date(now + 15 * D), createdAt: new Date(now - 15 * D), clientId: client.id });
+const lone = await vid("lr", { purgeAt: new Date(Date.now() + 20 * H), replyToId: conv2.id, title: `Lone reply ${stamp}` });
+await prisma.reply.create({ data: { kind: "VIDEO", authorName: `Ana ${stamp}`, videoId: conv2.id, mediaId: lone.id, byClient: true } });
+const mid4 = outbox().length;
+await cron();
+const after4 = outbox().slice(mid4);
+ok("client replies alone: no email (MAIL-8)", !after4.some((x) => x.text.includes(`/v/${conv2.id}`) || /repl/i.test(x.subject)), JSON.stringify(after4.map((x) => x.subject)));
+ok("client replies alone: no bell line, and not marked warned", !(await prisma.video.findUnique({ where: { id: lone.id } })).expiryWarnedAt && (await prisma.notification.count({ where: { workspaceId, kind: "EXPIRING", text: { contains: "repl" } } })) === 0);
+await prisma.video.update({ where: { id: lone.id }, data: { purgeAt: new Date(Date.now() - 60_000) } });
+await cron("purge");
+ok("a client's reply is never held a day for a warning that can't come (MAIL-3)", (await prisma.video.findUnique({ where: { id: lone.id } })).status === "EXPIRED");
+
+// SEC-7: the owner's own recording for a staff member's client is still the owner's to be warned about (they can open it).
+const ownerToCy = await vid("oc", { purgeAt: new Date(Date.now() + 23.5 * H), clientId: movedClient.id });
+const mid5 = outbox().length;
+await cron();
+const after5 = outbox().slice(mid5);
+ok("an owner's recording sent to a staff member's client warns the owner, not the staff member (SEC-7)",
+  after5.some((x) => x.to === ownerEmail && x.text.includes(`/v/${ownerToCy.id}`)) && !after5.some((x) => x.to === staff2Email), JSON.stringify(after5.map((x) => [x.to, x.subject])));
 
 // ---- MAIL-3: due with no warning sent (jobs paused, a hold lifted, email down): kept one more day, warned first ----
 const unwarned = await vid("uw", { purgeAt: new Date(Date.now() - 2 * H) });

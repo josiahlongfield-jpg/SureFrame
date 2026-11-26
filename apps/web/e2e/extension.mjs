@@ -623,12 +623,21 @@ await rec.evaluate(() => {
     const t = s.getVideoTracks()[0];
     const settings = t.getSettings.bind(t);
     t.getSettings = () => ({ ...settings(), displaySurface: "browser" });
+    window.__picked = true;
     return s;
   };
 });
 await rec.click("text=Start recording");
+// As the browser would: the picked tab comes to the front the moment it's picked.
+await rec.waitForFunction(() => window.__picked, null, { timeout: 20000 });
+await plain.bringToFront();
+// Switching to another tab during the countdown doesn't change which tab is being recorded.
 await rec.waitForSelector("[data-testid=countdown-note]", { timeout: 20000 });
-// As the browser would: the picked tab comes to the front during the countdown.
+await rec.waitForTimeout(1800);
+const other = await ctx.newPage();
+await other.goto(SITE + "/plain");
+await other.bringToFront();
+await other.close();
 await plain.bringToFront();
 await rec.waitForSelector("text=/Recording · \\d/", { timeout: 20000 });
 await plain.waitForSelector("#sureframe-bubble-frame", { timeout: 10000 }).catch(() => {});

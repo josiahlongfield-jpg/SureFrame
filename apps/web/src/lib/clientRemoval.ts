@@ -128,12 +128,14 @@ export async function deleteClient(workspace: Workspace, id: string, actorId: st
 
 /**
  * Not when they turned the business's emails off, or someone else on the list uses the address (they haven't lost
- * anything), nor when they never heard from the business: their personal link was never sent (copied or shared) or
- * opened, as when a client added with a mistyped address is deleted straight away (MAIL-9).
+ * anything), nor when they never heard from the business: their personal link was never sent (copied, shared or
+ * emailed with a video) or opened, as when a client added with a mistyped address is deleted straight away (MAIL-9).
  */
 type Emailable = { id: string; email: string | null; remindersOff: boolean; linkSentAt: Date | null; linkOpenedAt: Date | null };
 async function willBeEmailed(workspaceId: string, c: Emailable) {
-  if (!c.email || c.remindersOff || !(c.linkSentAt || c.linkOpenedAt)) return false;
+  if (!c.email || c.remindersOff) return false;
+  // Heard from the business: their link copied or shared, opened, or a video emailed to them by SureFrame.
+  if (!(c.linkSentAt || c.linkOpenedAt) && !(await db.video.count({ where: { clientId: c.id, emailedAt: { not: null } } }))) return false;
   return !(await db.client.count({ where: { workspaceId, removedAt: null, id: { not: c.id }, email: { equals: c.email, mode: "insensitive" } } }));
 }
 

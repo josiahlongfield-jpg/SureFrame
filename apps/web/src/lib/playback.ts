@@ -58,9 +58,13 @@ export function streamableType(mimeType: string, durationMs: number | null): str
   }
 }
 
+/** Tries in a row that brought nothing new before the download gives up (about half a minute, with the pauses). */
+const MAX_TRIES = 5;
+
 /**
  * Downloads `url` in order, handing each piece to `take` (which may wait, holding the download back). A dropped
- * connection carries on from where it stopped (a range request), after a pause, for as long as the page is open.
+ * connection carries on from where it stopped (a range request), after a pause. After MAX_TRIES in a row that bring
+ * nothing new it gives up with an error: playback then falls back to the whole file, and a save fails as usual.
  */
 async function download(url: string, signal: AbortSignal, take: (bytes: Uint8Array) => Promise<void>) {
   let at = 0;
@@ -90,7 +94,6 @@ async function download(url: string, signal: AbortSignal, take: (bytes: Uint8Arr
               break;
             }
             if (part.done) return;
-            tries = 0;
             let bytes = part.value;
             if (skip) {
               if (bytes.length <= skip) {
@@ -100,6 +103,8 @@ async function download(url: string, signal: AbortSignal, take: (bytes: Uint8Arr
               bytes = bytes.subarray(skip);
               skip = 0;
             }
+            // Something new arrived: the count of tries starts again.
+            if (bytes.length) tries = 0;
             at += bytes.length;
             await take(bytes);
           }
@@ -108,8 +113,9 @@ async function download(url: string, signal: AbortSignal, take: (bytes: Uint8Arr
         }
       }
     }
-    // 1s, 2s, 4s ... capped at 30s, as uploads do.
-    await sleep(Math.min(30_000, 1000 * 2 ** Math.min(tries++, 5)));
+    if (++tries >= MAX_TRIES) throw new Error("The download kept stopping");
+    // 1s, 2s, 4s, 8s between tries.
+    await sleep(1000 * 2 ** (tries - 1));
     if (signal.aborted) throw new DOMException("Stopped", "AbortError");
   }
 }
@@ -194,18 +200,27 @@ export function streamRecording(url: string, key: CryptoKey, type: string, durat
 
     const onError = () => giveUp(on.fallback);
     el.addEventListener("error", onError);
-    // What the player is missing at the playhead: a small hole is stepped over; one that the download has already
-    // gone past (a seek back to a part the browser let go of) means starting the download again.
+    // What the player is missing at the playhead. Before everything it holds (a seek back to a part the browser let
+    // go of): the download starts again from the beginning, unless that's just been done for this spot, which means it
+    // isn't working here (whole file instead). Between two parts it holds (a hole in the recording itself, or one the
+    // browser made), or a small gap at the start: stepped over.
+    let restartedAt: number | null = null;
     const check = () => {
-      if (stopped || restart || source.readyState === "closed" || (!el.seeking && el.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA)) return;
+      if (stopped || restart || source.readyState === "closed") return;
+      if (restartedAt !== null && el.currentTime > restartedAt + 10) restartedAt = null;
+      if (!el.seeking && el.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return;
       try {
         const t = el.currentTime;
         const b = sb.buffered;
         for (let i = 0; i < b.length; i++) {
           if (b.start(i) <= t + 0.05 && t < b.end(i)) return;
           if (b.start(i) > t) {
-            if (b.start(i) - t <= SMALL_GAP_S) el.currentTime = b.start(i) + 0.01;
-            else startAgain();
+            if (i > 0 || b.start(i) - t <= SMALL_GAP_S) el.currentTime = b.start(i) + 0.01;
+            else if (restartedAt !== null && Math.abs(t - restartedAt) < 1) giveUp(on.fallback);
+            else {
+              restartedAt = t;
+              startAgain();
+            }
             return;
           }
         }
@@ -357,15 +372,19 @@ export async function fetchWhole(url: string, key: CryptoKey, mimeType: string) 
   return { blob: new Blob(parts as BlobPart[], { type: baseType(mimeType) }), cut: !!parts.cut };
 }
 
-/** Saves the whole recording as a download, the way the page always has (it's held in memory while it's made). */
+/**
+ * Saves the whole recording as a download, the way the page always has (it's held in memory while it's made).
+ * True when part of it didn't open in order, so the saved copy stops early.
+ */
 export async function saveWhole(url: string, key: CryptoKey, mimeType: string, name: string) {
-  const { blob } = await fetchWhole(url, key, mimeType);
+  const { blob, cut } = await fetchWhole(url, key, mimeType);
   const href = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement("a"), { href, download: name });
   document.body.append(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(href), 60_000);
+  return cut;
 }
 
 type SavePicker = (options: { suggestedName: string; types?: { description: string; accept: Record<string, string[]> }[] }) => Promise<FileSystemFileHandle>;
@@ -378,7 +397,7 @@ export const canSaveToFile = () => typeof savePicker() === "function";
  * Asks where to save, then downloads, decrypts and writes the recording there piece by piece. Call it straight from
  * the tap (the browser only shows its save box then). "cancelled": they closed the save box.
  */
-export async function saveToFile(url: string, key: CryptoKey, mimeType: string, name: string): Promise<"saved" | "cancelled"> {
+export async function saveToFile(url: string, key: CryptoKey, mimeType: string, name: string): Promise<"saved" | "cut" | "cancelled"> {
   const pick = savePicker();
   if (!pick) throw new Error("Not supported");
   let handle: FileSystemFileHandle;
@@ -396,7 +415,8 @@ export async function saveToFile(url: string, key: CryptoKey, mimeType: string, 
     });
     reader.finish();
     await file.close();
-    return "saved";
+    // Part of it didn't open in order: what came before is saved, and the caller says it stops early.
+    return reader.cut ? "cut" : "saved";
   } catch (err) {
     await file.abort().catch(() => {});
     throw err;

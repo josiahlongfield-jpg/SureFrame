@@ -50,8 +50,8 @@ export default function Page() {
               </ul>
               {v.clarified && (
                 <>
-                  Also on {v.date}, wording made clearer to describe what we already do (most of it published earlier that day, before this
-                  version):
+                  Also on {v.date}, wording added or made clearer, including how a few things now work (most of it published earlier that day,
+                  before this version):
                   <ul data-testid={`clarified-${v.terms}`}>
                     {(["terms", "privacy", "dpa"] as const).flatMap((doc) =>
                       (v.clarified?.[doc] ?? []).map((line) => (

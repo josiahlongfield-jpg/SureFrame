@@ -209,19 +209,21 @@ export class ChunkedUploader {
     try {
       await withRetry(() => sendFinish(this.videoId, durationMs, this.headers), (r) => this.emit(r));
     } catch (err) {
-      throw (await this.closedBy(err)) ? new FatalUploadError(FINISHED_ELSEWHERE, 409, true) : err;
+      throw (await this.closedBy(err, true)) ? new FatalUploadError(FINISHED_ELSEWHERE, 409, true) : err;
     }
     await store.removeSession(this.videoId).catch(this.lostLocalCopy);
   }
 
   /**
    * Whether this refusal means the server had already finished the recording from its own copy. A piece is refused
-   * with 409 then; a reply's with 404, as its upload token is cleared once it's finished, so the server is asked.
+   * with 409 then; a reply's with 404, as its upload token is cleared once it's finished, so the server is asked. The
+   * finish call's own 409 ("Nothing was recorded") isn't that, so for `finishing` the server is asked about a 409 too.
    */
-  private async closedBy(err: unknown) {
+  private async closedBy(err: unknown, finishing = false) {
     if (!(err instanceof FatalUploadError)) return false;
-    if (err.status === 409) return true;
-    return err.status === 404 && !!this.headers["x-upload-token"] && (await finishedOnServer(this.videoId));
+    if (err.status === 409 && !finishing) return true;
+    const ask = err.status === 409 || (err.status === 404 && !!this.headers["x-upload-token"]);
+    return ask && (await finishedOnServer(this.videoId));
   }
 
   private lostLocalCopy = (err: unknown) => {

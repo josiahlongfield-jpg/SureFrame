@@ -44,9 +44,10 @@ export async function purgeExpired(now = new Date(), budgetMs = 40_000) {
   let purged = 0;
   // Due, but its 24-hour warning never went (the jobs were paused for maintenance, a legal hold was just lifted, or
   // the email kept failing): kept one more day so the warning goes first (MAIL-3). Only once: one already held is
-  // deleted on its new date, warned or not, so nothing stays more than a day past its date. Nothing else is held.
+  // deleted on its new date, warned or not, so nothing stays more than a day past its date. Nothing else is held, nor
+  // is a client's reply: it's only ever listed in a recording's warning, which may never come (MAIL-8).
   await db.video.updateMany({
-    where: { AND: [warnable, { purgeAt: { lte: now }, expiryWarnedAt: null }] },
+    where: { AND: [warnable, { replyToId: null, purgeAt: { lte: now }, expiryWarnedAt: null }] },
     data: { purgeAt: new Date(now.getTime() + 86_400_000), expiryWarnedAt: HELD_FOR_WARNING },
   });
   while (Date.now() < until) {

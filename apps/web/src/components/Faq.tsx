@@ -29,7 +29,7 @@ export const BUSINESS_FAQ: Qa[] = [
         </p>
         <p>
           Cloud backup (US${CLOUD_BACKUP_PRICE} a month, or US${CLOUD_BACKUP_PRICE_YEARLY} a year on yearly billing, on paid plans) keeps our encrypted copies until you delete them. To keep your own copy, open a video and
-          choose Save to device. We try to email whoever recorded a video about a day before it&rsquo;s deleted, but please don&rsquo;t rely on that email alone.
+          choose Save to device. We try to email whoever recorded a video about a day before it&rsquo;s deleted (or whoever looks after its client now, if they can no longer open it), but please don&rsquo;t rely on that email alone.
         </p>
       </>
     ),

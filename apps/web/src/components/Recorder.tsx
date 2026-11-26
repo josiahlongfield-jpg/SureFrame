@@ -465,8 +465,6 @@ export default function Recorder({
     // With the extension, its bubble and bar on every web page instead of the browser's floating window.
     const ext = mode !== "camera" && extension ? bubbleLink : null;
     let health: (h: BubbleHealth) => void = () => {};
-    // A tab is shared with the extension's bubble on: which one is told to the extension when recording starts.
-    let tabShare = false;
     // The shared screen itself: sharing stopped before recording begins means there's nothing to record.
     let shared: MediaStreamTrack | undefined;
     // Set once the server has a video for this take, so a failed start can remove it again.
@@ -544,9 +542,11 @@ export default function Recorder({
             ext.current?.setMode("screen");
             setWindowShare(surface === "window" ? "window" : "screens");
           }
-          // One tab shared: the bubble is in the video only when it's showing on that tab, so the extension is told
-          // which tab it is once recording starts (lib/recorder/extension.ts recordedTab).
-          tabShare = !!ext && !barOnly && surface === "browser";
+          // One tab shared: the bubble is in the video only when it's showing on that tab. The browser brings a picked
+          // tab to the front, so the extension is told now, as soon as it's picked, to note the tab that comes to the
+          // front (lib/recorder/extension.ts recordedTab), before the countdown leaves time to switch to another.
+          const tabShare = !!ext && !barOnly && surface === "browser";
+          if (tabShare) ext?.current?.recordedTab();
           const c = composeCamera(
             video,
             camTrack,
@@ -694,9 +694,6 @@ export default function Recorder({
       live.current.started = true;
       live.current.startedAt = performance.now();
       tellBubble();
-      // The browser brings a shared tab to the front once it's picked, so by now (after the countdown) the tab in front
-      // is the one being recorded.
-      if (tabShare) ext?.current?.recordedTab();
       setPhase("recording");
       // The library still, from a moment into the recording; if this misses, opening the video makes one.
       const still = video;

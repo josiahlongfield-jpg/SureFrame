@@ -189,7 +189,9 @@ export const LEGAL = {
    * address is kept when they had turned the business's emails off, and "Changes" lets a change apply sooner where that's
    * needed for safety or the law, as Terms section 18 does. The wording updates above went live under 2026-10-24 earlier the
    * same day (01:09 UTC); to keep one 26 November entry, they're listed with the new version (LEGAL_VERSIONS `clarified`),
-   * with "What staff can see" (SEC-7: a sent video goes with the client's conversation), which describes what the app does.
+   * with lines on how a few things now work from that day: "What staff can see" (SEC-7: a sent video goes with the client's
+   * conversation), the deletion warning (MAIL-8), who is told a removal (MAIL-9) and rejoining staff (WB-20); and, in
+   * `changes`, recordings kept a day longer when their warning couldn't go first (MAIL-3).
    */
   privacyUpdated: "26 November 2026",
 };
@@ -209,21 +211,23 @@ export const LEGAL_VERSIONS = [
     changes: [
       "Section 18 of the Terms, and “Changes” in the Privacy Policy: we still email you 30 days before a new version applies to you, but a change can apply sooner where that’s needed to keep people safe or to comply with the law. The email will say so.",
       "If a client turns your emails off, we keep a scrambled marker of their email address that can’t be turned back into the address. If you remove that client and add the same address again, their emails stay off. The marker is deleted if they turn your emails back on, or with your account.",
-      "Without cloud backup, a recording or client reply whose warning email couldn’t go out in time is kept one more day, so the warning reaches you first, and never longer.",
+      "Without cloud backup, a recording whose warning email couldn’t go out in time is kept one more day, so the warning reaches you first, and never longer.",
       "Already in effect from 26 November 2026: keeping a client’s choice to turn your emails off, because it carries out the client’s own request, and the extra day, because it only keeps a recording a little longer so you’re warned first.",
-      "We also reworded parts of the Privacy Policy and Data Processing Agreement to describe more of what we already do, such as the notifications in the app. Each change is listed on our versions page.",
+      "We also reworded parts of the Terms, Privacy Policy and Data Processing Agreement to describe more of what we do and how a few things now work, such as the notifications in the app and what staff can see. Each change is listed on our versions page.",
     ],
     // Shown under the DPA's title (version 1.2); the DPA isn't agreed to on /agree, so it isn't in `changes`.
     dpa: [
       "Section 10: if a client you remove had turned your emails off, we keep a scrambled marker of their email address (a keyed hash, not the address), so their emails stay off if you add them again. It’s deleted if they turn your emails back on, or with your account.",
-      "Section 10: without cloud backup, a recording whose warning email couldn’t go out in time is kept one more day, never longer.",
+      "Section 10: without cloud backup, a video your team recorded whose warning email couldn’t go out in time is kept one more day, never longer; replies get no extra day.",
     ],
-    // Wording made clearer the same day, describing what we already do. Most went live as wording updates to the versions
-    // before, at 01:09 UTC that day, ahead of this version; to keep one 26 November entry they're listed here (on
+    // Wording added or made clearer the same day: most describes what we already did, and some how a few things now work
+    // (SEC-7, MAIL-8, MAIL-9, WB-20, changed that day without taking anything from what account holders agree to). Most went
+    // live as wording updates to the versions before, at 01:09 UTC that day, ahead of this version; to keep one 26 November entry they're listed here (on
     // /legal/archive and under each document's title) instead of in WORDING_UPDATES, and summed up in one line of `changes`.
     clarified: {
       terms: [
-        "Section 4: a removed client is told their access has ended only if you’d sent them their link or they’d opened it.",
+        "Section 4: a removed client is told their access has ended only if you’d sent them their link or a video by email, or they’d opened it.",
+        "Section 7: video and voice replies are deleted 30 days after they’re recorded, without the extra day recordings can get.",
         "Sections 2 and 17: a team member who left on or after 26 November 2026 and rejoins the same business with the same login gets their earlier videos and replies back under their name.",
       ],
       privacy: [
@@ -236,8 +240,8 @@ export const LEGAL_VERSIONS = [
         "Our email provider’s entry names the emails to clients it carries: new-video emails and replacement links.",
         "The sign-in code emailed when you connect Claude is now 8 digits long (it was 6).",
         "What staff can see: a video, once sent, goes with the client’s conversation, so staff see their clients’ videos and conversations and their own recordings not yet sent.",
-        "The email about a day before recordings are deleted goes to the business’s team and lists clients’ video and voice replies too.",
-        "A removed client is told their access has ended only if the business had sent them their link or they’d opened it.",
+        "The email to the team about a day before a video is deleted also lists any client replies in the same conversation due then.",
+        "A removed client is told their access has ended only if the business had sent them their link or a video by email, or they’d opened it.",
         "When a team member leaves, we keep an internal account number (not their name or email address) on what they made for the team, so it shows their name again if they rejoin with the same login; it’s removed when they rejoin or their login is deleted.",
       ],
       dpa: [

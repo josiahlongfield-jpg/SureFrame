@@ -103,7 +103,7 @@ export default function Page() {
           to your device; anything you don&rsquo;t save is gone. You can add the same person again later, but they start as a new client with a new personal
           link, and nothing from before comes back, except one thing: if they&rsquo;d turned your emails off, their emails stay off. For that, we keep a
           scrambled marker of their email address, which can&rsquo;t be turned back into the address, until they turn your emails back on or your account is
-          deleted. If you&rsquo;d sent them their link or they&rsquo;d opened it, we email them that their access has ended, unless they&rsquo;ve turned
+          deleted. If you&rsquo;d sent them their link or a video by email, or they&rsquo;d opened it, we email them that their access has ended, unless they&rsquo;ve turned
           your emails off or another of your clients uses the same email address. Where the law requires you to keep records of your dealings with a client, or to tell them before deleting
           their information, that&rsquo;s your responsibility, so save what you need first. If a legal hold applies (section 9), we may finish the deletion when
           it ends; the client is removed from your account straight away either way.
@@ -208,7 +208,7 @@ export default function Page() {
       <h2>7. Storage and lost recordings</h2>
       <p>
         Without cloud backup, the encrypted copy of a video on our servers is deleted {LEGAL.retentionDays} days after it&rsquo;s recorded (one day later if
-        our warning email couldn&rsquo;t go out first, never longer), and after that it can&rsquo;t be watched from its link. Video and voice replies follow the same rule; text replies, to-dos and notes are kept until they&rsquo;re deleted. A video or
+        our warning email couldn&rsquo;t go out first, never longer), and after that it can&rsquo;t be watched from its link. Video and voice replies are deleted {LEGAL.retentionDays} days after they&rsquo;re recorded too, without the extra day; text replies, to-dos and notes are kept until they&rsquo;re deleted. A video or
         voice reply that was recorded but never sent is deleted {LEGAL.heldReplyDays} days after it was recorded, with or without cloud backup. A recording
         stays on the device it was made on only until its upload finishes. To keep your own copy, open the video and choose Save
         to device. With cloud backup, other content is kept until you delete it or your account is permanently deleted (see section 17). If cloud backup ends (you switch

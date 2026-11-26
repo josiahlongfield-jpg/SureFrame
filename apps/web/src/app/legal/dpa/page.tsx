@@ -163,8 +163,8 @@ export default function Page() {
       <h2>10. Deletion and return</h2>
       <ul>
         <li>
-          Without cloud backup, recordings are deleted from our servers {LEGAL.retentionDays} days after they&rsquo;re recorded (one day later if our warning
-          email couldn&rsquo;t go out first, never longer).
+          Without cloud backup, recordings are deleted from our servers {LEGAL.retentionDays} days after they&rsquo;re recorded. A video your team recorded is
+          kept one day longer if our warning email couldn&rsquo;t go out first, never longer; replies get no extra day.
         </li>
         <li>
           A video or voice reply that was recorded but never sent is deleted {LEGAL.heldReplyDays} days after it was recorded, with or without cloud backup.

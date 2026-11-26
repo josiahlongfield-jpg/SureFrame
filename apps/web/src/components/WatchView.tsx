@@ -811,7 +811,8 @@ function WatchBody({
 
   const [saving, setSaving] = useState(false);
   // Saving a long video straight to a file, piece by piece, while it plays as it loads (lib/playback.ts saveToFile).
-  const [saveFile, setSaveFile] = useState<null | "writing" | "saved" | "failed">(null);
+  // "cut": saved, but part of it didn't open in order, so the copy stops early (as the player says).
+  const [saveFile, setSaveFile] = useState<null | "writing" | "saved" | "cut" | "failed">(null);
   /** Save to device while the video plays as it loads: there's no whole copy on this device yet, so it's made now. */
   async function saveStreamed() {
     if (saving || saveFile === "writing") return;
@@ -823,10 +824,11 @@ function WatchBody({
     }
     setSaveFile(null);
     setSaving(true);
-    const ok = await saveWhole(video.rawUrl, rootKey, video.mimeType, saveName).then(() => true, () => false);
+    const cut = await saveWhole(video.rawUrl, rootKey, video.mimeType, saveName).catch(() => null);
     // Said under the button for long enough to be seen (O65), from when the download starts.
-    setTimeout(() => setSaving(false), ok ? 12000 : 0);
-    if (!ok) setSaveFile("failed");
+    setTimeout(() => setSaving(false), cut === null ? 0 : 12000);
+    if (cut === null) setSaveFile("failed");
+    else if (cut) setSaveFile("cut");
   }
   const titleBox = useRef<HTMLTextAreaElement>(null);
   // The title box grows with its text, so a long title wraps instead of being cut off.
@@ -1124,6 +1126,8 @@ function WatchBody({
               <>Saving &ldquo;{saveName}&rdquo;&hellip; Keep this page open until it&apos;s finished.</>
             ) : saveFile === "saved" ? (
               <>Saved &ldquo;{saveName}&rdquo; to your device.</>
+            ) : saveFile === "cut" ? (
+              <>Saved &ldquo;{saveName}&rdquo; to your device. Part of this recording couldn&apos;t be unlocked, so it stops early.</>
             ) : (
               "Couldn't save the video. Check your connection and try again."
             )}
