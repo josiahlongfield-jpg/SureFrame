@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "vercel-build": "prisma generate && if [ \"$VERCEL_ENV\" = production ]; then prisma migrate deploy; fi && next build --turbopack",
+    "vercel-build": "prisma generate && if [ \"$VERCEL_ENV\" = production ] || [ \"$VERCEL_ENV\" = preview -a \"$PREVIEW_DATABASE\" = separate ]; then prisma migrate deploy; fi && next build --turbopack",
     "postinstall": "prisma generate && node scripts/copy-ort.mjs",
     "lint": "eslint"
   },

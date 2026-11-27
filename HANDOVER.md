@@ -9,7 +9,7 @@ SureFrame (https://sureframe.app) is a private video messaging app for businesse
 These protect real customers' data. Don't break them without the owner's explicit say-so.
 
 1. **Never wipe or reset production data.** Real businesses and their clients use the live site.
-2. **Database migrations are additive only.** Add tables and columns. Don't drop or rename them in the same release that stops using them. Migrations live in `apps/web/prisma/migrations`. Make them locally with `npx prisma migrate dev`. A production deploy applies them automatically (`vercel-build` in `apps/web/package.json`); preview deploys never do.
+2. **Database migrations are additive only.** Add tables and columns. Don't drop or rename them in the same release that stops using them. Migrations live in `apps/web/prisma/migrations`. Make them locally with `npx prisma migrate dev`. A production deploy applies them automatically (`vercel-build` in `apps/web/package.json`). Preview deploys apply them only to their own test database, and only when `PREVIEW_DATABASE` is `separate` (set for Preview only in Vercel).
 3. **Don't rename anything called `framecast`.** That was the old name of the database, storage keys and browser keys. Renaming orphans recordings and keys already saved in people's browsers.
 4. **The server never sees videos, replies, notes or to-dos in plain form.** They're end-to-end encrypted in the browser (`src/lib/e2e/`). Keys stay on devices; clients get theirs in the `#k=` part of their personal link. Never add code that sends plaintext content or keys to the server, to logs or to email.
 5. **Don't change prices or plan limits** (`src/lib/plans.ts`) without the owner's decision.
@@ -53,7 +53,7 @@ Every environment variable is listed, with what it does, in `apps/web/.env.examp
 
 ## 4. Making a change safely
 
-1. Work on a branch, never directly on `main`. Every pushed branch gets a Vercel preview link. Check which database a preview uses before testing on it.
+1. Work on a branch, never directly on `main`. Every pushed branch gets a Vercel preview link. Previews use a separate test database (its own Neon store, connected to Preview only), never the live one; check that's still so before testing on one.
 2. Run the type check and linter: `cd apps/web && npx tsc --noEmit && npx eslint`.
 3. Run the test suites that cover what you changed (section 5), and the whole set before anything big.
 4. Show the owner what changed in plain words. With his go-ahead, merge to `main`. Vercel then builds and publishes the live site (it applies any new migrations first).
