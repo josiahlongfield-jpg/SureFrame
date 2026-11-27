@@ -127,7 +127,7 @@ export default function Page() {
       <h2>5. Plans, billing and cancelling</h2>
       <ul>
         <li>
-          Paid plans are subscriptions billed in advance, monthly or yearly, in US dollars, and renew automatically until cancelled. Prices are on our{" "}
+          Paid plans are subscriptions billed in advance, monthly or yearly, in US dollars, and renew automatically until cancelled. Link emails you before a yearly plan renews. Prices are on our{" "}
           <Link href="/pricing">pricing page</Link>.
         </li>
         <li>

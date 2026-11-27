@@ -100,7 +100,9 @@ export const LEGAL = {
    * that's needed for safety or the law, and section 4 says a removed client who had turned the business's emails off
    * stays opted out if added again (a keyed marker of their address, lib/emailOptOut.ts).
    */
-  termsUpdated: "26 November 2026",
+  // 27 November 2026: section 5 says Link emails before a yearly plan renews (LEGAL-5). Josiah switched Stripe's renewal
+  // reminder on that day, so the sentence describes what happens and keeps termsVersion.
+  termsUpdated: "27 November 2026",
   /**
    * The Data Processing Agreement's own "last updated" date: "Keep me signed in" added to its security measures (17 October 2026).
    * Google sign-in taken out of its security measures, since only email sign-in links are offered, and file storage's location
@@ -287,6 +289,10 @@ export const LEGAL_VERSIONS = [
  */
 export type WordingUpdate = { date: string; terms?: string[]; privacy?: string[]; dpa?: string[] };
 export const WORDING_UPDATES: WordingUpdate[] = [
+  {
+    date: "27 November 2026",
+    terms: ["Section 5: Link emails you before a yearly plan renews."],
+  },
   // The 26 November 2026 wording updates (live from 01:09 UTC that day) are listed with that day's new versions: see `clarified` in LEGAL_VERSIONS.
   {
     date: "27 October 2026",
