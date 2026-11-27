@@ -6,8 +6,10 @@ import type { NextConfig } from "next";
 const smallParts = !!process.env.VERCEL && !process.env.S3_BUCKET;
 
 // The SureFrame browser extension (apps/extension) may show its camera bubble on this site's pages too. Its ids:
-// the fixed one of the hand-loaded build, plus the store ones (EXTENSION_IDS, comma separated) once published.
-const extensionIds = ["ojanfkhiedeaimfopnodgkhjgkdapmnb", ...(process.env.EXTENSION_IDS ?? "").split(",")]
+// the store ones (EXTENSION_IDS, comma separated), plus, everywhere except the live site, the fixed one of the
+// hand-loaded build used for testing (the owner chose to stop allowing it on the live site, 27 Nov 2026).
+const handLoadedId = process.env.VERCEL_ENV === "production" ? "" : "ojanfkhiedeaimfopnodgkhjgkdapmnb";
+const extensionIds = [handLoadedId, ...(process.env.EXTENSION_IDS ?? "").split(",")]
   .map((id) => id.trim())
   .filter((id) => /^[a-p]{32}$/.test(id));
 const extensionOrigins = extensionIds.map((id) => ` "chrome-extension://${id}"`).join("");

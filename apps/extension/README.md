@@ -28,7 +28,8 @@ answering (`lib/recorder/compose.ts`).
 
 - `dist/store` and its zip: upload this zip to the Chrome Web Store and to Edge Add-ons.
 - `dist/unpacked` and its zip: load it by hand (`chrome://extensions`, Developer mode, Load unpacked). It has the
-  fixed id `ojanfkhiedeaimfopnodgkhjgkdapmnb`, which the site already allows (`apps/web/next.config.ts`).
+  fixed id `ojanfkhiedeaimfopnodgkhjgkdapmnb`, which preview and local copies of the site allow, but not the live
+  site (`apps/web/next.config.ts`). To test the hand-loaded build against the live site, use the store version instead.
 - `dist/test`: also runs on localhost, used by `apps/web/e2e/extension.mjs`.
 
 Once the stores give the extension its ids, add them to the site's `EXTENSION_IDS` setting (comma separated), so
